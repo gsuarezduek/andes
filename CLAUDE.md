@@ -69,12 +69,18 @@ npm test
 
 ## Estado actual
 
-- [~] **Fase 0 — Fundaciones y descubrimiento WP** (casi cerrada)
-  - Hecho: proyecto Next.js 16 (App Router) + TypeScript estricto + Tailwind v4 + ESLint; Prisma 6 con datasource PostgreSQL (sin modelos aún, van en Fase 1) y cliente singleton; PWA (manifest + service worker conservador + registro); i18n es/en desde día 1 (`src/lib/i18n`); helpers de zona horaria Mendoza (`src/lib/datetime.ts`); acceso tipado a env (`src/lib/env.ts`); `.env.example`. Build y lint en verde. Repo en GitHub (`gsuarezduek/andes`), Railway deploya de ahí.
-  - **Descubrimiento VikRentCar: HECHO y verificado** contra la instalación real (MariaDB 11.8.8, prefijo `wp_vikrentcar_`). Ver `docs/wordpress-mapping.md`. Hallazgos clave: `status` = confirmed/cancelled/standby; `ritiro`/`consegna`/`ts` = Unix segundos; `lang` mayormente NULL (→es); `carindex` NULL frecuente (688) → "sin unidad asignada" es caso común; **77% de las confirmed sin `customers_orders`** → fallback a `nominative`/`custmail`/`phone` obligatorio; flota ≈ **18 unidades / 14 modelos**; `orders` **sin columna de "modificado"** → sync incremental vía `orderhistory` o ventana móvil.
-  - **Nota Prisma:** se fijó Prisma **6** a propósito. Prisma 7 sacó el `url` del schema y exige driver adapters + `prisma.config.ts`; se mantiene el flujo clásico (`migrate dev`, `studio`, cliente sin adapter) que asume el brief.
-  - Pendiente para cerrar la fase: (1) propagación DNS de `andes.mdzrentacar.com` → Railway + SSL (CNAME cargado, a la espera); (2) verificar deploy en Railway y cargar variables de entorno.
-- [ ] Fase 1 — Datos y autenticación
+- [x] **Fase 0 — Fundaciones y descubrimiento WP** ✅ desplegada y verificada
+  - Proyecto Next.js 16 (App Router) + TypeScript estricto + Tailwind v4 + ESLint; Prisma 6; PWA (manifest + service worker + registro); i18n es/en desde día 1 (`src/lib/i18n`); helpers de zona horaria Mendoza (`src/lib/datetime.ts`); acceso tipado a env (`src/lib/env.ts`); `.env.example`. Repo en GitHub (`gsuarezduek/andes`).
+  - **Deploy Railway + `andes.mdzrentacar.com` con SSL: funcionando** (200, certificado válido).
+  - **Descubrimiento VikRentCar: verificado** (MariaDB 11.8.8, prefijo `wp_vikrentcar_`). Ver `docs/wordpress-mapping.md`. Claves: `status` = confirmed/cancelled/standby; `ritiro`/`consegna`/`ts` = Unix segundos; `lang` mayormente NULL (→es); `carindex` NULL frecuente → "sin unidad asignada" común; **77% de confirmed sin `customers_orders`** → fallback obligatorio; flota ≈ **18 unidades / 14 modelos**; `orders` **sin columna de "modificado"** → sync incremental vía `orderhistory` o ventana móvil.
+  - **Nota Prisma:** se fijó Prisma **6** a propósito (Prisma 7 exige driver adapters + `prisma.config.ts`; se mantiene el flujo clásico que asume el brief).
+- [~] **Fase 1 — Datos y autenticación** (construida y probada en local; falta desplegar)
+  - **Schema Prisma completo** (`prisma/schema.prisma`) con todos los modelos de §6 + enums; migración `init_core_model` aplicada. **Base de desarrollo local** (PostgreSQL 18 vía Homebrew, `andes_dev`; `DATABASE_URL` en `.env`).
+  - **Auth.js v5** (credenciales + JWT, roles admin/empleado): `src/auth.ts`, `src/auth.config.ts` (edge-safe), `src/proxy.ts` (ex-middleware, protege toda la app), login en `/login`. Helpers `requireUser`/`requireAdmin` en `src/lib/auth-helpers.ts`.
+  - **ABM de vehículos** (admin; lectura para empleados), **ABM de usuarios** (admin, con guarda anti-autobloqueo), **alquiler manual** (ambos roles, con selección opcional de vehículo y conversión Mendoza→UTC). Shell con navegación según rol. Kit de UI reutilizable en `src/components/ui`.
+  - **Seed** (`npm run db:seed`): admin + empleado (`admin@mdzrentacar.com` / `empleado@mdzrentacar.com`, pass dev `andes1234`), 11 ítems de checklist (§4.1), 18 unidades con mapeo real a VikRentCar (patentes placeholder `TEMP###`), 2 alquileres de ejemplo.
+  - Build y lint en verde; flujos verificados por HTTP (protección de rutas, login, RBAC, credenciales inválidas, listados).
+  - **Pendiente para cerrar la fase (depende del dueño):** provisionar **PostgreSQL en Railway**, setear variables (`DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_APP_URL`), correr `prisma migrate deploy` + seed, y recién ahí pushear para que el deploy live funcione.
 - [ ] Fase 2 — Flujo de entrega
 - [ ] Fase 3 — Flujo de devolución
 - [ ] Fase 4 — Dashboard y perfil de vehículo

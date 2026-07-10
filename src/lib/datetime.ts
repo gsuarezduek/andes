@@ -47,3 +47,36 @@ export function formatDate(date: Date, locale: "es" | "en" = "es"): string {
 export function fromUnixSeconds(seconds: number): Date {
   return new Date(seconds * 1000);
 }
+
+/** Offset (tz − UTC) en ms para un instante dado, calculado vía Intl. */
+function tzOffsetMs(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const p = Object.fromEntries(
+    dtf
+      .formatToParts(date)
+      .filter((x) => x.type !== "literal")
+      .map((x) => [x.type, Number(x.value)]),
+  ) as Record<string, number>;
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - date.getTime();
+}
+
+/**
+ * Interpreta un string de `datetime-local` ("YYYY-MM-DDTHH:mm") como hora de
+ * pared en Mendoza y devuelve el instante UTC correspondiente. Guardar en UTC,
+ * mostrar en local (PROYECTO-ANDES.md §7).
+ */
+export function mendozaWallTimeToUtc(wall: string): Date {
+  const naiveUtc = new Date(`${wall}:00Z`);
+  const offsetMs = tzOffsetMs(naiveUtc, APP_TIME_ZONE);
+  return new Date(naiveUtc.getTime() - offsetMs);
+}

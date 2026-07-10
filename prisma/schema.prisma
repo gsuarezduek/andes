@@ -1,12 +1,10 @@
 // Andes — Prisma schema
 //
-// Phase 0 sets up the datasource and generator only. The full data model
-// (users, vehicles, rentals, inspections, damages, maintenance_logs,
-// checklist_items, sync_logs, ...) lands in Phase 1 via `prisma migrate dev`.
-// See PROYECTO-ANDES.md §6 for the target model.
+// Modelo de datos completo (Fase 1), según PROYECTO-ANDES.md §6 y el
+// descubrimiento de VikRentCar (docs/wordpress-mapping.md).
 //
-// All schema changes go through migrations (`prisma migrate dev`), never
-// `db push` for definitive changes (CLAUDE.md).
+// Convenciones: modelos en PascalCase (inglés), tablas/columnas en snake_case
+// vía @@map/@map. Todo cambio de esquema va por migración (`prisma migrate dev`).
 
 generator client {
   provider = "prisma-client-js"
@@ -15,4 +13,301 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  admin
+  empleado
+}
+
+enum VehicleStatus {
+  available
+  rented
+  out_of_service
+}
+
+enum RentalOrigin {
+  vikrentcar
+  manual
+}
+
+enum RentalStatus {
+  reserved
+  active
+  finished
+  cancelled
+}
+
+/// Idioma de cara al cliente (acta, emails, firma). Ver src/lib/i18n.
+enum Language {
+  es
+  en
+}
+
+enum InspectionType {
+  handover // entrega
+  return_  // devolución (`return` es palabra reservada en algunos contextos)
+}
+
+enum MediaType {
+  photo
+  video
+}
+
+/// Vistas del croquis donde se marca un daño.
+enum DamageView {
+  top
+  front
+  rear
+  left
+  right
+  interior
+}
+
+enum MaintenanceType {
+  service
+  repair
+  expense
+  note
+}
+
+enum SyncResult {
+  success
+  partial
+  error
+}
+
+// ---------------------------------------------------------------------------
+// Usuarios y autenticación
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(empleado)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  inspections Inspection[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Flota
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id            String        @id @default(cuid())
+  plate         String        @unique // patente
+  brand         String // marca
+  model         String // modelo
+  year          Int?
+  color         String?
+  currentKm     Int           @default(0) @map("current_km")
+  status        VehicleStatus @default(available)
+  nextServiceKm Int?          @map("next_service_km")
+  photoUrl      String?       @map("photo_url")
+  notes         String?
+
+  // Mapeo a la unidad de VikRentCar (idcar, carindex). Ver docs/wordpress-mapping.md.
+  wpCarId    Int? @map("wp_car_id")
+  wpCarIndex Int? @map("wp_car_index")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rentals         Rental[]
+  inspections     Inspection[]
+  damages         Damage[]
+  maintenanceLogs MaintenanceLog[]
+
+  @@unique([wpCarId, wpCarIndex])
+  @@map("vehicles")
+}
+
+// ---------------------------------------------------------------------------
+// Alquileres
+// ---------------------------------------------------------------------------
+
+model Rental {
+  id String @id @default(cuid())
+
+  // Nullable a propósito: una reserva de VikRentCar puede llegar sin unidad
+  // asignada (carindex NULL) → "reserva sin vehículo asignado".
+  vehicleId String?  @map("vehicle_id")
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  // Datos del cliente (denormalizados: el alquiler es la fuente de verdad del
+  // contrato, independiente de cambios posteriores en VikRentCar).
+  clientName      String  @map("client_name")
+  clientEmail     String? @map("client_email")
+  clientPhone     String? @map("client_phone")
+  clientDocNumber String? @map("client_doc_number") // nro. de documento opcional
+
+  startAt DateTime @map("start_at") // fecha/hora de retiro (UTC)
+  endAt   DateTime @map("end_at") // fecha/hora de devolución (UTC)
+
+  origin      RentalOrigin @default(manual)
+  wpBookingId Int?         @unique @map("wp_booking_id") // id de la orden VikRentCar
+  language    Language     @default(es)
+  status      RentalStatus @default(reserved)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inspections Inspection[]
+
+  @@index([status])
+  @@index([startAt])
+  @@map("rentals")
+}
+
+// ---------------------------------------------------------------------------
+// Inspecciones (entrega / devolución) — INMUTABLES una vez firmadas
+// ---------------------------------------------------------------------------
+
+model Inspection {
+  id   String         @id @default(cuid())
+  type InspectionType
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  // Empleado que la realizó (auditoría).
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  km        Int
+  fuelLevel Int @map("fuel_level") // octavos de tanque, 0–8
+
+  // Respuestas del checklist configurable, como JSON { itemId: value }.
+  checklistResponses Json?   @map("checklist_responses")
+  observations       String?
+
+  signatureUrl String? @map("signature_url") // firma del cliente (R2)
+  signerName   String? @map("signer_name")
+
+  // Geolocalización opcional (si el dispositivo dio permiso).
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  media   InspectionMedia[]
+  damages Damage[]
+
+  @@index([rentalId])
+  @@index([vehicleId])
+  @@map("inspections")
+}
+
+model InspectionMedia {
+  id String @id @default(cuid())
+
+  inspectionId String     @map("inspection_id")
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  type       MediaType
+  url        String
+  capturedAt DateTime  @map("captured_at") // fecha/hora de captura
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([inspectionId])
+  @@map("inspection_media")
+}
+
+// ---------------------------------------------------------------------------
+// Daños (sobre el croquis del vehículo)
+// ---------------------------------------------------------------------------
+
+model Damage {
+  id String @id @default(cuid())
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  // Inspección donde se detectó. Nullable: los daños migrados en el seed
+  // inicial no provienen de una inspección de Andes.
+  inspectionId String?     @map("inspection_id")
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id])
+
+  view        DamageView @default(top)
+  posX        Float      @map("pos_x") // posición en el croquis (0–1)
+  posY        Float      @map("pos_y")
+  description String?
+  photoUrl    String?    @map("photo_url")
+  repaired    Boolean    @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@index([inspectionId])
+  @@map("damages")
+}
+
+// ---------------------------------------------------------------------------
+// Mantenimiento
+// ---------------------------------------------------------------------------
+
+model MaintenanceLog {
+  id String @id @default(cuid())
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  type        MaintenanceType
+  date        DateTime
+  km          Int?
+  cost        Decimal?        @db.Decimal(12, 2)
+  description String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([vehicleId])
+  @@map("maintenance_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Configuración del checklist
+// ---------------------------------------------------------------------------
+
+model ChecklistItem {
+  id       String  @id @default(cuid())
+  label    String // etiqueta mostrada al empleado (español)
+  ordering Int     @default(0)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Log de sincronización con VikRentCar
+// ---------------------------------------------------------------------------
+
+model SyncLog {
+  id        String     @id @default(cuid())
+  result    SyncResult
+  imported  Int        @default(0)
+  updated   Int        @default(0)
+  errors    Int        @default(0)
+  message   String?
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@map("sync_logs")
 }
