@@ -183,9 +183,20 @@ export function HandoverWizard(props: WizardProps) {
     return undefined;
   }
 
-  function next() {
+  async function next() {
     const v = validateStep();
     if (v) return setError(v);
+    // Al salir del paso de firma, capturarla y subirla (el canvas se desmonta
+    // al cambiar de paso, así que no se puede leer más adelante).
+    if (step === 4) {
+      if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
+      try {
+        const key = await captureSignature();
+        if (!key) return setError("Falta la firma del cliente.");
+      } catch {
+        return setError("No se pudo subir la firma. Reintentá.");
+      }
+    }
     setError(undefined);
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   }
@@ -196,14 +207,17 @@ export function HandoverWizard(props: WizardProps) {
 
   // --- Firma ----------------------------------------------------------------
   async function captureSignature(): Promise<string | undefined> {
-    if (draft.signatureKey) return draft.signatureKey;
     const pad = sigRef.current;
-    if (!pad || pad.isEmpty()) return undefined;
-    const dataUrl = pad.toDataURL();
-    const blob = await (await fetch(dataUrl)).blob();
-    const key = await uploadMedia({ draftId: draft.draftId, kind: "signature", blob });
-    patch({ signatureKey: key });
-    return key;
+    // Si hay trazo en el canvas montado, subirlo (reemplaza cualquier firma previa).
+    if (pad && !pad.isEmpty()) {
+      const dataUrl = pad.toDataURL();
+      const blob = await (await fetch(dataUrl)).blob();
+      const key = await uploadMedia({ draftId: draft.draftId, kind: "signature", blob });
+      patch({ signatureKey: key });
+      return key;
+    }
+    // Canvas vacío o desmontado: usar la firma ya capturada, si existe.
+    return draft.signatureKey;
   }
 
   // --- Guardar --------------------------------------------------------------
@@ -496,6 +510,11 @@ export function HandoverWizard(props: WizardProps) {
               {dict.signature.clear}
             </button>
           </div>
+          {draft.signatureKey && (
+            <p className="text-xs text-green-600">
+              Firma registrada. Volvé a firmar para reemplazarla.
+            </p>
+          )}
           <TextField
             id="signerName"
             label={dict.signature.signerName}
