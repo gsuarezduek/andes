@@ -1,0 +1,18 @@
+// Andes — Prisma schema
+//
+// Phase 0 sets up the datasource and generator only. The full data model
+// (users, vehicles, rentals, inspections, damages, maintenance_logs,
+// checklist_items, sync_logs, ...) lands in Phase 1 via `prisma migrate dev`.
+// See PROYECTO-ANDES.md §6 for the target model.
+//
+// All schema changes go through migrations (`prisma migrate dev`), never
+// `db push` for definitive changes (CLAUDE.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

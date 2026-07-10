@@ -1,0 +1,49 @@
+/**
+ * Date/time helpers for Andes.
+ *
+ * Rule (PROYECTO-ANDES.md §7): store everything in UTC, display in Mendoza
+ * local time. All formatting for the UI, PDFs and emails must go through these
+ * helpers so we never leak a server-timezone-dependent string.
+ */
+
+export const APP_TIME_ZONE = "America/Argentina/Mendoza";
+
+const LOCALE_TAG: Record<"es" | "en", string> = {
+  es: "es-AR",
+  en: "en-US",
+};
+
+/** Formats an instant as a Mendoza-local date+time string (e.g. "10/07/2026 14:35"). */
+export function formatDateTime(
+  date: Date,
+  locale: "es" | "en" = "es",
+): string {
+  return new Intl.DateTimeFormat(LOCALE_TAG[locale], {
+    timeZone: APP_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+/** Formats an instant as a Mendoza-local date string (no time). */
+export function formatDate(date: Date, locale: "es" | "en" = "es"): string {
+  return new Intl.DateTimeFormat(LOCALE_TAG[locale], {
+    timeZone: APP_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+/**
+ * Converts a VikRentCar Unix timestamp (seconds since epoch) into a JS Date.
+ * VikRentCar stores `ritiro`/`consegna` as Unix seconds — see
+ * docs/wordpress-mapping.md.
+ */
+export function fromUnixSeconds(seconds: number): Date {
+  return new Date(seconds * 1000);
+}

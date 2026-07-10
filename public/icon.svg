@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Andes">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <path d="M64 372 176 196 248 300 320 156 448 372 Z" fill="#38bdf8"/>
+  <path d="M176 196 214 256 158 256 Z" fill="#e2e8f0"/>
+  <path d="M320 156 366 228 274 228 Z" fill="#e2e8f0"/>
+  <text x="256" y="452" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="76" font-weight="700" fill="#f8fafc" text-anchor="middle" letter-spacing="6">MDZ</text>
+</svg>
