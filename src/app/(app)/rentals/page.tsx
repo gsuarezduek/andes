@@ -10,10 +10,24 @@ import { formatDateTime } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Alquileres — Andes" };
 
-export default async function RentalsPage() {
+export default async function RentalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   await requireUser();
+  const { q } = await searchParams;
+  const query = q?.trim();
 
   const rentals = await prisma.rental.findMany({
+    where: query
+      ? {
+          OR: [
+            { clientName: { contains: query, mode: "insensitive" } },
+            { vehicle: { plate: { contains: query, mode: "insensitive" } } },
+          ],
+        }
+      : undefined,
     orderBy: { startAt: "desc" },
     include: { vehicle: true },
   });
@@ -27,6 +41,18 @@ export default async function RentalsPage() {
         </div>
         <ButtonLink href="/rentals/new">Nuevo manual</ButtonLink>
       </div>
+
+      <form className="flex gap-2">
+        <input
+          name="q"
+          defaultValue={query ?? ""}
+          placeholder="Buscar por cliente o patente…"
+          className="h-11 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
+        />
+        <button className="h-11 rounded-lg border border-foreground/15 px-4 text-sm font-medium">
+          Buscar
+        </button>
+      </form>
 
       {rentals.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">

@@ -82,7 +82,14 @@ npm test
   - Build y lint en verde; flujos verificados por HTTP (protección de rutas, login, RBAC, credenciales inválidas, listados).
   - **Deploy en Railway (hecho):** PostgreSQL provisionado; variables en el servicio de la app; migraciones vía **Pre-Deploy Command** `npx prisma migrate deploy`; seed corrido una vez desde local con `DATABASE_PUBLIC_URL`. Login + ABM + listados verificados en `https://andes.mdzrentacar.com`.
   - **Gotcha de deploy documentado:** Auth.js necesita **`AUTH_URL=https://andes.mdzrentacar.com`** en Railway; sin esa variable arma los redirects hacia `localhost:PORT` (login queda roto en prod). Está en `.env.example`. Variables mínimas en prod: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`.
-- [ ] Fase 2 — Flujo de entrega
+- [~] **Fase 2 — Flujo de entrega** (construida y probada en local; falta R2/Resend en prod)
+  - **Wizard multipaso móvil** (`/rentals/[id]/handover`) con 6 pasos (datos, estado, daños, fotos+obs, firma, resumen), **autoguardado en localStorage**, barra de progreso, un paso por pantalla. Entrada desde el detalle del alquiler ("Iniciar entrega", solo si `reserved`) + búsqueda por cliente/patente en `/rentals`.
+  - **Componentes** (`src/components/inspection`): selector de nafta (octavos), **croquis** SVG vista superior (toque para marcar daño; daños activos premarcados), **firma** con `signature_pad`, checklist OK/Falla, captura de fotos con **compresión en cliente** y subida en segundo plano.
+  - **Almacenamiento** (`src/lib/storage.ts`): abstracción con **R2 en prod y filesystem local en dev** (elige según haya credenciales). Rutas `POST /api/uploads`, `GET /api/media`, `GET /api/acta` (autenticadas). Bucket privado: todo se sirve por rutas con sesión.
+  - **Acta PDF** (`@react-pdf/renderer`, i18n es/en) con datos, checklist, daños, fotos y firma; **emails con Resend** (cliente + admin) vía `after()` — **asíncrono, no bloquea la confirmación**. Acta regenerable on-demand desde `/api/acta`.
+  - `saveHandover` crea inspección+media+daños en transacción, pasa el alquiler a `active` y el vehículo a `rented` con el km. Inspecciones inmutables.
+  - Build y lint en verde; backend del flujo verificado (subida, media, render de acta PDF). **Falta probar el wizard en un celular real** (el brief lo pide).
+  - **Pendiente para desplegar:** en Railway setear `R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET`, `RESEND_API_KEY`, `EMAIL_FROM=info@mdzrentacar.com`, `ADMIN_EMAIL`. Sin R2, en prod el almacenamiento cae al filesystem efímero (se pierde en cada deploy) — no desplegar la fase sin R2.
 - [ ] Fase 3 — Flujo de devolución
 - [ ] Fase 4 — Dashboard y perfil de vehículo
 - [ ] Fase 5 — Sync VikRentCar

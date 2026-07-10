@@ -33,6 +33,9 @@ yarn-error.log*
 # prisma
 /prisma/*.db
 
+# almacenamiento local de archivos en dev (fotos, firmas, PDFs)
+/.storage
+
 # vercel
 .vercel
 

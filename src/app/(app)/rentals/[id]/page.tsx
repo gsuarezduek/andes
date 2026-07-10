@@ -26,20 +26,34 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function RentalDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ entrega?: string }>;
 }) {
   const { id } = await params;
+  const { entrega } = await searchParams;
   await requireUser();
 
   const rental = await prisma.rental.findUnique({
     where: { id },
-    include: { vehicle: true },
+    include: {
+      vehicle: true,
+      inspections: { orderBy: { createdAt: "asc" } },
+    },
   });
   if (!rental) notFound();
 
+  const handover = rental.inspections.find((i) => i.type === "handover");
+  const canStartHandover = rental.status === "reserved" && !handover;
+
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
+      {entrega === "ok" && (
+        <p className="rounded-lg bg-green-500/10 px-4 py-3 text-sm font-medium text-green-700 dark:text-green-400">
+          Entrega registrada. El acta y los emails se están generando.
+        </p>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{rental.clientName}</h1>
@@ -74,13 +88,47 @@ export default async function RentalDetailPage({
         <Row label="Idioma" value={languageLabels[rental.language]} />
       </div>
 
-      <ButtonLink href="/rentals" variant="secondary">
-        Volver
-      </ButtonLink>
+      {/* Inspecciones registradas */}
+      {rental.inspections.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-foreground/70">Actas</h2>
+          <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
+            {rental.inspections.map((insp) => (
+              <li key={insp.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <span>
+                  {insp.type === "handover" ? "Entrega" : "Devolución"} ·{" "}
+                  {formatDateTime(insp.createdAt)}
+                </span>
+                <a
+                  className="font-medium underline"
+                  href={`/api/acta?inspectionId=${insp.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Ver acta PDF
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      <p className="text-xs text-foreground/40">
-        Iniciar la entrega y la devolución llega en las Fases 2 y 3.
-      </p>
+      <div className="flex gap-3">
+        {canStartHandover && (
+          <ButtonLink href={`/rentals/${rental.id}/handover`} className="flex-1">
+            Iniciar entrega
+          </ButtonLink>
+        )}
+        <ButtonLink href="/rentals" variant="secondary" className={canStartHandover ? "" : "flex-1"}>
+          Volver
+        </ButtonLink>
+      </div>
+
+      {rental.status === "active" && !rental.inspections.some((i) => i.type === "return_") && (
+        <p className="text-xs text-foreground/40">
+          El flujo de devolución llega en la Fase 3.
+        </p>
+      )}
     </div>
   );
 }
