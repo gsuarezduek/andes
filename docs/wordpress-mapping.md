@@ -1,120 +1,154 @@
 # Mapeo VikRentCar → Andes
 
-> **Estado: BORRADOR — PENDIENTE DE VERIFICACIÓN.**
-> Este documento describe el esquema **esperado** de VikRentCar según la
-> especificación (PROYECTO-ANDES.md §5) y la documentación pública del plugin.
-> **Todavía no fue verificado contra la instalación real** de MDZ Rent a Car
-> porque falta el acceso de solo lectura a la base de WordPress (o un dump).
-> Ver [§ Verificación pendiente](#verificación-pendiente-fase-0). No programar el
-> worker de sincronización (Fase 5) hasta cerrar esta verificación.
+> **Estado: VERIFICADO contra la instalación real** (Fase 0, 2026-07).
+> Base: **MariaDB 11.8.8**, host `srv552.hstgr.io`, esquema `u868531572_id8bM`.
+> Prefijo de tablas: **`wp_vikrentcar_`**. Acceso usado: usuario MySQL de solo
+> lectura vía "Remote MySQL" de Hostinger.
+>
+> Este documento es la fuente de verdad del mapeo para el worker de sync (Fase 5).
 
-## Acceso
+## Acceso y seguridad
 
-- **Mecanismo preferido:** usuario MySQL **de solo lectura** creado en el hPanel
-  de Hostinger, con **"Remote MySQL"** habilitado para la IP saliente de Railway.
-- **Prefijo de tablas:** típicamente `wp_` → `wp_vikrentcar_*`. **Verificar** el
-  prefijo real (puede no ser `wp_`).
-- **Regla dura (CLAUDE.md):** contra WordPress, **solo `SELECT`**. Jamás escribir,
-  jamás importar el esquema de WP a Prisma.
-- **Plan B:** si el acceso remoto de Hostinger complica, mini plugin de WordPress
-  que exponga las órdenes por REST protegido con API key.
+- **Verificación (Fase 0):** hecha con usuario **read-only** de Hostinger.
+- **Regla dura (CLAUDE.md):** contra WordPress, **solo `SELECT`**. Nunca escribir,
+  nunca importar el esquema de WP a Prisma.
+- ⚠️ **Pendiente de seguridad para producción:** durante el descubrimiento el
+  "Remote MySQL" quedó abierto a **cualquier IP (`%`)**. Eso expone la base de WP
+  (con PII de clientes) a internet. **Antes de Fase 5, decidir:**
+  - **(a)** *Static egress IP* de Railway (feature pago) + whitelist puntual, o
+  - **(b, recomendado)** **Plan B**: mini plugin de WordPress que exponga las
+    órdenes por REST con API key, sin abrir el MySQL. Ver `PROYECTO-ANDES.md §5`.
+  - Mientras tanto, cerrar el `%` y dejar solo la IP del entorno de trabajo.
 
-## Tablas relevantes (esquema esperado)
+## Tablas presentes
 
-### `wp_vikrentcar_orders` — la reserva
+Existen 35 tablas `wp_vikrentcar_*`. Relevantes para Andes:
 
-| Columna esperada | Tipo esperado | Significado | Uso en Andes |
+| Tabla | Filas | Uso |
+|---|---:|---|
+| `wp_vikrentcar_orders` | 2204 | La reserva → `rentals` |
+| `wp_vikrentcar_customers` | 857 | Datos estructurados del cliente |
+| `wp_vikrentcar_customers_orders` | 556 | Join orden↔cliente |
+| `wp_vikrentcar_cars` | 14 | Modelos → seed de `vehicles` |
+| `wp_vikrentcar_categories` | 5 | Categorías (referencia) |
+| `wp_vikrentcar_places` | 7 | Lugares de retiro/devolución |
+| `wp_vikrentcar_busy` | 2062 | Ocupación; `realback` = devolución real |
+| `wp_vikrentcar_orderhistory` | 3223 | Eventos de la orden → sync incremental |
+
+## `wp_vikrentcar_orders` (esquema real)
+
+Columnas verificadas (las relevantes; hay más de pagos/impuestos que no usamos):
+
+| Columna | Tipo real | Nullable | → Andes / notas |
 |---|---|---|---|
-| `id` | int | ID de la orden | `rentals.wp_booking_id` |
-| `status` | varchar | `confirmed` / `standby` / `cancelled` | Importar solo `confirmed` (`standby` configurable) |
-| `idcar` | int | modelo/vehículo del plugin | mapeo → `vehicles.wp_car_id` |
-| `carindex` | int | nº de unidad cuando el modelo tiene varias | mapeo → `vehicles.wp_car_index` |
-| `ritiro` | int (Unix) | fecha/hora de **retiro** (pickup) | `rentals.start_at` (UTC) |
-| `consegna` | int (Unix) | fecha/hora de **devolución** (drop-off) | `rentals.end_at` (UTC) |
-| `idplace` | int | lugar de retiro | referencia (`places`) |
-| `idreturnplace` | int | lugar de devolución | referencia (`places`) |
-| `days` | int | cantidad de días | informativo |
-| `order_total` | decimal | total de la orden | informativo (fuera de v1: cobros) |
-| `totpaid` | decimal | total pagado | informativo |
-| `custmail` | varchar | email del cliente | fallback si no hay `customers` |
-| `custdata` | text | datos crudos del cliente | **evitar**: preferir `customers` |
-| `phone` | varchar | teléfono | fallback |
-| `lang` | varchar | idioma con que reservó (`es`/`en`/...) | preselecciona `rentals.language` |
-| `ts` | int (Unix) | fecha de creación | informativo |
-| `sid` | varchar | identificador de sesión/orden | informativo |
+| `id` | int unsigned | no | `rentals.wp_booking_id` |
+| `status` | varchar(128) | sí | Valores reales: **`confirmed` / `cancelled` / `standby`** |
+| `idcar` | int(10) | sí | mapeo → `vehicles.wp_car_id` |
+| `carindex` | int(5) | sí | mapeo → `vehicles.wp_car_index`. **NULL frecuente** (ver abajo) |
+| `ritiro` | int(10) | sí | **Unix segundos** → `rentals.start_at` (UTC) |
+| `consegna` | int(10) | sí | **Unix segundos** → `rentals.end_at` (UTC) |
+| `ts` | int(11) | sí | **Unix segundos**, fecha de creación. **No hay columna de "modificado".** |
+| `days` | int(10) | sí | días de alquiler |
+| `lang` | varchar(16) | sí | preselecciona idioma. Valores: `null`, `es-AR`, `es-ES`, `en-US` |
+| `nominative` | varchar(64) | sí | **nombre del cliente** — fallback cuando no hay `customers` |
+| `custmail` | varchar(128) | sí | email — fallback |
+| `phone` | varchar(32) | sí | teléfono — fallback |
+| `custdata` | text | sí | datos crudos — último recurso (evitar parsear si hay alternativa) |
+| `idplace` | int(10) | sí | lugar de retiro → `places` |
+| `idreturnplace` | int(10) | sí | lugar de devolución → `places` |
+| `idbusy` | int(10) | sí | vínculo a `busy` (ocupación) |
+| `country` | varchar(5) | sí | país |
+| `order_total` / `totpaid` | decimal(12,2) | sí | informativo (cobros fuera de v1) |
+| `adminnotes` | text | sí | notas del admin en el plugin |
 
-> ⚠️ Nombres derivados del italiano: `ritiro` = retiro/pickup,
-> `consegna` = devolución/drop-off. **Ambos son timestamps Unix (segundos)** →
-> usar `fromUnixSeconds()` de `src/lib/datetime.ts`.
+### Timestamps — confirmado
 
-### `wp_vikrentcar_customers` y `wp_vikrentcar_customers_orders`
+`ritiro`/`consegna`/`ts` son **Unix en segundos**. Ej. verificado: `ritiro` max
+`1791543600` = `2026-10-09T11:00:00Z`. Usar `fromUnixSeconds()`
+(`src/lib/datetime.ts`). La sesión MySQL reporta `time_zone = SYSTEM`; los valores
+son epoch absolutos, así que la conversión a Mendoza se hace en Andes al mostrar.
 
-Datos estructurados del cliente (nombre, apellido, email, teléfono, país) y su
-vínculo con cada orden. **Preferir estos datos sobre el campo crudo `custdata`.**
-Verificar los nombres de columnas (`first_name`/`last_name`/`email`/`phone`/
-`country` u otros) y la columna de join en `customers_orders`
-(`idorder` ↔ `idcustomer`, a confirmar).
+### `lang` → `rentals.language` (es/en)
 
-### `wp_vikrentcar_cars` — vehículos/modelos del plugin
+| `lang` en VikRentCar | conteo | → `rentals.language` |
+|---|---:|---|
+| `null` | 1659 | `es` (default) |
+| `es-AR` | 422 | `es` |
+| `es-ES` | 101 | `es` |
+| `en-US` | 22 | `en` |
 
-Modelos cargados en VikRentCar, con cantidad de unidades. Sirve para el **seed
-inicial** de nuestra tabla `vehicles` (Fase 5). Verificar columnas: `id`, `name`,
-`units`/`avail`, `img`, etc. Si hay **daños ya cargados** en el plugin, se migran
-una única vez en el seed inicial.
+`resolveLocale()` (`src/lib/i18n/config.ts`) ya cubre esto: toma las 2 primeras
+letras y cae a `es` por default. El empleado puede cambiarlo antes de firmar.
 
-### Referencia (solo lectura, uso menor)
+### `carindex` — el "sin unidad asignada" es frecuente
 
-- `wp_vikrentcar_places` — lugares de retiro/devolución.
-- `wp_vikrentcar_categories` — categorías de vehículos.
-- `wp_vikrentcar_busy` — ocupación (referencia).
+De 2204 órdenes: **688 con `carindex` NULL**, resto entre 1 y 3. Muchas reservas
+confirmadas (típicamente de modelos con varias unidades, ej. `idcar=21` Kwid con 4
+unidades) llegan **sin unidad concreta**. → Estas entran como **"reserva sin
+vehículo asignado"** y aparecen en las alertas del dashboard para asignarlas a mano.
+No es un caso borde: hay que diseñar el flujo asumiéndolo.
 
-## Mapeo de vehículo (idcar, carindex) → `vehicles`
+## Cliente: `customers` + `customers_orders` (con fallback obligatorio)
 
-Un vehículo físico nuestro se identifica en VikRentCar por el par
-(`idcar`, `carindex`). `vehicles` guarda ambos como **opcionales**
-(`wp_car_id`, `wp_car_index`). Si una orden llega sin unidad asignada, el
-alquiler queda como **"reserva sin vehículo asignado"** y aparece en las alertas
-del dashboard para asignarla a mano.
+- **`customers_orders`**: `id`, `idcustomer` (→ `customers.id`), `idorder`
+  (→ `orders.id`), `drivers_data` (text). Join directo por `idorder`.
+- **`customers`** (857 filas) es rico: `first_name`, `last_name`, `email`, `phone`,
+  `country`, `address`, `city`, `zip`, **`doctype`**, **`docnum`** (tipo y nº de
+  documento → alimenta el nro. de documento opcional de `rentals`), `company`,
+  `vat`, `notes`, etc.
+- ⚠️ **Hallazgo clave:** de **2062 órdenes `confirmed`, 1588 (77%) NO tienen fila
+  en `customers_orders`.** El vínculo estructurado es la **minoría** (órdenes
+  recientes). → El worker de sync debe:
+  1. Intentar el join `customers_orders` → `customers` (preferido).
+  2. Si no existe, **caer a los campos de la propia orden**: `nominative`
+     (nombre), `custmail`, `phone`. `custdata` como último recurso.
+
+## `cars` → seed de `vehicles` (Fase 5)
+
+- 14 modelos, **`SUM(units) = 18` unidades físicas** → la flota real ronda los 18 autos.
+- Columnas útiles: `id` (→ `wp_car_id`), `name`, `units` (cantidad de unidades),
+  `avail`, `img` (nombre de archivo de la foto principal), `idcat` (categorías,
+  formato `"4;7;"` separado por `;`), `alias`.
+- **Seed:** por cada `car` con `units = N`, crear N filas en `vehicles` con
+  `wp_car_id = car.id` y `wp_car_index = 1..N`. Patente/año/color no están en el
+  plugin → se completan a mano en el ABM (Fase 1). Ej. reales: "Fiat Cronos Full"
+  (2 u.), "Renault Kwid Iconic 1.0" (4 u.), "Jeep Renegade" (1 u.).
+- No se detectaron tablas de daños/check-in propias del plugin en uso (VikRentCar
+  free); **nada que migrar** en el seed inicial. (Reconfirmar con el dueño si
+  alguna vez cargaron daños manualmente.)
 
 ## Reglas de sincronización (Fase 5)
 
-- Worker en Railway cada **5–10 min**: importa órdenes nuevas o modificadas.
-- Solo `confirmed` (importar `standby` como "pendientes" es configurable).
-- Cancelaciones / cambios de fecha actualizan el registro local **solo si el
-  alquiler todavía no tiene entrega registrada**.
-- `lang` de la orden preselecciona `rentals.language` (es/en); el empleado puede
-  cambiarlo antes de firmar.
-- Cada corrida se registra en `sync_logs` (importadas / actualizadas / errores).
-- Las funciones de daños y PDF de check-in de VikRentCar **no se usan**: Andes es
-  la fuente de verdad del estado físico desde la puesta en marcha.
+- Importar solo `status = 'confirmed'`. `standby` → "pendientes" (configurable, 17
+  hoy). `cancelled` → cancelar el `rental` local **solo si aún no tiene entrega**.
+- **Sync incremental — cuidado:** `orders` no tiene columna de modificación (solo
+  `ts` de creación). Opciones:
+  - Usar `wp_vikrentcar_orderhistory` (`idorder`, `dt` datetime, `type` char(2),
+    `data`) para detectar órdenes cambiadas desde la última corrida, **o**
+  - Re-escanear en cada corrida una **ventana móvil** de órdenes cuyo `ritiro`/
+    `consegna` caiga en, p. ej., \[hoy − 2 días, hoy + 60 días], comparando contra
+    el estado local. Más simple y robusto para el volumen actual (~2k órdenes).
+- Mapeo de vehículo por par (`idcar`, `carindex`). `carindex` NULL → alerta.
+- `lang` → `rentals.language` según la tabla de arriba.
+- Registrar cada corrida en `sync_logs` (importadas / actualizadas / errores).
+- Andes es la fuente de verdad del estado físico; las funciones de daños/PDF del
+  plugin no se usan.
 
-## Verificación pendiente (Fase 0)
+## Reconfirmado / cerrado en Fase 0
 
-Una vez con acceso a la base real, confirmar y actualizar este documento:
+- [x] Prefijo real: `wp_vikrentcar_`.
+- [x] Versión: MariaDB 11.8.8; VikRentCar free (sin tablas de daños/check-in en uso).
+- [x] Columnas de `orders` (nombres, tipos) y que `ritiro`/`consegna`/`ts` son Unix segundos.
+- [x] Valores reales de `status`: confirmed / cancelled / standby.
+- [x] Estructura de `customers` / `customers_orders` y columna de join (`idorder`).
+- [x] `cars` para el seed y total de unidades (18).
+- [x] No hay daños cargados en el plugin para migrar (a reconfirmar con el dueño).
+- [x] Sin columna de "modificado" en `orders` → estrategia de sync definida arriba.
+- [ ] **Producción:** cerrar el acceso remoto abierto (`%`) → Plan B REST o egress IP fija.
 
-- [ ] Prefijo real de tablas (¿`wp_`?).
-- [ ] Versión de VikRentCar instalada (free / Pro) y nombre exacto de cada tabla.
-- [ ] Columnas exactas de `orders` (nombres, tipos, y que `ritiro`/`consegna`/`ts`
-      sean Unix en segundos y no milisegundos ni `DATETIME`).
-- [ ] Valores reales del enum `status` (`confirmed`/`standby`/`cancelled`/otros).
-- [ ] Estructura de `customers` y `customers_orders` y la columna de join.
-- [ ] Columnas de `cars` para el seed de `vehicles` y cantidad de unidades.
-- [ ] ¿Hay daños/check-ins cargados hoy en el plugin que haya que migrar?
-- [ ] Zona horaria con que el plugin interpreta los timestamps.
-- [ ] IP saliente de Railway a habilitar en "Remote MySQL", o decisión de Plan B.
+## Cómo reinspeccionar
 
-## Cómo inspeccionar (cuando haya acceso)
-
-```sql
--- listar tablas del plugin (ajustar prefijo)
-SHOW TABLES LIKE '%vikrentcar%';
-
--- esquema de una tabla
-DESCRIBE wp_vikrentcar_orders;
-
--- muestra de datos (sin exponer PII innecesaria)
-SELECT id, status, idcar, carindex, ritiro, consegna, lang, ts
-FROM wp_vikrentcar_orders
-ORDER BY ts DESC
-LIMIT 20;
+```bash
+# Credenciales en .env (gitignored). Script de descubrimiento en scratchpad.
+node --env-file=.env wp-discovery.mjs
 ```

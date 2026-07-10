@@ -69,10 +69,11 @@ npm test
 
 ## Estado actual
 
-- [~] **Fase 0 — Fundaciones y descubrimiento WP** (en curso)
-  - Hecho: proyecto Next.js 16 (App Router) + TypeScript estricto + Tailwind v4 + ESLint; Prisma 6 con datasource PostgreSQL (sin modelos aún, van en Fase 1) y cliente singleton; PWA (manifest + service worker conservador + registro); i18n es/en desde día 1 (`src/lib/i18n`); helpers de zona horaria Mendoza (`src/lib/datetime.ts`); acceso tipado a env (`src/lib/env.ts`); `.env.example`; `docs/wordpress-mapping.md` (borrador). Build y lint en verde.
+- [~] **Fase 0 — Fundaciones y descubrimiento WP** (casi cerrada)
+  - Hecho: proyecto Next.js 16 (App Router) + TypeScript estricto + Tailwind v4 + ESLint; Prisma 6 con datasource PostgreSQL (sin modelos aún, van en Fase 1) y cliente singleton; PWA (manifest + service worker conservador + registro); i18n es/en desde día 1 (`src/lib/i18n`); helpers de zona horaria Mendoza (`src/lib/datetime.ts`); acceso tipado a env (`src/lib/env.ts`); `.env.example`. Build y lint en verde. Repo en GitHub (`gsuarezduek/andes`), Railway deploya de ahí.
+  - **Descubrimiento VikRentCar: HECHO y verificado** contra la instalación real (MariaDB 11.8.8, prefijo `wp_vikrentcar_`). Ver `docs/wordpress-mapping.md`. Hallazgos clave: `status` = confirmed/cancelled/standby; `ritiro`/`consegna`/`ts` = Unix segundos; `lang` mayormente NULL (→es); `carindex` NULL frecuente (688) → "sin unidad asignada" es caso común; **77% de las confirmed sin `customers_orders`** → fallback a `nominative`/`custmail`/`phone` obligatorio; flota ≈ **18 unidades / 14 modelos**; `orders` **sin columna de "modificado"** → sync incremental vía `orderhistory` o ventana móvil.
   - **Nota Prisma:** se fijó Prisma **6** a propósito. Prisma 7 sacó el `url` del schema y exige driver adapters + `prisma.config.ts`; se mantiene el flujo clásico (`migrate dev`, `studio`, cliente sin adapter) que asume el brief.
-  - Bloqueado, depende del dueño: (1) verificar el esquema real de VikRentCar contra la instalación (usuario MySQL read-only o dump) y cerrar `docs/wordpress-mapping.md`; (2) deploy a Railway + subdominio `andes.mdzrentacar.com` con SSL (cuenta Railway + CNAME en Hostinger).
+  - Pendiente para cerrar la fase: (1) propagación DNS de `andes.mdzrentacar.com` → Railway + SSL (CNAME cargado, a la espera); (2) verificar deploy en Railway y cargar variables de entorno.
 - [ ] Fase 1 — Datos y autenticación
 - [ ] Fase 2 — Flujo de entrega
 - [ ] Fase 3 — Flujo de devolución
@@ -82,8 +83,9 @@ npm test
 
 ## Pendientes que dependen del dueño
 
-- Acceso de solo lectura a la base de WordPress (o un dump) para la Fase 0.
+- ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
+- **Seguridad WP MySQL:** el "Remote MySQL" quedó abierto a cualquier IP (`%`) para el descubrimiento. Cerrarlo antes de Fase 5 → decidir Plan B REST (recomendado) o egress IP fija de Railway. Ver `docs/wordpress-mapping.md`.
 - Casilla remitente de emails y verificación del dominio en Resend.
-- Tamaño de flota y cantidad de empleados (afecta seed y planes de hosting).
+- ~~Tamaño de flota~~ ≈ 18 unidades / 14 modelos (de `wp_vikrentcar_cars`). Falta cantidad de empleados.
 - Política de nafta (por ahora solo se registra la diferencia, no se cobra).
-- Versión de VikRentCar (free o Pro) y si hoy cargan daños en el plugin (para migrarlos en el seed).
+- ~~Versión VikRentCar / daños en el plugin~~ free, sin daños cargados para migrar (reconfirmar).
