@@ -80,7 +80,8 @@ npm test
   - **ABM de vehículos** (admin; lectura para empleados), **ABM de usuarios** (admin, con guarda anti-autobloqueo), **alquiler manual** (ambos roles, con selección opcional de vehículo y conversión Mendoza→UTC). Shell con navegación según rol. Kit de UI reutilizable en `src/components/ui`.
   - **Seed** (`npm run db:seed`): admin + empleado (`admin@mdzrentacar.com` / `empleado@mdzrentacar.com`, pass dev `andes1234`), 11 ítems de checklist (§4.1), 18 unidades con mapeo real a VikRentCar (patentes placeholder `TEMP###`), 2 alquileres de ejemplo.
   - Build y lint en verde; flujos verificados por HTTP (protección de rutas, login, RBAC, credenciales inválidas, listados).
-  - **Pendiente para cerrar la fase (depende del dueño):** provisionar **PostgreSQL en Railway**, setear variables (`DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_APP_URL`), correr `prisma migrate deploy` + seed, y recién ahí pushear para que el deploy live funcione.
+  - **Deploy en Railway (hecho):** PostgreSQL provisionado; variables en el servicio de la app; migraciones vía **Pre-Deploy Command** `npx prisma migrate deploy`; seed corrido una vez desde local con `DATABASE_PUBLIC_URL`. Login + ABM + listados verificados en `https://andes.mdzrentacar.com`.
+  - **Gotcha de deploy documentado:** Auth.js necesita **`AUTH_URL=https://andes.mdzrentacar.com`** en Railway; sin esa variable arma los redirects hacia `localhost:PORT` (login queda roto en prod). Está en `.env.example`. Variables mínimas en prod: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`.
 - [ ] Fase 2 — Flujo de entrega
 - [ ] Fase 3 — Flujo de devolución
 - [ ] Fase 4 — Dashboard y perfil de vehículo
