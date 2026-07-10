@@ -26,6 +26,7 @@ export default async function AppLayout({
             <NavLink href="/rentals">Alquileres</NavLink>
             <NavLink href="/vehicles">Vehículos</NavLink>
             {isAdmin ? <NavLink href="/users">Usuarios</NavLink> : null}
+            {isAdmin ? <NavLink href="/checklist">Checklist</NavLink> : null}
           </nav>
 
           <div className="flex shrink-0 items-center gap-3">

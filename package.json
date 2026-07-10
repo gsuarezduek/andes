@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:seed": "node --env-file=.env prisma/seed.mjs"
+    "db:seed": "node --env-file=.env prisma/seed.mjs",
+    "db:checklist": "node --env-file=.env prisma/sync-checklist.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",

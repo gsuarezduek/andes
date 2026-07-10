@@ -4,8 +4,9 @@ import { createElement, type ReactElement } from "react";
 import { prisma } from "@/lib/prisma";
 import { storage, actaKey } from "@/lib/storage";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import { formatDateTime } from "@/lib/datetime";
-import { ActaDocument, type ActaData } from "./pdf";
+import { formatDateTime, formatDate } from "@/lib/datetime";
+import { COMPANY, formatArs, PRICING_FIELDS, type ContractPricing } from "@/lib/contract";
+import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
 
@@ -46,13 +47,40 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   ).filter((x): x is string => Boolean(x));
   const signatureDataUri = await toDataUri(inspection.signatureUrl);
 
+  const r = inspection.rental;
+  const t = dict.acta;
+
+  // Datos del cliente.
+  const clientRows: ActaRow[] = [{ label: t.client, value: r.clientName }];
+  if (r.clientDocNumber) clientRows.push({ label: t.dni, value: r.clientDocNumber });
+  if (r.licenseExpiry)
+    clientRows.push({ label: t.licenseExpiry, value: formatDate(r.licenseExpiry, locale) });
+  if (r.clientEmail) clientRows.push({ label: "Email", value: r.clientEmail });
+  if (r.clientPhone) clientRows.push({ label: "Tel.", value: r.clientPhone });
+
+  // Condiciones del alquiler (fechas + importes registrados).
+  const pricing = (r.pricing ?? {}) as ContractPricing;
+  const termRows: ActaRow[] = [
+    { label: t.from, value: formatDateTime(r.startAt, locale) },
+    { label: t.to, value: formatDateTime(r.endAt, locale) },
+  ];
+  if (pricing.place) termRows.push({ label: t.place, value: pricing.place });
+  for (const f of PRICING_FIELDS) {
+    const v = pricing[f.key];
+    if (typeof v === "number" && !Number.isNaN(v)) {
+      termRows.push({ label: f.label, value: f.money ? formatArs(v) : String(v) });
+    }
+  }
+
   const data: ActaData = {
     kind: inspection.type === "handover" ? "handover" : "return",
     dict,
+    company: COMPANY,
+    dateStr: formatDateTime(inspection.createdAt, locale),
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,
-    clientName: inspection.rental.clientName,
-    dateStr: formatDateTime(inspection.createdAt, locale),
+    clientRows,
+    termRows,
     km: inspection.km,
     fuelLevel: inspection.fuelLevel,
     checklist,

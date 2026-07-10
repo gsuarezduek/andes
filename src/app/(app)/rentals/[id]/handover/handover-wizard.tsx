@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { compressImage, uploadMedia, mediaUrl } from "@/lib/client/media";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels } from "@/lib/labels";
+import { PRICING_FIELDS } from "@/lib/contract";
 import { saveHandover, type SaveHandoverInput } from "./actions";
 
 type Lang = "es" | "en";
@@ -29,6 +30,8 @@ type Draft = {
   draftId: string;
   vehicleId: string;
   language: Lang;
+  licenseExpiry: string;
+  pricing: Record<string, string>;
   km: string;
   fuelLevel: number;
   checklist: Record<string, "ok" | "fail">;
@@ -41,16 +44,18 @@ type Draft = {
 
 export type WizardProps = {
   rentalId: string;
-  client: { name: string; email: string | null; phone: string | null };
+  client: { name: string; email: string | null; phone: string | null; dni: string | null };
   datesLabel: string;
   vehicle: { id: string; label: string; currentKm: number } | null;
   vehicleOptions: { id: string; label: string }[];
   checklistItems: { id: string; label: string }[];
   existingDamages: { posX: number; posY: number }[];
   language: Lang;
+  licenseExpiry?: string;
+  pricing?: Record<string, string>;
 };
 
-const STEPS = ["Datos", "Estado", "Daños", "Fotos", "Firma", "Resumen"];
+const STEPS = ["Datos", "Condiciones", "Estado", "Daños", "Fotos", "Firma", "Resumen"];
 
 function newId() {
   return crypto.randomUUID();
@@ -70,6 +75,8 @@ export function HandoverWizard(props: WizardProps) {
     draftId: newId(),
     vehicleId: props.vehicle?.id ?? "",
     language: props.language,
+    licenseExpiry: props.licenseExpiry ?? "",
+    pricing: props.pricing ?? {},
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
     fuelLevel: 8,
     checklist: Object.fromEntries(props.checklistItems.map((i) => [i.id, "ok"])),
@@ -174,11 +181,13 @@ export function HandoverWizard(props: WizardProps) {
   const uploading = draft.photos.some((p) => p.status === "uploading") ||
     draft.damages.some((d) => d.photo?.status === "uploading");
 
-  // --- Navegación -----------------------------------------------------------
+  // --- Navegación (por nombre de paso, no por índice) -----------------------
+  const current = STEPS[step];
+
   function validateStep(): string | undefined {
-    if (step === 0 && !draft.vehicleId) return "Asigná un vehículo para continuar.";
-    if (step === 1) {
-      if (draft.km === "" || Number(draft.km) < 0) return "Ingresá el kilometraje.";
+    if (current === "Datos" && !draft.vehicleId) return "Asigná un vehículo para continuar.";
+    if (current === "Estado" && (draft.km === "" || Number(draft.km) < 0)) {
+      return "Ingresá el kilometraje.";
     }
     return undefined;
   }
@@ -188,7 +197,7 @@ export function HandoverWizard(props: WizardProps) {
     if (v) return setError(v);
     // Al salir del paso de firma, capturarla y subirla (el canvas se desmonta
     // al cambiar de paso, así que no se puede leer más adelante).
-    if (step === 4) {
+    if (current === "Firma") {
       if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
       try {
         const key = await captureSignature();
@@ -231,6 +240,14 @@ export function HandoverWizard(props: WizardProps) {
         setSaving(false);
         return setError("Falta la firma del cliente.");
       }
+      const pricing: Record<string, number> = {};
+      for (const f of PRICING_FIELDS) {
+        const raw = draft.pricing[f.key];
+        if (raw !== undefined && raw !== "") {
+          const n = Number(raw);
+          if (!Number.isNaN(n)) pricing[f.key] = n;
+        }
+      }
       const payload: SaveHandoverInput = {
         rentalId: props.rentalId,
         vehicleId: draft.vehicleId,
@@ -249,6 +266,8 @@ export function HandoverWizard(props: WizardProps) {
         photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
         signatureKey,
         signerName: draft.signerName.trim(),
+        licenseExpiry: draft.licenseExpiry || undefined,
+        pricing: Object.keys(pricing).length ? pricing : undefined,
         latitude: geo.current.lat,
         longitude: geo.current.lng,
       };
@@ -280,8 +299,8 @@ export function HandoverWizard(props: WizardProps) {
         Paso {step + 1} de {STEPS.length} · <span className="font-medium text-foreground">{STEPS[step]}</span>
       </p>
 
-      {/* PASO 0 — Datos */}
-      {step === 0 && (
+      {/* Datos */}
+      {current === "Datos" && (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-foreground/10 p-4 text-sm">
             <p className="font-semibold">{props.client.name}</p>
@@ -326,8 +345,45 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* PASO 1 — Estado */}
-      {step === 1 && (
+      {/* Condiciones */}
+      {current === "Condiciones" && (
+        <div className="flex flex-col gap-4">
+          <TextField
+            id="licenseExpiry"
+            label="Venc. licencia de conducir"
+            type="date"
+            value={draft.licenseExpiry}
+            onChange={(e) => patch({ licenseExpiry: e.target.value })}
+          />
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">
+              Condiciones económicas (opcional)
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {PRICING_FIELDS.map((f) => (
+                <TextField
+                  key={f.key}
+                  id={`pricing_${f.key}`}
+                  label={f.label}
+                  type="number"
+                  inputMode="numeric"
+                  value={draft.pricing[f.key] ?? ""}
+                  onChange={(e) =>
+                    patch({ pricing: { ...draft.pricing, [f.key]: e.target.value } })
+                  }
+                  min={0}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-foreground/50">
+              Se registran en el acta; Andes no procesa cobros.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Estado */}
+      {current === "Estado" && (
         <div className="flex flex-col gap-5">
           <TextField
             id="km"
@@ -378,8 +434,8 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* PASO 2 — Daños */}
-      {step === 2 && (
+      {/* Daños */}
+      {current === "Daños" && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-foreground/60">
             Tocá el croquis para marcar un daño nuevo. Los{" "}
@@ -447,8 +503,8 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* PASO 3 — Fotos + observaciones */}
-      {step === 3 && (
+      {/* Fotos + observaciones */}
+      {current === "Fotos" && (
         <div className="flex flex-col gap-4">
           <label className="flex h-11 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-sm font-medium">
             + Agregar fotos (frente, atrás, laterales)
@@ -493,8 +549,8 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* PASO 4 — Firma */}
-      {step === 4 && (
+      {/* Firma */}
+      {current === "Firma" && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground/70">{dict.signature.legal}</p>
           <SignatureCanvas ref={sigRef} />
@@ -524,8 +580,8 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* PASO 5 — Resumen */}
-      {step === 5 && (
+      {/* Resumen */}
+      {current === "Resumen" && (
         <div className="flex flex-col gap-3">
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
             <SummaryRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />

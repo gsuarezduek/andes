@@ -24,21 +24,35 @@ async function seedUsers() {
   console.log(`✔ usuarios: ${users.length} (pass dev: ${DEV_PASSWORD})`);
 }
 
-// Checklist configurable (§4.1) -----------------------------------------
+// Checklist configurable — ítems del contrato vigente (23) -----------------
+export const CHECKLIST_LABELS = [
+  "Lavado y aspirado",
+  "Nivel de combustible: mismo nivel o superior",
+  "Tablero sin testigos de alerta",
+  "Arranque correcto",
+  "Llave y cerradura en correcto funcionamiento",
+  "Seguro vigente",
+  "Tarjeta verde",
+  "Documentación completa en guantera",
+  "Kit de seguridad completo",
+  "Gato y llave cruz en baúl",
+  "Tuerca de seguridad",
+  "Exterior filmado / fotografías tomadas",
+  "Sin daños por granizo",
+  "Vidrios en buen estado",
+  "Ópticas delanteras y traseras OK",
+  "Luces probadas (altas, bajas, giro, stop)",
+  "Cubiertas en buen estado",
+  "Espejos exteriores OK",
+  "Plásticos interiores en buen estado",
+  "Tapizados en buen estado",
+  "Alfombras completas y limpias",
+  "Levanta cristales funcionando",
+  "Perfume / accesorios completos",
+];
+
 async function seedChecklist() {
-  const labels = [
-    "Luces",
-    "Cubiertas",
-    "Rueda de auxilio",
-    "Gato",
-    "Llave de rueda",
-    "Matafuegos",
-    "Balizas",
-    "Documentación (cédula, seguro, VTV)",
-    "Limpieza interior",
-    "Limpieza exterior",
-    "Aire acondicionado",
-  ];
+  const labels = CHECKLIST_LABELS;
   if ((await prisma.checklistItem.count()) === 0) {
     await prisma.checklistItem.createMany({
       data: labels.map((label, i) => ({ label, ordering: i + 1 })),
@@ -141,10 +155,14 @@ async function main() {
   await seedRentals();
 }
 
-main()
-  .then(() => console.log("Seed completo."))
-  .catch((e) => {
-    console.error(e);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Solo ejecutar el seed cuando se corre directamente (no al importar CHECKLIST_LABELS).
+const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectRun) {
+  main()
+    .then(() => console.log("Seed completo."))
+    .catch((e) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}

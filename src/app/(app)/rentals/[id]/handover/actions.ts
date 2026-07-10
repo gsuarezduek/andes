@@ -5,7 +5,27 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
+
+const optNum = z.number().nonnegative().optional();
+const pricingSchema = z
+  .object({
+    place: z.string().optional(),
+    dailyRate: optNum,
+    days: optNum,
+    insuranceAmount: optNum,
+    kmIncluded: optNum,
+    extraKmRate: optNum,
+    extraHourRate: optNum,
+    accessoriesDesc: z.string().optional(),
+    accessoriesAmount: optNum,
+    total: optNum,
+    paid: optNum,
+    balance: optNum,
+    deposit: optNum,
+  })
+  .optional();
 
 const damageSchema = z.object({
   view: z.enum(["top", "front", "rear", "left", "right", "interior"]),
@@ -28,6 +48,8 @@ const saveSchema = z.object({
   videoKey: z.string().optional(),
   signatureKey: z.string().min(1, "Falta la firma del cliente"),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
+  licenseExpiry: z.string().optional(), // "YYYY-MM-DD"
+  pricing: pricingSchema,
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
@@ -99,9 +121,21 @@ export async function saveHandover(input: SaveHandoverInput): Promise<SaveResult
       },
     });
 
+    const licenseExpiry = data.licenseExpiry
+      ? mendozaWallTimeToUtc(`${data.licenseExpiry}T12:00`)
+      : undefined;
+    const hasPricing =
+      data.pricing && Object.values(data.pricing).some((v) => v !== undefined && v !== "");
+
     await tx.rental.update({
       where: { id: rental.id },
-      data: { status: "active", vehicleId: vehicle.id, language: data.language },
+      data: {
+        status: "active",
+        vehicleId: vehicle.id,
+        language: data.language,
+        ...(licenseExpiry ? { licenseExpiry } : {}),
+        ...(hasPricing ? { pricing: data.pricing } : {}),
+      },
     });
     await tx.vehicle.update({
       where: { id: vehicle.id },

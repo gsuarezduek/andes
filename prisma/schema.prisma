@@ -147,13 +147,17 @@ model Rental {
 
   // Datos del cliente (denormalizados: el alquiler es la fuente de verdad del
   // contrato, independiente de cambios posteriores en VikRentCar).
-  clientName      String  @map("client_name")
-  clientEmail     String? @map("client_email")
-  clientPhone     String? @map("client_phone")
-  clientDocNumber String? @map("client_doc_number") // nro. de documento opcional
+  clientName      String    @map("client_name")
+  clientEmail     String?   @map("client_email")
+  clientPhone     String?   @map("client_phone")
+  clientDocNumber String?   @map("client_doc_number") // nro. de documento opcional
+  licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
 
   startAt DateTime @map("start_at") // fecha/hora de retiro (UTC)
   endAt   DateTime @map("end_at") // fecha/hora de devolución (UTC)
+
+  // Condiciones económicas del contrato (registro, sin cobro). Ver ContractPricing.
+  pricing Json? @map("pricing")
 
   origin      RentalOrigin @default(manual)
   wpBookingId Int?         @unique @map("wp_booking_id") // id de la orden VikRentCar

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatDateInput } from "@/lib/datetime";
 import { HandoverWizard } from "./handover-wizard";
 
 export const metadata: Metadata = { title: "Entrega — Andes" };
@@ -56,7 +56,15 @@ export default async function HandoverPage({
           name: rental.clientName,
           email: rental.clientEmail,
           phone: rental.clientPhone,
+          dni: rental.clientDocNumber,
         }}
+        licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
+        pricing={Object.fromEntries(
+          Object.entries((rental.pricing ?? {}) as Record<string, unknown>).map(([k, v]) => [
+            k,
+            String(v),
+          ]),
+        )}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={
           rental.vehicle
