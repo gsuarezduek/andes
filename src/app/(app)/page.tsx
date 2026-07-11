@@ -153,8 +153,14 @@ export default async function HomePage() {
                   </Link>
                 ))}
                 {alerts.upcomingServices.map((v) => (
-                  <Link key={v.id} href={`/vehicles/${v.id}`} className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
-                    <span className="font-medium text-amber-700 dark:text-amber-400">Service próximo</span>
+                  <Link
+                    key={v.id}
+                    href={`/vehicles/${v.id}`}
+                    className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${v.overdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
+                  >
+                    <span className={`font-medium ${v.overdue ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
+                      {v.overdue ? "Service vencido" : "Service próximo"}
+                    </span>
                     <span className="text-right text-foreground/70">
                       {v.brand} {v.model} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
                     </span>

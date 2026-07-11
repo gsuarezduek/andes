@@ -80,7 +80,22 @@ export default async function VehicleDetailPage({
           <Row label="Año" value={vehicle.year} />
           <Row label="Color" value={vehicle.color} />
           <Row label="Kilometraje" value={`${vehicle.currentKm.toLocaleString("es-AR")} km`} />
-          <Row label="Próximo service" value={vehicle.nextServiceKm ? `${vehicle.nextServiceKm.toLocaleString("es-AR")} km` : "—"} />
+          <Row
+            label="Próximo service"
+            value={
+              vehicle.nextServiceKm ? (
+                <span className={vehicle.currentKm >= vehicle.nextServiceKm ? "text-red-600 dark:text-red-400" : undefined}>
+                  {vehicle.nextServiceKm.toLocaleString("es-AR")} km
+                  {vehicle.currentKm < vehicle.nextServiceKm
+                    ? ` · faltan ${(vehicle.nextServiceKm - vehicle.currentKm).toLocaleString("es-AR")} km`
+                    : " · vencido"}
+                </span>
+              ) : (
+                "—"
+              )
+            }
+          />
+          <Row label="Intervalo de service" value={vehicle.serviceIntervalKm ? `${vehicle.serviceIntervalKm.toLocaleString("es-AR")} km` : "—"} />
           <Row label="Mapeo VikRentCar" value={vehicle.wpCarId ? `idcar ${vehicle.wpCarId} · unidad ${vehicle.wpCarIndex}` : "Sin mapear"} />
           <Row label="Notas" value={vehicle.notes} />
         </div>

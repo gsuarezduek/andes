@@ -32,6 +32,7 @@ const vehicleSchema = z.object({
   ),
   status: z.enum(["available", "rented", "out_of_service"]),
   nextServiceKm: optionalInt,
+  serviceIntervalKm: optionalInt,
   notes: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
     z.string().optional(),
@@ -48,6 +49,7 @@ function parse(formData: FormData) {
     currentKm: formData.get("currentKm"),
     status: formData.get("status"),
     nextServiceKm: formData.get("nextServiceKm"),
+    serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),
   });
 }

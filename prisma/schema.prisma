@@ -114,6 +114,9 @@ model Vehicle {
   currentKm     Int           @default(0) @map("current_km")
   status        VehicleStatus @default(available)
   nextServiceKm Int?          @map("next_service_km")
+  // Intervalo de service en km. Al registrar un service, el próximo se
+  // reprograma a (km del service + intervalo). Alimenta las alertas.
+  serviceIntervalKm Int? @map("service_interval_km")
   photoUrl      String?       @map("photo_url")
   notes         String?
 

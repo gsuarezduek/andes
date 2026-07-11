@@ -66,7 +66,8 @@ export async function getDashboardData() {
 
   const upcomingServices = serviceCandidates
     .filter((v) => v.nextServiceKm != null && v.currentKm >= v.nextServiceKm - SERVICE_KM_THRESHOLD)
-    .sort((a, b) => (a.nextServiceKm! - a.currentKm) - (b.nextServiceKm! - b.currentKm));
+    .sort((a, b) => (a.nextServiceKm! - a.currentKm) - (b.nextServiceKm! - b.currentKm))
+    .map((v) => ({ ...v, overdue: v.currentKm >= v.nextServiceKm! }));
 
   return {
     today: {

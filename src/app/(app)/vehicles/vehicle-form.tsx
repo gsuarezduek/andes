@@ -36,6 +36,7 @@ export function VehicleForm({
         <TextField id="currentKm" label="Kilometraje actual" type="number" inputMode="numeric" defaultValue={vehicle?.currentKm ?? 0} min={0} />
         <TextField id="nextServiceKm" label="Próximo service (km)" hint="Opcional — alimenta las alertas" type="number" inputMode="numeric" defaultValue={vehicle?.nextServiceKm ?? ""} min={0} />
       </div>
+      <TextField id="serviceIntervalKm" label="Intervalo de service (km)" hint="Opcional — al registrar un service, el próximo se reprograma solo (ej. 10000)" type="number" inputMode="numeric" defaultValue={vehicle?.serviceIntervalKm ?? ""} min={0} />
       <SelectField id="status" label="Estado" defaultValue={vehicle?.status ?? "available"}>
         {Object.entries(vehicleStatusLabels).map(([value, label]) => (
           <option key={value} value={value}>

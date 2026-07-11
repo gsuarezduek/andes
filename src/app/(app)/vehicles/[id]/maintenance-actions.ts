@@ -44,6 +44,26 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
       description: parsed.data.description,
     },
   });
+
+  // Al registrar un service con km, reprogramar el próximo service según el
+  // intervalo del vehículo y avanzar el km actual si corresponde.
+  if (parsed.data.type === "service" && parsed.data.km != null) {
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      select: { currentKm: true, serviceIntervalKm: true },
+    });
+    if (vehicle) {
+      const km = parsed.data.km;
+      await prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          ...(vehicle.serviceIntervalKm ? { nextServiceKm: km + vehicle.serviceIntervalKm } : {}),
+          ...(km > vehicle.currentKm ? { currentKm: km } : {}),
+        },
+      });
+    }
+  }
+
   revalidatePath(`/vehicles/${vehicleId}`);
 }
 
