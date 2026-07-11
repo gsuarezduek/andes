@@ -16,6 +16,7 @@ import { vehicleStatusTone } from "@/lib/vehicle-ui";
 import { formatDate, formatDateTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
 import { createMaintenance, deleteMaintenance } from "./maintenance-actions";
+import { markDamageRepaired, deleteDamage } from "./damage-actions";
 
 export const metadata: Metadata = { title: "Vehículo — Andes" };
 
@@ -125,9 +126,21 @@ export default async function VehicleDetailPage({
             <div className="mx-auto w-full max-w-[180px] shrink-0">
               <Croquis existing={vehicle.damages} markers={[]} readOnly />
             </div>
-            <ul className="flex-1 list-disc pl-5 text-sm">
+            <ul className="flex-1 divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
               {vehicle.damages.map((d) => (
-                <li key={d.id}>{d.description || "Daño sin descripción"}</li>
+                <li key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span>{d.description || "Daño sin descripción"}</span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <form action={markDamageRepaired.bind(null, vehicle.id, d.id)}>
+                      <button className="text-xs font-medium text-emerald-600">Marcar reparado</button>
+                    </form>
+                    {isAdmin && (
+                      <form action={deleteDamage.bind(null, vehicle.id, d.id)}>
+                        <button className="text-xs text-red-600">Borrar</button>
+                      </form>
+                    )}
+                  </div>
+                </li>
               ))}
             </ul>
           </div>
