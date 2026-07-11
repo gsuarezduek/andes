@@ -19,12 +19,14 @@ export const COMPANY = {
  */
 export type ContractPricing = {
   place?: string; // lugar de retiro/devolución
-  dailyRate?: number; // $ por día
-  days?: number;
-  insuranceAmount?: number; // seguro con franquicia
-  kmIncluded?: number; // km para uso
+  dailyRate?: number; // $ por día (se precarga de VikRentCar: car_cost/days)
+  days?: number; // cantidad de días (se precarga de VikRentCar: days)
+  insuranceAmount?: number; // seguro
+  kmPerDay?: number; // km incluidos por día
   extraKmRate?: number; // $ por km extra
-  extraHourRate?: number; // $ por hora extra
+  extraHourPercent?: number; // hora extra como % de la tarifa diaria
+  kmIncluded?: number; // (compat) km para uso — reemplazado por kmPerDay
+  extraHourRate?: number; // (compat) $ por hora extra — hoy derivado de extraHourPercent
   accessoriesDesc?: string;
   accessoriesAmount?: number;
   total?: number; // total a pagar
@@ -33,20 +35,33 @@ export type ContractPricing = {
   deposit?: number; // excedentes / depósito en garantía
 };
 
-/** Campos monetarios de ContractPricing, con etiqueta, para formularios y acta. */
-export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; money: boolean }[] = [
-  { key: "dailyRate", label: "Precio por día", money: true },
-  { key: "days", label: "Cantidad de días", money: false },
-  { key: "insuranceAmount", label: "Seguro con franquicia", money: true },
-  { key: "kmIncluded", label: "Km para uso", money: false },
-  { key: "extraKmRate", label: "Km extra ($ c/u)", money: true },
-  { key: "extraHourRate", label: "Hora extra ($ c/u)", money: true },
-  { key: "accessoriesAmount", label: "Accesorios", money: true },
-  { key: "total", label: "Total a pagar", money: true },
-  { key: "paid", label: "Paga", money: true },
-  { key: "balance", label: "Saldo", money: true },
-  { key: "deposit", label: "Excedentes / depósito", money: true },
+/** Cómo se formatea/edita cada campo de pricing. */
+export type PricingKind = "money" | "int" | "percent";
+
+/** Campos de ContractPricing, con etiqueta y tipo, para formularios y acta. */
+export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: PricingKind }[] = [
+  { key: "dailyRate", label: "Precio por día", kind: "money" },
+  { key: "days", label: "Cantidad de días", kind: "int" },
+  { key: "insuranceAmount", label: "Seguro", kind: "money" },
+  { key: "kmPerDay", label: "Km por día", kind: "int" },
+  { key: "extraKmRate", label: "Km extra ($ c/u)", kind: "money" },
+  { key: "extraHourPercent", label: "Hora extra (% de la tarifa)", kind: "percent" },
+  { key: "accessoriesAmount", label: "Accesorios", kind: "money" },
+  { key: "total", label: "Total a pagar", kind: "money" },
+  { key: "paid", label: "Paga", kind: "money" },
+  { key: "balance", label: "Saldo", kind: "money" },
+  { key: "deposit", label: "Excedentes / depósito", kind: "money" },
 ];
+
+/**
+ * Importe de la hora extra derivado del % sobre la tarifa diaria.
+ * `null` si falta la tarifa o el porcentaje.
+ */
+export function extraHourAmount(p: Pick<ContractPricing, "dailyRate" | "extraHourPercent">): number | null {
+  if (p.dailyRate == null || p.extraHourPercent == null) return null;
+  const v = (p.dailyRate * p.extraHourPercent) / 100;
+  return Number.isFinite(v) ? Math.round(v) : null;
+}
 
 /** Checklist de verificación del contrato (entrega). Configurable por el admin. */
 export const CANONICAL_CHECKLIST = [

@@ -32,6 +32,10 @@ export type RawBooking = {
   clientEmail: string | null;
   clientPhone: string | null;
   clientDocNumber: string | null;
+  // Datos económicos de la orden (referencia; ver docs/wordpress-mapping.md).
+  custData: string | null; // custdata: info de la reserva (texto libre del staff)
+  orderTotal: number | null; // order_total (con extras)
+  carCost: number | null; // car_cost (tarifa del auto, sin extras)
 };
 
 /** Un modelo de `wp_vikrentcar_cars`, para el seed inicial de la flota. */

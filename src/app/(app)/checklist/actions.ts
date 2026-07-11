@@ -12,7 +12,7 @@ export async function createChecklistItem(formData: FormData) {
   await prisma.checklistItem.create({
     data: { label, ordering: (max._max.ordering ?? 0) + 1 },
   });
-  revalidatePath("/checklist");
+  revalidatePath("/settings");
 }
 
 export async function toggleChecklistItem(id: string) {
@@ -21,13 +21,13 @@ export async function toggleChecklistItem(id: string) {
   if (item) {
     await prisma.checklistItem.update({ where: { id }, data: { active: !item.active } });
   }
-  revalidatePath("/checklist");
+  revalidatePath("/settings");
 }
 
 export async function deleteChecklistItem(id: string) {
   await requireAdmin();
   await prisma.checklistItem.delete({ where: { id } });
-  revalidatePath("/checklist");
+  revalidatePath("/settings");
 }
 
 export async function moveChecklistItem(id: string, dir: "up" | "down") {
@@ -42,5 +42,5 @@ export async function moveChecklistItem(id: string, dir: "up" | "down") {
     prisma.checklistItem.update({ where: { id: a.id }, data: { ordering: b.ordering } }),
     prisma.checklistItem.update({ where: { id: b.id }, data: { ordering: a.ordering } }),
   ]);
-  revalidatePath("/checklist");
+  revalidatePath("/settings");
 }

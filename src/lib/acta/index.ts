@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { storage, actaKey } from "@/lib/storage";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { formatDateTime, formatDate } from "@/lib/datetime";
-import { COMPANY, formatArs, PRICING_FIELDS, type ContractPricing } from "@/lib/contract";
+import { COMPANY, formatArs, PRICING_FIELDS, extraHourAmount, type ContractPricing } from "@/lib/contract";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
@@ -74,8 +74,15 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   for (const f of PRICING_FIELDS) {
     const v = pricing[f.key];
     if (typeof v === "number" && !Number.isNaN(v)) {
-      termRows.push({ label: f.label, value: f.money ? formatArs(v) : String(v) });
+      const value =
+        f.kind === "money" ? formatArs(v) : f.kind === "percent" ? `${v}%` : String(v);
+      termRows.push({ label: f.label, value });
     }
+  }
+  // Importe de la hora extra derivado del % sobre la tarifa diaria.
+  const hourAmount = extraHourAmount(pricing);
+  if (hourAmount != null) {
+    termRows.push({ label: t.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
   }
 
   // Comparación con la entrega (solo devolución).

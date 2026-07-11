@@ -23,7 +23,7 @@ import {
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels } from "@/lib/labels";
-import { PRICING_FIELDS } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, formatArs } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 type Lang = "es" | "en";
@@ -67,6 +67,8 @@ export type InspectionWizardProps = {
   language: Lang;
   licenseExpiry?: string;
   pricing?: Record<string, string>;
+  /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
+  bookingNote?: string;
   returnContext?: { handoverKm: number; handoverFuel: number };
 };
 
@@ -429,6 +431,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
               </div>
               <TextField id="clientEmail" label="Email" type="email" value={draft.clientEmail} onChange={(e) => patch({ clientEmail: e.target.value })} hint="Ahí llega el acta firmada." />
               <p className="text-xs text-foreground/50">{props.datesLabel}</p>
+              {props.bookingNote ? (
+                <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-3">
+                  <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{props.bookingNote}</p>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-xl border border-foreground/10 p-4 text-sm">
@@ -469,6 +477,17 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 <TextField key={f.key} id={`pricing_${f.key}`} label={f.label} type="number" inputMode="numeric" value={draft.pricing[f.key] ?? ""} onChange={(e) => patch({ pricing: { ...draft.pricing, [f.key]: e.target.value } })} min={0} />
               ))}
             </div>
+            {(() => {
+              const amount = extraHourAmount({
+                dailyRate: Number(draft.pricing.dailyRate) || undefined,
+                extraHourPercent: Number(draft.pricing.extraHourPercent) || undefined,
+              });
+              return amount != null ? (
+                <p className="mt-2 text-xs text-foreground/60">
+                  Hora extra ≈ <span className="font-medium text-foreground/80">{formatArs(amount)}</span> ({draft.pricing.extraHourPercent}% de la tarifa diaria).
+                </p>
+              ) : null;
+            })()}
             <p className="mt-2 text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>
           </div>
         </div>

@@ -91,6 +91,7 @@ function andes_sync_bookings(WP_REST_Request $request)
     $sql = $wpdb->prepare(
         "SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
                 o.days, o.lang, o.nominative, o.custmail, o.phone,
+                o.custdata, o.order_total, o.car_cost,
                 c.first_name AS c_first, c.last_name AS c_last,
                 c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
          FROM {$p}orders o
@@ -160,6 +161,9 @@ function andes_sync_normalize_order($r)
         'clientEmail'     => andes_sync_clean($r['c_email']) ?: andes_sync_clean($r['custmail']),
         'clientPhone'     => andes_sync_clean($r['c_phone']) ?: andes_sync_clean($r['phone']),
         'clientDocNumber' => andes_sync_clean($r['c_docnum']),
+        'custData'        => andes_sync_clean($r['custdata']),
+        'orderTotal'      => andes_sync_float_or_null($r['order_total']),
+        'carCost'         => andes_sync_float_or_null($r['car_cost']),
     ];
 }
 
@@ -175,4 +179,9 @@ function andes_sync_clean($v)
 function andes_sync_int_or_null($v)
 {
     return ($v === null || $v === '') ? null : (int) $v;
+}
+
+function andes_sync_float_or_null($v)
+{
+    return ($v === null || $v === '') ? null : (float) $v;
 }

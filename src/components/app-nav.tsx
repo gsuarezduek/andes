@@ -29,7 +29,7 @@ export function AppNav({
     ...(isAdmin
       ? [
           { href: "/users", label: "Usuarios" },
-          { href: "/checklist", label: "Checklist" },
+          { href: "/settings", label: "Configuración" },
           { href: "/sync", label: "Sincronización" },
         ]
       : []),

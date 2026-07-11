@@ -29,7 +29,7 @@ export default async function HandoverPage({
     redirect(`/rentals/${rental.id}`);
   }
 
-  const [checklistItems, vehicles] = await Promise.all([
+  const [checklistItems, vehicles, conditions] = await Promise.all([
     prisma.checklistItem.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
@@ -39,7 +39,28 @@ export default async function HandoverPage({
       orderBy: [{ brand: "asc" }, { model: "asc" }],
       select: { id: true, plate: true, brand: true, model: true },
     }),
+    prisma.conditionSettings.findUnique({ where: { id: 1 } }),
   ]);
+
+  // Condiciones precargadas: lo que ya cargó el empleado (rental.pricing) tiene
+  // prioridad; se completa con el precio/días de la reserva (VikRentCar) y con
+  // la plantilla global de Configuración. Todo editable en el wizard.
+  const saved = (rental.pricing ?? {}) as Record<string, unknown>;
+  const initialPricing: Record<string, string> = {};
+  const preset = (key: string, value: number | null | undefined) => {
+    if (saved[key] !== undefined && saved[key] !== null) initialPricing[key] = String(saved[key]);
+    else if (value !== undefined && value !== null) initialPricing[key] = String(value);
+  };
+  preset("dailyRate", rental.bookingPricePerDay ? Number(rental.bookingPricePerDay) : null);
+  preset("days", rental.bookingDays);
+  preset("insuranceAmount", conditions?.insuranceAmount ? Number(conditions.insuranceAmount) : null);
+  preset("kmPerDay", conditions?.kmPerDay);
+  preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
+  preset("extraHourPercent", conditions?.extraHourPercent);
+  // Campos que solo puede haber cargado el empleado (no se precargan).
+  for (const [k, v] of Object.entries(saved)) {
+    if (initialPricing[k] === undefined && v !== null && v !== undefined) initialPricing[k] = String(v);
+  }
 
   const existingDamages = rental.vehicleId
     ? await prisma.damage.findMany({
@@ -62,12 +83,8 @@ export default async function HandoverPage({
           dni: rental.clientDocNumber,
         }}
         licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
-        pricing={Object.fromEntries(
-          Object.entries((rental.pricing ?? {}) as Record<string, unknown>).map(([k, v]) => [
-            k,
-            String(v),
-          ]),
-        )}
+        pricing={initialPricing}
+        bookingNote={rental.bookingNote ?? undefined}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={
           rental.vehicle

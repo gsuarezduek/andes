@@ -162,6 +162,14 @@ model Rental {
   // Condiciones económicas del contrato (registro, sin cobro). Ver ContractPricing.
   pricing Json? @map("pricing")
 
+  // Datos económicos importados de VikRentCar (referencia; el empleado los usa
+  // para precargar/confirmar las condiciones). Ver docs/wordpress-mapping.md:
+  // `days` 100%, `custdata` 100% (texto libre), `order_total` ~95%, `car_cost` ~24%.
+  bookingDays        Int?     @map("booking_days") // days de la orden
+  bookingPricePerDay Decimal? @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
+  bookingTotal       Decimal? @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
+  bookingNote        String?  @map("booking_note") @db.Text // custdata: info de la reserva (staff)
+
   origin      RentalOrigin @default(manual)
   wpBookingId Int?         @unique @map("wp_booking_id") // id de la orden VikRentCar
   language    Language     @default(es)
@@ -304,6 +312,24 @@ model ChecklistItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Condiciones económicas precargadas (plantilla global, un solo registro)
+// ---------------------------------------------------------------------------
+//
+// Valores por defecto que el empleado ve precargados en el paso "Condiciones"
+// de la entrega y puede ajustar antes de firmar. Singleton: siempre id = 1.
+// La "hora extra" se expresa como % de la tarifa diaria del alquiler.
+model ConditionSettings {
+  id               Int      @id @default(1)
+  insuranceAmount  Decimal? @map("insurance_amount") @db.Decimal(12, 2) // seguro
+  kmPerDay         Int?     @map("km_per_day") // km incluidos por día
+  extraKmRate      Decimal? @map("extra_km_rate") @db.Decimal(12, 2) // $ por km extra
+  extraHourPercent Int?     @map("extra_hour_percent") // % de la tarifa diaria por hora extra
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("condition_settings")
 }
 
 // ---------------------------------------------------------------------------

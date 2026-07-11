@@ -27,6 +27,9 @@ type OrderRow = {
   nominative: string | null;
   custmail: string | null;
   phone: string | null;
+  custdata: string | null;
+  order_total: string | number | null;
+  car_cost: string | number | null;
   c_first: string | null;
   c_last: string | null;
   c_email: string | null;
@@ -40,6 +43,13 @@ function clean(v: string | null): string | null {
   if (v == null) return null;
   const t = v.trim();
   return t.length > 0 ? t : null;
+}
+
+/** Decimal de MySQL (llega como string) → number, o null. */
+function num(v: string | number | null): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export class MysqlBookingSource implements BookingSource {
@@ -73,6 +83,7 @@ export class MysqlBookingSource implements BookingSource {
     const sql = `
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
+             o.custdata, o.order_total, o.car_cost,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
       FROM \`${PREFIX}orders\` o
@@ -134,5 +145,8 @@ function normalizeOrder(r: OrderRow): RawBooking {
     clientEmail: clean(r.c_email) ?? clean(r.custmail),
     clientPhone: clean(r.c_phone) ?? clean(r.phone),
     clientDocNumber: clean(r.c_docnum),
+    custData: clean(r.custdata),
+    orderTotal: num(r.order_total),
+    carCost: num(r.car_cost),
   };
 }

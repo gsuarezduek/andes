@@ -55,13 +55,38 @@ Columnas verificadas (las relevantes; hay más de pagos/impuestos que no usamos)
 | `nominative` | varchar(64) | sí | **nombre del cliente** — fallback cuando no hay `customers` |
 | `custmail` | varchar(128) | sí | email — fallback |
 | `phone` | varchar(32) | sí | teléfono — fallback |
-| `custdata` | text | sí | datos crudos — último recurso (evitar parsear si hay alternativa) |
+| `custdata` | text | sí | **info de la reserva (texto libre del staff)** → `rentals.booking_note`. Ver abajo. |
 | `idplace` | int(10) | sí | lugar de retiro → `places` |
 | `idreturnplace` | int(10) | sí | lugar de devolución → `places` |
 | `idbusy` | int(10) | sí | vínculo a `busy` (ocupación) |
 | `country` | varchar(5) | sí | país |
-| `order_total` / `totpaid` | decimal(12,2) | sí | informativo (cobros fuera de v1) |
+| `car_cost` | decimal(12,2) | sí | tarifa del auto (sin extras). `car_cost/days` → `rentals.booking_price_per_day`. **Cobertura ~24%.** |
+| `order_total` | decimal(12,2) | sí | total con extras → `rentals.booking_total` (referencia). Cobertura ~95%. |
+| `totpaid` | decimal(12,2) | sí | pagado (informativo; cobros fuera de v1) |
+| `idtar` | int(10) | sí | id de tarifa aplicada (no usado) |
 | `adminnotes` | text | sí | notas del admin en el plugin |
+
+### Datos económicos → precarga de condiciones (Fase 6)
+
+Verificado sobre la **ventana de sync** (hoy−2d…hoy+60d, ~21 órdenes confirmadas):
+
+| Dato | Columna | Cobertura | → Andes |
+|---|---|---:|---|
+| Cantidad de días | `days` | **100%** | `rentals.booking_days` |
+| Info de la reserva | `custdata` | **100%** | `rentals.booking_note` (se muestra al empleado en la entrega) |
+| Total de la reserva | `order_total` | ~95% | `rentals.booking_total` (referencia; incluye extras) |
+| Precio por día limpio | `car_cost / days` | **~24%** | `rentals.booking_price_per_day` (precarga `dailyRate` cuando existe) |
+
+- **`custdata` es texto libre heterogéneo**, no parseable de forma confiable: a veces es el
+  formulario del cliente (`Nombre:/Apellido:/Telefono:/…`), a veces notas operativas del staff
+  con hora de retiro, precio pactado y forma de pago (ej.
+  `"9hs Araceli x 5 dias a $75.000 + mejora de seguro a $20.000 x dia"`). Se trae **crudo** y se
+  muestra al empleado en el paso "Datos" de la entrega; **no** va al acta del cliente.
+- **No existe una tarifa diaria estructurada y confiable** para la mayoría de las reservas: `car_cost`
+  está cargado en ~24%. Cuando falta, el empleado completa el precio por día leyendo el `custdata`.
+- El sync **nunca pisa** `rentals.pricing` (condiciones del contrato que carga el empleado). Solo
+  escribe los campos `booking_*` (hechos de la reserva). La "hora extra" del contrato se expresa como
+  **% de la tarifa diaria** (`ConditionSettings.extraHourPercent`), configurable en Configuración.
 
 ### Timestamps — confirmado
 

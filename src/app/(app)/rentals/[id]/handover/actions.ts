@@ -16,9 +16,11 @@ const pricingSchema = z
     dailyRate: optNum,
     days: optNum,
     insuranceAmount: optNum,
-    kmIncluded: optNum,
+    kmPerDay: optNum,
     extraKmRate: optNum,
-    extraHourRate: optNum,
+    extraHourPercent: optNum,
+    kmIncluded: optNum, // compat
+    extraHourRate: optNum, // compat
     accessoriesDesc: z.string().optional(),
     accessoriesAmount: optNum,
     total: optNum,

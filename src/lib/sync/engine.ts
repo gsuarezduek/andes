@@ -106,6 +106,7 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
   const language = resolveLocale(b.lang);
   const startAt = fromUnixSeconds(b.startUnix);
   const endAt = fromUnixSeconds(b.endUnix);
+  const booking = bookingFacts(b);
 
   if (!existing) {
     await prisma.rental.create({
@@ -121,6 +122,7 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
         clientEmail: b.clientEmail,
         clientPhone: b.clientPhone,
         clientDocNumber: b.clientDocNumber,
+        ...booking,
       },
     });
     return "imported";
@@ -141,9 +143,28 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
       clientEmail: b.clientEmail,
       clientPhone: b.clientPhone,
       clientDocNumber: b.clientDocNumber,
+      ...booking,
     },
   });
   return "updated";
+}
+
+/**
+ * Datos económicos de la orden (referencia para precargar/confirmar las
+ * condiciones). NO son pricing del contrato: eso lo carga el empleado y el sync
+ * nunca lo pisa. Ver docs/wordpress-mapping.md.
+ */
+function bookingFacts(b: RawBooking) {
+  const perDay =
+    b.carCost != null && b.days && b.days > 0
+      ? Math.round((b.carCost / b.days) * 100) / 100
+      : null;
+  return {
+    bookingDays: b.days,
+    bookingTotal: b.orderTotal,
+    bookingNote: b.custData,
+    bookingPricePerDay: perDay,
+  };
 }
 
 /** Mapea (idcar, carindex) → vehicle.id. `carindex` NULL → sin unidad asignada. */

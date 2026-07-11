@@ -48,6 +48,7 @@ export type Dictionary = {
     kmIncluded: string;
     extraKm: string;
     extraHour: string;
+    extraHourAmount: string;
     accessories: string;
     total: string;
     paid: string;
@@ -114,6 +115,7 @@ const es: Dictionary = {
     kmIncluded: "Km para uso",
     extraKm: "Km extra",
     extraHour: "Hora extra",
+    extraHourAmount: "Hora extra (importe)",
     accessories: "Accesorios",
     total: "Total a pagar",
     paid: "Paga",
@@ -190,6 +192,7 @@ const en: Dictionary = {
     kmIncluded: "Included km",
     extraKm: "Extra km",
     extraHour: "Extra hour",
+    extraHourAmount: "Extra hour (amount)",
     accessories: "Accessories",
     total: "Total due",
     paid: "Paid",
