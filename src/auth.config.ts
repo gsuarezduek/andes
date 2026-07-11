@@ -10,6 +10,9 @@ export const authConfig = {
   trustHost: true, // Railway (no Vercel): confiar en el host de la request.
   pages: {
     signIn: "/login",
+    // Los errores de OAuth (p. ej. Google rechazado por `signIn`) vuelven acá
+    // con ?error=..., en vez de la página de error por defecto de Auth.js.
+    error: "/login",
   },
   session: {
     strategy: "jwt",

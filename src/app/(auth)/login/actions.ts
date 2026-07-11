@@ -24,3 +24,8 @@ export async function authenticate(
     throw error;
   }
 }
+
+export async function signInWithGoogle() {
+  // Lanza el redirect a Google (NEXT_REDIRECT); Next.js lo propaga.
+  await signIn("google", { redirectTo: "/" });
+}

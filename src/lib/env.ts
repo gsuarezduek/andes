@@ -41,6 +41,11 @@ export const env = {
     return required("AUTH_SECRET");
   },
 
+  /** ¿Está configurado el login con Google? (opcional; Auth.js lee estas envs). */
+  get hasGoogleAuth(): boolean {
+    return Boolean(optional("AUTH_GOOGLE_ID") && optional("AUTH_GOOGLE_SECRET"));
+  },
+
   /** WordPress / VikRentCar read-only MySQL (Phase 5, dev/testing transport). */
   get wpMysql() {
     return {
