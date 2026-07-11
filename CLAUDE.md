@@ -95,7 +95,10 @@ npm test
   - **Devolución** (`/rentals/[id]/return`): reutiliza estado/checklist/croquis/fotos/firma, agrega **paso Comparación** (km recorridos, diferencia de nafta, daños nuevos resaltados) antes de firmar. Guarda km ≥ km de entrega.
   - `saveReturn` cierra el alquiler (→ `finished`), libera el vehículo (→ `available`) y actualiza su km. Entrada desde el detalle ("Iniciar devolución" si activo + con entrega + sin devolución).
   - **Acta de devolución** incluye la sección de comparación con la entrega. Verificado el render del PDF.
-- [ ] Fase 4 — Dashboard y perfil de vehículo
+- [~] **Fase 4 — Dashboard y perfil de vehículo** (construida y probada en local; a verificar en prod)
+  - **Dashboard** (home, `src/lib/dashboard.ts` + `page.tsx`): "Hoy" (entregas/devoluciones con estado pendiente/completada/demorada), estado de flota (contadores + alquilados con cliente y vuelta esperada), y **alertas** (devoluciones vencidas, service próximo por km ≤500, reservas sin vehículo). Flota/alertas solo admin; "Hoy" para todos.
+  - **Perfil de vehículo**: gráfico SVG de evolución de km, **daños activos** sobre croquis solo-lectura, historial de alquileres (con km recorridos), historial de inspecciones (con link al acta), y **registro de mantenimiento** (ABM: service/arreglo/gasto/nota con fecha, km, costo).
+  - Sin migraciones nuevas (usa `MaintenanceLog` ya existente). Build y lint en verde; render verificado en local.
 - [ ] Fase 5 — Sync VikRentCar
 - [ ] Fase 6 — Refinamientos
 
