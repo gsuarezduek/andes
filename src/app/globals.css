@@ -25,6 +25,29 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Loader de Andes: trazo de luz recorriendo la silueta de los picos. */
+.andes-loader-track {
+  stroke: #38bdf8;
+  opacity: 0.18;
+}
+.andes-loader-runner {
+  stroke: #38bdf8;
+  stroke-dasharray: 30 70;
+  animation: andes-dash 1.4s linear infinite;
+}
+@keyframes andes-dash {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .andes-loader-runner {
+    animation: none;
+    stroke-dasharray: none;
+    opacity: 0.9;
+  }
+}
+
 /* Impresión de QRs: ocultar la app (nav, botones) y forzar tinta negra. */
 @media print {
   .no-print {

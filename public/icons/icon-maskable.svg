@@ -12,12 +12,12 @@
       <stop offset="0" stop-color="#7dd3fc"/>
       <stop offset="1" stop-color="#0284c7"/>
     </linearGradient>
-    <clipPath id="squircle">
-      <rect width="512" height="512" rx="112"/>
+    <clipPath id="frame">
+      <rect width="512" height="512"/>
     </clipPath>
   </defs>
 
-  <g clip-path="url(#squircle)">
+  <g clip-path="url(#frame)">
     <rect width="512" height="512" fill="url(#sky)"/>
 
     <!-- Sun -->
