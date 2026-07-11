@@ -15,6 +15,12 @@ export type InspectionInput = {
   rentalId: string;
   vehicleId: string;
   language: "es" | "en";
+  // Datos del cliente, editables al iniciar la entrega (una reserva de
+  // VikRentCar puede llegar sin nombre). Se ignoran en la devolución.
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientDocNumber?: string;
   km: number;
   fuelLevel: number;
   checklist: Record<string, "ok" | "fail">;

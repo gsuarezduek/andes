@@ -25,6 +25,10 @@ type Draft = {
   draftId: string;
   vehicleId: string;
   language: Lang;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientDocNumber: string;
   licenseExpiry: string;
   pricing: Record<string, string>;
   km: string;
@@ -76,6 +80,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
     draftId: newId(),
     vehicleId: props.vehicle?.id ?? "",
     language: props.language,
+    clientName: props.client.name,
+    clientEmail: props.client.email ?? "",
+    clientPhone: props.client.phone ?? "",
+    clientDocNumber: props.client.dni ?? "",
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
@@ -173,7 +181,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const fuelDiff = props.returnContext ? draft.fuelLevel - props.returnContext.handoverFuel : 0;
 
   function validateStep(): string | undefined {
-    if (current === "Datos" && !draft.vehicleId) return "Asigná un vehículo para continuar.";
+    if (current === "Datos") {
+      if (!draft.vehicleId) return "Asigná un vehículo para continuar.";
+      if (isHandover && !draft.clientName.trim()) return "Ingresá el nombre del cliente.";
+    }
     if (current === "Estado") {
       if (draft.km === "" || Number(draft.km) < 0) return "Ingresá el kilometraje.";
       if (props.returnContext && Number(draft.km) < props.returnContext.handoverKm) {
@@ -253,6 +264,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
         signerName: draft.signerName.trim(),
         ...(isHandover
           ? {
+              clientName: draft.clientName.trim(),
+              clientEmail: draft.clientEmail.trim() || undefined,
+              clientPhone: draft.clientPhone.trim() || undefined,
+              clientDocNumber: draft.clientDocNumber.trim() || undefined,
               licenseExpiry: draft.licenseExpiry || undefined,
               pricing: Object.keys(pricing).length ? pricing : undefined,
             }
@@ -286,12 +301,29 @@ export function InspectionWizard(props: InspectionWizardProps) {
 
       {current === "Datos" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-foreground/10 p-4 text-sm">
-            <p className="font-semibold">{props.client.name}</p>
-            <p className="text-foreground/60">{props.client.email ?? "sin email"}</p>
-            <p className="text-foreground/60">{props.client.phone ?? "sin teléfono"}</p>
-            <p className="mt-2 text-foreground/60">{props.datesLabel}</p>
-          </div>
+          {isHandover ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium text-foreground/80">Datos del cliente</p>
+              <TextField id="clientName" label="Nombre y apellido" value={draft.clientName} onChange={(e) => {
+                const name = e.target.value;
+                // La aclaración de la firma sigue al nombre mientras no se haya editado a mano.
+                patch(draft.signerName === draft.clientName ? { clientName: name, signerName: name } : { clientName: name });
+              }} hint="Se usa en el acta y los emails. Verificá contra el documento." />
+              <div className="grid grid-cols-2 gap-3">
+                <TextField id="clientDocNumber" label="Documento" value={draft.clientDocNumber} onChange={(e) => patch({ clientDocNumber: e.target.value })} />
+                <TextField id="clientPhone" label="Teléfono" type="tel" value={draft.clientPhone} onChange={(e) => patch({ clientPhone: e.target.value })} />
+              </div>
+              <TextField id="clientEmail" label="Email" type="email" value={draft.clientEmail} onChange={(e) => patch({ clientEmail: e.target.value })} hint="Ahí llega el acta firmada." />
+              <p className="text-xs text-foreground/50">{props.datesLabel}</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-foreground/10 p-4 text-sm">
+              <p className="font-semibold">{props.client.name}</p>
+              <p className="text-foreground/60">{props.client.email ?? "sin email"}</p>
+              <p className="text-foreground/60">{props.client.phone ?? "sin teléfono"}</p>
+              <p className="mt-2 text-foreground/60">{props.datesLabel}</p>
+            </div>
+          )}
           {props.vehicle ? (
             <div className="rounded-xl border border-foreground/10 p-4 text-sm">
               <span className="text-foreground/60">Vehículo: </span>
@@ -456,6 +488,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       {current === "Resumen" && (
         <div className="flex flex-col gap-3">
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+            {isHandover && <CompareRow label="Cliente" value={draft.clientName || "—"} />}
             <CompareRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
             <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
             <CompareRow label="Nafta" value={`${draft.fuelLevel}/8`} />
