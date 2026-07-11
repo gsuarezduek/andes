@@ -12,8 +12,8 @@
  * cliente; ver src/lib/client/upload-queue.ts.
  */
 
-const CACHE = "andes-shell-v2";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "andes-shell-v3";
+const APP_SHELL = ["/", "/offline.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
@@ -42,7 +42,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Navegaciones y RSC: network-first, fallback a cache (o al shell).
+  // Navegaciones y RSC: network-first. Offline, sirve la copia cacheada de ESA
+  // página si se visitó antes; si no, una página de "sin conexión" clara (no la
+  // home, que confundía). Las pantallas SSR (QR, wizard) necesitan servidor para
+  // abrirse; una vez abiertas, la captura funciona offline.
   if (request.mode === "navigate" || isRscRequest(request, url)) {
     event.respondWith(
       fetch(request)
@@ -52,7 +55,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() =>
-          caches.match(request).then((r) => r ?? caches.match("/")),
+          caches.match(request).then((r) => r ?? caches.match("/offline.html")),
         ),
     );
     return;

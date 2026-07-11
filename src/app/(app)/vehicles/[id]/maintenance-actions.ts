@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin, requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
 const optInt = z.preprocess(
@@ -24,7 +24,7 @@ const schema = z.object({
 });
 
 export async function createMaintenance(vehicleId: string, formData: FormData) {
-  await requireAdmin();
+  await requireUser();
   const parsed = schema.safeParse({
     type: formData.get("type"),
     date: formData.get("date"),

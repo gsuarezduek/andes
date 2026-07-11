@@ -100,13 +100,13 @@ export default async function VehicleDetailPage({
           <Row label="Notas" value={vehicle.notes} />
         </div>
 
-        {isAdmin && (
-          <div className="flex flex-wrap gap-3">
-            <ButtonLink href={`/vehicles/${vehicle.id}/edit`}>Editar</ButtonLink>
+        <div className="flex flex-wrap gap-3">
+          <ButtonLink href={`/vehicles/${vehicle.id}/edit`}>Editar</ButtonLink>
+          {isAdmin && (
             <ButtonLink href={`/vehicles/${vehicle.id}/qr`} variant="secondary">Imprimir QR</ButtonLink>
-            <ButtonLink href="/vehicles" variant="secondary">Volver</ButtonLink>
-          </div>
-        )}
+          )}
+          <ButtonLink href="/vehicles" variant="secondary">Volver</ButtonLink>
+        </div>
       </div>
 
       {/* Evolución de km */}
@@ -188,8 +188,7 @@ export default async function VehicleDetailPage({
       <section className="flex flex-col gap-2">
         <SectionTitle>Mantenimiento</SectionTitle>
 
-        {isAdmin && (
-          <form action={createMaintenance.bind(null, vehicle.id)} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
+        <form action={createMaintenance.bind(null, vehicle.id)} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-foreground/70">Tipo</span>
@@ -215,7 +214,6 @@ export default async function VehicleDetailPage({
             <input name="description" required placeholder="Descripción (ej. cambio de aceite y filtros)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
             <SubmitButton pendingLabel="Agregando…">Agregar registro</SubmitButton>
           </form>
-        )}
 
         {vehicle.maintenanceLogs.length === 0 ? (
           <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">Sin registros de mantenimiento.</p>

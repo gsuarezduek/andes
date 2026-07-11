@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireUser } from "@/lib/auth-helpers";
 import { VehicleForm } from "../../vehicle-form";
 import { updateVehicle } from "../../actions";
 
@@ -13,7 +13,7 @@ export default async function EditVehiclePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireAdmin();
+  await requireUser();
 
   const vehicle = await prisma.vehicle.findUnique({ where: { id } });
   if (!vehicle) notFound();
