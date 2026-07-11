@@ -19,25 +19,39 @@ export default async function RentalsPage({
   const { q } = await searchParams;
   const query = q?.trim();
 
-  const rentals = await prisma.rental.findMany({
-    where: query
-      ? {
-          OR: [
-            { clientName: { contains: query, mode: "insensitive" } },
-            { vehicle: { plate: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : undefined,
-    orderBy: { startAt: "desc" },
-    include: { vehicle: true },
-  });
+  // Límite defensivo: sin él, al sincronizar miles de órdenes de VikRentCar la
+  // lista traería todo. Se muestran los más recientes; el buscador acota el resto.
+  const LIMIT = 50;
+  const where = query
+    ? {
+        OR: [
+          { clientName: { contains: query, mode: "insensitive" as const } },
+          { vehicle: { plate: { contains: query, mode: "insensitive" as const } } },
+        ],
+      }
+    : undefined;
+
+  const [rentals, total] = await Promise.all([
+    prisma.rental.findMany({
+      where,
+      orderBy: { startAt: "desc" },
+      include: { vehicle: true },
+      take: LIMIT,
+    }),
+    prisma.rental.count({ where }),
+  ]);
+  const hasMore = total > rentals.length;
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Alquileres</h1>
-          <p className="text-sm text-foreground/60">{rentals.length} en total</p>
+          <p className="text-sm text-foreground/60">
+            {query
+              ? `${total} resultado${total === 1 ? "" : "s"}${hasMore ? ` · mostrando ${rentals.length}` : ""}`
+              : `${total} en total${hasMore ? ` · mostrando los ${rentals.length} más recientes` : ""}`}
+          </p>
         </div>
         <ButtonLink href="/rentals/new">Nuevo manual</ButtonLink>
       </div>
@@ -84,6 +98,12 @@ export default async function RentalsPage({
             </li>
           ))}
         </ul>
+      )}
+
+      {hasMore && (
+        <p className="text-center text-xs text-foreground/50">
+          Hay más alquileres. Usá el buscador por cliente o patente para encontrarlos.
+        </p>
       )}
     </div>
   );
