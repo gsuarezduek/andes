@@ -12,13 +12,15 @@
 - **Verificación (Fase 0):** hecha con usuario **read-only** de Hostinger.
 - **Regla dura (CLAUDE.md):** contra WordPress, **solo `SELECT`**. Nunca escribir,
   nunca importar el esquema de WP a Prisma.
-- ⚠️ **Pendiente de seguridad para producción:** durante el descubrimiento el
-  "Remote MySQL" quedó abierto a **cualquier IP (`%`)**. Eso expone la base de WP
-  (con PII de clientes) a internet. **Antes de Fase 5, decidir:**
-  - **(a)** *Static egress IP* de Railway (feature pago) + whitelist puntual, o
-  - **(b, recomendado)** **Plan B**: mini plugin de WordPress que exponga las
-    órdenes por REST con API key, sin abrir el MySQL. Ver `PROYECTO-ANDES.md §5`.
-  - Mientras tanto, cerrar el `%` y dejar solo la IP del entorno de trabajo.
+- ✅ **Resuelto en Fase 5 (Plan B REST):** se implementó el mu-plugin
+  `wordpress-plugin/andes-sync.php`, que expone las órdenes por REST (HTTPS +
+  token, solo lectura). Andes lo consume vía `WP_REST_URL`/`WP_REST_TOKEN`
+  (`src/lib/sync/rest-source.ts`). **Con esto el "Remote MySQL" se puede cerrar**
+  (quitar el `%`, dejar solo `localhost`). El adaptador MySQL directo
+  (`mysql-source.ts`) queda solo para pruebas locales contra datos reales.
+  - ⚠️ **Acción pendiente del dueño:** instalar el mu-plugin, definir
+    `ANDES_SYNC_TOKEN` en `wp-config.php`, setear las variables en Railway y
+    **cerrar el Remote MySQL**. Instrucciones en `wordpress-plugin/README.md`.
 
 ## Tablas presentes
 
@@ -121,13 +123,15 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 
 - Importar solo `status = 'confirmed'`. `standby` → "pendientes" (configurable, 17
   hoy). `cancelled` → cancelar el `rental` local **solo si aún no tiene entrega**.
-- **Sync incremental — cuidado:** `orders` no tiene columna de modificación (solo
-  `ts` de creación). Opciones:
-  - Usar `wp_vikrentcar_orderhistory` (`idorder`, `dt` datetime, `type` char(2),
-    `data`) para detectar órdenes cambiadas desde la última corrida, **o**
-  - Re-escanear en cada corrida una **ventana móvil** de órdenes cuyo `ritiro`/
-    `consegna` caiga en, p. ej., \[hoy − 2 días, hoy + 60 días], comparando contra
-    el estado local. Más simple y robusto para el volumen actual (~2k órdenes).
+- **Sync incremental — decisión (Fase 5): ventana móvil.** `orders` no tiene
+  columna de modificación (solo `ts` de creación). Se optó por re-escanear en
+  cada corrida las órdenes cuyo `ritiro`/`consegna` caiga en
+  \[hoy − `SYNC_WINDOW_DAYS_BACK` (2), hoy + `SYNC_WINDOW_DAYS_FORWARD` (60)],
+  comparando contra el estado local (upsert idempotente). Más simple y robusto
+  que `orderhistory` para el volumen actual (~2k órdenes; ~25 en ventana típica).
+  El upsert **nunca pisa** reservas que ya tienen inspección o dejaron de estar
+  en `reserved` (la orden de VikRentCar deja de ser la verdad una vez que Andes
+  registró el estado físico). Verificado idempotente contra datos reales.
 - Mapeo de vehículo por par (`idcar`, `carindex`). `carindex` NULL → alerta.
 - `lang` → `rentals.language` según la tabla de arriba.
 - Registrar cada corrida en `sync_logs` (importadas / actualizadas / errores).
@@ -144,7 +148,8 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 - [x] `cars` para el seed y total de unidades (18).
 - [x] No hay daños cargados en el plugin para migrar (a reconfirmar con el dueño).
 - [x] Sin columna de "modificado" en `orders` → estrategia de sync definida arriba.
-- [ ] **Producción:** cerrar el acceso remoto abierto (`%`) → Plan B REST o egress IP fija.
+- [x] **Plan B REST implementado** (Fase 5): mu-plugin + adaptador REST. Falta que
+      el dueño lo instale y cierre el `%`. Ver `wordpress-plugin/README.md`.
 
 ## Cómo reinspeccionar
 

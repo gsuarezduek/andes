@@ -41,7 +41,7 @@ export const env = {
     return required("AUTH_SECRET");
   },
 
-  /** WordPress / VikRentCar read-only MySQL (Phase 5). */
+  /** WordPress / VikRentCar read-only MySQL (Phase 5, dev/testing transport). */
   get wpMysql() {
     return {
       host: required("WP_MYSQL_HOST"),
@@ -49,6 +49,41 @@ export const env = {
       database: required("WP_MYSQL_DATABASE"),
       user: required("WP_MYSQL_USER"),
       password: required("WP_MYSQL_PASSWORD"),
+    };
+  },
+
+  /** Is the direct MySQL transport configured? (dev/testing) */
+  get hasWpMysql(): boolean {
+    return Boolean(optional("WP_MYSQL_HOST"));
+  },
+
+  /** WordPress REST transport via the Andes mu-plugin (Phase 5, production). */
+  get wpRest() {
+    return {
+      url: required("WP_REST_URL"),
+      token: required("WP_REST_TOKEN"),
+    };
+  },
+
+  /** Is the REST transport configured? (preferred in production) */
+  get hasWpRest(): boolean {
+    return Boolean(optional("WP_REST_URL"));
+  },
+
+  /** Shared secret guarding the /api/sync endpoint against the Railway cron. */
+  get cronSecret(): string {
+    return required("CRON_SECRET");
+  },
+  get hasCronSecret(): boolean {
+    return Boolean(optional("CRON_SECRET"));
+  },
+
+  /** Sync window and options (Phase 5). Sensible defaults for the current volume. */
+  get sync() {
+    return {
+      daysBack: Number(optional("SYNC_WINDOW_DAYS_BACK") ?? "2"),
+      daysForward: Number(optional("SYNC_WINDOW_DAYS_FORWARD") ?? "60"),
+      includeStandby: optional("SYNC_INCLUDE_STANDBY") === "true",
     };
   },
 

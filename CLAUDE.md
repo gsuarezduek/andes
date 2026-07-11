@@ -99,13 +99,19 @@ npm test
   - **Dashboard** (home, `src/lib/dashboard.ts` + `page.tsx`): "Hoy" (entregas/devoluciones con estado pendiente/completada/demorada), estado de flota (contadores + alquilados con cliente y vuelta esperada), y **alertas** (devoluciones vencidas, service próximo por km ≤500, reservas sin vehículo). Flota/alertas solo admin; "Hoy" para todos.
   - **Perfil de vehículo**: gráfico SVG de evolución de km, **daños activos** sobre croquis solo-lectura, historial de alquileres (con km recorridos), historial de inspecciones (con link al acta), y **registro de mantenimiento** (ABM: service/arreglo/gasto/nota con fecha, km, costo).
   - Sin migraciones nuevas (usa `MaintenanceLog` ya existente). Build y lint en verde; render verificado en local.
-- [ ] Fase 5 — Sync VikRentCar
+- [~] **Fase 5 — Sync VikRentCar** (construida y probada contra datos reales en local; falta instalar el mu-plugin y desplegar el cron)
+  - **Arquitectura transport-agnostic** (`src/lib/sync/`): interfaz `BookingSource` con dos adaptadores intercambiables — **MySQL directo** (`mysql-source.ts`, `mysql2` solo lectura, para pruebas) y **REST** (`rest-source.ts`, transporte de producción vía mu-plugin). Factory (`source.ts`) prefiere REST si `WP_REST_URL` está seteado. El **motor** (`engine.ts`) hace: ventana móvil sobre `ritiro`/`consegna` (hoy−2d…hoy+60d, configurable), upsert idempotente por `wpBookingId`, mapeo de unidad por par (`idcar`,`carindex`), preselección de idioma (`resolveLocale`), cancelaciones (**solo si el rental aún no tiene inspección** — inmutabilidad), y registro en `sync_logs`. Nunca pisa datos del empleado (pricing/licencia/patente) ni reservas ya iniciadas.
+  - **Plan B REST elegido** (seguridad): mu-plugin `wordpress-plugin/andes-sync.php` expone `bookings`/`cars` por REST con token (`hash_equals`, solo `SELECT`). Su SQL espeja el del adaptador MySQL. **Permite cerrar el "Remote MySQL"** (`%`). Instrucciones en `wordpress-plugin/README.md`.
+  - **Trigger:** `POST /api/sync` autenticado por `CRON_SECRET` (excluido del proxy; para el cron de Railway) + vista admin `/sync` con "Sincronizar ahora", "Importar flota" y tabla de `sync_logs`. **Seed de flota** desde `wp_vikrentcar_cars` (create-only, no pisa patentes cargadas).
+  - **Sin migración nueva** (usa `SyncLog`, `Rental.wpBookingId/origin/language`, `Vehicle.wpCarId/Index` ya existentes). Env nuevas: `WP_REST_URL/TOKEN`, `CRON_SECRET`, `SYNC_WINDOW_DAYS_BACK/FORWARD`, `SYNC_INCLUDE_STANDBY`.
+  - **Verificado contra datos reales** (adaptador MySQL, base real): 25 órdenes en ventana (22 confirmed / 3 cancelled), 17 mapean a vehículo, idioma/fallback de cliente OK; import real en Postgres local **idempotente** (2ª corrida: 0 nuevas, 22 actualizadas, sin duplicados). Build y lint en verde.
+  - **Pendiente del dueño para prod:** (1) instalar el mu-plugin + `ANDES_SYNC_TOKEN` en `wp-config.php`; (2) setear `WP_REST_URL/TOKEN` + `CRON_SECRET` en Railway; (3) **cerrar el Remote MySQL** (`%`); (4) configurar el cron de Railway que pegue a `POST /api/sync` cada 5–10 min; (5) correr "Importar flota" una vez para reconciliar unidades.
 - [ ] Fase 6 — Refinamientos
 
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
-- **Seguridad WP MySQL:** el "Remote MySQL" quedó abierto a cualquier IP (`%`) para el descubrimiento. Cerrarlo antes de Fase 5 → decidir Plan B REST (recomendado) o egress IP fija de Railway. Ver `docs/wordpress-mapping.md`.
+- **Seguridad WP MySQL (Fase 5 lista, falta acción del dueño):** se implementó el **Plan B REST** (mu-plugin `wordpress-plugin/andes-sync.php`). Falta: instalarlo, definir `ANDES_SYNC_TOKEN` en `wp-config.php`, setear `WP_REST_URL/TOKEN` + `CRON_SECRET` en Railway, **cerrar el Remote MySQL (`%`)** y configurar el cron que llame a `POST /api/sync` cada 5–10 min. Instrucciones en `wordpress-plugin/README.md`.
 - Casilla remitente de emails y verificación del dominio en Resend.
 - ~~Tamaño de flota~~ ≈ 18 unidades / 14 modelos (de `wp_vikrentcar_cars`). Falta cantidad de empleados.
 - Política de nafta (por ahora solo se registra la diferencia, no se cobra).

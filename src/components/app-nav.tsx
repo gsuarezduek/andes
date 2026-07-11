@@ -30,6 +30,7 @@ export function AppNav({
       ? [
           { href: "/users", label: "Usuarios" },
           { href: "/checklist", label: "Checklist" },
+          { href: "/sync", label: "Sincronización" },
         ]
       : []),
   ];
