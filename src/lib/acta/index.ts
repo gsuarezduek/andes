@@ -24,7 +24,13 @@ async function toDataUri(key: string | null | undefined): Promise<string | undef
 export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   const inspection = await prisma.inspection.findUnique({
     where: { id: inspectionId },
-    include: { rental: true, vehicle: true, media: true, damages: true },
+    include: {
+      rental: true,
+      vehicle: true,
+      media: true,
+      damages: true,
+      user: { select: { name: true } },
+    },
   });
   if (!inspection) throw new Error(`inspection ${inspectionId} not found`);
 
@@ -98,6 +104,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     company: COMPANY,
     comparison,
     dateStr: formatDateTime(inspection.createdAt, locale),
+    registeredBy: inspection.user?.name,
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,
     clientRows,

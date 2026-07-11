@@ -54,7 +54,6 @@ function MovementRow({
 
 export default async function HomePage() {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
   const { today, fleet, alerts } = await getDashboardData();
 
   return (
@@ -105,10 +104,8 @@ export default async function HomePage() {
         </Section>
       </div>
 
-      {isAdmin && (
-        <>
-          {/* FLOTA */}
-          <Section title="Flota">
+      {/* FLOTA */}
+      <Section title="Flota">
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-foreground/10 p-4">
                 <p className="text-2xl font-bold">{fleet.counts.available}</p>
@@ -173,9 +170,7 @@ export default async function HomePage() {
                 ))}
               </div>
             )}
-          </Section>
-        </>
-      )}
+      </Section>
     </div>
   );
 }

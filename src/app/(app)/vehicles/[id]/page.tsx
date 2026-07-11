@@ -50,7 +50,10 @@ export default async function VehicleDetailPage({
       },
       inspections: {
         orderBy: { createdAt: "asc" },
-        include: { rental: { select: { clientName: true } } },
+        include: {
+          rental: { select: { clientName: true } },
+          user: { select: { name: true } },
+        },
       },
       damages: { where: { repaired: false }, select: { id: true, posX: true, posY: true, description: true } },
       maintenanceLogs: { orderBy: { date: "desc" } },
@@ -154,6 +157,7 @@ export default async function VehicleDetailPage({
                     {insp.type === "handover" ? "Entrega" : "Devolución"} · {insp.km.toLocaleString("es-AR")} km
                   </p>
                   <p className="text-xs text-foreground/50">{insp.rental.clientName} · {formatDateTime(insp.createdAt)}</p>
+                  <p className="text-xs text-foreground/50">Responsable: {insp.user?.name ?? "—"}</p>
                 </div>
                 <a className="font-medium underline" href={`/api/acta?inspectionId=${insp.id}`} target="_blank" rel="noopener noreferrer">
                   Acta

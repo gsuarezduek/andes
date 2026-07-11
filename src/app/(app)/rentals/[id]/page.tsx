@@ -39,7 +39,10 @@ export default async function RentalDetailPage({
     where: { id },
     include: {
       vehicle: true,
-      inspections: { orderBy: { createdAt: "asc" } },
+      inspections: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { name: true } } },
+      },
     },
   });
   if (!rental) notFound();
@@ -101,13 +104,18 @@ export default async function RentalDetailPage({
           <h2 className="text-sm font-semibold text-foreground/70">Actas</h2>
           <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
             {rental.inspections.map((insp) => (
-              <li key={insp.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span>
-                  {insp.type === "handover" ? "Entrega" : "Devolución"} ·{" "}
-                  {formatDateTime(insp.createdAt)}
-                </span>
+              <li key={insp.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div>
+                  <p className="font-medium">
+                    {insp.type === "handover" ? "Entrega" : "Devolución"}
+                  </p>
+                  <p className="text-xs text-foreground/50">
+                    {formatDateTime(insp.createdAt)} · Responsable:{" "}
+                    {insp.user?.name ?? "—"}
+                  </p>
+                </div>
                 <a
-                  className="font-medium underline"
+                  className="shrink-0 font-medium underline"
                   href={`/api/acta?inspectionId=${insp.id}`}
                   target="_blank"
                   rel="noopener noreferrer"

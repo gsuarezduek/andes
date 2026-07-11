@@ -34,6 +34,7 @@ export type Dictionary = {
     plate: string;
     client: string;
     date: string;
+    registeredBy: string;
     place: string;
     dni: string;
     licenseExpiry: string;
@@ -99,6 +100,7 @@ const es: Dictionary = {
     plate: "Dominio",
     client: "Cliente",
     date: "Fecha",
+    registeredBy: "Registrado por",
     place: "Lugar",
     dni: "DNI",
     licenseExpiry: "Venc. licencia de conducir",
@@ -174,6 +176,7 @@ const en: Dictionary = {
     plate: "Plate",
     client: "Customer",
     date: "Date",
+    registeredBy: "Registered by",
     place: "Location",
     dni: "ID",
     licenseExpiry: "Driver's license expiry",

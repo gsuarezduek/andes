@@ -24,6 +24,7 @@ export type ActaData = {
     web: string;
   };
   dateStr: string;
+  registeredBy?: string | null;
   vehicleLabel: string;
   plate: string;
   clientRows: ActaRow[];
@@ -101,6 +102,11 @@ function Header({ data, title }: { data: ActaData; title: string }) {
       <View>
         <Text style={styles.title}>{title}</Text>
         <Text style={[styles.brandSub, { textAlign: "right" }]}>{data.dateStr}</Text>
+        {data.registeredBy ? (
+          <Text style={[styles.brandSub, { textAlign: "right" }]}>
+            {data.dict.acta.registeredBy}: {data.registeredBy}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -269,6 +275,11 @@ export function ActaDocument(props: ActaData) {
             <Image src={props.signatureDataUri} style={styles.signatureImg} />
           ) : null}
           {props.signerName ? <Text style={styles.value}>{props.signerName}</Text> : null}
+          {props.registeredBy ? (
+            <Text style={styles.small}>
+              {t.registeredBy}: {props.registeredBy}
+            </Text>
+          ) : null}
         </View>
 
         <Text style={styles.footer} fixed>
