@@ -13,15 +13,18 @@ export function Croquis({
   markers,
   onAdd,
   onRemove,
+  readOnly = false,
 }: {
   existing: { posX: number; posY: number }[];
   markers: Marker[];
-  onAdd: (posX: number, posY: number) => void;
-  onRemove: (id: string) => void;
+  onAdd?: (posX: number, posY: number) => void;
+  onRemove?: (id: string) => void;
+  readOnly?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (readOnly || !onAdd) return;
     // Ignorar clicks sobre un marcador existente (los maneja su botón).
     if ((e.target as HTMLElement).dataset.marker) return;
     const rect = ref.current?.getBoundingClientRect();
@@ -35,7 +38,7 @@ export function Croquis({
     <div
       ref={ref}
       onClick={handleClick}
-      className="relative w-full cursor-crosshair select-none rounded-xl border border-foreground/15 bg-foreground/[0.02]"
+      className={`relative w-full select-none rounded-xl border border-foreground/15 bg-foreground/[0.02] ${readOnly ? "" : "cursor-crosshair"}`}
       style={{ aspectRatio: "1 / 1.9" }}
     >
       <svg viewBox="0 0 100 190" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
@@ -67,7 +70,7 @@ export function Croquis({
           key={m.id}
           type="button"
           data-marker="1"
-          onClick={() => onRemove(m.id)}
+          onClick={() => onRemove?.(m.id)}
           className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-red-600 text-[10px] font-bold text-white shadow"
           style={{ left: `${m.posX * 100}%`, top: `${m.posY * 100}%` }}
           title="Tocar para quitar"

@@ -4,7 +4,15 @@ import type {
   RentalOrigin,
   Language,
   UserRole,
+  MaintenanceType,
 } from "@prisma/client";
+
+export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
+  service: "Service",
+  repair: "Arreglo",
+  expense: "Gasto",
+  note: "Nota",
+};
 
 // Etiquetas en español (AR) para los enums, para la UI de empleados.
 
