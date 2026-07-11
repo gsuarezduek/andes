@@ -1,0 +1,44 @@
+name: Sync VikRentCar
+
+# Dispara la sincronización de reservas llamando al endpoint de Andes.
+# Corre cada 10 minutos (GitHub puede atrasarse unos minutos; alcanza de sobra)
+# y también se puede lanzar a mano desde la pestaña Actions.
+#
+# Requiere un único secret del repo:  CRON_SECRET  (el mismo valor que en Railway).
+# Settings → Secrets and variables → Actions → New repository secret.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+# Si una corrida se solapa con la anterior, cancela la vieja.
+concurrency:
+  group: sync-vikrentcar
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SYNC_URL: https://andes.mdzrentacar.com/api/sync
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta el secret CRON_SECRET en el repo."
+            exit 1
+          fi
+          echo "Llamando a $SYNC_URL"
+          http_code=$(curl -sS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "$SYNC_URL" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "HTTP $http_code"
+          echo "Respuesta:"
+          cat /tmp/body.json || true
+          echo
+          # 2xx = OK. Cualquier otra cosa (401, 5xx) marca la corrida en rojo.
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            exit 1
+          fi
