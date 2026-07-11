@@ -10,7 +10,7 @@ import {
 } from "@/components/inspection/signature-canvas";
 import { TextField, TextareaField, SelectField, FormError } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
-import { compressImage, uploadMedia, mediaUrl } from "@/lib/client/media";
+import { compressImage, mediaUrl } from "@/lib/client/media";
 import {
   enqueueUpload,
   onQueueEvent,
@@ -50,6 +50,8 @@ type Draft = {
   observations: string;
   signerName: string;
   signatureKey?: string;
+  // Id de la firma en la cola de subida mientras no hay señal.
+  signaturePendingId?: string;
 };
 
 export type InspectionWizardProps = {
@@ -159,19 +161,26 @@ export function InspectionWizard(props: InspectionWizardProps) {
   useEffect(() => {
     const stopRetry = startAutoRetry();
     const off = onQueueEvent((e) => {
-      const up: Partial<PhotoItem> =
-        e.status === "done"
-          ? { status: "done", key: e.key, preview: mediaUrl(e.key) }
-          : e.status === "uploading"
-            ? { status: "uploading" }
-            : { status: "queued" };
-      setDraft((d) => ({
-        ...d,
-        photos: d.photos.map((p) => (p.id === e.id ? { ...p, ...up } : p)),
-        damages: d.damages.map((dm) =>
-          dm.photo?.id === e.id ? { ...dm, photo: { ...dm.photo, ...up } } : dm,
-        ),
-      }));
+      setDraft((d) => {
+        // La firma se sube por la misma cola: al terminar, fija la clave.
+        if (d.signaturePendingId === e.id) {
+          if (e.status === "done") return { ...d, signatureKey: e.key, signaturePendingId: undefined };
+          return d;
+        }
+        const up: Partial<PhotoItem> =
+          e.status === "done"
+            ? { status: "done", key: e.key, preview: mediaUrl(e.key) }
+            : e.status === "uploading"
+              ? { status: "uploading" }
+              : { status: "queued" };
+        return {
+          ...d,
+          photos: d.photos.map((p) => (p.id === e.id ? { ...p, ...up } : p)),
+          damages: d.damages.map((dm) =>
+            dm.photo?.id === e.id ? { ...dm, photo: { ...dm.photo, ...up } } : dm,
+          ),
+        };
+      });
     });
     const setConn = () => setOnline(navigator.onLine);
     setConn();
@@ -258,12 +267,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     if (v) return setError(v);
     if (current === "Firma") {
       if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
-      try {
-        const key = await captureSignature();
-        if (!key) return setError("Falta la firma del cliente.");
-      } catch {
-        return setError("No se pudo subir la firma. Reintentá.");
-      }
+      if (!(await captureSignature())) return setError("Falta la firma del cliente.");
     }
     setError(undefined);
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
@@ -273,41 +277,62 @@ export function InspectionWizard(props: InspectionWizardProps) {
     setStep((s) => Math.max(0, s - 1));
   }
 
-  async function captureSignature(): Promise<string | undefined> {
+  /**
+   * Captura la firma y la encola (misma cola persistente que las fotos): si hay
+   * señal sube al toque, si no queda pendiente y sube al reconectar. Devuelve
+   * true si hay una firma (nueva, ya subida, o pendiente).
+   */
+  async function captureSignature(): Promise<boolean> {
     const pad = sigRef.current;
     if (pad && !pad.isEmpty()) {
       const dataUrl = pad.toDataURL();
       const blob = await (await fetch(dataUrl)).blob();
-      const key = await uploadMedia({ draftId: draft.draftId, kind: "signature", blob });
-      patch({ signatureKey: key });
-      return key;
+      const id = newId();
+      patch({ signatureKey: undefined, signaturePendingId: id });
+      void enqueueUpload({ id, draftId: draft.draftId, kind: "signature", slot: "signature", blob });
+      return true;
     }
-    return draft.signatureKey;
+    return Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId);
   }
 
   function queueSubmitRetry() {
+    // El efecto de más abajo dispara el guardado cuando vuelve la señal y
+    // terminaron de subir fotos y firma.
     setQueuedSubmit(true);
-    const retry = () => {
-      window.removeEventListener("online", retry);
-      void submit();
-    };
-    window.addEventListener("online", retry, { once: true });
   }
+
+  // Reintenta el guardado cuando hay conexión y toda la evidencia ya subió.
+  useEffect(() => {
+    if (queuedSubmit && online && !photosPending && draft.signatureKey && !saving) {
+      void submit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedSubmit, online, photosPending, draft.signatureKey, saving]);
 
   async function submit() {
     setError(undefined);
     setQueuedSubmit(false);
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
-    if (photosPending) {
+    if (!(await captureSignature())) return setError("Falta la firma del cliente.");
+
+    // Necesitamos que fotos y firma estén subidas antes de guardar. Si algo
+    // sigue pendiente (típicamente sin señal), encolamos: el efecto reintenta
+    // solo cuando todo subió y hay conexión.
+    if (photosPending || !draft.signatureKey) {
+      if (navigator.onLine && !draft.signatureKey) {
+        // Online pero la firma recién se encoló: se guardará en cuanto suba.
+        queueSubmitRetry();
+        return;
+      }
       if (!navigator.onLine) {
         queueSubmitRetry();
-        return setError(undefined);
+        return;
       }
       return setError("Esperá a que terminen de subir las fotos.");
     }
     setSaving(true);
     try {
-      const signatureKey = await captureSignature();
+      const signatureKey = draft.signatureKey;
       if (!signatureKey) {
         setSaving(false);
         return setError("Falta la firma del cliente.");
@@ -572,11 +597,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <p className="text-sm text-foreground/70">{dict.signature.legal}</p>
           <SignatureCanvas ref={sigRef} />
           <div className="flex justify-between">
-            <button type="button" className="text-sm text-foreground/60 underline" onClick={() => { sigRef.current?.clear(); patch({ signatureKey: undefined }); }}>
+            <button type="button" className="text-sm text-foreground/60 underline" onClick={() => { sigRef.current?.clear(); if (draft.signaturePendingId) dropUpload(draft.signaturePendingId); patch({ signatureKey: undefined, signaturePendingId: undefined }); }}>
               {dict.signature.clear}
             </button>
           </div>
-          {draft.signatureKey && <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>}
+          {draft.signatureKey ? (
+            <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>
+          ) : draft.signaturePendingId ? (
+            <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
+          ) : null}
           <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
         </div>
       )}
@@ -601,7 +630,9 @@ export function InspectionWizard(props: InspectionWizardProps) {
           )}
           {queuedSubmit && (
             <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-              Sin señal. La entrega se guardará automáticamente al reconectar. Podés dejar esta pantalla abierta.
+              {online
+                ? "Terminando de subir la evidencia; se guarda solo en cuanto suba. Dejá esta pantalla abierta."
+                : "Sin señal. La entrega se guardará automáticamente al reconectar. Podés dejar esta pantalla abierta."}
             </p>
           )}
           <p className="text-xs text-foreground/50">
@@ -623,7 +654,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <Button type="button" onClick={next} className="flex-1">Siguiente</Button>
         ) : (
           <Button type="button" onClick={submit} disabled={saving || queuedSubmit} className="flex-1">
-            {saving ? "Guardando…" : queuedSubmit ? "Esperando señal…" : isHandover ? "Guardar entrega" : "Cerrar devolución"}
+            {saving ? "Guardando…" : queuedSubmit ? (online ? "Subiendo evidencia…" : "Esperando señal…") : isHandover ? "Guardar entrega" : "Cerrar devolución"}
           </Button>
         )}
       </div>
