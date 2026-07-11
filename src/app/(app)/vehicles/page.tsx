@@ -24,7 +24,12 @@ export default async function VehiclesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Vehículos</h1>
           <p className="text-sm text-foreground/60">{vehicles.length} en la flota</p>
         </div>
-        {isAdmin ? <ButtonLink href="/vehicles/new">Nuevo</ButtonLink> : null}
+        {isAdmin ? (
+          <div className="flex gap-2">
+            <ButtonLink href="/vehicles/qr" variant="secondary">QR de la flota</ButtonLink>
+            <ButtonLink href="/vehicles/new">Nuevo</ButtonLink>
+          </div>
+        ) : null}
       </div>
 
       {vehicles.length === 0 ? (

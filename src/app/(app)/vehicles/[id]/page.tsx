@@ -86,8 +86,9 @@ export default async function VehicleDetailPage({
         </div>
 
         {isAdmin && (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <ButtonLink href={`/vehicles/${vehicle.id}/edit`}>Editar</ButtonLink>
+            <ButtonLink href={`/vehicles/${vehicle.id}/qr`} variant="secondary">Imprimir QR</ButtonLink>
             <ButtonLink href="/vehicles" variant="secondary">Volver</ButtonLink>
           </div>
         )}

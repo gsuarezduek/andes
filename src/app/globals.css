@@ -24,3 +24,20 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* Impresión de QRs: ocultar la app (nav, botones) y forzar tinta negra. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  header {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .qr-sheet {
+    break-inside: avoid;
+  }
+}
