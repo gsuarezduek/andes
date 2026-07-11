@@ -11,6 +11,16 @@ import {
 import { TextField, TextareaField, SelectField, FormError } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { compressImage, uploadMedia, mediaUrl } from "@/lib/client/media";
+import {
+  enqueueUpload,
+  onQueueEvent,
+  processQueue,
+  pendingForDraft,
+  clearDraftUploads,
+  dropUpload,
+  startAutoRetry,
+  type QueueSlot,
+} from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels } from "@/lib/labels";
 import { PRICING_FIELDS } from "@/lib/contract";
@@ -18,7 +28,8 @@ import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 type Lang = "es" | "en";
 type Mode = "handover" | "return";
-type PhotoItem = { id: string; key?: string; status: "uploading" | "done" | "error"; preview: string };
+// "queued" = persistida en el dispositivo, esperando señal para subir.
+type PhotoItem = { id: string; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string };
 type DamageItem = { id: string; posX: number; posY: number; description: string; photo?: PhotoItem };
 
 type Draft = {
@@ -75,6 +86,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [queuedSubmit, setQueuedSubmit] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(() => ({
     draftId: newId(),
@@ -96,19 +109,80 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }));
 
   useEffect(() => {
+    let draftId = draft.draftId;
     try {
       const raw = localStorage.getItem(storageKey);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setDraft((d) => ({ ...d, ...JSON.parse(raw) }));
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.draftId) draftId = saved.draftId;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDraft((d) => ({ ...d, ...saved }));
+      }
     } catch {
       /* ignorar */
     }
+    // Rehidratar fotos que quedaron subiendo (offline) en una sesión previa.
+    pendingForDraft(draftId).then((recs) => {
+      if (recs.length === 0) return;
+      setDraft((d) => {
+        const existing = new Set([
+          ...d.photos.map((p) => p.id),
+          ...d.damages.map((dm) => dm.photo?.id),
+        ]);
+        const mainPhotos = recs
+          .filter((r) => r.slot === "main" && !existing.has(r.id))
+          .map((r) => ({ id: r.id, status: "queued" as const, preview: URL.createObjectURL(r.blob) }));
+        let damages = d.damages;
+        for (const r of recs) {
+          if (r.slot.startsWith("damage:")) {
+            const damageId = r.slot.slice("damage:".length);
+            damages = damages.map((dm) =>
+              dm.id === damageId && !dm.photo
+                ? { ...dm, photo: { id: r.id, status: "queued" as const, preview: URL.createObjectURL(r.blob) } }
+                : dm,
+            );
+          }
+        }
+        return { ...d, photos: [...d.photos, ...mainPhotos], damages };
+      });
+      void processQueue();
+    });
     navigator.geolocation?.getCurrentPosition(
       (p) => (geo.current = { lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {},
       { enableHighAccuracy: false, timeout: 5000 },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Escuchar la cola de subida y el estado de conexión.
+  useEffect(() => {
+    const stopRetry = startAutoRetry();
+    const off = onQueueEvent((e) => {
+      const up: Partial<PhotoItem> =
+        e.status === "done"
+          ? { status: "done", key: e.key, preview: mediaUrl(e.key) }
+          : e.status === "uploading"
+            ? { status: "uploading" }
+            : { status: "queued" };
+      setDraft((d) => ({
+        ...d,
+        photos: d.photos.map((p) => (p.id === e.id ? { ...p, ...up } : p)),
+        damages: d.damages.map((dm) =>
+          dm.photo?.id === e.id ? { ...dm, photo: { ...dm.photo, ...up } } : dm,
+        ),
+      }));
+    });
+    const setConn = () => setOnline(navigator.onLine);
+    setConn();
+    window.addEventListener("online", setConn);
+    window.addEventListener("offline", setConn);
+    return () => {
+      stopRetry();
+      off();
+      window.removeEventListener("online", setConn);
+      window.removeEventListener("offline", setConn);
+    };
   }, []);
 
   useEffect(() => {
@@ -142,39 +216,24 @@ export function InspectionWizard(props: InspectionWizardProps) {
           ...d,
           damages: d.damages.map((dm) => (dm.id === target.damageId ? { ...dm, photo: item } : dm)),
         }));
-      try {
-        const blob = await compressImage(file);
-        const key = await uploadMedia({
-          draftId: draft.draftId,
-          kind: target === "main" ? "photo" : "damage",
-          blob,
-          id,
-        });
-        updatePhoto(target, id, { key, status: "done", preview: mediaUrl(key) });
-      } catch {
-        updatePhoto(target, id, { status: "error" });
-      }
+      // Comprimir y encolar: se persiste en el dispositivo y se sube con
+      // reintentos. El estado (uploading/queued/done) llega por onQueueEvent.
+      const blob = await compressImage(file);
+      const slot: QueueSlot = target === "main" ? "main" : `damage:${target.damageId}`;
+      void enqueueUpload({
+        id,
+        draftId: draft.draftId,
+        kind: target === "main" ? "photo" : "damage",
+        slot,
+        blob,
+      });
     }
   }
 
-  function updatePhoto(target: "main" | { damageId: string }, id: string, up: Partial<PhotoItem>) {
-    setDraft((d) => {
-      if (target === "main")
-        return { ...d, photos: d.photos.map((p) => (p.id === id ? { ...p, ...up } : p)) };
-      return {
-        ...d,
-        damages: d.damages.map((dm) =>
-          dm.id === target.damageId && dm.photo?.id === id
-            ? { ...dm, photo: { ...dm.photo, ...up } }
-            : dm,
-        ),
-      };
-    });
-  }
-
-  const uploading =
-    draft.photos.some((p) => p.status === "uploading") ||
-    draft.damages.some((d) => d.photo?.status === "uploading");
+  // Hay fotos que todavía no terminaron de subir (subiendo o en cola por señal).
+  const photosPending =
+    draft.photos.some((p) => p.status !== "done") ||
+    draft.damages.some((d) => d.photo && d.photo.status !== "done");
 
   const current = STEPS[step];
   const kmDriven = props.returnContext ? Number(draft.km || 0) - props.returnContext.handoverKm : 0;
@@ -226,9 +285,26 @@ export function InspectionWizard(props: InspectionWizardProps) {
     return draft.signatureKey;
   }
 
+  function queueSubmitRetry() {
+    setQueuedSubmit(true);
+    const retry = () => {
+      window.removeEventListener("online", retry);
+      void submit();
+    };
+    window.addEventListener("online", retry, { once: true });
+  }
+
   async function submit() {
     setError(undefined);
+    setQueuedSubmit(false);
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
+    if (photosPending) {
+      if (!navigator.onLine) {
+        queueSubmitRetry();
+        return setError(undefined);
+      }
+      return setError("Esperá a que terminen de subir las fotos.");
+    }
     setSaving(true);
     try {
       const signatureKey = await captureSignature();
@@ -280,16 +356,29 @@ export function InspectionWizard(props: InspectionWizardProps) {
         setSaving(false);
         return setError(res.error);
       }
+      await clearDraftUploads(draft.draftId);
       localStorage.removeItem(storageKey);
       router.replace(`/rentals/${props.rentalId}?${isHandover ? "entrega" : "devolucion"}=ok`);
     } catch {
+      // Probablemente sin señal (firma o guardado). El borrador queda intacto;
+      // se reintenta solo al reconectar. El guard del servidor evita duplicados.
       setSaving(false);
-      setError("No se pudo guardar. Reintentá.");
+      if (!navigator.onLine) {
+        queueSubmitRetry();
+        setError(undefined);
+      } else {
+        setError("No se pudo guardar. Reintentá.");
+      }
     }
   }
 
   return (
     <div className="flex flex-col gap-5">
+      {!online && (
+        <p className="rounded-lg bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+          Sin conexión. El borrador y las fotos se guardan en el teléfono y se suben solos al volver la señal.
+        </p>
+      )}
       <div className="flex items-center gap-1.5">
         {STEPS.map((label, i) => (
           <div key={label} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-foreground" : "bg-foreground/15"}`} />
@@ -406,8 +495,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
               </div>
               <input className="h-10 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40" placeholder="Descripción (ej. rayón puerta delantera)" value={dm.description} onChange={(e) => setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, description: e.target.value } : x)) }))} />
               {dm.photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={dm.photo.preview} alt="" className="h-20 w-20 rounded object-cover" />
+                <div className="relative h-20 w-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={dm.photo.preview} alt="" className="h-20 w-20 rounded object-cover" />
+                  {dm.photo.status !== "done" && (
+                    <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
+                      {dm.photo.status === "uploading" ? "Subiendo…" : "Pendiente"}
+                    </span>
+                  )}
+                </div>
               ) : (
                 <label className="text-xs text-foreground/60 underline">
                   Agregar foto del daño
@@ -432,11 +528,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
                   {p.status !== "done" && (
-                    <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 text-xs text-white">
-                      {p.status === "uploading" ? "Subiendo…" : "Error"}
+                    <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[10px] leading-tight text-white">
+                      {p.status === "uploading" ? "Subiendo…" : "Pendiente de señal"}
                     </span>
                   )}
-                  <button type="button" onClick={() => patch({ photos: draft.photos.filter((x) => x.id !== p.id) })} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+                  <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
                 </div>
               ))}
             </div>
@@ -498,7 +594,16 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <CompareRow label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />
             <CompareRow label="Idioma del acta" value={languageLabels[draft.language]} />
           </div>
-          {uploading && <p className="text-xs text-amber-600">Esperá a que terminen de subir las fotos…</p>}
+          {photosPending && (
+            <p className="text-xs text-amber-600">
+              {online ? "Esperá a que terminen de subir las fotos…" : "Hay fotos pendientes; se subirán al volver la señal."}
+            </p>
+          )}
+          {queuedSubmit && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              Sin señal. La entrega se guardará automáticamente al reconectar. Podés dejar esta pantalla abierta.
+            </p>
+          )}
           <p className="text-xs text-foreground/50">
             {isHandover
               ? "Al guardar, el alquiler pasa a activo y el auto a alquilado."
@@ -517,8 +622,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
         {step < STEPS.length - 1 ? (
           <Button type="button" onClick={next} className="flex-1">Siguiente</Button>
         ) : (
-          <Button type="button" onClick={submit} disabled={saving || uploading} className="flex-1">
-            {saving ? "Guardando…" : isHandover ? "Guardar entrega" : "Cerrar devolución"}
+          <Button type="button" onClick={submit} disabled={saving || queuedSubmit} className="flex-1">
+            {saving ? "Guardando…" : queuedSubmit ? "Esperando señal…" : isHandover ? "Guardar entrega" : "Cerrar devolución"}
           </Button>
         )}
       </div>

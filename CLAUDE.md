@@ -106,7 +106,12 @@ npm test
   - **Sin migración nueva** (usa `SyncLog`, `Rental.wpBookingId/origin/language`, `Vehicle.wpCarId/Index` ya existentes). Env nuevas: `WP_REST_URL/TOKEN`, `CRON_SECRET`, `SYNC_WINDOW_DAYS_BACK/FORWARD`, `SYNC_INCLUDE_STANDBY`.
   - **Verificado contra datos reales** (adaptador MySQL, base real): 25 órdenes en ventana (22 confirmed / 3 cancelled), 17 mapean a vehículo, idioma/fallback de cliente OK; import real en Postgres local **idempotente** (2ª corrida: 0 nuevas, 22 actualizadas, sin duplicados). Build y lint en verde.
   - **Pendiente del dueño para prod:** (1) instalar el mu-plugin + `ANDES_SYNC_TOKEN` en `wp-config.php`; (2) setear `WP_REST_URL/TOKEN` + `CRON_SECRET` en Railway; (3) **cerrar el Remote MySQL** (`%`); (4) configurar el cron de Railway que pegue a `POST /api/sync` cada 5–10 min; (5) correr "Importar flota" una vez para reconciliar unidades.
-- [ ] Fase 6 — Refinamientos
+- [~] **Fase 6 — Refinamientos** (en curso)
+  - **Editar datos del cliente al iniciar la entrega** ✅: el paso "Datos" del wizard (solo handover) permite corregir nombre/documento/teléfono/email (las órdenes de VikRentCar pueden llegar sin nombre); `saveHandover` los persiste; la aclaración de firma sigue al nombre; el resumen lo confirma.
+  - **QR por vehículo** ✅: QR imprimibles (`/vehicles/[id]/qr` y hoja de flota `/vehicles/qr`, admin, con CSS de impresión) que deep-linkean a `/v/[id]`, landing que resuelve el estado del auto y ofrece iniciar entrega/devolución sin buscar la reserva. Lib `src/lib/qr.ts` (dep `qrcode`).
+  - **PWA offline más profunda** ✅ (construido; **falta probar en celular real**): cola de subida persistente en IndexedDB (`src/lib/client/upload-queue.ts`) — cada foto se guarda en el dispositivo al capturarla y se sube con reintentos automáticos al recuperar señal (sobrevive recargas y cortes); rehidratación de fotos pendientes al reabrir el wizard; guardado final resiliente (bloquea si faltan fotos, y si no hay señal reintenta solo al reconectar — el guard del servidor evita duplicados); banner de "sin conexión"; service worker mejorado (network-first para navegación/RSC, cache-first para estáticos, `andes-shell-v2`).
+    - **Prueba pendiente (dueño/dev):** en un celular real, con el flujo de entrega abierto, activar modo avión / throttling: sacar fotos (deben quedar "pendiente de señal"), intentar guardar (debe quedar "esperando señal"), reactivar la red y confirmar que fotos + acta se suben solos sin duplicar.
+  - Pendiente: alertas de service configurables (intervalo por auto + reprogramación al registrar service) y optimizaciones de rendimiento.
 
 ## Pendientes que dependen del dueño
 
