@@ -88,15 +88,33 @@ export default async function RentalDetailPage({
               <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
                 {rental.vehicle.brand} {rental.vehicle.model} · {rental.vehicle.plate}
               </Link>
+            ) : rental.bookingModel ? (
+              <span>
+                {rental.bookingModel}
+                <span className="font-normal text-foreground/50"> · sin unidad asignada</span>
+              </span>
             ) : (
               "Sin asignar"
             )
           }
         />
         <Row label="Retiro" value={formatDateTime(rental.startAt)} />
+        {rental.bookingPickupPlace && (
+          <Row label="Lugar de retiro" value={rental.bookingPickupPlace} />
+        )}
         <Row label="Devolución" value={formatDateTime(rental.endAt)} />
+        {rental.bookingReturnPlace && (
+          <Row label="Lugar de devolución" value={rental.bookingReturnPlace} />
+        )}
         <Row label="Idioma" value={languageLabels[rental.language]} />
       </div>
+
+      {rental.bookingNote && (
+        <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
+          <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{rental.bookingNote}</p>
+        </div>
+      )}
 
       {/* Inspecciones registradas */}
       {rental.inspections.length > 0 && (

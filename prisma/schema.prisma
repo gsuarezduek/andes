@@ -169,6 +169,11 @@ model Rental {
   bookingPricePerDay Decimal? @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
   bookingTotal       Decimal? @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
   bookingNote        String?  @map("booking_note") @db.Text // custdata: info de la reserva (staff)
+  // Modelo de VikRentCar (cars.name vía idcar): se muestra cuando la reserva
+  // llegó sin unidad física asignada (carindex NULL).
+  bookingModel       String?  @map("booking_model")
+  bookingPickupPlace String?  @map("booking_pickup_place") // idplace → places.name
+  bookingReturnPlace String?  @map("booking_return_place") // idreturnplace → places.name
 
   origin      RentalOrigin @default(manual)
   wpBookingId Int?         @unique @map("wp_booking_id") // id de la orden VikRentCar

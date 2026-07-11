@@ -30,6 +30,9 @@ type OrderRow = {
   custdata: string | null;
   order_total: string | number | null;
   car_cost: string | number | null;
+  car_name: string | null;
+  pickup_place: string | null;
+  return_place: string | null;
   c_first: string | null;
   c_last: string | null;
   c_email: string | null;
@@ -84,11 +87,15 @@ export class MysqlBookingSource implements BookingSource {
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
              o.custdata, o.order_total, o.car_cost,
+             car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
       FROM \`${PREFIX}orders\` o
       LEFT JOIN \`${PREFIX}customers_orders\` co ON co.idorder = o.id
       LEFT JOIN \`${PREFIX}customers\` c ON c.id = co.idcustomer
+      LEFT JOIN \`${PREFIX}cars\` car ON car.id = o.idcar
+      LEFT JOIN \`${PREFIX}places\` pp ON pp.id = o.idplace
+      LEFT JOIN \`${PREFIX}places\` rp ON rp.id = o.idreturnplace
       WHERE o.status IN (${placeholders})
         AND (
           (o.ritiro BETWEEN ? AND ?) OR
@@ -148,5 +155,8 @@ function normalizeOrder(r: OrderRow): RawBooking {
     custData: clean(r.custdata),
     orderTotal: num(r.order_total),
     carCost: num(r.car_cost),
+    carName: clean(r.car_name),
+    pickupPlace: clean(r.pickup_place),
+    returnPlace: clean(r.return_place),
   };
 }

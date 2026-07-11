@@ -92,11 +92,15 @@ function andes_sync_bookings(WP_REST_Request $request)
         "SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
                 o.days, o.lang, o.nominative, o.custmail, o.phone,
                 o.custdata, o.order_total, o.car_cost,
+                car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
                 c.first_name AS c_first, c.last_name AS c_last,
                 c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
          FROM {$p}orders o
          LEFT JOIN {$p}customers_orders co ON co.idorder = o.id
          LEFT JOIN {$p}customers c ON c.id = co.idcustomer
+         LEFT JOIN {$p}cars car ON car.id = o.idcar
+         LEFT JOIN {$p}places pp ON pp.id = o.idplace
+         LEFT JOIN {$p}places rp ON rp.id = o.idreturnplace
          WHERE o.status IN ({$statuses})
            AND ((o.ritiro BETWEEN %d AND %d) OR (o.consegna BETWEEN %d AND %d))
          GROUP BY o.id
@@ -164,6 +168,9 @@ function andes_sync_normalize_order($r)
         'custData'        => andes_sync_clean($r['custdata']),
         'orderTotal'      => andes_sync_float_or_null($r['order_total']),
         'carCost'         => andes_sync_float_or_null($r['car_cost']),
+        'carName'         => andes_sync_clean($r['car_name']),
+        'pickupPlace'     => andes_sync_clean($r['pickup_place']),
+        'returnPlace'     => andes_sync_clean($r['return_place']),
     ];
 }
 

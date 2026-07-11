@@ -164,6 +164,9 @@ function bookingFacts(b: RawBooking) {
     bookingTotal: b.orderTotal,
     bookingNote: b.custData,
     bookingPricePerDay: perDay,
+    bookingModel: b.carName,
+    bookingPickupPlace: b.pickupPlace,
+    bookingReturnPlace: b.returnPlace,
   };
 }
 

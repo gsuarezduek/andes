@@ -85,7 +85,9 @@ export default async function RentalsPage({
                   <p className="text-sm text-foreground/60">
                     {r.vehicle
                       ? `${r.vehicle.brand} ${r.vehicle.model} · ${r.vehicle.plate}`
-                      : "Sin vehículo asignado"}
+                      : r.bookingModel
+                        ? `${r.bookingModel} · sin unidad asignada`
+                        : "Sin vehículo asignado"}
                   </p>
                   <p className="text-xs text-foreground/50">
                     {formatDateTime(r.startAt)} → {formatDateTime(r.endAt)}

@@ -36,6 +36,9 @@ export type RawBooking = {
   custData: string | null; // custdata: info de la reserva (texto libre del staff)
   orderTotal: number | null; // order_total (con extras)
   carCost: number | null; // car_cost (tarifa del auto, sin extras)
+  carName: string | null; // cars.name (vía idcar): modelo, para reservas sin unidad
+  pickupPlace: string | null; // places.name (idplace)
+  returnPlace: string | null; // places.name (idreturnplace)
 };
 
 /** Un modelo de `wp_vikrentcar_cars`, para el seed inicial de la flota. */
