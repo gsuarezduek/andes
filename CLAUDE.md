@@ -90,7 +90,11 @@ npm test
   - `saveHandover` crea inspección+media+daños en transacción, pasa el alquiler a `active` y el vehículo a `rented` con el km. Inspecciones inmutables.
   - Build y lint en verde; backend del flujo verificado (subida, media, render de acta PDF). **Falta probar el wizard en un celular real** (el brief lo pide).
   - **Desplegado en Railway** con las 7 variables (R2 `andes-media`, Resend, `EMAIL_FROM`/`ADMIN_EMAIL`=info@mdzrentacar.com). Round-trip R2 verificado en prod (subida→lectura OK). **Falta:** prueba del wizard en un celular real y confirmar que llega el email con el acta adjunta (queda del lado del dueño).
-- [ ] Fase 3 — Flujo de devolución
+- [~] **Fase 3 — Flujo de devolución y comparación** (construida y probada en local; a verificar en prod)
+  - Wizard generalizado a `InspectionWizard` (`src/components/inspection/inspection-wizard.tsx`) con `mode` handover/return; el viejo `handover-wizard.tsx` se eliminó. Payload compartido en `src/lib/inspection-input.ts`.
+  - **Devolución** (`/rentals/[id]/return`): reutiliza estado/checklist/croquis/fotos/firma, agrega **paso Comparación** (km recorridos, diferencia de nafta, daños nuevos resaltados) antes de firmar. Guarda km ≥ km de entrega.
+  - `saveReturn` cierra el alquiler (→ `finished`), libera el vehículo (→ `available`) y actualiza su km. Entrada desde el detalle ("Iniciar devolución" si activo + con entrega + sin devolución).
+  - **Acta de devolución** incluye la sección de comparación con la entrega. Verificado el render del PDF.
 - [ ] Fase 4 — Dashboard y perfil de vehículo
 - [ ] Fase 5 — Sync VikRentCar
 - [ ] Fase 6 — Refinamientos

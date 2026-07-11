@@ -72,10 +72,31 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     }
   }
 
+  // Comparación con la entrega (solo devolución).
+  let comparison: ActaData["comparison"];
+  if (inspection.type === "return_") {
+    const handover = await prisma.inspection.findFirst({
+      where: { rentalId: inspection.rentalId, type: "handover" },
+      select: { km: true, fuelLevel: true },
+    });
+    if (handover) {
+      comparison = {
+        handoverKm: handover.km,
+        returnKm: inspection.km,
+        kmDriven: inspection.km - handover.km,
+        handoverFuel: handover.fuelLevel,
+        returnFuel: inspection.fuelLevel,
+        fuelDiff: inspection.fuelLevel - handover.fuelLevel,
+        newDamages: inspection.damages.length,
+      };
+    }
+  }
+
   const data: ActaData = {
     kind: inspection.type === "handover" ? "handover" : "return",
     dict,
     company: COMPANY,
+    comparison,
     dateStr: formatDateTime(inspection.createdAt, locale),
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,

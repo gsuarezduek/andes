@@ -30,6 +30,15 @@ export type ActaData = {
   termRows: ActaRow[];
   km: number;
   fuelLevel: number;
+  comparison?: {
+    handoverKm: number;
+    returnKm: number;
+    kmDriven: number;
+    handoverFuel: number;
+    returnFuel: number;
+    fuelDiff: number;
+    newDamages: number;
+  };
   checklist: ActaChecklist[];
   damages: ActaDamage[];
   observations?: string | null;
@@ -156,6 +165,36 @@ export function ActaDocument(props: ActaData) {
             </View>
           </View>
         </View>
+
+        {props.comparison ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Comparación con la entrega</Text>
+            <View style={styles.grid2}>
+              <View style={styles.cell}>
+                <Text style={styles.label}>{t.kmDriven}</Text>
+                <Text style={styles.value}>{props.comparison.kmDriven.toLocaleString()} km</Text>
+              </View>
+              <View style={styles.cell}>
+                <Text style={styles.label}>{t.mileage}</Text>
+                <Text style={styles.value}>
+                  {props.comparison.handoverKm.toLocaleString()} → {props.comparison.returnKm.toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.cell}>
+                <Text style={styles.label}>{t.fuelDifference}</Text>
+                <Text style={styles.value}>
+                  {props.comparison.handoverFuel}/8 → {props.comparison.returnFuel}/8
+                </Text>
+              </View>
+              <View style={styles.cell}>
+                <Text style={styles.label}>{t.newDamages}</Text>
+                <Text style={props.comparison.newDamages > 0 ? styles.fail : styles.value}>
+                  {props.comparison.newDamages}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Checklist</Text>

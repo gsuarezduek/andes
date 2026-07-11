@@ -14,17 +14,12 @@ import { compressImage, uploadMedia, mediaUrl } from "@/lib/client/media";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels } from "@/lib/labels";
 import { PRICING_FIELDS } from "@/lib/contract";
-import { saveHandover, type SaveHandoverInput } from "./actions";
+import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 type Lang = "es" | "en";
+type Mode = "handover" | "return";
 type PhotoItem = { id: string; key?: string; status: "uploading" | "done" | "error"; preview: string };
-type DamageItem = {
-  id: string;
-  posX: number;
-  posY: number;
-  description: string;
-  photo?: PhotoItem;
-};
+type DamageItem = { id: string; posX: number; posY: number; description: string; photo?: PhotoItem };
 
 type Draft = {
   draftId: string;
@@ -42,7 +37,9 @@ type Draft = {
   signatureKey?: string;
 };
 
-export type WizardProps = {
+export type InspectionWizardProps = {
+  mode: Mode;
+  save: (input: InspectionInput) => Promise<SaveResult>;
   rentalId: string;
   client: { name: string; email: string | null; phone: string | null; dni: string | null };
   datesLabel: string;
@@ -53,17 +50,21 @@ export type WizardProps = {
   language: Lang;
   licenseExpiry?: string;
   pricing?: Record<string, string>;
+  returnContext?: { handoverKm: number; handoverFuel: number };
 };
-
-const STEPS = ["Datos", "Condiciones", "Estado", "Daños", "Fotos", "Firma", "Resumen"];
 
 function newId() {
   return crypto.randomUUID();
 }
 
-export function HandoverWizard(props: WizardProps) {
+export function InspectionWizard(props: InspectionWizardProps) {
   const router = useRouter();
-  const storageKey = `andes:handover:${props.rentalId}`;
+  const isHandover = props.mode === "handover";
+  const STEPS = isHandover
+    ? ["Datos", "Condiciones", "Estado", "Daños", "Fotos", "Firma", "Resumen"]
+    : ["Datos", "Estado", "Daños", "Fotos", "Comparación", "Firma", "Resumen"];
+
+  const storageKey = `andes:${props.mode}:${props.rentalId}`;
   const sigRef = useRef<SignaturePadHandle>(null);
   const geo = useRef<{ lat?: number; lng?: number }>({});
 
@@ -78,7 +79,7 @@ export function HandoverWizard(props: WizardProps) {
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
-    fuelLevel: 8,
+    fuelLevel: isHandover ? 8 : (props.returnContext?.handoverFuel ?? 8),
     checklist: Object.fromEntries(props.checklistItems.map((i) => [i.id, "ok"])),
     damages: [],
     photos: [],
@@ -86,18 +87,14 @@ export function HandoverWizard(props: WizardProps) {
     signerName: props.client.name,
   }));
 
-  // Hidratar desde localStorage (autoguardado).
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
-      // Hidratación del borrador desde localStorage: solo puede ocurrir en el
-      // cliente (no en SSR), por eso va en un effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setDraft((d) => ({ ...d, ...JSON.parse(raw) }));
     } catch {
       /* ignorar */
     }
-    // Geolocalización opcional, no bloqueante.
     navigator.geolocation?.getCurrentPosition(
       (p) => (geo.current = { lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {},
@@ -106,7 +103,6 @@ export function HandoverWizard(props: WizardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persistir en cada cambio (sin las previews de sesión: se reconstruyen desde la clave).
   useEffect(() => {
     const serializable = {
       ...draft,
@@ -119,30 +115,25 @@ export function HandoverWizard(props: WizardProps) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(serializable));
     } catch {
-      /* cuota llena, etc. */
+      /* cuota llena */
     }
   }, [draft, storageKey]);
 
   const dict = getDictionary(draft.language);
   const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
-  // --- Subida de fotos ------------------------------------------------------
   async function addPhotos(files: FileList | null, target: "main" | { damageId: string }) {
     if (!files) return;
     for (const file of Array.from(files)) {
       const id = newId();
       const preview = URL.createObjectURL(file);
       const item: PhotoItem = { id, status: "uploading", preview };
-      if (target === "main") {
-        setDraft((d) => ({ ...d, photos: [...d.photos, item] }));
-      } else {
+      if (target === "main") setDraft((d) => ({ ...d, photos: [...d.photos, item] }));
+      else
         setDraft((d) => ({
           ...d,
-          damages: d.damages.map((dm) =>
-            dm.id === target.damageId ? { ...dm, photo: item } : dm,
-          ),
+          damages: d.damages.map((dm) => (dm.id === target.damageId ? { ...dm, photo: item } : dm)),
         }));
-      }
       try {
         const blob = await compressImage(file);
         const key = await uploadMedia({
@@ -158,36 +149,36 @@ export function HandoverWizard(props: WizardProps) {
     }
   }
 
-  function updatePhoto(
-    target: "main" | { damageId: string },
-    id: string,
-    patch: Partial<PhotoItem>,
-  ) {
+  function updatePhoto(target: "main" | { damageId: string }, id: string, up: Partial<PhotoItem>) {
     setDraft((d) => {
-      if (target === "main") {
-        return { ...d, photos: d.photos.map((p) => (p.id === id ? { ...p, ...patch } : p)) };
-      }
+      if (target === "main")
+        return { ...d, photos: d.photos.map((p) => (p.id === id ? { ...p, ...up } : p)) };
       return {
         ...d,
         damages: d.damages.map((dm) =>
           dm.id === target.damageId && dm.photo?.id === id
-            ? { ...dm, photo: { ...dm.photo, ...patch } }
+            ? { ...dm, photo: { ...dm.photo, ...up } }
             : dm,
         ),
       };
     });
   }
 
-  const uploading = draft.photos.some((p) => p.status === "uploading") ||
+  const uploading =
+    draft.photos.some((p) => p.status === "uploading") ||
     draft.damages.some((d) => d.photo?.status === "uploading");
 
-  // --- Navegación (por nombre de paso, no por índice) -----------------------
   const current = STEPS[step];
+  const kmDriven = props.returnContext ? Number(draft.km || 0) - props.returnContext.handoverKm : 0;
+  const fuelDiff = props.returnContext ? draft.fuelLevel - props.returnContext.handoverFuel : 0;
 
   function validateStep(): string | undefined {
     if (current === "Datos" && !draft.vehicleId) return "Asigná un vehículo para continuar.";
-    if (current === "Estado" && (draft.km === "" || Number(draft.km) < 0)) {
-      return "Ingresá el kilometraje.";
+    if (current === "Estado") {
+      if (draft.km === "" || Number(draft.km) < 0) return "Ingresá el kilometraje.";
+      if (props.returnContext && Number(draft.km) < props.returnContext.handoverKm) {
+        return `El kilometraje no puede ser menor al de entrega (${props.returnContext.handoverKm.toLocaleString("es-AR")} km).`;
+      }
     }
     return undefined;
   }
@@ -195,8 +186,6 @@ export function HandoverWizard(props: WizardProps) {
   async function next() {
     const v = validateStep();
     if (v) return setError(v);
-    // Al salir del paso de firma, capturarla y subirla (el canvas se desmonta
-    // al cambiar de paso, así que no se puede leer más adelante).
     if (current === "Firma") {
       if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
       try {
@@ -214,10 +203,8 @@ export function HandoverWizard(props: WizardProps) {
     setStep((s) => Math.max(0, s - 1));
   }
 
-  // --- Firma ----------------------------------------------------------------
   async function captureSignature(): Promise<string | undefined> {
     const pad = sigRef.current;
-    // Si hay trazo en el canvas montado, subirlo (reemplaza cualquier firma previa).
     if (pad && !pad.isEmpty()) {
       const dataUrl = pad.toDataURL();
       const blob = await (await fetch(dataUrl)).blob();
@@ -225,11 +212,9 @@ export function HandoverWizard(props: WizardProps) {
       patch({ signatureKey: key });
       return key;
     }
-    // Canvas vacío o desmontado: usar la firma ya capturada, si existe.
     return draft.signatureKey;
   }
 
-  // --- Guardar --------------------------------------------------------------
   async function submit() {
     setError(undefined);
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
@@ -248,7 +233,7 @@ export function HandoverWizard(props: WizardProps) {
           if (!Number.isNaN(n)) pricing[f.key] = n;
         }
       }
-      const payload: SaveHandoverInput = {
+      const payload: InspectionInput = {
         rentalId: props.rentalId,
         vehicleId: draft.vehicleId,
         language: draft.language,
@@ -257,7 +242,7 @@ export function HandoverWizard(props: WizardProps) {
         checklist: draft.checklist,
         observations: draft.observations.trim() || undefined,
         newDamages: draft.damages.map((d) => ({
-          view: "top",
+          view: "top" as const,
           posX: d.posX,
           posY: d.posY,
           description: d.description.trim() || undefined,
@@ -266,18 +251,22 @@ export function HandoverWizard(props: WizardProps) {
         photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
         signatureKey,
         signerName: draft.signerName.trim(),
-        licenseExpiry: draft.licenseExpiry || undefined,
-        pricing: Object.keys(pricing).length ? pricing : undefined,
+        ...(isHandover
+          ? {
+              licenseExpiry: draft.licenseExpiry || undefined,
+              pricing: Object.keys(pricing).length ? pricing : undefined,
+            }
+          : {}),
         latitude: geo.current.lat,
         longitude: geo.current.lng,
       };
-      const res = await saveHandover(payload);
+      const res = await props.save(payload);
       if (!res.ok) {
         setSaving(false);
         return setError(res.error);
       }
       localStorage.removeItem(storageKey);
-      router.replace(`/rentals/${props.rentalId}?entrega=ok`);
+      router.replace(`/rentals/${props.rentalId}?${isHandover ? "entrega" : "devolucion"}=ok`);
     } catch {
       setSaving(false);
       setError("No se pudo guardar. Reintentá.");
@@ -286,20 +275,15 @@ export function HandoverWizard(props: WizardProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* progreso */}
       <div className="flex items-center gap-1.5">
         {STEPS.map((label, i) => (
-          <div
-            key={label}
-            className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-foreground" : "bg-foreground/15"}`}
-          />
+          <div key={label} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-foreground" : "bg-foreground/15"}`} />
         ))}
       </div>
       <p className="text-sm text-foreground/60">
-        Paso {step + 1} de {STEPS.length} · <span className="font-medium text-foreground">{STEPS[step]}</span>
+        Paso {step + 1} de {STEPS.length} · <span className="font-medium text-foreground">{current}</span>
       </p>
 
-      {/* Datos */}
       {current === "Datos" && (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-foreground/10 p-4 text-sm">
@@ -314,86 +298,39 @@ export function HandoverWizard(props: WizardProps) {
               <span className="font-medium">{props.vehicle.label}</span>
             </div>
           ) : (
-            <SelectField
-              id="vehicleId"
-              label="Vehículo"
-              hint="Esta reserva llegó sin unidad asignada"
-              value={draft.vehicleId}
-              onChange={(e) => patch({ vehicleId: e.target.value })}
-            >
+            <SelectField id="vehicleId" label="Vehículo" hint="Reserva sin unidad asignada" value={draft.vehicleId} onChange={(e) => patch({ vehicleId: e.target.value })}>
               <option value="">Elegir vehículo…</option>
               {props.vehicleOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
+                <option key={v.id} value={v.id}>{v.label}</option>
               ))}
             </SelectField>
           )}
-          <SelectField
-            id="language"
-            label="Idioma del cliente"
-            hint="Para el acta y los emails"
-            value={draft.language}
-            onChange={(e) => patch({ language: e.target.value as Lang })}
-          >
+          <SelectField id="language" label="Idioma del cliente" hint="Para el acta y los emails" value={draft.language} onChange={(e) => patch({ language: e.target.value as Lang })}>
             {Object.entries(languageLabels).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
+              <option key={v} value={v}>{l}</option>
             ))}
           </SelectField>
         </div>
       )}
 
-      {/* Condiciones */}
       {current === "Condiciones" && (
         <div className="flex flex-col gap-4">
-          <TextField
-            id="licenseExpiry"
-            label="Venc. licencia de conducir"
-            type="date"
-            value={draft.licenseExpiry}
-            onChange={(e) => patch({ licenseExpiry: e.target.value })}
-          />
+          <TextField id="licenseExpiry" label="Venc. licencia de conducir" type="date" value={draft.licenseExpiry} onChange={(e) => patch({ licenseExpiry: e.target.value })} />
           <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">
-              Condiciones económicas (opcional)
-            </p>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Condiciones económicas (opcional)</p>
             <div className="grid grid-cols-2 gap-3">
               {PRICING_FIELDS.map((f) => (
-                <TextField
-                  key={f.key}
-                  id={`pricing_${f.key}`}
-                  label={f.label}
-                  type="number"
-                  inputMode="numeric"
-                  value={draft.pricing[f.key] ?? ""}
-                  onChange={(e) =>
-                    patch({ pricing: { ...draft.pricing, [f.key]: e.target.value } })
-                  }
-                  min={0}
-                />
+                <TextField key={f.key} id={`pricing_${f.key}`} label={f.label} type="number" inputMode="numeric" value={draft.pricing[f.key] ?? ""} onChange={(e) => patch({ pricing: { ...draft.pricing, [f.key]: e.target.value } })} min={0} />
               ))}
             </div>
-            <p className="mt-2 text-xs text-foreground/50">
-              Se registran en el acta; Andes no procesa cobros.
-            </p>
+            <p className="mt-2 text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>
           </div>
         </div>
       )}
 
-      {/* Estado */}
       {current === "Estado" && (
         <div className="flex flex-col gap-5">
-          <TextField
-            id="km"
-            label="Kilometraje actual"
-            type="number"
-            inputMode="numeric"
-            value={draft.km}
-            onChange={(e) => patch({ km: e.target.value })}
-            min={0}
-          />
+          <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Nivel de nafta</p>
             <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} />
@@ -408,20 +345,7 @@ export function HandoverWizard(props: WizardProps) {
                     <span className="text-sm">{it.label}</span>
                     <div className="flex overflow-hidden rounded-lg border border-foreground/15 text-xs">
                       {(["ok", "fail"] as const).map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() =>
-                            patch({ checklist: { ...draft.checklist, [it.id]: opt } })
-                          }
-                          className={`px-3 py-1.5 font-medium ${
-                            val === opt
-                              ? opt === "ok"
-                                ? "bg-green-600 text-white"
-                                : "bg-red-600 text-white"
-                              : "text-foreground/60"
-                          }`}
-                        >
+                        <button key={opt} type="button" onClick={() => patch({ checklist: { ...draft.checklist, [it.id]: opt } })} className={`px-3 py-1.5 font-medium ${val === opt ? (opt === "ok" ? "bg-green-600 text-white" : "bg-red-600 text-white") : "text-foreground/60"}`}>
                           {opt === "ok" ? "OK" : "Falla"}
                         </button>
                       ))}
@@ -434,68 +358,28 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* Daños */}
       {current === "Daños" && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-foreground/60">
-            Tocá el croquis para marcar un daño nuevo. Los{" "}
-            <span className="text-amber-600">ámbar</span> ya estaban registrados.
+            Tocá el croquis para marcar un daño nuevo. Los <span className="text-amber-600">ámbar</span> ya estaban registrados.
           </p>
           <div className="mx-auto w-full max-w-[240px]">
-            <Croquis
-              existing={props.existingDamages}
-              markers={draft.damages as Marker[]}
-              onAdd={(posX, posY) =>
-                setDraft((d) => ({
-                  ...d,
-                  damages: [...d.damages, { id: newId(), posX, posY, description: "" }],
-                }))
-              }
-              onRemove={(id) =>
-                setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== id) }))
-              }
-            />
+            <Croquis existing={props.existingDamages} markers={draft.damages as Marker[]} onAdd={(posX, posY) => setDraft((d) => ({ ...d, damages: [...d.damages, { id: newId(), posX, posY, description: "" }] }))} onRemove={(id) => setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== id) }))} />
           </div>
           {draft.damages.map((dm, i) => (
             <div key={dm.id} className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Daño nuevo #{i + 1}</span>
-                <button
-                  type="button"
-                  className="text-xs text-red-600"
-                  onClick={() =>
-                    setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== dm.id) }))
-                  }
-                >
-                  Quitar
-                </button>
+                <button type="button" className="text-xs text-red-600" onClick={() => setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== dm.id) }))}>Quitar</button>
               </div>
-              <input
-                className="h-10 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                placeholder="Descripción (ej. rayón puerta delantera)"
-                value={dm.description}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    damages: d.damages.map((x) =>
-                      x.id === dm.id ? { ...x, description: e.target.value } : x,
-                    ),
-                  }))
-                }
-              />
+              <input className="h-10 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40" placeholder="Descripción (ej. rayón puerta delantera)" value={dm.description} onChange={(e) => setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, description: e.target.value } : x)) }))} />
               {dm.photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={dm.photo.preview} alt="" className="h-20 w-20 rounded object-cover" />
               ) : (
                 <label className="text-xs text-foreground/60 underline">
                   Agregar foto del daño
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => addPhotos(e.target.files, { damageId: dm.id })}
-                  />
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addPhotos(e.target.files, { damageId: dm.id })} />
                 </label>
               )}
             </div>
@@ -503,19 +387,11 @@ export function HandoverWizard(props: WizardProps) {
         </div>
       )}
 
-      {/* Fotos + observaciones */}
       {current === "Fotos" && (
         <div className="flex flex-col gap-4">
           <label className="flex h-11 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-sm font-medium">
             + Agregar fotos (frente, atrás, laterales)
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
-              onChange={(e) => addPhotos(e.target.files, "main")}
-            />
+            <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files, "main")} />
           </label>
           {draft.photos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
@@ -528,96 +404,88 @@ export function HandoverWizard(props: WizardProps) {
                       {p.status === "uploading" ? "Subiendo…" : "Error"}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => patch({ photos: draft.photos.filter((x) => x.id !== p.id) })}
-                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-                  >
-                    ✕
-                  </button>
+                  <button type="button" onClick={() => patch({ photos: draft.photos.filter((x) => x.id !== p.id) })} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
                 </div>
               ))}
             </div>
           )}
-          <TextareaField
-            id="observations"
-            label="Observaciones"
-            value={draft.observations}
-            onChange={(e) => patch({ observations: e.target.value })}
-            rows={4}
-          />
+          <TextareaField id="observations" label="Observaciones" value={draft.observations} onChange={(e) => patch({ observations: e.target.value })} rows={4} />
         </div>
       )}
 
-      {/* Firma */}
+      {current === "Comparación" && props.returnContext && (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-foreground/60">Comparación contra la entrega:</p>
+          <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+            <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />
+            <CompareRow label="Kilometraje" value={`${props.returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
+            <CompareRow label="Nafta" value={`${props.returnContext.handoverFuel}/8 → ${draft.fuelLevel}/8`} tone={fuelDiff < 0 ? "warn" : undefined} />
+          </div>
+          <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
+            <p className="text-sm font-semibold">
+              Daños nuevos: {draft.damages.length}
+            </p>
+            {draft.damages.length > 0 && (
+              <ul className="mt-1 list-disc pl-4 text-sm text-red-600">
+                {draft.damages.map((d, i) => (
+                  <li key={d.id}>{d.description.trim() || `Daño #${i + 1}`}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {fuelDiff < 0 && (
+            <p className="text-xs text-amber-600">Devuelve con menos nafta que a la entrega ({fuelDiff}/8).</p>
+          )}
+        </div>
+      )}
+
       {current === "Firma" && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground/70">{dict.signature.legal}</p>
           <SignatureCanvas ref={sigRef} />
           <div className="flex justify-between">
-            <button
-              type="button"
-              className="text-sm text-foreground/60 underline"
-              onClick={() => {
-                sigRef.current?.clear();
-                patch({ signatureKey: undefined });
-              }}
-            >
+            <button type="button" className="text-sm text-foreground/60 underline" onClick={() => { sigRef.current?.clear(); patch({ signatureKey: undefined }); }}>
               {dict.signature.clear}
             </button>
           </div>
-          {draft.signatureKey && (
-            <p className="text-xs text-green-600">
-              Firma registrada. Volvé a firmar para reemplazarla.
-            </p>
-          )}
-          <TextField
-            id="signerName"
-            label={dict.signature.signerName}
-            value={draft.signerName}
-            onChange={(e) => patch({ signerName: e.target.value })}
-          />
+          {draft.signatureKey && <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>}
+          <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
         </div>
       )}
 
-      {/* Resumen */}
       {current === "Resumen" && (
         <div className="flex flex-col gap-3">
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-            <SummaryRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
-            <SummaryRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
-            <SummaryRow label="Nafta" value={`${draft.fuelLevel}/8`} />
-            <SummaryRow label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
-            <SummaryRow label="Daños nuevos" value={String(draft.damages.length)} />
-            <SummaryRow label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />
-            <SummaryRow label="Idioma del acta" value={languageLabels[draft.language]} />
+            <CompareRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
+            <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
+            <CompareRow label="Nafta" value={`${draft.fuelLevel}/8`} />
+            {props.returnContext && <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
+            <CompareRow label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
+            <CompareRow label="Daños nuevos" value={String(draft.damages.length)} />
+            <CompareRow label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />
+            <CompareRow label="Idioma del acta" value={languageLabels[draft.language]} />
           </div>
-          {uploading && (
-            <p className="text-xs text-amber-600">Esperá a que terminen de subir las fotos…</p>
-          )}
+          {uploading && <p className="text-xs text-amber-600">Esperá a que terminen de subir las fotos…</p>}
           <p className="text-xs text-foreground/50">
-            Al guardar, el alquiler pasa a activo y el auto a alquilado. El acta y los
-            emails se generan en segundo plano.
+            {isHandover
+              ? "Al guardar, el alquiler pasa a activo y el auto a alquilado."
+              : "Al guardar, el alquiler se finaliza y el auto vuelve a disponible."}{" "}
+            El acta y los emails se generan en segundo plano.
           </p>
         </div>
       )}
 
       <FormError>{error}</FormError>
 
-      {/* Navegación */}
       <div className="flex gap-3 pt-2">
         {step > 0 && (
-          <Button type="button" variant="secondary" onClick={back} className="flex-1">
-            Atrás
-          </Button>
+          <Button type="button" variant="secondary" onClick={back} className="flex-1">Atrás</Button>
         )}
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next} className="flex-1">
-            Siguiente
-          </Button>
+          <Button type="button" onClick={next} className="flex-1">Siguiente</Button>
         ) : (
           <Button type="button" onClick={submit} disabled={saving || uploading} className="flex-1">
-            {saving ? "Guardando…" : "Guardar entrega"}
+            {saving ? "Guardando…" : isHandover ? "Guardar entrega" : "Cerrar devolución"}
           </Button>
         )}
       </div>
@@ -625,11 +493,11 @@ export function HandoverWizard(props: WizardProps) {
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function CompareRow({ label, value, tone }: { label: string; value: string; tone?: "warn" }) {
   return (
     <div className="flex justify-between gap-4 py-2 text-sm">
       <span className="text-foreground/60">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <span className={`text-right font-medium ${tone === "warn" ? "text-amber-600" : ""}`}>{value}</span>
     </div>
   );
 }

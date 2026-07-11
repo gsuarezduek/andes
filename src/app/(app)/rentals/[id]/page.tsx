@@ -29,10 +29,10 @@ export default async function RentalDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ entrega?: string }>;
+  searchParams: Promise<{ entrega?: string; devolucion?: string }>;
 }) {
   const { id } = await params;
-  const { entrega } = await searchParams;
+  const { entrega, devolucion } = await searchParams;
   await requireUser();
 
   const rental = await prisma.rental.findUnique({
@@ -45,13 +45,20 @@ export default async function RentalDetailPage({
   if (!rental) notFound();
 
   const handover = rental.inspections.find((i) => i.type === "handover");
+  const returnInsp = rental.inspections.find((i) => i.type === "return_");
   const canStartHandover = rental.status === "reserved" && !handover;
+  const canStartReturn = rental.status === "active" && Boolean(handover) && !returnInsp;
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
       {entrega === "ok" && (
         <p className="rounded-lg bg-green-500/10 px-4 py-3 text-sm font-medium text-green-700 dark:text-green-400">
           Entrega registrada. El acta y los emails se están generando.
+        </p>
+      )}
+      {devolucion === "ok" && (
+        <p className="rounded-lg bg-green-500/10 px-4 py-3 text-sm font-medium text-green-700 dark:text-green-400">
+          Devolución registrada. El alquiler quedó finalizado; el acta y los emails se están generando.
         </p>
       )}
       <div className="flex items-start justify-between gap-3">
@@ -119,16 +126,19 @@ export default async function RentalDetailPage({
             Iniciar entrega
           </ButtonLink>
         )}
-        <ButtonLink href="/rentals" variant="secondary" className={canStartHandover ? "" : "flex-1"}>
+        {canStartReturn && (
+          <ButtonLink href={`/rentals/${rental.id}/return`} className="flex-1">
+            Iniciar devolución
+          </ButtonLink>
+        )}
+        <ButtonLink
+          href="/rentals"
+          variant="secondary"
+          className={canStartHandover || canStartReturn ? "" : "flex-1"}
+        >
           Volver
         </ButtonLink>
       </div>
-
-      {rental.status === "active" && !rental.inspections.some((i) => i.type === "return_") && (
-        <p className="text-xs text-foreground/40">
-          El flujo de devolución llega en la Fase 3.
-        </p>
-      )}
     </div>
   );
 }

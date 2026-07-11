@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
-import { HandoverWizard } from "./handover-wizard";
+import { InspectionWizard } from "@/components/inspection/inspection-wizard";
+import { saveHandover } from "./actions";
 
 export const metadata: Metadata = { title: "Entrega — Andes" };
 
@@ -50,7 +51,9 @@ export default async function HandoverPage({
   return (
     <div className="mx-auto flex max-w-md flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight">Entrega</h1>
-      <HandoverWizard
+      <InspectionWizard
+        mode="handover"
+        save={saveHandover}
         rentalId={rental.id}
         client={{
           name: rental.clientName,

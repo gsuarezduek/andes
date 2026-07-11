@@ -5,28 +5,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
-
-const optNum = z.number().nonnegative().optional();
-const pricingSchema = z
-  .object({
-    place: z.string().optional(),
-    dailyRate: optNum,
-    days: optNum,
-    insuranceAmount: optNum,
-    kmIncluded: optNum,
-    extraKmRate: optNum,
-    extraHourRate: optNum,
-    accessoriesDesc: z.string().optional(),
-    accessoriesAmount: optNum,
-    total: optNum,
-    paid: optNum,
-    balance: optNum,
-    deposit: optNum,
-  })
-  .optional();
 
 const damageSchema = z.object({
   view: z.enum(["top", "front", "rear", "left", "right", "interior"]),
@@ -38,7 +18,7 @@ const damageSchema = z.object({
 
 const saveSchema = z.object({
   rentalId: z.string().min(1),
-  vehicleId: z.string().min(1, "Falta asignar un vehículo"),
+  vehicleId: z.string().min(1, "Falta el vehículo"),
   language: z.enum(["es", "en"]),
   km: z.number().int().nonnegative(),
   fuelLevel: z.number().int().min(0).max(8),
@@ -49,13 +29,11 @@ const saveSchema = z.object({
   videoKey: z.string().optional(),
   signatureKey: z.string().min(1, "Falta la firma del cliente"),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
-  licenseExpiry: z.string().optional(), // "YYYY-MM-DD"
-  pricing: pricingSchema,
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
 
-export async function saveHandover(input: InspectionInput): Promise<SaveResult> {
+export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
   const user = await requireUser();
 
   const parsed = saveSchema.safeParse(input);
@@ -66,25 +44,29 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
 
   const rental = await prisma.rental.findUnique({
     where: { id: data.rentalId },
-    include: { inspections: { where: { type: "handover" }, select: { id: true } } },
+    include: { inspections: { select: { id: true, type: true, km: true } } },
   });
   if (!rental) return { ok: false, error: "El alquiler no existe." };
-  if (rental.status !== "reserved") {
-    return { ok: false, error: "Este alquiler ya tiene la entrega registrada o no está reservado." };
+  if (rental.status !== "active") {
+    return { ok: false, error: "Solo se puede devolver un alquiler activo." };
   }
-  if (rental.inspections.length > 0) {
-    return { ok: false, error: "Ya existe un acta de entrega para este alquiler." };
+  const handover = rental.inspections.find((i) => i.type === "handover");
+  if (!handover) return { ok: false, error: "Este alquiler no tiene entrega registrada." };
+  if (rental.inspections.some((i) => i.type === "return_")) {
+    return { ok: false, error: "Ya existe un acta de devolución para este alquiler." };
   }
 
-  const vehicle = await prisma.vehicle.findUnique({ where: { id: data.vehicleId } });
-  if (!vehicle) return { ok: false, error: "El vehículo no existe." };
+  // El km de devolución no puede ser menor al de entrega.
+  if (data.km < handover.km) {
+    return { ok: false, error: `El kilometraje no puede ser menor al de entrega (${handover.km.toLocaleString("es-AR")} km).` };
+  }
 
   const inspection = await prisma.$transaction(async (tx) => {
     const insp = await tx.inspection.create({
       data: {
-        type: "handover",
+        type: "return_",
         rentalId: rental.id,
-        vehicleId: vehicle.id,
+        vehicleId: data.vehicleId,
         userId: user.id,
         km: data.km,
         fuelLevel: data.fuelLevel,
@@ -108,7 +90,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         },
         damages: {
           create: data.newDamages.map((d) => ({
-            vehicleId: vehicle.id,
+            vehicleId: data.vehicleId,
             view: d.view,
             posX: d.posX,
             posY: d.posY,
@@ -119,31 +101,18 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       },
     });
 
-    const licenseExpiry = data.licenseExpiry
-      ? mendozaWallTimeToUtc(`${data.licenseExpiry}T12:00`)
-      : undefined;
-    const hasPricing =
-      data.pricing && Object.values(data.pricing).some((v) => v !== undefined && v !== "");
-
     await tx.rental.update({
       where: { id: rental.id },
-      data: {
-        status: "active",
-        vehicleId: vehicle.id,
-        language: data.language,
-        ...(licenseExpiry ? { licenseExpiry } : {}),
-        ...(hasPricing ? { pricing: data.pricing } : {}),
-      },
+      data: { status: "finished", language: data.language },
     });
     await tx.vehicle.update({
-      where: { id: vehicle.id },
-      data: { status: "rented", currentKm: data.km },
+      where: { id: data.vehicleId },
+      data: { status: "available", currentKm: data.km },
     });
 
     return insp;
   });
 
-  // Post-guardado asíncrono: PDF + emails, sin bloquear la confirmación.
   after(async () => {
     try {
       await generateAndSendActa(inspection.id);
