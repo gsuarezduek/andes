@@ -29,9 +29,11 @@ export async function getDashboardData() {
       include: { vehicle: true, inspections: { select: { type: true } } },
       orderBy: { startAt: "asc" },
     }),
-    // Devoluciones programadas hoy (por fecha de devolución).
+    // Devoluciones programadas hoy (por fecha de devolución). Incluye reservas
+    // aún no iniciadas en la app: si WordPress dice que el auto vuelve hoy, se
+    // muestra aunque la entrega no se haya cargado en Andes.
     prisma.rental.findMany({
-      where: { status: { in: ["active", "finished"] }, endAt: { gte: dayStart, lt: dayEnd } },
+      where: { status: { not: "cancelled" }, endAt: { gte: dayStart, lt: dayEnd } },
       include: { vehicle: true, inspections: { select: { type: true } } },
       orderBy: { endAt: "asc" },
     }),
