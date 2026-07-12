@@ -122,7 +122,7 @@ npm test
 
 ## v2 (mejoras post-fase-6)
 
-Plan aprobado en 6 fases independientes y desplegables (7–12). Ver el detalle de diseño en el plan de la sesión.
+Plan aprobado, cerrado en la Fase 11 (fases 7–11 desplegables). La Fase 12 (i18n completo de la UI del empleado) se **descartó por decisión del dueño**: la UI del empleado se mantiene en español (el equipo es de habla hispana). El contenido de cara al cliente —acta, emails, firma— sigue siendo bilingüe (es/en) por alquiler, como desde el día 1.
 
 - [x] **Fase 7 — Red de tests de flujos críticos** ✅ (local, en verde)
   - **Vitest** (`vitest.config.ts`, scripts `test`/`test:watch`; alias `@/`→src y stub de `server-only` para importar módulos de servidor). Tests junto al código en `src/**/__tests__`. Doc en `test/README.md`.
@@ -151,7 +151,7 @@ Plan aprobado en 6 fases independientes y desplegables (7–12). Ver el detalle 
   - `src/lib/reports.ts` (`getReports`): KPIs (flota, alquilados, activos, finalizados, ingresos, neto), **alquileres finalizados + km recorridos por mes** (últimos 12, cortes en hora de Mendoza), y tabla **por vehículo** (alquileres, ingresos, costos de mantenimiento, neto, daños activos). Ingresos del contrato del empleado (`Rental.pricing.total`) con fallback a `bookingTotal`; sólo alquileres finalizados. Helper puro `recentMonths` (rollover de año) testeado (47 tests).
   - Página `/reports` (admin, `requireAdmin`): KPIs + gráfico de barras SVG por mes + tabla por vehículo. Export **CSV** (`GET /api/reports/export?type=vehicles|months`, admin, BOM para Excel). Ítem "Reportes" en la nav (solo admin).
   - **Sin migración.** Queries verificadas contra la base local (incl. `groupBy` de daños). Build/lint/test en verde.
-- [ ] **Fase 12** — i18n completo de la UI del empleado.
+- [~] **Fase 12 — i18n completo de la UI del empleado — DESCARTADA.** Decisión del dueño: la UI del empleado queda en español. No se implementa.
 
 ## Pendientes que dependen del dueño
 
