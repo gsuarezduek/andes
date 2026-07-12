@@ -337,6 +337,37 @@ model ConditionSettings {
   @@map("condition_settings")
 }
 
+// Textos editables de los correos transaccionales y casilla remitente.
+// Singleton: siempre id = 1. Cada campo es un override opcional del diccionario
+// i18n (src/lib/i18n/dictionaries.ts): si está vacío/null, se usa el texto por
+// defecto del sistema. `fromAddress` pisa la env var EMAIL_FROM.
+model EmailSettings {
+  id          Int     @id @default(1)
+  fromAddress String? @map("from_address") // casilla "desde" (pisa EMAIL_FROM)
+
+  // Español
+  esHandoverSubject String? @map("es_handover_subject")
+  esReturnSubject   String? @map("es_return_subject")
+  esGreeting        String? @map("es_greeting")
+  esHandoverBody    String? @map("es_handover_body")
+  esReturnBody      String? @map("es_return_body")
+  esAttachmentNote  String? @map("es_attachment_note")
+  esRegards         String? @map("es_regards")
+
+  // Inglés
+  enHandoverSubject String? @map("en_handover_subject")
+  enReturnSubject   String? @map("en_return_subject")
+  enGreeting        String? @map("en_greeting")
+  enHandoverBody    String? @map("en_handover_body")
+  enReturnBody      String? @map("en_return_body")
+  enAttachmentNote  String? @map("en_attachment_note")
+  enRegards         String? @map("en_regards")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_settings")
+}
+
 // ---------------------------------------------------------------------------
 // Log de sincronización con VikRentCar
 // ---------------------------------------------------------------------------

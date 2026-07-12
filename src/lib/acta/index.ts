@@ -4,6 +4,7 @@ import { createElement, type ReactElement } from "react";
 import { prisma } from "@/lib/prisma";
 import { storage, actaKey } from "@/lib/storage";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDateTime, formatDate } from "@/lib/datetime";
 import { COMPANY, formatArs, PRICING_FIELDS, extraHourAmount, type ContractPricing } from "@/lib/contract";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
@@ -141,18 +142,19 @@ export async function generateAndSendActa(inspectionId: string): Promise<void> {
   });
   if (!inspection) return;
 
+  const locale = inspection.rental.language as Locale;
+  const { from: fromOverride, content } = await resolveEmailConfig(locale);
+
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  const from = fromOverride ?? process.env.EMAIL_FROM;
   if (!apiKey || !from) {
     console.warn("[acta] Resend no configurado — PDF guardado, email omitido");
     return;
   }
 
-  const locale = inspection.rental.language as Locale;
-  const dict = getDictionary(locale);
   const isHandover = inspection.type === "handover";
-  const subject = isHandover ? dict.email.handoverSubject : dict.email.returnSubject;
-  const body = isHandover ? dict.email.handoverBody : dict.email.returnBody;
+  const subject = isHandover ? content.handoverSubject : content.returnSubject;
+  const body = isHandover ? content.handoverBody : content.returnBody;
 
   const to: string[] = [];
   if (inspection.rental.clientEmail) to.push(inspection.rental.clientEmail);
@@ -163,7 +165,8 @@ export async function generateAndSendActa(inspectionId: string): Promise<void> {
     return;
   }
 
-  const html = `<p>${dict.email.greeting} ${inspection.rental.clientName},</p><p>${body}</p><p>${dict.email.attachmentNote}</p><p>${dict.email.regards.replace(/\n/g, "<br>")}</p>`;
+  const br = (s: string) => s.replace(/\n/g, "<br>");
+  const html = `<p>${content.greeting} ${inspection.rental.clientName},</p><p>${br(body)}</p><p>${content.attachmentNote}</p><p>${br(content.regards)}</p>`;
 
   const { Resend } = await import("resend");
   const resend = new Resend(apiKey);

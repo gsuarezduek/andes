@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { SyncResult } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireUser } from "@/lib/auth-helpers";
 import { env } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -23,7 +23,7 @@ const resultLabel: Record<SyncResult, string> = {
 };
 
 export default async function SyncPage() {
-  await requireAdmin();
+  await requireUser();
 
   const logs = await prisma.syncLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
 
