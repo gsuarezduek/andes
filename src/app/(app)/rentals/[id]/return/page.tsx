@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { saveReturn } from "./actions";
+import { createRemoteSignature } from "../remote-sign-actions";
 
 export const metadata: Metadata = { title: "Devolución — Andes" };
 
@@ -68,6 +69,7 @@ export default async function ReturnPage({
         checklistItems={checklistItems}
         existingDamages={existingDamages}
         language={rental.language}
+        createRemoteSignature={createRemoteSignature}
         returnContext={{
           handoverKm: handover.km,
           handoverFuel: handover.fuelLevel,

@@ -141,7 +141,12 @@ Plan aprobado en 6 fases independientes y desplegables (7–12). Ver el detalle 
   - El paso "Comparación" del wizard de devolución pasa a **Liquidación**: desglose autocalculado con importes editables (km extra, nafta, cargo por cada daño, depósito) + **forma de pago** (efectivo/transferencia/retención) + nota; recálculo en vivo. La página de devolución pasa `pricing` de la entrega. Saldo también en el Resumen.
   - **Acta de devolución** imprime la sección de liquidación (i18n es/en, sub-diccionario `acta.settlement`; paridad de claves testeada).
   - **Falta:** desplegar la migración `add_inspection_settlement` en Railway.
-- [ ] **Fase 10** — Firma remota / portal del cliente (QR por-alquiler, ruta pública firmada).
+- [x] **Fase 10 — Firma remota / portal del cliente** ✅ (local, roundtrip verificado; falta desplegar la migración)
+  - Modelo `SignatureRequest` (id no adivinable, `draftId`, `summary` Json, `status` pending/signed/expired/cancelled, `expiresAt`; migración `add_signature_requests`) + enum `SignatureRequestStatus`. Helper puro `src/lib/remote-signature.ts` (`isSignatureRequestUsable`, TTL 30 min; 5 tests).
+  - **Rutas públicas** (excluidas del proxy, junto a `api/sync`): página `/sign/[id]` (sin sesión: valida pending+no vencido, muestra resumen en el idioma del alquiler + texto legal + canvas) con `sign-form.tsx`; `POST /api/sign/[id]` (recibe la firma, **un solo uso** vía `updateMany where status=pending`, la sube bajo `uploads/{draftId}/signature.png` — la **misma clave** que espera `saveHandover/saveReturn`); `GET /api/sign/[id]/status` (lo poolea el wizard).
+  - **Wizard** (paso "Firma"): botón "Generar QR para el cliente" → server action `createRemoteSignature` (crea el pedido y devuelve el **QR SVG** generado server-side reusando `qrSvg`) → el cliente escanea y firma en su teléfono → el wizard **poolea** cada 3s y toma la firma. El canvas en el dispositivo del empleado sigue como fallback. Pasado a entrega y devolución.
+  - **Verificado (roundtrip, sin sesión):** status pending → POST firma → signed con la clave correcta; doble uso → 409; `/sign/[id]` → 200; rutas privadas siguen en 307→login.
+  - **Falta:** desplegar la migración `add_signature_requests` en Railway.
 - [ ] **Fase 11** — Reportes y analítica histórica (admin).
 - [ ] **Fase 12** — i18n completo de la UI del empleado.
 

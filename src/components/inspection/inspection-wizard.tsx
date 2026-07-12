@@ -27,6 +27,7 @@ import { PRICING_FIELDS, extraHourAmount, formatArs, type ContractPricing } from
 import { computeComparison } from "@/lib/comparison";
 import { computeSettlement, rollupSettlement, type SettlementMethod } from "@/lib/settlement";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
+import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 
 const SETTLEMENT_METHODS: { value: SettlementMethod; label: string }[] = [
   { value: "none", label: "Sin saldo / no aplica" },
@@ -92,6 +93,22 @@ export type InspectionWizardProps = {
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
+  /** Server action para firma remota (el cliente firma en su propio teléfono). */
+  createRemoteSignature?: (input: {
+    rentalId: string;
+    draftId: string;
+    type: Mode;
+    language: Lang;
+    summary: {
+      vehicleLabel: string;
+      km: number;
+      fuelLevel: number;
+      newDamages: string[];
+      observations?: string;
+      clientName?: string;
+      datesLabel?: string;
+    };
+  }) => Promise<CreateRemoteSignatureResult>;
 };
 
 function newId() {
@@ -114,6 +131,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const [saving, setSaving] = useState(false);
   const [online, setOnline] = useState(true);
   const [queuedSubmit, setQueuedSubmit] = useState(false);
+  // Firma remota (el cliente firma en su propio teléfono).
+  const [remote, setRemote] = useState<{ id: string; svg: string; url: string } | null>(null);
+  const [remoteStatus, setRemoteStatus] = useState<"idle" | "waiting" | "signed" | "error">("idle");
+  const [remoteBusy, setRemoteBusy] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(() => ({
     draftId: newId(),
@@ -393,6 +414,50 @@ export function InspectionWizard(props: InspectionWizardProps) {
     setQueuedSubmit(true);
   }
 
+  // Genera el pedido de firma remota y muestra el QR para que lo escanee el
+  // cliente. La firma llega por el polling de abajo.
+  async function startRemoteSign() {
+    if (!props.createRemoteSignature) return;
+    setRemoteBusy(true);
+    setError(undefined);
+    try {
+      const summary = {
+        vehicleLabel:
+          props.vehicle?.label ??
+          props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ??
+          "—",
+        km: Number(draft.km || 0),
+        fuelLevel: draft.fuelLevel,
+        newDamages: draft.damages.map((d, i) => d.description.trim() || `Daño #${i + 1}`),
+        observations: draft.observations.trim() || undefined,
+        clientName: (draft.signerName || draft.clientName || "").trim() || undefined,
+        datesLabel: props.datesLabel,
+      };
+      const res = await props.createRemoteSignature({
+        rentalId: props.rentalId,
+        draftId: draft.draftId,
+        type: props.mode,
+        language: draft.language,
+        summary,
+      });
+      if (res.ok) {
+        setRemote({ id: res.id, svg: res.svg, url: res.url });
+        setRemoteStatus("waiting");
+      } else {
+        setError(res.error);
+      }
+    } catch {
+      setError("No se pudo generar el QR de firma. Reintentá.");
+    } finally {
+      setRemoteBusy(false);
+    }
+  }
+
+  function cancelRemote() {
+    setRemote(null);
+    setRemoteStatus("idle");
+  }
+
   // Reintenta el guardado cuando hay conexión y toda la evidencia ya subió.
   useEffect(() => {
     if (queuedSubmit && online && !photosPending && draft.signatureKey && !saving) {
@@ -400,6 +465,34 @@ export function InspectionWizard(props: InspectionWizardProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queuedSubmit, online, photosPending, draft.signatureKey, saving]);
+
+  // Poolea el pedido de firma remota hasta que el cliente firme en su teléfono.
+  useEffect(() => {
+    if (!remote || remoteStatus !== "waiting") return;
+    const iv = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/sign/${remote.id}/status`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = (await r.json()) as { status: string; signatureKey?: string; signerName?: string };
+        if (j.status === "signed" && j.signatureKey) {
+          const key = j.signatureKey;
+          const signer = j.signerName;
+          setDraft((d) => ({
+            ...d,
+            signatureKey: key,
+            signerName: signer || d.signerName,
+            signaturePendingId: undefined,
+          }));
+          setRemoteStatus("signed");
+        } else if (j.status === "expired" || j.status === "cancelled") {
+          setRemoteStatus("error");
+        }
+      } catch {
+        /* sin red: reintenta en el próximo tick */
+      }
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [remote, remoteStatus]);
 
   async function submit() {
     setError(undefined);
@@ -844,6 +937,32 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
           ) : null}
           <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
+
+          {props.createRemoteSignature && (
+            <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">
+              <p className="text-xs font-medium text-foreground/70">¿El cliente prefiere firmar en su teléfono?</p>
+              {remoteStatus === "signed" ? (
+                <p className="text-sm font-medium text-green-600">Firma del cliente recibida ✓</p>
+              ) : !remote ? (
+                <Button type="button" variant="secondary" onClick={startRemoteSign} disabled={remoteBusy}>
+                  {remoteBusy ? "Generando…" : "Generar QR para el cliente"}
+                </Button>
+              ) : (
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/10 p-3">
+                  {/* SVG del QR generado en el servidor */}
+                  <div className="h-44 w-44 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: remote.svg }} />
+                  <p className="text-center text-xs text-foreground/60">
+                    {remoteStatus === "error"
+                      ? "El pedido venció. Generá uno nuevo."
+                      : "El cliente escanea este QR y firma en su teléfono. Esperando la firma…"}
+                  </p>
+                  <button type="button" className="text-xs text-foreground/60 underline" onClick={cancelRemote}>
+                    {remoteStatus === "error" ? "Cerrar" : "Cancelar"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

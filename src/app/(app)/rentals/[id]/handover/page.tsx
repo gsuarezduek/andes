@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { saveHandover } from "./actions";
+import { createRemoteSignature } from "../remote-sign-actions";
 
 export const metadata: Metadata = { title: "Entrega — Andes" };
 
@@ -103,6 +104,7 @@ export default async function HandoverPage({
         checklistItems={checklistItems}
         existingDamages={existingDamages}
         language={rental.language}
+        createRemoteSignature={createRemoteSignature}
       />
     </div>
   );

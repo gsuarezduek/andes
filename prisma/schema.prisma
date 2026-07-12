@@ -88,6 +88,14 @@ enum SyncResult {
   error
 }
 
+/// Estado de un pedido de firma remota (el cliente firma en su teléfono).
+enum SignatureRequestStatus {
+  pending
+  signed
+  expired
+  cancelled
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -102,8 +110,9 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  inspections     Inspection[]
-  rentalDocuments RentalDocument[]
+  inspections       Inspection[]
+  rentalDocuments   RentalDocument[]
+  signatureRequests SignatureRequest[]
 
   @@map("users")
 }
@@ -198,8 +207,9 @@ model Rental {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  inspections Inspection[]
-  documents   RentalDocument[]
+  inspections       Inspection[]
+  documents         RentalDocument[]
+  signatureRequests SignatureRequest[]
 
   @@index([status])
   @@index([startAt])
@@ -235,6 +245,45 @@ model RentalDocument {
 
   @@index([rentalId])
   @@map("rental_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Firma remota (el cliente firma en su propio teléfono escaneando un QR)
+// ---------------------------------------------------------------------------
+//
+// El empleado, en el paso "Firma" del wizard, genera un pedido y muestra un QR
+// en su pantalla. El cliente lo escanea, abre la página pública /sign/[id] (sin
+// sesión, id no adivinable, con expiración y de un solo uso), ve el resumen y
+// firma. El wizard poolea el estado y, al detectar `signed`, toma la firma.
+model SignatureRequest {
+  id String @id @default(cuid())
+
+  // Borrador del wizard: la firma se guarda bajo la misma clave que espera el
+  // guardado (uploads/{draftId}/signature.png).
+  draftId String @map("draft_id")
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  type     InspectionType
+  language Language       @default(es)
+
+  // Snapshot del resumen para mostrarle al cliente qué está firmando.
+  summary Json?
+
+  signerName   String?                @map("signer_name")
+  signatureKey String?                @map("signature_key")
+  status       SignatureRequestStatus @default(pending)
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([rentalId])
+  @@map("signature_requests")
 }
 
 // ---------------------------------------------------------------------------

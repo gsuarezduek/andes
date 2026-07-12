@@ -9,6 +9,9 @@ export const config = {
   matcher: [
     // `api/sync` se excluye del proxy: lo llama el cron sin sesión y se
     // autentica con CRON_SECRET dentro del route handler.
-    "/((?!api/auth|api/sync|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
+    // `sign` / `api/sign` también se excluyen: el cliente firma en su propio
+    // teléfono, sin sesión; se validan por el id no adivinable + expiración +
+    // un solo uso dentro de cada handler (firma remota, Fase 10).
+    "/((?!api/auth|api/sync|sign|api/sign|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
   ],
 };
