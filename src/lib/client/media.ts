@@ -26,7 +26,7 @@ export async function compressImage(
   return blob ?? file;
 }
 
-export type UploadKind = "photo" | "video" | "signature" | "damage";
+export type UploadKind = "photo" | "video" | "signature" | "damage" | "document";
 
 /** Sube un blob al endpoint de subida y devuelve la clave de almacenamiento. */
 export async function uploadMedia(opts: {

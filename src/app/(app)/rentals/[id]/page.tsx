@@ -9,6 +9,7 @@ import {
   rentalStatusLabels,
   rentalOriginLabels,
   languageLabels,
+  documentKindLabels,
 } from "@/lib/labels";
 import { rentalStatusTone } from "@/lib/rental-ui";
 import { formatDateTime } from "@/lib/datetime";
@@ -43,6 +44,7 @@ export default async function RentalDetailPage({
         orderBy: { createdAt: "asc" },
         include: { user: { select: { name: true } } },
       },
+      documents: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!rental) notFound();
@@ -113,6 +115,33 @@ export default async function RentalDetailPage({
         <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
           <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{rental.bookingNote}</p>
+        </div>
+      )}
+
+      {/* Documentos del cliente (solo interno: no van al acta ni al email) */}
+      {rental.documents.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-foreground/70">Documentos del cliente</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {rental.documents.map((doc) => (
+              <a
+                key={doc.id}
+                href={`/api/media?key=${encodeURIComponent(doc.url)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col gap-1"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/media?key=${encodeURIComponent(doc.url)}`}
+                  alt={documentKindLabels[doc.kind]}
+                  className="aspect-square w-full rounded-lg border border-foreground/10 object-cover"
+                />
+                <span className="text-center text-[11px] text-foreground/60">{documentKindLabels[doc.kind]}</span>
+              </a>
+            ))}
+          </div>
+          <p className="text-xs text-foreground/40">Respaldo interno. No se incluyen en el acta ni en los emails.</p>
         </div>
       )}
 

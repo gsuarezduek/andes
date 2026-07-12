@@ -22,15 +22,20 @@ import {
   type QueueSlot,
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
-import { languageLabels } from "@/lib/labels";
+import { languageLabels, documentKindLabels } from "@/lib/labels";
 import { PRICING_FIELDS, extraHourAmount, formatArs } from "@/lib/contract";
-import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
+import { computeComparison } from "@/lib/comparison";
+import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 
 type Lang = "es" | "en";
 type Mode = "handover" | "return";
 // "queued" = persistida en el dispositivo, esperando señal para subir.
 type PhotoItem = { id: string; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string };
 type DamageItem = { id: string; posX: number; posY: number; description: string; photo?: PhotoItem };
+// Documento del cliente (licencia/DNI/pasaporte), solo en la entrega.
+type DocItem = { id: string; kind: DocumentKindInput; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string };
+
+const DOC_KINDS: DocumentKindInput[] = ["license", "dni", "passport"];
 
 type Draft = {
   draftId: string;
@@ -47,6 +52,7 @@ type Draft = {
   checklist: Record<string, "ok" | "fail">;
   damages: DamageItem[];
   photos: PhotoItem[];
+  documents: DocItem[];
   observations: string;
   signerName: string;
   signatureKey?: string;
@@ -108,6 +114,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     checklist: Object.fromEntries(props.checklistItems.map((i) => [i.id, "ok"])),
     damages: [],
     photos: [],
+    documents: [],
     observations: "",
     signerName: props.client.name,
   }));
@@ -137,6 +144,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
           .filter((r) => r.slot === "main" && !existing.has(r.id))
           .map((r) => ({ id: r.id, status: "queued" as const, preview: URL.createObjectURL(r.blob) }));
         let damages = d.damages;
+        const existingDocs = new Set(d.documents.map((doc) => doc.id));
+        const newDocs: DocItem[] = [];
         for (const r of recs) {
           if (r.slot.startsWith("damage:")) {
             const damageId = r.slot.slice("damage:".length);
@@ -145,9 +154,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 ? { ...dm, photo: { id: r.id, status: "queued" as const, preview: URL.createObjectURL(r.blob) } }
                 : dm,
             );
+          } else if (r.slot.startsWith("document:") && !existingDocs.has(r.id)) {
+            const kind = r.slot.slice("document:".length) as DocumentKindInput;
+            newDocs.push({ id: r.id, kind, status: "queued", preview: URL.createObjectURL(r.blob) });
           }
         }
-        return { ...d, photos: [...d.photos, ...mainPhotos], damages };
+        return { ...d, photos: [...d.photos, ...mainPhotos], damages, documents: [...d.documents, ...newDocs] };
       });
       void processQueue();
     });
@@ -181,6 +193,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           damages: d.damages.map((dm) =>
             dm.photo?.id === e.id ? { ...dm, photo: { ...dm.photo, ...up } } : dm,
           ),
+          documents: d.documents.map((doc) => (doc.id === e.id ? { ...doc, ...up } : doc)),
         };
       });
     });
@@ -200,6 +213,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     const serializable = {
       ...draft,
       photos: draft.photos.filter((p) => p.key).map((p) => ({ ...p, preview: "" })),
+      documents: draft.documents.filter((doc) => doc.key).map((doc) => ({ ...doc, preview: "" })),
       damages: draft.damages.map((d) => ({
         ...d,
         photo: d.photo?.key ? { ...d.photo, preview: "" } : undefined,
@@ -241,14 +255,38 @@ export function InspectionWizard(props: InspectionWizardProps) {
     }
   }
 
+  // Captura de un documento del cliente (licencia/DNI/pasaporte). Va por la
+  // misma cola persistente, con el tipo codificado en el slot. Solo en la
+  // entrega; se guardan como evidencia interna (no van al acta ni al email).
+  async function addDocument(files: FileList | null, kind: DocumentKindInput) {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      const id = newId();
+      const preview = URL.createObjectURL(file);
+      const item: DocItem = { id, kind, status: "uploading", preview };
+      setDraft((d) => ({ ...d, documents: [...d.documents, item] }));
+      const blob = await compressImage(file);
+      void enqueueUpload({ id, draftId: draft.draftId, kind: "document", slot: `document:${kind}`, blob });
+    }
+  }
+
   // Hay fotos que todavía no terminaron de subir (subiendo o en cola por señal).
   const photosPending =
     draft.photos.some((p) => p.status !== "done") ||
     draft.damages.some((d) => d.photo && d.photo.status !== "done");
 
   const current = STEPS[step];
-  const kmDriven = props.returnContext ? Number(draft.km || 0) - props.returnContext.handoverKm : 0;
-  const fuelDiff = props.returnContext ? draft.fuelLevel - props.returnContext.handoverFuel : 0;
+  const comparison = props.returnContext
+    ? computeComparison({
+        handoverKm: props.returnContext.handoverKm,
+        returnKm: Number(draft.km || 0),
+        handoverFuel: props.returnContext.handoverFuel,
+        returnFuel: draft.fuelLevel,
+        newDamages: draft.damages.length,
+      })
+    : null;
+  const kmDriven = comparison?.kmDriven ?? 0;
+  const fuelDiff = comparison?.fuelDiff ?? 0;
 
   function validateStep(): string | undefined {
     if (current === "Datos") {
@@ -373,6 +411,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
               clientDocNumber: draft.clientDocNumber.trim() || undefined,
               licenseExpiry: draft.licenseExpiry || undefined,
               pricing: Object.keys(pricing).length ? pricing : undefined,
+              documents: (() => {
+                const docs = draft.documents
+                  .filter((doc) => doc.key)
+                  .map((doc) => ({ kind: doc.kind, key: doc.key! }));
+                return docs.length ? docs : undefined;
+              })(),
             }
           : {}),
         latitude: geo.current.lat,
@@ -437,6 +481,35 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{props.bookingNote}</p>
                 </div>
               ) : null}
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-foreground/80">Documentos del cliente (opcional)</p>
+                <p className="text-xs text-foreground/50">Licencia, DNI o pasaporte. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {DOC_KINDS.map((kind) => {
+                    const docs = draft.documents.filter((doc) => doc.kind === kind);
+                    return (
+                      <div key={kind} className="flex flex-col gap-1.5">
+                        <label className="flex h-10 items-center justify-center rounded-lg border border-dashed border-foreground/30 px-1 text-center text-xs font-medium">
+                          + {documentKindLabels[kind]}
+                          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                        </label>
+                        {docs.map((doc) => (
+                          <div key={doc.id} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={doc.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
+                            {doc.status !== "done" && (
+                              <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
+                                {doc.status === "uploading" ? "Subiendo…" : "Pendiente"}
+                              </span>
+                            )}
+                            <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-foreground/10 p-4 text-sm">

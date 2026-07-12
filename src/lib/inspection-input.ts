@@ -11,6 +11,14 @@ export type InspectionDamageInput = {
   photoKey?: string;
 };
 
+/** Tipo de documento del cliente. Espeja el enum Prisma `DocumentKind`. */
+export type DocumentKindInput = "license" | "dni" | "passport";
+
+export type InspectionDocumentInput = {
+  kind: DocumentKindInput;
+  key: string;
+};
+
 export type InspectionInput = {
   rentalId: string;
   vehicleId: string;
@@ -32,6 +40,8 @@ export type InspectionInput = {
   signerName: string;
   licenseExpiry?: string;
   pricing?: Record<string, number>;
+  // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega.
+  documents?: InspectionDocumentInput[];
   latitude?: number;
   longitude?: number;
 };

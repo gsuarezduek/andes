@@ -7,6 +7,7 @@ import { getDictionary, type Locale } from "@/lib/i18n";
 import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDateTime, formatDate } from "@/lib/datetime";
 import { COMPANY, formatArs, PRICING_FIELDS, extraHourAmount, type ContractPricing } from "@/lib/contract";
+import { computeComparison } from "@/lib/comparison";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
@@ -94,15 +95,13 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
       select: { km: true, fuelLevel: true },
     });
     if (handover) {
-      comparison = {
+      comparison = computeComparison({
         handoverKm: handover.km,
         returnKm: inspection.km,
-        kmDriven: inspection.km - handover.km,
         handoverFuel: handover.fuelLevel,
         returnFuel: inspection.fuelLevel,
-        fuelDiff: inspection.fuelLevel - handover.fuelLevel,
         newDamages: inspection.damages.length,
-      };
+      });
     }
   }
 

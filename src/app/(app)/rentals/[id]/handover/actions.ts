@@ -57,6 +57,14 @@ const saveSchema = z.object({
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
   licenseExpiry: z.string().optional(), // "YYYY-MM-DD"
   pricing: pricingSchema,
+  documents: z
+    .array(
+      z.object({
+        kind: z.enum(["license", "dni", "passport"]),
+        key: z.string().min(1),
+      }),
+    )
+    .optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
@@ -149,6 +157,18 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       where: { id: vehicle.id },
       data: { status: "rented", currentKm: data.km },
     });
+
+    // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
+    if (data.documents?.length) {
+      await tx.rentalDocument.createMany({
+        data: data.documents.map((doc) => ({
+          rentalId: rental.id,
+          kind: doc.kind,
+          url: doc.key,
+          uploadedById: user.id,
+        })),
+      });
+    }
 
     return insp;
   });

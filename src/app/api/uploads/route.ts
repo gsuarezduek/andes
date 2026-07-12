@@ -4,7 +4,7 @@ import { storage, uploadKey, type UploadKind } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
-const KINDS: UploadKind[] = ["photo", "video", "signature", "damage"];
+const KINDS: UploadKind[] = ["photo", "video", "signature", "damage", "document"];
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB (defensivo; las fotos van comprimidas)
 const idRe = /^[a-zA-Z0-9_-]+$/;
 

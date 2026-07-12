@@ -5,6 +5,7 @@ import type {
   Language,
   UserRole,
   MaintenanceType,
+  DocumentKind,
 } from "@prisma/client";
 
 export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
@@ -42,4 +43,10 @@ export const languageLabels: Record<Language, string> = {
 export const userRoleLabels: Record<UserRole, string> = {
   admin: "Administrador",
   empleado: "Empleado",
+};
+
+export const documentKindLabels: Record<DocumentKind, string> = {
+  license: "Licencia de conducir",
+  dni: "DNI",
+  passport: "Pasaporte",
 };

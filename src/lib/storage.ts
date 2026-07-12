@@ -126,7 +126,7 @@ export const usingR2 = hasR2;
 // borrador; al guardar, la inspección referencia esas claves tal cual (no hay
 // que mover nada). El acta sí se guarda bajo el id de la inspección ya creada.
 
-export type UploadKind = "photo" | "video" | "signature" | "damage";
+export type UploadKind = "photo" | "video" | "signature" | "damage" | "document";
 
 export function uploadKey(
   draftId: string,
@@ -141,7 +141,9 @@ export function uploadKey(
         ? "videos"
         : kind === "damage"
           ? "damages"
-          : "signature";
+          : kind === "document"
+            ? "documents"
+            : "signature";
   if (kind === "signature") return `uploads/${draftId}/signature.png`;
   return `uploads/${draftId}/${folder}/${id}.${ext}`;
 }

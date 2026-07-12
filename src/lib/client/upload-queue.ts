@@ -14,7 +14,7 @@
 
 import { uploadMedia, type UploadKind } from "./media";
 
-export type QueueSlot = "main" | "signature" | `damage:${string}`;
+export type QueueSlot = "main" | "signature" | `damage:${string}` | `document:${string}`;
 
 export type QueueRecord = {
   id: string;
