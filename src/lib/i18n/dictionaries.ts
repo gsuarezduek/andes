@@ -61,6 +61,19 @@ export type Dictionary = {
     fuelDifference: string;
     newDamages: string;
     fuelPolicy: string;
+    settlement: {
+      title: string;
+      extraKm: string;
+      fuel: string;
+      damage: string;
+      subtotal: string;
+      depositApplied: string;
+      balanceDue: string;
+      depositReturn: string;
+      method: string;
+      methods: { efectivo: string; transferencia: string; retencion_deposito: string; none: string };
+      note: string;
+    };
   };
   legal: {
     title: string;
@@ -129,6 +142,24 @@ const es: Dictionary = {
     newDamages: "Daños nuevos",
     fuelPolicy:
       "MDZ Rent a Car no hace reintegros por sobrante de combustible. En caso de faltante de combustible se cobrará la diferencia al valor del litro de nafta premium del día. Por pinchadura o rotura de neumáticos y/o sus componentes el cliente es total responsable de la reparación.",
+    settlement: {
+      title: "Liquidación",
+      extraKm: "Km extra",
+      fuel: "Nafta faltante",
+      damage: "Daño",
+      subtotal: "Subtotal",
+      depositApplied: "Cubierto por depósito",
+      balanceDue: "Saldo a cobrar",
+      depositReturn: "Depósito a devolver",
+      method: "Forma de pago",
+      methods: {
+        efectivo: "Efectivo",
+        transferencia: "Transferencia",
+        retencion_deposito: "Retención del depósito",
+        none: "Sin saldo",
+      },
+      note: "Nota",
+    },
   },
   legal: {
     title: "Condiciones generales",
@@ -206,6 +237,24 @@ const en: Dictionary = {
     newDamages: "New damages",
     fuelPolicy:
       "MDZ Rent a Car does not refund surplus fuel. If fuel is missing, the difference is charged at the day's premium fuel price per liter. The customer is fully responsible for repairs to punctured or damaged tires and/or their components.",
+    settlement: {
+      title: "Settlement",
+      extraKm: "Extra km",
+      fuel: "Missing fuel",
+      damage: "Damage",
+      subtotal: "Subtotal",
+      depositApplied: "Covered by deposit",
+      balanceDue: "Balance due",
+      depositReturn: "Deposit to refund",
+      method: "Payment method",
+      methods: {
+        efectivo: "Cash",
+        transferencia: "Bank transfer",
+        retencion_deposito: "Deposit withholding",
+        none: "No balance",
+      },
+      note: "Note",
+    },
   },
   legal: {
     title: "General conditions",

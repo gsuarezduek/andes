@@ -151,6 +151,23 @@ describe("saveReturn", () => {
     expect(tx.vehicle.update).toHaveBeenCalledWith({ where: { id: "v1" }, data: { status: "available", currentKm: 10_900 } });
   });
 
+  it("persiste la liquidación en la inspección de devolución", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({
+      id: "r1",
+      status: "active",
+      inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+    });
+    const settlement = {
+      kmDriven: 400, includedKm: 0, extraKm: 0, extraKmRate: 0, extraKmCharge: 0,
+      fuelMissingEighths: 2, fuelCharge: 5_000, damageCharges: [], damagesTotal: 0,
+      subtotal: 5_000, deposit: 20_000, depositApplied: 5_000, balanceDue: 0,
+      depositReturn: 15_000, method: "retencion_deposito" as const,
+    };
+    await saveReturn({ ...returnInput, settlement });
+    const inspArg = tx.inspection.create.mock.calls[0][0].data;
+    expect(inspArg.settlement).toMatchObject({ subtotal: 5_000, method: "retencion_deposito" });
+  });
+
   it("rechaza km de devolución menor al de entrega", async () => {
     prismaMock.rental.findUnique.mockResolvedValue({
       id: "r1",

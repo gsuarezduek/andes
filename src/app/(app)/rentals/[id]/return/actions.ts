@@ -16,6 +16,27 @@ const damageSchema = z.object({
   photoKey: z.string().optional(),
 });
 
+const settlementSchema = z
+  .object({
+    kmDriven: z.number(),
+    includedKm: z.number(),
+    extraKm: z.number(),
+    extraKmRate: z.number(),
+    extraKmCharge: z.number(),
+    fuelMissingEighths: z.number(),
+    fuelCharge: z.number(),
+    damageCharges: z.array(z.object({ description: z.string(), amount: z.number() })),
+    damagesTotal: z.number(),
+    subtotal: z.number(),
+    deposit: z.number(),
+    depositApplied: z.number(),
+    balanceDue: z.number(),
+    depositReturn: z.number(),
+    method: z.enum(["efectivo", "transferencia", "retencion_deposito", "none"]),
+    note: z.string().optional(),
+  })
+  .optional();
+
 const saveSchema = z.object({
   rentalId: z.string().min(1),
   vehicleId: z.string().min(1, "Falta el vehículo"),
@@ -29,6 +50,7 @@ const saveSchema = z.object({
   videoKey: z.string().optional(),
   signatureKey: z.string().min(1, "Falta la firma del cliente"),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
+  settlement: settlementSchema,
   latitude: z.number().optional(),
   longitude: z.number().optional(),
 });
@@ -74,6 +96,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
         observations: data.observations ?? null,
         signatureUrl: data.signatureKey,
         signerName: data.signerName,
+        settlement: data.settlement ?? undefined,
         latitude: data.latitude ?? null,
         longitude: data.longitude ?? null,
         media: {

@@ -265,6 +265,11 @@ model Inspection {
   signatureUrl String? @map("signature_url") // firma del cliente (R2)
   signerName   String? @map("signer_name")
 
+  // Liquidación de la devolución (solo en return_): excedente de km, nafta
+  // faltante y cargos por daño nuevo contra el depósito. Ver src/lib/settlement.
+  // Inmutable: es parte de lo que el cliente firma. Sin cobro.
+  settlement Json? @map("settlement")
+
   // Geolocalización opcional (si el dispositivo dio permiso).
   latitude  Float?
   longitude Float?

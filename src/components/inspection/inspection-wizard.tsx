@@ -23,9 +23,17 @@ import {
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels, documentKindLabels } from "@/lib/labels";
-import { PRICING_FIELDS, extraHourAmount, formatArs } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, formatArs, type ContractPricing } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
+import { computeSettlement, rollupSettlement, type SettlementMethod } from "@/lib/settlement";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
+
+const SETTLEMENT_METHODS: { value: SettlementMethod; label: string }[] = [
+  { value: "none", label: "Sin saldo / no aplica" },
+  { value: "efectivo", label: "Efectivo" },
+  { value: "transferencia", label: "Transferencia" },
+  { value: "retencion_deposito", label: "Retención del depósito" },
+];
 
 type Lang = "es" | "en";
 type Mode = "handover" | "return";
@@ -58,6 +66,14 @@ type Draft = {
   signatureKey?: string;
   // Id de la firma en la cola de subida mientras no hay señal.
   signaturePendingId?: string;
+  // Liquidación (solo devolución). Guardamos los overrides editables; el total
+  // se recalcula en vivo desde la comparación + condiciones de la entrega.
+  settlementMethod: SettlementMethod;
+  settlementNote: string;
+  settlementFuelCharge: string;
+  settlementExtraKmCharge: string; // vacío = usar el auto-calculado
+  settlementDeposit: string; // vacío = usar el depósito del contrato
+  damageAmounts: Record<string, string>; // por id de daño
 };
 
 export type InspectionWizardProps = {
@@ -75,7 +91,7 @@ export type InspectionWizardProps = {
   pricing?: Record<string, string>;
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
-  returnContext?: { handoverKm: number; handoverFuel: number };
+  returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
 };
 
 function newId() {
@@ -115,6 +131,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
     damages: [],
     photos: [],
     documents: [],
+    settlementMethod: "none",
+    settlementNote: "",
+    settlementFuelCharge: "",
+    settlementExtraKmCharge: "",
+    settlementDeposit: "",
+    damageAmounts: {},
     observations: "",
     signerName: props.client.name,
   }));
@@ -288,6 +310,36 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const kmDriven = comparison?.kmDriven ?? 0;
   const fuelDiff = comparison?.fuelDiff ?? 0;
 
+  // Liquidación en vivo (solo devolución): auto-calculada desde la comparación
+  // y las condiciones de la entrega, con los overrides que edita el empleado.
+  // Es una función (no un const reactivo) para que `submit` la recalcule sin
+  // cerrar sobre un valor reactivo declarado antes del efecto de reintento.
+  function buildSettlement() {
+    if (!props.returnContext) return null;
+    const base = computeSettlement({
+      handoverKm: props.returnContext.handoverKm,
+      returnKm: Number(draft.km || 0),
+      handoverFuel: props.returnContext.handoverFuel,
+      returnFuel: draft.fuelLevel,
+      pricing: props.returnContext.pricing,
+      newDamages: draft.damages.map((d) => ({ description: d.description })),
+    });
+    const numOr = (s: string, fallback: number) => (s.trim() === "" ? fallback : Number(s) || 0);
+    return rollupSettlement({
+      ...base,
+      extraKmCharge: numOr(draft.settlementExtraKmCharge, base.extraKmCharge),
+      fuelCharge: numOr(draft.settlementFuelCharge, 0),
+      deposit: numOr(draft.settlementDeposit, base.deposit),
+      damageCharges: draft.damages.map((d, i) => ({
+        description: d.description.trim() || `Daño #${i + 1}`,
+        amount: Number(draft.damageAmounts[d.id] || 0),
+      })),
+      method: draft.settlementMethod,
+      note: draft.settlementNote.trim() || undefined,
+    });
+  }
+  const settlement = buildSettlement();
+
   function validateStep(): string | undefined {
     if (current === "Datos") {
       if (!draft.vehicleId) return "Asigná un vehículo para continuar.";
@@ -418,7 +470,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 return docs.length ? docs : undefined;
               })(),
             }
-          : {}),
+          : { settlement: buildSettlement() ?? undefined }),
         latitude: geo.current.lat,
         longitude: geo.current.lng,
       };
@@ -681,6 +733,99 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {fuelDiff < 0 && (
             <p className="text-xs text-amber-600">Devuelve con menos nafta que a la entrega ({fuelDiff}/8).</p>
           )}
+
+          {settlement && (
+            <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3">
+              <p className="text-sm font-semibold">Liquidación</p>
+              <p className="text-xs text-foreground/50">
+                Se calcula desde las condiciones de la entrega. Ajustá los importes; Andes no procesa cobros.
+              </p>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm">
+                    Km extra
+                    <span className="text-foreground/50">
+                      {" "}
+                      {settlement.includedKm > 0
+                        ? `(${settlement.extraKm.toLocaleString("es-AR")} sobre ${settlement.includedKm.toLocaleString("es-AR")} incl.)`
+                        : "(sin límite pactado)"}
+                    </span>
+                  </span>
+                  <input
+                    className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    placeholder={String(settlement.extraKmCharge)}
+                    value={draft.settlementExtraKmCharge}
+                    onChange={(e) => patch({ settlementExtraKmCharge: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm">
+                    Nafta faltante
+                    <span className="text-foreground/50"> ({settlement.fuelMissingEighths}/8)</span>
+                  </span>
+                  <input
+                    className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    placeholder="0"
+                    value={draft.settlementFuelCharge}
+                    onChange={(e) => patch({ settlementFuelCharge: e.target.value })}
+                  />
+                </div>
+
+                {draft.damages.map((dm, i) => (
+                  <div key={dm.id} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-red-600">Daño: {dm.description.trim() || `#${i + 1}`}</span>
+                    <input
+                      className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      placeholder="0"
+                      value={draft.damageAmounts[dm.id] ?? ""}
+                      onChange={(e) => patch({ damageAmounts: { ...draft.damageAmounts, [dm.id]: e.target.value } })}
+                    />
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-foreground/70">Depósito / excedente tomado</span>
+                  <input
+                    className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    placeholder={String(settlement.deposit)}
+                    value={draft.settlementDeposit}
+                    onChange={(e) => patch({ settlementDeposit: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="divide-y divide-foreground/10 border-t border-foreground/10 pt-1">
+                <CompareRow label="Subtotal" value={formatArs(settlement.subtotal)} />
+                <CompareRow label="Cubierto por depósito" value={formatArs(settlement.depositApplied)} />
+                {settlement.balanceDue > 0 ? (
+                  <CompareRow label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
+                ) : (
+                  <CompareRow label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
+                )}
+              </div>
+
+              <SelectField id="settlementMethod" label="Cómo se salda" value={draft.settlementMethod} onChange={(e) => patch({ settlementMethod: e.target.value as SettlementMethod })}>
+                {SETTLEMENT_METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </SelectField>
+              <TextareaField id="settlementNote" label="Nota de la liquidación (opcional)" value={draft.settlementNote} onChange={(e) => patch({ settlementNote: e.target.value })} rows={2} />
+            </div>
+          )}
         </div>
       )}
 
@@ -710,6 +855,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
             <CompareRow label="Nafta" value={`${draft.fuelLevel}/8`} />
             {props.returnContext && <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
+            {settlement && (
+              <CompareRow
+                label={settlement.balanceDue > 0 ? "Saldo a cobrar" : "Depósito a devolver"}
+                value={formatArs(settlement.balanceDue > 0 ? settlement.balanceDue : settlement.depositReturn)}
+                tone={settlement.balanceDue > 0 ? "warn" : undefined}
+              />
+            )}
             <CompareRow label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
             <CompareRow label="Daños nuevos" value={String(draft.damages.length)} />
             <CompareRow label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />

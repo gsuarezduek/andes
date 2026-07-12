@@ -135,7 +135,12 @@ Plan aprobado en 6 fases independientes y desplegables (7–12). Ver el detalle 
   - `InspectionInput.documents` + validación Zod en `saveHandover`, que persiste filas `RentalDocument` en la transacción.
   - **Solo interno** (privacidad): se muestran en el detalle del alquiler (`/rentals/[id]`) servidos por `/api/media` con sesión; **no** se embeben en el acta ni se envían por email. Tests de persistencia en `save-flows.test.ts` (30 tests en total).
   - **Falta:** desplegar la migración `add_rental_documents` en Railway.
-- [ ] **Fase 9** — Liquidación de la devolución (calcular + registrar, sin cobro).
+- [x] **Fase 9 — Liquidación de la devolución** ✅ (local; falta desplegar la migración)
+  - **Lógica pura** `src/lib/settlement.ts`: `computeSettlement` (excedente de km sobre lo incluido `kmPerDay×days`, nafta faltante, cargo por daño) + `rollupSettlement` (subtotal, depósito aplicado, saldo a cobrar / depósito a devolver). Autocompleta desde `Rental.pricing`. **Sin cobro.** 8 tests.
+  - Campo `Inspection.settlement` (Json; migración `add_inspection_settlement`) — inmutable, es lo que el cliente firma. Persistido en `saveReturn` (validación Zod). Test de persistencia en `save-flows.test.ts` (39 tests en total).
+  - El paso "Comparación" del wizard de devolución pasa a **Liquidación**: desglose autocalculado con importes editables (km extra, nafta, cargo por cada daño, depósito) + **forma de pago** (efectivo/transferencia/retención) + nota; recálculo en vivo. La página de devolución pasa `pricing` de la entrega. Saldo también en el Resumen.
+  - **Acta de devolución** imprime la sección de liquidación (i18n es/en, sub-diccionario `acta.settlement`; paridad de claves testeada).
+  - **Falta:** desplegar la migración `add_inspection_settlement` en Railway.
 - [ ] **Fase 10** — Firma remota / portal del cliente (QR por-alquiler, ruta pública firmada).
 - [ ] **Fase 11** — Reportes y analítica histórica (admin).
 - [ ] **Fase 12** — i18n completo de la UI del empleado.

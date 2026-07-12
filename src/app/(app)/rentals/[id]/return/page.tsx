@@ -68,7 +68,11 @@ export default async function ReturnPage({
         checklistItems={checklistItems}
         existingDamages={existingDamages}
         language={rental.language}
-        returnContext={{ handoverKm: handover.km, handoverFuel: handover.fuelLevel }}
+        returnContext={{
+          handoverKm: handover.km,
+          handoverFuel: handover.fuelLevel,
+          pricing: (rental.pricing as Record<string, number> | null) ?? undefined,
+        }}
       />
     </div>
   );

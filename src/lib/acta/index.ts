@@ -8,6 +8,7 @@ import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDateTime, formatDate } from "@/lib/datetime";
 import { COMPANY, formatArs, PRICING_FIELDS, extraHourAmount, type ContractPricing } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
+import type { Settlement } from "@/lib/settlement";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
@@ -105,11 +106,17 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     }
   }
 
+  const settlement =
+    inspection.type === "return_" && inspection.settlement
+      ? (inspection.settlement as Settlement)
+      : undefined;
+
   const data: ActaData = {
     kind: inspection.type === "handover" ? "handover" : "return",
     dict,
     company: COMPANY,
     comparison,
+    settlement,
     dateStr: formatDateTime(inspection.createdAt, locale),
     registeredBy: inspection.user?.name,
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,

@@ -7,6 +7,8 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Dictionary } from "@/lib/i18n";
+import { formatArs } from "@/lib/contract";
+import type { Settlement } from "@/lib/settlement";
 
 export type ActaRow = { label: string; value: string };
 export type ActaChecklist = { label: string; status: "ok" | "fail" };
@@ -40,6 +42,7 @@ export type ActaData = {
     fuelDiff: number;
     newDamages: number;
   };
+  settlement?: Settlement;
   checklist: ActaChecklist[];
   damages: ActaDamage[];
   observations?: string | null;
@@ -199,6 +202,60 @@ export function ActaDocument(props: ActaData) {
                 </Text>
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {props.settlement ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t.settlement.title}</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>
+                {t.settlement.extraKm}
+                {props.settlement.extraKm > 0 ? ` (${props.settlement.extraKm.toLocaleString()} km)` : ""}
+              </Text>
+              <Text style={styles.value}>{formatArs(props.settlement.extraKmCharge)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>
+                {t.settlement.fuel} ({props.settlement.fuelMissingEighths}/8)
+              </Text>
+              <Text style={styles.value}>{formatArs(props.settlement.fuelCharge)}</Text>
+            </View>
+            {props.settlement.damageCharges.map((d, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.label}>
+                  {t.settlement.damage}: {d.description}
+                </Text>
+                <Text style={styles.value}>{formatArs(d.amount)}</Text>
+              </View>
+            ))}
+            <View style={[styles.row, { borderTop: "1px solid #e2e8f0", marginTop: 3, paddingTop: 3 }]}>
+              <Text style={styles.label}>{t.settlement.subtotal}</Text>
+              <Text style={styles.value}>{formatArs(props.settlement.subtotal)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>{t.settlement.depositApplied}</Text>
+              <Text style={styles.value}>{formatArs(props.settlement.depositApplied)}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>
+                {props.settlement.balanceDue > 0 ? t.settlement.balanceDue : t.settlement.depositReturn}
+              </Text>
+              <Text style={props.settlement.balanceDue > 0 ? styles.fail : styles.value}>
+                {formatArs(props.settlement.balanceDue > 0 ? props.settlement.balanceDue : props.settlement.depositReturn)}
+              </Text>
+            </View>
+            {props.settlement.method !== "none" ? (
+              <View style={styles.row}>
+                <Text style={styles.label}>{t.settlement.method}</Text>
+                <Text style={styles.value}>{t.settlement.methods[props.settlement.method]}</Text>
+              </View>
+            ) : null}
+            {props.settlement.note ? (
+              <Text style={styles.small}>
+                {t.settlement.note}: {props.settlement.note}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 

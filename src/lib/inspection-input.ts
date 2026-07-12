@@ -11,6 +11,8 @@ export type InspectionDamageInput = {
   photoKey?: string;
 };
 
+import type { Settlement } from "@/lib/settlement";
+
 /** Tipo de documento del cliente. Espeja el enum Prisma `DocumentKind`. */
 export type DocumentKindInput = "license" | "dni" | "passport";
 
@@ -42,6 +44,8 @@ export type InspectionInput = {
   pricing?: Record<string, number>;
   // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega.
   documents?: InspectionDocumentInput[];
+  // Liquidación (solo en la devolución): excedente de km, nafta y daños.
+  settlement?: Settlement;
   latitude?: number;
   longitude?: number;
 };
