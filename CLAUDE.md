@@ -147,7 +147,10 @@ Plan aprobado en 6 fases independientes y desplegables (7–12). Ver el detalle 
   - **Wizard** (paso "Firma"): botón "Generar QR para el cliente" → server action `createRemoteSignature` (crea el pedido y devuelve el **QR SVG** generado server-side reusando `qrSvg`) → el cliente escanea y firma en su teléfono → el wizard **poolea** cada 3s y toma la firma. El canvas en el dispositivo del empleado sigue como fallback. Pasado a entrega y devolución.
   - **Verificado (roundtrip, sin sesión):** status pending → POST firma → signed con la clave correcta; doble uso → 409; `/sign/[id]` → 200; rutas privadas siguen en 307→login.
   - **Falta:** desplegar la migración `add_signature_requests` en Railway.
-- [ ] **Fase 11** — Reportes y analítica histórica (admin).
+- [x] **Fase 11 — Reportes y analítica histórica (admin)** ✅ (local; sin migración)
+  - `src/lib/reports.ts` (`getReports`): KPIs (flota, alquilados, activos, finalizados, ingresos, neto), **alquileres finalizados + km recorridos por mes** (últimos 12, cortes en hora de Mendoza), y tabla **por vehículo** (alquileres, ingresos, costos de mantenimiento, neto, daños activos). Ingresos del contrato del empleado (`Rental.pricing.total`) con fallback a `bookingTotal`; sólo alquileres finalizados. Helper puro `recentMonths` (rollover de año) testeado (47 tests).
+  - Página `/reports` (admin, `requireAdmin`): KPIs + gráfico de barras SVG por mes + tabla por vehículo. Export **CSV** (`GET /api/reports/export?type=vehicles|months`, admin, BOM para Excel). Ítem "Reportes" en la nav (solo admin).
+  - **Sin migración.** Queries verificadas contra la base local (incl. `groupBy` de daños). Build/lint/test en verde.
 - [ ] **Fase 12** — i18n completo de la UI del empleado.
 
 ## Pendientes que dependen del dueño

@@ -37,6 +37,7 @@ export function AppNav({
     { href: "/sync", label: "Sincronización" },
     ...(isAdmin
       ? [
+          { href: "/reports", label: "Reportes" },
           { href: "/users", label: "Usuarios" },
           { href: "/settings", label: "Configuración" },
         ]
