@@ -9,20 +9,33 @@ import { vehicleStatusTone } from "@/lib/vehicle-ui";
 
 export const metadata: Metadata = { title: "Vehículos — Andes" };
 
-export default async function VehiclesPage() {
+export default async function VehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ archived?: string }>;
+}) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
+  const showArchived = (await searchParams).archived === "1";
 
-  const vehicles = await prisma.vehicle.findMany({
-    orderBy: [{ brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-  });
+  const [vehicles, archivedCount] = await Promise.all([
+    prisma.vehicle.findMany({
+      where: { archivedAt: showArchived ? { not: null } : null },
+      orderBy: [{ brand: "asc" }, { model: "asc" }, { plate: "asc" }],
+    }),
+    prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Vehículos</h1>
-          <p className="text-sm text-foreground/60">{vehicles.length} en la flota</p>
+          <p className="text-sm text-foreground/60">
+            {showArchived
+              ? `${vehicles.length} archivado${vehicles.length === 1 ? "" : "s"}`
+              : `${vehicles.length} en la flota`}
+          </p>
         </div>
         {isAdmin ? (
           <div className="flex gap-2">
@@ -32,9 +45,26 @@ export default async function VehiclesPage() {
         ) : null}
       </div>
 
+      {(showArchived || archivedCount > 0) && (
+        <div className="flex gap-4 text-sm">
+          <Link
+            href="/vehicles"
+            className={!showArchived ? "font-semibold" : "text-foreground/60 hover:text-foreground"}
+          >
+            En la flota
+          </Link>
+          <Link
+            href="/vehicles?archived=1"
+            className={showArchived ? "font-semibold" : "text-foreground/60 hover:text-foreground"}
+          >
+            Archivados ({archivedCount})
+          </Link>
+        </div>
+      )}
+
       {vehicles.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
-          Todavía no hay vehículos cargados.
+          {showArchived ? "No hay vehículos archivados." : "Todavía no hay vehículos cargados."}
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">

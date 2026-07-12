@@ -17,6 +17,7 @@ import { formatDate, formatDateTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
 import { createMaintenance, deleteMaintenance } from "./maintenance-actions";
 import { markDamageRepaired, deleteDamage } from "./damage-actions";
+import { archiveVehicle, unarchiveVehicle } from "../actions";
 
 export const metadata: Metadata = { title: "Vehículo — Andes" };
 
@@ -63,6 +64,7 @@ export default async function VehicleDetailPage({
   if (!vehicle) notFound();
 
   const kmData = vehicle.inspections.map((i) => ({ km: i.km, label: formatDate(i.createdAt) }));
+  const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8">
@@ -74,8 +76,18 @@ export default async function VehicleDetailPage({
             </h1>
             <p className="text-sm text-foreground/60">{vehicle.plate}</p>
           </div>
-          <Badge tone={vehicleStatusTone[vehicle.status]}>{vehicleStatusLabels[vehicle.status]}</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge tone={vehicleStatusTone[vehicle.status]}>{vehicleStatusLabels[vehicle.status]}</Badge>
+            {vehicle.archivedAt && <Badge tone="neutral">Archivado</Badge>}
+          </div>
         </div>
+
+        {vehicle.archivedAt && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+            Este vehículo está archivado (baja de {formatDate(vehicle.archivedAt)}). No aparece en el
+            dashboard, los listados operativos ni los QR. Su historial se conserva.
+          </p>
+        )}
 
         <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
           <Row label="Año" value={vehicle.year} />
@@ -107,6 +119,20 @@ export default async function VehicleDetailPage({
             <ButtonLink href={`/vehicles/${vehicle.id}/qr`} variant="secondary">Imprimir QR</ButtonLink>
           )}
           <ButtonLink href="/vehicles" variant="secondary">Volver</ButtonLink>
+          {isAdmin &&
+            (vehicle.archivedAt ? (
+              <form action={unarchiveVehicle.bind(null, vehicle.id)} className="ml-auto">
+                <SubmitButton variant="secondary" pendingLabel="Reactivando…">Reactivar</SubmitButton>
+              </form>
+            ) : hasActiveRental ? (
+              <span className="ml-auto self-center text-xs text-foreground/50">
+                Para archivar, cerrá primero la devolución del alquiler activo.
+              </span>
+            ) : (
+              <form action={archiveVehicle.bind(null, vehicle.id)} className="ml-auto">
+                <SubmitButton variant="secondary" pendingLabel="Archivando…">Archivar</SubmitButton>
+              </form>
+            ))}
         </div>
       </div>
 

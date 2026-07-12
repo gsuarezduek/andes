@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "QR de la flota — Andes" };
 export default async function FleetQrPage() {
   await requireAdmin();
 
-  const vehicles = await prisma.vehicle.findMany({ orderBy: [{ brand: "asc" }, { model: "asc" }] });
+  const vehicles = await prisma.vehicle.findMany({ where: { archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] });
   const cards = await Promise.all(
     vehicles.map(async (v) => ({
       id: v.id,

@@ -75,6 +75,13 @@ enum MaintenanceType {
   note
 }
 
+/// Tipo de documento del cliente capturado en la entrega.
+enum DocumentKind {
+  license  // licencia de conducir
+  dni      // documento de identidad
+  passport // pasaporte
+}
+
 enum SyncResult {
   success
   partial
@@ -95,7 +102,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  inspections Inspection[]
+  inspections     Inspection[]
+  rentalDocuments RentalDocument[]
 
   @@map("users")
 }
@@ -119,6 +127,13 @@ model Vehicle {
   serviceIntervalKm Int? @map("service_interval_km")
   photoUrl      String?       @map("photo_url")
   notes         String?
+
+  // Archivado: baja de la flota operativa sin borrar la ficha (histórico,
+  // actas y daños se conservan — evidencia inmutable). Ortogonal a `status`:
+  // un auto puede archivarse recién cuando deja de estar `rented`. Los autos
+  // archivados se excluyen de dashboard, listados operativos, QR y pickers,
+  // pero su perfil sigue accesible. Ver docs: baja de auto en VikRentCar.
+  archivedAt DateTime? @map("archived_at")
 
   // Mapeo a la unidad de VikRentCar (idcar, carindex). Ver docs/wordpress-mapping.md.
   wpCarId    Int? @map("wp_car_id")
@@ -184,6 +199,7 @@ model Rental {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   inspections Inspection[]
+  documents   RentalDocument[]
 
   @@index([status])
   @@index([startAt])
@@ -191,6 +207,34 @@ model Rental {
   @@index([origin]) // conteos y filtros del sync
   @@index([vehicleId]) // alquileres por vehículo, reservas sin unidad
   @@map("rentals")
+}
+
+// ---------------------------------------------------------------------------
+// Documentos del cliente (licencia/DNI/pasaporte) — SOLO INTERNO
+// ---------------------------------------------------------------------------
+//
+// Capturados opcionalmente en la entrega. Dato sensible: se guardan en R2
+// (bucket privado) y se sirven únicamente por /api/media con sesión. NO se
+// embeben en el acta ni se envían por email. Varias filas por alquiler
+// (frente/dorso, etc.).
+model RentalDocument {
+  id String @id @default(cuid())
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  kind DocumentKind
+  url  String // clave en R2 (bucket privado)
+
+  // Empleado que lo cargó (auditoría). Nullable por robustez.
+  uploadedById String? @map("uploaded_by_id")
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id])
+
+  capturedAt DateTime @default(now()) @map("captured_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([rentalId])
+  @@map("rental_documents")
 }
 
 // ---------------------------------------------------------------------------

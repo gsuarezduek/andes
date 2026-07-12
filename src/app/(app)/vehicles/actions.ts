@@ -103,3 +103,36 @@ export async function updateVehicle(
   revalidatePath("/vehicles");
   redirect(`/vehicles/${id}`);
 }
+
+/**
+ * Baja de la flota operativa. No borra nada: el histórico, las actas y los
+ * daños se conservan. Guarda: no se puede archivar un auto alquilado ni con un
+ * alquiler activo abierto (primero se cierra la devolución).
+ */
+export async function archiveVehicle(id: string): Promise<void> {
+  await requireAdmin();
+
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id },
+    select: {
+      status: true,
+      _count: { select: { rentals: { where: { status: "active" } } } },
+    },
+  });
+  if (!vehicle) return;
+  if (vehicle.status === "rented" || vehicle._count.rentals > 0) {
+    throw new Error("No se puede archivar un auto con un alquiler activo. Cerrá la devolución primero.");
+  }
+
+  await prisma.vehicle.update({ where: { id }, data: { archivedAt: new Date() } });
+  revalidatePath("/vehicles");
+  revalidatePath(`/vehicles/${id}`);
+}
+
+/** Reactiva un auto archivado, devolviéndolo a la flota operativa. */
+export async function unarchiveVehicle(id: string): Promise<void> {
+  await requireAdmin();
+  await prisma.vehicle.update({ where: { id }, data: { archivedAt: null } });
+  revalidatePath("/vehicles");
+  revalidatePath(`/vehicles/${id}`);
+}

@@ -40,15 +40,15 @@ export async function getDashboardData() {
       include: { vehicle: true },
       orderBy: { endAt: "asc" },
     }),
-    prisma.vehicle.findMany({ where: { status: "available" }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
-    prisma.vehicle.findMany({ where: { status: "out_of_service" }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
+    prisma.vehicle.findMany({ where: { status: "available", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
+    prisma.vehicle.findMany({ where: { status: "out_of_service", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
     // Alertas: devoluciones vencidas sin registrar.
     prisma.rental.findMany({
       where: { status: "active", endAt: { lt: now } },
       include: { vehicle: true },
       orderBy: { endAt: "asc" },
     }),
-    prisma.vehicle.findMany({ where: { nextServiceKm: { not: null } } }),
+    prisma.vehicle.findMany({ where: { nextServiceKm: { not: null }, archivedAt: null } }),
     prisma.rental.findMany({
       where: { status: "reserved", vehicleId: null },
       orderBy: { startAt: "asc" },

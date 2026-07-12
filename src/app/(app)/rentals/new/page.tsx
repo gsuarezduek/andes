@@ -10,6 +10,7 @@ export default async function NewRentalPage() {
   await requireUser();
 
   const vehicles = await prisma.vehicle.findMany({
+    where: { archivedAt: null },
     orderBy: [{ brand: "asc" }, { model: "asc" }],
     select: { id: true, plate: true, brand: true, model: true },
   });
