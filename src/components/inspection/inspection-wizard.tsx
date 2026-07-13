@@ -606,62 +606,54 @@ export function InspectionWizard(props: InspectionWizardProps) {
 
       {current === "Datos" && (
         <div className="flex flex-col gap-4">
-          {isHandover ? (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium text-foreground/80">Datos del cliente</p>
-              <TextField id="clientName" label="Nombre y apellido" value={draft.clientName} onChange={(e) => {
-                const name = e.target.value;
-                // La aclaración de la firma sigue al nombre mientras no se haya editado a mano.
-                patch(draft.signerName === draft.clientName ? { clientName: name, signerName: name } : { clientName: name });
-              }} hint="Se usa en el acta y los emails. Verificá contra el documento." />
-              <div className="grid grid-cols-2 gap-3">
-                <TextField id="clientDocNumber" label="Documento" value={draft.clientDocNumber} onChange={(e) => patch({ clientDocNumber: e.target.value })} />
-                <TextField id="clientPhone" label="Teléfono" type="tel" value={draft.clientPhone} onChange={(e) => patch({ clientPhone: e.target.value })} />
-              </div>
-              <TextField id="clientEmail" label="Email" type="email" value={draft.clientEmail} onChange={(e) => patch({ clientEmail: e.target.value })} hint="Ahí llega el acta firmada." />
-              <p className="text-xs text-foreground/50">{props.datesLabel}</p>
-              {props.bookingNote ? (
-                <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-3">
-                  <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{props.bookingNote}</p>
-                </div>
-              ) : null}
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium text-foreground/80">Documentos del cliente (opcional)</p>
-                <p className="text-xs text-foreground/50">Licencia, DNI o pasaporte. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {DOC_KINDS.map((kind) => {
-                    const docs = draft.documents.filter((doc) => doc.kind === kind);
-                    return (
-                      <div key={kind} className="flex flex-col gap-1.5">
-                        <label className="flex h-10 items-center justify-center rounded-lg border border-dashed border-foreground/30 px-1 text-center text-xs font-medium">
-                          + {documentKindLabels[kind]}
-                          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
-                        </label>
-                        {docs.map((doc) => (
-                          <div key={doc.id} className="relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={doc.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
-                            {doc.status !== "done" && (
-                              <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
-                                {doc.status === "uploading" ? "Subiendo…" : "Pendiente"}
-                              </span>
-                            )}
-                            <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+          {/* Cliente: solo lectura. Se edita en el detalle del alquiler antes de la entrega. */}
+          <div className="rounded-xl border border-foreground/10 p-4 text-sm">
+            <p className="font-semibold">{draft.clientName || "—"}</p>
+            <p className="text-foreground/60">{draft.clientEmail || "sin email"}</p>
+            <p className="text-foreground/60">{draft.clientPhone || "sin teléfono"}</p>
+            {draft.clientDocNumber ? <p className="text-foreground/60">Doc: {draft.clientDocNumber}</p> : null}
+            <p className="mt-2 text-foreground/60">{props.datesLabel}</p>
+            {isHandover && (
+              <p className="mt-2 text-xs text-foreground/50">
+                ¿Datos incorrectos? Editalos en el detalle del alquiler antes de iniciar la entrega.
+              </p>
+            )}
+          </div>
+          {isHandover && props.bookingNote ? (
+            <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-3">
+              <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{props.bookingNote}</p>
             </div>
-          ) : (
-            <div className="rounded-xl border border-foreground/10 p-4 text-sm">
-              <p className="font-semibold">{props.client.name}</p>
-              <p className="text-foreground/60">{props.client.email ?? "sin email"}</p>
-              <p className="text-foreground/60">{props.client.phone ?? "sin teléfono"}</p>
-              <p className="mt-2 text-foreground/60">{props.datesLabel}</p>
+          ) : null}
+          {isHandover && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-foreground/80">Documentos del cliente (opcional)</p>
+              <p className="text-xs text-foreground/50">Licencia, DNI o pasaporte. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {DOC_KINDS.map((kind) => {
+                  const docs = draft.documents.filter((doc) => doc.kind === kind);
+                  return (
+                    <div key={kind} className="flex flex-col gap-1.5">
+                      <label className="flex h-10 items-center justify-center rounded-lg border border-dashed border-foreground/30 px-1 text-center text-xs font-medium">
+                        + {documentKindLabels[kind]}
+                        <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                      </label>
+                      {docs.map((doc) => (
+                        <div key={doc.id} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={doc.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
+                          {doc.status !== "done" && (
+                            <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
+                              {doc.status === "uploading" ? "Subiendo…" : "Pendiente"}
+                            </span>
+                          )}
+                          <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           {props.vehicle ? (

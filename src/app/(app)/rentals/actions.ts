@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
-export type FormState = { error?: string };
+export type FormState = { error?: string; ok?: boolean };
 
 const optionalStr = z.preprocess(
   (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
@@ -80,4 +80,75 @@ export async function createRental(
 
   revalidatePath("/rentals");
   redirect(`/rentals/${rental.id}`);
+}
+
+const updateSchema = z.object({
+  rentalId: z.string().min(1),
+  clientName: z.string().trim().min(1, "El nombre del cliente es obligatorio"),
+  clientEmail: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
+    z.email("Email inválido").optional(),
+  ),
+  clientPhone: optionalStr,
+  clientDocNumber: optionalStr,
+  vehicleId: optionalStr,
+});
+
+/**
+ * Edita los datos de contacto del cliente y el vehículo asignado desde el
+ * detalle del alquiler, antes de iniciar la entrega. Solo se permite mientras
+ * el alquiler está `reserved` y sin acta de entrega (inspecciones inmutables):
+ * una vez entregado, estos datos quedan congelados en el acta.
+ */
+export async function updateRentalDetails(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireUser();
+
+  const parsed = updateSchema.safeParse({
+    rentalId: formData.get("rentalId"),
+    clientName: formData.get("clientName"),
+    clientEmail: formData.get("clientEmail"),
+    clientPhone: formData.get("clientPhone"),
+    clientDocNumber: formData.get("clientDocNumber"),
+    vehicleId: formData.get("vehicleId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const rental = await prisma.rental.findUnique({
+    where: { id: parsed.data.rentalId },
+    include: { inspections: { where: { type: "handover" }, select: { id: true } } },
+  });
+  if (!rental) return { error: "El alquiler no existe." };
+  if (rental.status !== "reserved" || rental.inspections.length > 0) {
+    return { error: "No se puede editar: el alquiler ya tiene la entrega registrada." };
+  }
+
+  // Validar que el vehículo exista y no esté archivado si se asignó.
+  if (parsed.data.vehicleId) {
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id: parsed.data.vehicleId },
+      select: { id: true, archivedAt: true },
+    });
+    if (!vehicle) return { error: "El vehículo seleccionado no existe." };
+    if (vehicle.archivedAt) return { error: "El vehículo seleccionado está archivado." };
+  }
+
+  await prisma.rental.update({
+    where: { id: rental.id },
+    data: {
+      clientName: parsed.data.clientName,
+      clientEmail: parsed.data.clientEmail ?? null,
+      clientPhone: parsed.data.clientPhone ?? null,
+      clientDocNumber: parsed.data.clientDocNumber ?? null,
+      vehicleId: parsed.data.vehicleId ?? null,
+    },
+  });
+
+  revalidatePath(`/rentals/${rental.id}`);
+  revalidatePath("/rentals");
+  return { ok: true };
 }

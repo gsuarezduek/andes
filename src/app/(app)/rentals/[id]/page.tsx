@@ -13,6 +13,7 @@ import {
 } from "@/lib/labels";
 import { rentalStatusTone } from "@/lib/rental-ui";
 import { formatDateTime } from "@/lib/datetime";
+import { EditDetailsForm } from "./edit-details-form";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
 
@@ -53,6 +54,16 @@ export default async function RentalDetailPage({
   const returnInsp = rental.inspections.find((i) => i.type === "return_");
   const canStartHandover = rental.status === "reserved" && !handover;
   const canStartReturn = rental.status === "active" && Boolean(handover) && !returnInsp;
+  // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
+  const editableVehicles = canStartHandover
+    ? await prisma.vehicle.findMany({
+        where: { archivedAt: null },
+        orderBy: [{ brand: "asc" }, { model: "asc" }],
+        select: { id: true, plate: true, brand: true, model: true },
+      })
+    : [];
+  // Requerimos un vehículo asignado para iniciar la entrega (el wizard ya no lo pide).
+  const canStartHandoverNow = canStartHandover && Boolean(rental.vehicleId);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -79,27 +90,45 @@ export default async function RentalDetailPage({
         </Badge>
       </div>
 
-      <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        <Row label="Email" value={rental.clientEmail} />
-        <Row label="Teléfono" value={rental.clientPhone} />
-        <Row label="Documento" value={rental.clientDocNumber} />
-        <Row
-          label="Vehículo"
-          value={
-            rental.vehicle ? (
-              <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
-                {rental.vehicle.brand} {rental.vehicle.model} · {rental.vehicle.plate}
-              </Link>
-            ) : rental.bookingModel ? (
-              <span>
-                {rental.bookingModel}
-                <span className="font-normal text-foreground/50"> · sin unidad asignada</span>
-              </span>
-            ) : (
-              "Sin asignar"
-            )
-          }
+      {canStartHandover ? (
+        <EditDetailsForm
+          rentalId={rental.id}
+          clientName={rental.clientName}
+          clientEmail={rental.clientEmail ?? ""}
+          clientPhone={rental.clientPhone ?? ""}
+          clientDocNumber={rental.clientDocNumber ?? ""}
+          vehicleId={rental.vehicleId ?? ""}
+          vehicles={editableVehicles.map((v) => ({
+            id: v.id,
+            label: `${v.plate} · ${v.brand} ${v.model}`,
+          }))}
         />
+      ) : (
+        <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+          <Row label="Email" value={rental.clientEmail} />
+          <Row label="Teléfono" value={rental.clientPhone} />
+          <Row label="Documento" value={rental.clientDocNumber} />
+          <Row
+            label="Vehículo"
+            value={
+              rental.vehicle ? (
+                <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
+                  {rental.vehicle.brand} {rental.vehicle.model} · {rental.vehicle.plate}
+                </Link>
+              ) : rental.bookingModel ? (
+                <span>
+                  {rental.bookingModel}
+                  <span className="font-normal text-foreground/50"> · sin unidad asignada</span>
+                </span>
+              ) : (
+                "Sin asignar"
+              )
+            }
+          />
+        </div>
+      )}
+
+      <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
         <Row label="Retiro" value={formatDateTime(rental.startAt)} />
         {rental.bookingPickupPlace && (
           <Row label="Lugar de retiro" value={rental.bookingPickupPlace} />
@@ -175,8 +204,14 @@ export default async function RentalDetailPage({
         </div>
       )}
 
+      {canStartHandover && !canStartHandoverNow && (
+        <p className="rounded-lg bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+          Asigná un vehículo arriba para poder iniciar la entrega.
+        </p>
+      )}
+
       <div className="flex gap-3">
-        {canStartHandover && (
+        {canStartHandoverNow && (
           <ButtonLink href={`/rentals/${rental.id}/handover`} className="flex-1">
             Iniciar entrega
           </ButtonLink>
@@ -189,7 +224,7 @@ export default async function RentalDetailPage({
         <ButtonLink
           href="/rentals"
           variant="secondary"
-          className={canStartHandover || canStartReturn ? "" : "flex-1"}
+          className={canStartHandoverNow || canStartReturn ? "" : "flex-1"}
         >
           Volver
         </ButtonLink>
