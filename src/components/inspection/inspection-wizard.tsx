@@ -107,6 +107,10 @@ export type InspectionWizardProps = {
       observations?: string;
       clientName?: string;
       datesLabel?: string;
+      conditions?: { label: string; value: string }[];
+      settlementRows?: { label: string; value: string }[];
+      balanceLabel?: string;
+      balanceValue?: string;
     };
   }) => Promise<CreateRemoteSignatureResult>;
 };
@@ -135,6 +139,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const [remote, setRemote] = useState<{ id: string; svg: string; url: string } | null>(null);
   const [remoteStatus, setRemoteStatus] = useState<"idle" | "waiting" | "signed" | "error">("idle");
   const [remoteBusy, setRemoteBusy] = useState(false);
+  // El cliente aceptó las condiciones (habilita la firma en este dispositivo).
+  const [clientAccepted, setClientAccepted] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(() => ({
     draftId: newId(),
@@ -361,6 +367,69 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }
   const settlement = buildSettlement();
 
+  /**
+   * Condiciones que el cliente lee y acepta al firmar, ya formateadas. Entrega:
+   * condiciones económicas (mismo formato que el acta). Devolución: liquidación
+   * (km extra, nafta, daños, depósito) + saldo. Se usa tanto para el payload del
+   * QR remoto como para mostrarlas en el paso "Firma" (fallback local).
+   */
+  function summaryConditions(): {
+    conditions?: { label: string; value: string }[];
+    settlementRows?: { label: string; value: string }[];
+    balanceLabel?: string;
+    balanceValue?: string;
+  } {
+    if (isHandover) {
+      const p: Record<string, number> = {};
+      for (const f of PRICING_FIELDS) {
+        const raw = draft.pricing[f.key];
+        if (raw != null && String(raw).trim() !== "") {
+          const n = Number(raw);
+          if (!Number.isNaN(n)) p[f.key] = n;
+        }
+      }
+      const conditions = PRICING_FIELDS.flatMap((f) => {
+        const v = p[f.key];
+        if (typeof v !== "number") return [];
+        const value = f.kind === "money" ? formatArs(v) : f.kind === "percent" ? `${v}%` : String(v);
+        return [{ label: f.label, value }];
+      });
+      const hourAmount = extraHourAmount(p as ContractPricing);
+      if (hourAmount != null) {
+        conditions.push({ label: dict.acta.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
+      }
+      return { conditions };
+    }
+    if (settlement) {
+      const st = dict.acta.settlement;
+      const rows: { label: string; value: string }[] = [
+        {
+          label:
+            settlement.extraKm > 0
+              ? `${st.extraKm} (${settlement.extraKm.toLocaleString("es-AR")} km)`
+              : st.extraKm,
+          value: formatArs(settlement.extraKmCharge),
+        },
+        { label: st.fuel, value: formatArs(settlement.fuelCharge) },
+        ...settlement.damageCharges.map((d) => ({
+          label: `${st.damage}: ${d.description}`,
+          value: formatArs(d.amount),
+        })),
+        { label: st.subtotal, value: formatArs(settlement.subtotal) },
+      ];
+      if (settlement.depositApplied > 0) {
+        rows.push({ label: st.depositApplied, value: formatArs(settlement.depositApplied) });
+      }
+      const isDue = settlement.balanceDue > 0;
+      return {
+        settlementRows: rows,
+        balanceLabel: isDue ? st.balanceDue : st.depositReturn,
+        balanceValue: formatArs(isDue ? settlement.balanceDue : settlement.depositReturn),
+      };
+    }
+    return {};
+  }
+
   function validateStep(): string | undefined {
     if (current === "Datos") {
       if (!draft.vehicleId) return "Asigná un vehículo para continuar.";
@@ -379,6 +448,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
     const v = validateStep();
     if (v) return setError(v);
     if (current === "Firma") {
+      const localDrawn = Boolean(sigRef.current && !sigRef.current.isEmpty());
+      if (localDrawn && !clientAccepted) {
+        return setError("El cliente debe aceptar las condiciones antes de firmar.");
+      }
       if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
       if (!(await captureSignature())) return setError("Falta la firma del cliente.");
     }
@@ -432,6 +505,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
         observations: draft.observations.trim() || undefined,
         clientName: (draft.signerName || draft.clientName || "").trim() || undefined,
         datesLabel: props.datesLabel,
+        ...summaryConditions(),
       };
       const res = await props.createRemoteSignature({
         rentalId: props.rentalId,
@@ -483,6 +557,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
             signerName: signer || d.signerName,
             signaturePendingId: undefined,
           }));
+          setClientAccepted(true);
           setRemoteStatus("signed");
         } else if (j.status === "expired" || j.status === "cancelled") {
           setRemoteStatus("error");
@@ -497,6 +572,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
   async function submit() {
     setError(undefined);
     setQueuedSubmit(false);
+    const localDrawn = Boolean(sigRef.current && !sigRef.current.isEmpty());
+    if (localDrawn && !clientAccepted) {
+      return setError("El cliente debe aceptar las condiciones antes de firmar.");
+    }
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
     if (!(await captureSignature())) return setError("Falta la firma del cliente.");
 
@@ -587,6 +666,17 @@ export function InspectionWizard(props: InspectionWizardProps) {
       }
     }
   }
+
+  // Condiciones (o liquidación) + legal que el cliente lee y acepta al firmar
+  // en este dispositivo. Mismo contenido que ve por QR.
+  const signConditions = summaryConditions();
+  const signConditionRows = isHandover ? signConditions.conditions : signConditions.settlementRows;
+  const generalParagraphs = [
+    ...dict.legal.paragraphs,
+    dict.legal.photoConsent,
+    dict.legal.jurisdiction,
+    dict.legal.acceptance,
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -916,19 +1006,55 @@ export function InspectionWizard(props: InspectionWizardProps) {
 
       {current === "Firma" && (
         <div className="flex flex-col gap-3">
+          {/* Condiciones económicas (entrega) o liquidación (devolución). */}
+          {signConditionRows && signConditionRows.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-foreground/80">
+                {isHandover ? dict.acta.termsTitle : dict.acta.settlement.title}
+              </h3>
+              <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+                {signConditionRows.map((r, i) => (
+                  <CompareRow key={i} label={r.label} value={r.value} />
+                ))}
+                {!isHandover && signConditions.balanceLabel && (
+                  <CompareRow label={signConditions.balanceLabel} value={signConditions.balanceValue ?? "—"} tone="warn" />
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Condiciones generales (texto legal completo). */}
+          <section className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-foreground/80">{dict.legal.title}</h3>
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-foreground/10 px-4 py-3 text-xs leading-relaxed text-foreground/70">
+              {generalParagraphs.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          </section>
+
+          {/* Aceptación explícita del cliente: habilita la firma local. */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-foreground/15 px-4 py-3 text-sm">
+            <input type="checkbox" checked={clientAccepted} onChange={(e) => setClientAccepted(e.target.checked)} className="mt-0.5 size-5 shrink-0" />
+            <span className="text-foreground/80">{dict.signature.acceptConditions}</span>
+          </label>
+
           <p className="text-sm text-foreground/70">{dict.signature.legal}</p>
-          <SignatureCanvas ref={sigRef} />
-          <div className="flex justify-between">
-            <button type="button" className="text-sm text-foreground/60 underline" onClick={() => { sigRef.current?.clear(); if (draft.signaturePendingId) dropUpload(draft.signaturePendingId); patch({ signatureKey: undefined, signaturePendingId: undefined }); }}>
-              {dict.signature.clear}
-            </button>
+
+          <div className={`flex flex-col gap-3 ${clientAccepted ? "" : "pointer-events-none opacity-50"}`} aria-disabled={!clientAccepted}>
+            <SignatureCanvas ref={sigRef} />
+            <div className="flex justify-between">
+              <button type="button" className="text-sm text-foreground/60 underline" onClick={() => { sigRef.current?.clear(); if (draft.signaturePendingId) dropUpload(draft.signaturePendingId); patch({ signatureKey: undefined, signaturePendingId: undefined }); }}>
+                {dict.signature.clear}
+              </button>
+            </div>
+            {draft.signatureKey ? (
+              <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>
+            ) : draft.signaturePendingId ? (
+              <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
+            ) : null}
+            <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
           </div>
-          {draft.signatureKey ? (
-            <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>
-          ) : draft.signaturePendingId ? (
-            <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
-          ) : null}
-          <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
 
           {props.createRemoteSignature && (
             <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">

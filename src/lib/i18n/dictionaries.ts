@@ -22,6 +22,7 @@ export type Dictionary = {
     clear: string;
     confirm: string;
     acceptState: string;
+    acceptConditions: string;
   };
   acta: {
     handoverTitle: string;
@@ -102,6 +103,7 @@ const es: Dictionary = {
     clear: "Borrar",
     confirm: "Firmar y confirmar",
     acceptState: "Al firmar, acepta las condiciones y el estado del vehículo registrado.",
+    acceptConditions: "Leí y acepto las condiciones generales de alquiler y el estado del vehículo.",
   },
   acta: {
     handoverTitle: "Acta de entrega",
@@ -197,6 +199,7 @@ const en: Dictionary = {
     clear: "Clear",
     confirm: "Sign and confirm",
     acceptState: "By signing, you accept the conditions and the recorded condition of the vehicle.",
+    acceptConditions: "I have read and accept the general rental conditions and the vehicle condition.",
   },
   acta: {
     handoverTitle: "Handover report",

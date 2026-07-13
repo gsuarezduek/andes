@@ -20,6 +20,10 @@ const inputSchema = z.object({
     observations: z.string().optional(),
     clientName: z.string().optional(),
     datesLabel: z.string().optional(),
+    conditions: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    settlementRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    balanceLabel: z.string().optional(),
+    balanceValue: z.string().optional(),
   }),
 });
 

@@ -31,7 +31,8 @@ export async function POST(
   const form = await req.formData();
   const file = form.get("file");
   const signerName = String(form.get("signerName") ?? "").trim();
-  if (!(file instanceof File) || !signerName) {
+  const accepted = form.get("accepted") === "true";
+  if (!(file instanceof File) || !signerName || !accepted) {
     return NextResponse.json({ error: "petición inválida" }, { status: 400 });
   }
   const buffer = Buffer.from(await file.arrayBuffer());

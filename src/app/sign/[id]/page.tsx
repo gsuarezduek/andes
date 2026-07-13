@@ -47,7 +47,18 @@ export default async function RemoteSignPage({
           signerNameLabel={dict.signature.signerName}
           clearLabel={dict.signature.clear}
           confirmLabel={dict.signature.confirm}
+          acceptLabel={dict.signature.acceptConditions}
+          termsTitle={dict.acta.termsTitle}
+          settlementTitle={dict.acta.settlement.title}
+          generalTitle={dict.legal.title}
+          generalParagraphs={[
+            ...dict.legal.paragraphs,
+            dict.legal.photoConsent,
+            dict.legal.jurisdiction,
+            dict.legal.acceptance,
+          ]}
           summary={(request.summary as SignatureSummary | null) ?? undefined}
+          isReturn={request.type === "return_"}
           defaultName={request.signerName ?? ""}
         />
       )}
