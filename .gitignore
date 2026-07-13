@@ -36,6 +36,12 @@ yarn-error.log*
 # almacenamiento local de archivos en dev (fotos, firmas, PDFs)
 /.storage
 
+# copia local del plugin VikRentCar (solo referencia, no versionar)
+/wordpress-plugin/vikrentcar
+
+# zip de build del plugin Andes Pay Stripe (se regenera desde el fuente)
+/wordpress-plugin/andes-pay-stripe.zip
+
 # vercel
 .vercel
 

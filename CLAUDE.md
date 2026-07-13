@@ -153,6 +153,27 @@ Plan aprobado, cerrado en la Fase 11 (fases 7–11 desplegables). La Fase 12 (i1
   - **Sin migración.** Queries verificadas contra la base local (incl. `groupBy` de daños). Build/lint/test en verde.
 - [~] **Fase 12 — i18n completo de la UI del empleado — DESCARTADA.** Decisión del dueño: la UI del empleado queda en español. No se implementa.
 
+## Add-on — Andes Pay Stripe (pasarela de pago para VikRentCar)
+
+Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/andes-pay-stripe/`. Agrega **"Andes Pay Stripe"** como método de pago de **VikRentCar Pro (v1.4.6)**: cobra el **total** de la reserva con tarjeta vía **Stripe Checkout** (redirección alojada por Stripe, PCI mínimo). **Probado y funcionando en producción (Live):** cobro → retorno → reserva marcada pagada por VikRentCar.
+
+- **Registro update-safe:** se engancha a los hooks `get_supported_payments_vikrentcar` (filtro) + `load_payment_gateway_vikrentcar` (acción) desde un plugin aparte, **sin tocar la carpeta de VikRentCar** (que se pisa en cada update). Alias del plugin host = `vikrentcar`.
+- **Clase** `VikRentCarAndesPayStripePayment extends JPayment` (`payments/andes_pay_stripe.php`): `buildAdminParameters()` (config admin), `beginTransaction()` (crea la Checkout Session vía API REST de Stripe con `JHttp` y muestra botón "Pagar con tarjeta"), `validateTransaction()` (verifica server-side) y `complete()` (redirect a la orden). **No toca la base:** VikRentCar marca la orden pagada por su propio framework al recibir `$status->paid()->verified()`.
+- **Claves configurables en dos lugares** con precedencia **método-VikRentCar → panel de WordPress**: pantalla propia **Ajustes → Andes Pay Stripe** (`wp_options` `andes_pay_stripe_options`, Settings API) con entorno/claves/descriptor; los campos password usan "dejar en blanco para conservar" (no reimprimen el secreto). El selector de entorno del método en VikRentCar tiene opción "Usar el del panel de WordPress".
+- **Cuenta compartida:** cada pago lleva `metadata[source]=vikrentcar-andes` + `metadata[order_id]` + `client_reference_id` + descriptor de tarjeta, para filtrar/distinguir en un Stripe que también recibe otros cobros.
+- **Gotchas resueltos (documentados en el código):**
+  - **Validación del retorno:** en el contexto de `validateTransaction` VikRentCar **no** repuebla `transaction_currency`/`total_to_pay`/`order`. No comparar contra el total: se confía en la respuesta de Stripe (`payment_status=paid` + `amount_total`), mismo criterio que la pasarela oficial de PayPal Checkout. Comparar rompía el pago (quedaba "pendiente").
+  - **Sin auto-redirect:** un `setTimeout`→Stripe en `beginTransaction` causaba un loop de vuelta a Stripe tras el retorno; se eliminó (queda solo el botón, como la oficial).
+  - **Modo test con cuenta US + ARS:** la tarjeta `4242…` (crédito US) se rechaza a propósito ("try a debit card"); usar débito de prueba `4000 0566 5566 5556`.
+- **Setup real verificado:** cuenta de Stripe en **EE. UU.**, moneda VikRentCar **ARS** (Stripe convierte a USD para el payout; 1000 ARS ≈ 0,65 USD). ARS es moneda de 2 decimales en Stripe (importe ×100).
+- **La copia de referencia de VikRentCar** (`wordpress-plugin/vikrentcar/`) y el **zip de build** (`wordpress-plugin/andes-pay-stripe.zip`) están en `.gitignore`.
+
+**Pendiente / opcional del dueño:**
+- **Webhook de respaldo** (`checkout.session.completed`): cierra el caso "el cliente paga y cierra la pestaña sin volver" (hoy la confirmación depende de la redirección de retorno, igual que la PayPal oficial). No implementado aún.
+- **Decisión ARS vs USD:** con cuenta US, cobrar en ARS implica doble conversión + fee (~1%) y, para el cliente argentino, impuestos de compra al exterior (PAÍS + percepciones). Cambiar de moneda es sólo cambiar la moneda global de VikRentCar (no requiere tocar el plugin).
+- **Logo opcional** `assets/andes_pay_stripe.png` (sin él, el método aparece igual, sin imagen).
+- **Reembolsar** el cobro de prueba en Live (0,65 USD) si se desea.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
