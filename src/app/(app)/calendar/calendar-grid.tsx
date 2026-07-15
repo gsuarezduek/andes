@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { CalendarBar, CalendarColumn, CalendarRow } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
 
@@ -163,14 +164,14 @@ function Row({
         ))}
         {/* Barras de alquiler */}
         {row.bars.map((bar) => (
-          <button
+          <Link
             key={bar.rentalId}
-            type="button"
+            href={`/rentals/${bar.rentalId}`}
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
             title={plainTooltip(bar)}
-            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm ${
+            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm transition-shadow hover:ring-2 hover:ring-blue-300 ${
               bar.status === "finished" ? "bg-slate-400/90" : "bg-blue-600/90 hover:bg-blue-600"
             }`}
             style={{
@@ -181,7 +182,7 @@ function Row({
             }}
           >
             <span className="truncate">{bar.clientName}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
