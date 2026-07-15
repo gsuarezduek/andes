@@ -111,10 +111,17 @@ A diferencia del precio por reserva (arriba), la **tarifa del modelo** sí está
 
 ### Timestamps — confirmado
 
-`ritiro`/`consegna`/`ts` son **Unix en segundos**. Ej. verificado: `ritiro` max
-`1791543600` = `2026-10-09T11:00:00Z`. Usar `fromUnixSeconds()`
-(`src/lib/datetime.ts`). La sesión MySQL reporta `time_zone = SYSTEM`; los valores
-son epoch absolutos, así que la conversión a Mendoza se hace en Andes al mostrar.
+`ritiro`/`consegna`/`ts` son **Unix en segundos**, pero **NO son epoch UTC
+absolutos**: WordPress está en `gmt_offset = -3` (Mendoza) con `timezone_string`
+vacío, y VikRentCar guarda la **hora de pared local** como Unix segundos sin
+convertir a UTC. Ej. `ritiro = 1791543600` "como UTC" da `2026-10-09T11:00:00Z`,
+pero esas **11:00 son la hora cargada en WordPress** (no las 08:00 de Mendoza).
+Por eso `ritiro`/`consegna` deben pasar por **`vikRentCarUnixToUtc()`**
+(`src/lib/datetime.ts`), que reinterpreta los componentes como hora de pared de
+Mendoza y devuelve el instante UTC real (11:00 → `14:00Z`). Usar
+`fromUnixSeconds()` (epoch crudo) daría 3h de menos al mostrar (12:00 → 09:00).
+`ts` (fecha de creación) es referencial y no se muestra al cliente, así que
+mantiene `fromUnixSeconds`.
 
 ### `lang` → `rentals.language` (es/en)
 

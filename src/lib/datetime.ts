@@ -72,12 +72,28 @@ export function formatDate(date: Date, locale: "es" | "en" = "es"): string {
 }
 
 /**
- * Converts a VikRentCar Unix timestamp (seconds since epoch) into a JS Date.
- * VikRentCar stores `ritiro`/`consegna` as Unix seconds — see
- * docs/wordpress-mapping.md.
+ * Converts a VikRentCar Unix timestamp (seconds since epoch) into a JS Date,
+ * treating it as an *absolute* epoch instant. Kept for callers that already
+ * hold a true UTC epoch; para las fechas de reserva usar
+ * `vikRentCarUnixToUtc` (VikRentCar guarda hora de pared local, no UTC).
  */
 export function fromUnixSeconds(seconds: number): Date {
   return new Date(seconds * 1000);
+}
+
+/**
+ * Interpreta un timestamp `ritiro`/`consegna` de VikRentCar como el instante UTC
+ * correcto. Con WordPress en `gmt_offset=-3` (Mendoza, sin `timezone_string`),
+ * VikRentCar guarda la **hora de pared local** como Unix segundos, sin convertir
+ * a UTC: p.ej. una reserva a las 12:00 de Mendoza queda como el epoch de
+ * "12:00Z". Sin esta corrección, mostrar en Mendoza restaría 3h de más (12:00 →
+ * 09:00). Reinterpretamos esos componentes como hora de pared de Mendoza y
+ * devolvemos el instante UTC real. Ver docs/wordpress-mapping.md.
+ */
+export function vikRentCarUnixToUtc(seconds: number): Date {
+  const wallAsUtc = new Date(seconds * 1000);
+  const offsetMs = tzOffsetMs(wallAsUtc, APP_TIME_ZONE);
+  return new Date(wallAsUtc.getTime() - offsetMs);
 }
 
 /** Offset (tz − UTC) en ms para un instante dado, calculado vía Intl. */

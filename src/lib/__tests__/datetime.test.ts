@@ -5,6 +5,7 @@ import {
   formatDateTimeInput,
   formatDateTime,
   fromUnixSeconds,
+  vikRentCarUnixToUtc,
 } from "@/lib/datetime";
 
 describe("mendozaWallTimeToUtc", () => {
@@ -48,5 +49,23 @@ describe("fromUnixSeconds", () => {
   it("convierte segundos Unix (VikRentCar) a Date", () => {
     expect(fromUnixSeconds(0).toISOString()).toBe("1970-01-01T00:00:00.000Z");
     expect(fromUnixSeconds(1_752_000_000).getTime()).toBe(1_752_000_000_000);
+  });
+});
+
+describe("vikRentCarUnixToUtc", () => {
+  it("interpreta el timestamp como hora de pared de Mendoza (WP gmt_offset=-3)", () => {
+    // ritiro real: 1791543600 == "2026-10-09T11:00:00Z" como epoch crudo, pero
+    // esas 11:00 son la hora de pared cargada en WordPress. Debe quedar 14:00Z
+    // para que se muestre 11:00 en Mendoza (no 08:00).
+    const utc = vikRentCarUnixToUtc(1_791_543_600);
+    expect(utc.toISOString()).toBe("2026-10-09T14:00:00.000Z");
+    expect(formatDateTime(utc, "es")).toContain("11:00");
+  });
+
+  it("round-trip: la hora que muestra Andes coincide con la de pared de WP", () => {
+    // 12:00 de pared en WP → 15:00Z → 12:00 mostrado en Mendoza.
+    const wallUnix = Date.UTC(2026, 6, 12, 12, 0, 0) / 1000;
+    const utc = vikRentCarUnixToUtc(wallUnix);
+    expect(formatDateTime(utc, "es")).toContain("12:00");
   });
 });

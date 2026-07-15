@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
-import { fromUnixSeconds } from "@/lib/datetime";
+import { vikRentCarUnixToUtc } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
 import type { BookingSource, RawBooking, RawCar, RawSeason } from "./types";
 import { createBookingSource } from "./source";
@@ -112,8 +112,8 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
 
   const vehicleId = await resolveVehicleId(b.idcar, b.carindex);
   const language = resolveLocale(b.lang);
-  const startAt = fromUnixSeconds(b.startUnix);
-  const endAt = fromUnixSeconds(b.endUnix);
+  const startAt = vikRentCarUnixToUtc(b.startUnix);
+  const endAt = vikRentCarUnixToUtc(b.endUnix);
   const booking = bookingFacts(b);
 
   if (!existing) {
