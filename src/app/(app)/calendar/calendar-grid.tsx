@@ -139,16 +139,26 @@ function Row({
 }) {
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
-      {/* Etiqueta del auto (fija a la izquierda) */}
-      <div
-        className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3"
-        style={{ width: LABEL_W, height: ROW_H }}
-      >
-        <span className="truncate text-sm font-medium leading-tight">{row.label}</span>
-        {row.plate ? (
-          <span className="truncate text-[11px] text-foreground/45">{row.plate}</span>
-        ) : null}
-      </div>
+      {/* Etiqueta del auto (fija a la izquierda). En filas de vehículo la
+          patente es lo principal y el modelo el secundario, y linkea al perfil
+          del auto. Las filas sin unidad (plate null) no tienen perfil. */}
+      {row.plate ? (
+        <Link
+          href={`/vehicles/${row.id}`}
+          className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5"
+          style={{ width: LABEL_W, height: ROW_H }}
+        >
+          <span className="truncate text-sm font-semibold leading-tight">{row.plate}</span>
+          <span className="truncate text-[11px] text-foreground/45">{row.label}</span>
+        </Link>
+      ) : (
+        <div
+          className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3"
+          style={{ width: LABEL_W, height: ROW_H }}
+        >
+          <span className="truncate text-sm font-medium leading-tight">{row.label}</span>
+        </div>
+      )}
 
       {/* Track de días */}
       <div className="relative" style={{ width: trackW, height: ROW_H }}>
@@ -170,8 +180,12 @@ function Row({
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
-            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm transition-shadow hover:ring-2 hover:ring-blue-300 ${
-              bar.status === "finished" ? "bg-slate-400/90" : "bg-blue-600/90 hover:bg-blue-600"
+            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm transition-shadow hover:ring-2 ${
+              bar.status === "finished"
+                ? "bg-slate-400/90 hover:ring-slate-300"
+                : !bar.confirmed
+                  ? "bg-orange-500/90 hover:bg-orange-500 hover:ring-orange-300" // sin confirmar (standby)
+                  : "bg-blue-600/90 hover:bg-blue-600 hover:ring-blue-300" // confirmada
             }`}
             style={{
               left: bar.startIndex * COL_W + 2,
@@ -198,7 +212,14 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       className="pointer-events-none fixed z-50 w-72 rounded-lg border border-foreground/15 bg-background p-3 text-xs shadow-xl"
       style={{ left, top }}
     >
-      <p className="text-sm font-semibold">{bar.clientName}</p>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        {bar.clientName}
+        {!bar.confirmed ? (
+          <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-medium text-orange-700 dark:text-orange-400">
+            Sin confirmar
+          </span>
+        ) : null}
+      </p>
       <p className="mt-0.5 text-foreground/60">
         {formatDateTime(bar.startAt)} → {formatDateTime(bar.endAt)}
       </p>
