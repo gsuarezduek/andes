@@ -67,7 +67,7 @@ export default async function HandoverPage({
   const existingDamages = rental.vehicleId
     ? await prisma.damage.findMany({
         where: { vehicleId: rental.vehicleId, repaired: false, view: "top" },
-        select: { posX: true, posY: true },
+        select: { posX: true, posY: true, description: true },
       })
     : [];
 
@@ -97,6 +97,7 @@ export default async function HandoverPage({
               }
             : null
         }
+        maxFuel={rental.vehicle?.fuelLevels}
         vehicleOptions={vehicles.map((v) => ({
           id: v.id,
           label: `${v.plate} · ${v.brand} ${v.model}`,

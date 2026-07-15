@@ -23,7 +23,7 @@ import {
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
 import { languageLabels, documentKindLabels } from "@/lib/labels";
-import { PRICING_FIELDS, extraHourAmount, formatArs, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, formatArs, computeBalance, type ContractPricing } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import { computeSettlement, rollupSettlement, type SettlementMethod } from "@/lib/settlement";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
@@ -41,8 +41,11 @@ type Mode = "handover" | "return";
 // "queued" = persistida en el dispositivo, esperando señal para subir.
 type PhotoItem = { id: string; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string };
 type DamageItem = { id: string; posX: number; posY: number; description: string; photo?: PhotoItem };
-// Documento del cliente (licencia/DNI/pasaporte), solo en la entrega.
-type DocItem = { id: string; kind: DocumentKindInput; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string };
+// Documento del cliente (licencia/DNI/pasaporte), solo en la entrega. Cuando
+// es la licencia de un conductor adicional lleva `holderName` (su nombre).
+type DocItem = { id: string; kind: DocumentKindInput; key?: string; status: "uploading" | "queued" | "done" | "error"; preview: string; holderName?: string };
+// Conductor adicional autorizado (además del titular).
+type DriverItem = { id: string; name: string };
 
 const DOC_KINDS: DocumentKindInput[] = ["license", "dni", "passport"];
 
@@ -56,12 +59,19 @@ type Draft = {
   clientDocNumber: string;
   licenseExpiry: string;
   pricing: Record<string, string>;
+  // "KM libres": sin límite → no se cobra excedente en la devolución.
+  unlimitedKm: boolean;
+  accessoriesDesc: string;
+  // Forma de la garantía tomada en la entrega (efectivo, tarjeta, etc.).
+  guaranteeForm: string;
   km: string;
   fuelLevel: number;
+  // Neutral por defecto: cada ítem debe decidirse OK/Falla antes de avanzar.
   checklist: Record<string, "ok" | "fail">;
   damages: DamageItem[];
   photos: PhotoItem[];
   documents: DocItem[];
+  additionalDrivers: DriverItem[];
   observations: string;
   signerName: string;
   signatureKey?: string;
@@ -86,7 +96,9 @@ export type InspectionWizardProps = {
   vehicle: { id: string; label: string; currentKm: number } | null;
   vehicleOptions: { id: string; label: string }[];
   checklistItems: { id: string; label: string }[];
-  existingDamages: { posX: number; posY: number }[];
+  existingDamages: { posX: number; posY: number; description?: string | null }[];
+  /** Divisiones del tanque de este vehículo (Vehicle.fuelLevels, 4–16). */
+  maxFuel?: number;
   language: Lang;
   licenseExpiry?: string;
   pricing?: Record<string, string>;
@@ -126,6 +138,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     ? ["Datos", "Condiciones", "Estado", "Daños", "Fotos", "Firma", "Resumen"]
     : ["Datos", "Estado", "Daños", "Fotos", "Comparación", "Firma", "Resumen"];
 
+  const maxFuel = props.maxFuel ?? 8;
   const storageKey = `andes:${props.mode}:${props.rentalId}`;
   const sigRef = useRef<SignaturePadHandle>(null);
   const geo = useRef<{ lat?: number; lng?: number }>({});
@@ -152,12 +165,16 @@ export function InspectionWizard(props: InspectionWizardProps) {
     clientDocNumber: props.client.dni ?? "",
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
+    unlimitedKm: props.pricing?.unlimitedKm === "true",
+    accessoriesDesc: props.pricing?.accessoriesDesc ?? "",
+    guaranteeForm: props.pricing?.guaranteeForm ?? "",
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
-    fuelLevel: isHandover ? 8 : (props.returnContext?.handoverFuel ?? 8),
-    checklist: Object.fromEntries(props.checklistItems.map((i) => [i.id, "ok"])),
+    fuelLevel: isHandover ? maxFuel : (props.returnContext?.handoverFuel ?? maxFuel),
+    checklist: {},
     damages: [],
     photos: [],
     documents: [],
+    additionalDrivers: [],
     settlementMethod: "none",
     settlementNote: "",
     settlementFuelCharge: "",
@@ -278,6 +295,24 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const dict = getDictionary(draft.language);
   const patch = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
 
+  // Helpers de precios (paso "Condiciones").
+  const priceStr = (k: string) => draft.pricing[k] ?? "";
+  const setPrice = (k: string, v: string) => patch({ pricing: { ...draft.pricing, [k]: v } });
+  const numOrUndef = (s?: string) => (s && s.trim() !== "" ? Number(s) : undefined);
+  // Al cambiar total/seña/paga, el saldo se autocompleta (editable).
+  const setPay = (k: "total" | "sena" | "paid" | "balance", v: string) => {
+    const next = { ...draft.pricing, [k]: v };
+    if (k !== "balance") {
+      const bal = computeBalance({
+        total: numOrUndef(next.total),
+        sena: numOrUndef(next.sena),
+        paid: numOrUndef(next.paid),
+      });
+      if (bal != null) next.balance = String(bal);
+    }
+    patch({ pricing: next });
+  };
+
   async function addPhotos(files: FileList | null, target: "main" | { damageId: string }) {
     if (!files) return;
     for (const file of Array.from(files)) {
@@ -307,12 +342,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
   // Captura de un documento del cliente (licencia/DNI/pasaporte). Va por la
   // misma cola persistente, con el tipo codificado en el slot. Solo en la
   // entrega; se guardan como evidencia interna (no van al acta ni al email).
-  async function addDocument(files: FileList | null, kind: DocumentKindInput) {
+  async function addDocument(files: FileList | null, kind: DocumentKindInput, holderName?: string) {
     if (!files) return;
     for (const file of Array.from(files)) {
       const id = newId();
       const preview = URL.createObjectURL(file);
-      const item: DocItem = { id, kind, status: "uploading", preview };
+      const item: DocItem = { id, kind, status: "uploading", preview, holderName };
       setDraft((d) => ({ ...d, documents: [...d.documents, item] }));
       const blob = await compressImage(file);
       void enqueueUpload({ id, draftId: draft.draftId, kind: "document", slot: `document:${kind}`, blob });
@@ -389,14 +424,25 @@ export function InspectionWizard(props: InspectionWizardProps) {
         }
       }
       const conditions = PRICING_FIELDS.flatMap((f) => {
+        // "KM libres": el km incluido y el km extra no aplican.
+        if (draft.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate")) return [];
         const v = p[f.key];
         if (typeof v !== "number") return [];
         const value = f.kind === "money" ? formatArs(v) : f.kind === "percent" ? `${v}%` : String(v);
         return [{ label: f.label, value }];
       });
+      if (draft.unlimitedKm) {
+        conditions.push({ label: "Kilometraje", value: "Libre (sin cargo por excedente)" });
+      }
       const hourAmount = extraHourAmount(p as ContractPricing);
       if (hourAmount != null) {
         conditions.push({ label: dict.acta.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
+      }
+      if (draft.accessoriesDesc.trim()) {
+        conditions.push({ label: dict.acta.accessories, value: draft.accessoriesDesc.trim() });
+      }
+      if (draft.guaranteeForm.trim()) {
+        conditions.push({ label: "Forma de garantía", value: draft.guaranteeForm.trim() });
       }
       return { conditions };
     }
@@ -439,6 +485,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (draft.km === "" || Number(draft.km) < 0) return "Ingresá el kilometraje.";
       if (props.returnContext && Number(draft.km) < props.returnContext.handoverKm) {
         return `El kilometraje no puede ser menor al de entrega (${props.returnContext.handoverKm.toLocaleString("es-AR")} km).`;
+      }
+      const pending = props.checklistItems.filter((it) => draft.checklist[it.id] == null);
+      if (pending.length > 0) {
+        return `Decidí funcional o falla en todos los ítems del checklist (faltan ${pending.length}).`;
       }
     }
     return undefined;
@@ -601,14 +651,17 @@ export function InspectionWizard(props: InspectionWizardProps) {
         setSaving(false);
         return setError("Falta la firma del cliente.");
       }
-      const pricing: Record<string, number> = {};
+      const pricing: ContractPricing = {};
       for (const f of PRICING_FIELDS) {
         const raw = draft.pricing[f.key];
         if (raw !== undefined && raw !== "") {
           const n = Number(raw);
-          if (!Number.isNaN(n)) pricing[f.key] = n;
+          if (!Number.isNaN(n)) (pricing as Record<string, number>)[f.key] = n;
         }
       }
+      if (draft.unlimitedKm) pricing.unlimitedKm = true;
+      if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
+      if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
       const payload: InspectionInput = {
         rentalId: props.rentalId,
         vehicleId: draft.vehicleId,
@@ -636,10 +689,20 @@ export function InspectionWizard(props: InspectionWizardProps) {
               licenseExpiry: draft.licenseExpiry || undefined,
               pricing: Object.keys(pricing).length ? pricing : undefined,
               documents: (() => {
+                // holderName en el draft es el id del conductor adicional; al
+                // persistir lo traducimos a su nombre (o undefined = titular).
+                const driverName = (id?: string) =>
+                  id ? draft.additionalDrivers.find((dr) => dr.id === id)?.name.trim() || undefined : undefined;
                 const docs = draft.documents
                   .filter((doc) => doc.key)
-                  .map((doc) => ({ kind: doc.kind, key: doc.key! }));
+                  .map((doc) => ({ kind: doc.kind, key: doc.key!, holderName: driverName(doc.holderName) }));
                 return docs.length ? docs : undefined;
+              })(),
+              additionalDrivers: (() => {
+                const drivers = draft.additionalDrivers
+                  .filter((dr) => dr.name.trim())
+                  .map((dr) => ({ name: dr.name.trim() }));
+                return drivers.length ? drivers : undefined;
               })(),
             }
           : { settlement: buildSettlement() ?? undefined }),
@@ -721,13 +784,20 @@ export function InspectionWizard(props: InspectionWizardProps) {
               <p className="text-xs text-foreground/50">Licencia, DNI o pasaporte. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
               <div className="grid grid-cols-3 gap-2">
                 {DOC_KINDS.map((kind) => {
-                  const docs = draft.documents.filter((doc) => doc.kind === kind);
+                  const docs = draft.documents.filter((doc) => doc.kind === kind && !doc.holderName);
                   return (
                     <div key={kind} className="flex flex-col gap-1.5">
-                      <label className="flex h-10 items-center justify-center rounded-lg border border-dashed border-foreground/30 px-1 text-center text-xs font-medium">
-                        + {documentKindLabels[kind]}
-                        <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
-                      </label>
+                      <p className="text-center text-xs font-medium text-foreground/70">{documentKindLabels[kind]}</p>
+                      <div className="flex gap-1">
+                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto">
+                          📷
+                          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                        </label>
+                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Elegir del teléfono">
+                          🖼️
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                        </label>
+                      </div>
                       {docs.map((doc) => (
                         <div key={doc.id} className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -744,6 +814,62 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   );
                 })}
               </div>
+            </div>
+          )}
+          {isHandover && (
+            <TextField id="licenseExpiry" label="Venc. licencia de conducir" type="date" value={draft.licenseExpiry} onChange={(e) => patch({ licenseExpiry: e.target.value })} />
+          )}
+          {isHandover && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground/80">Conductores adicionales</p>
+                <button type="button" className="text-xs font-medium text-foreground/70 underline" onClick={() => patch({ additionalDrivers: [...draft.additionalDrivers, { id: newId(), name: "" }] })}>
+                  + Agregar conductor
+                </button>
+              </div>
+              {draft.additionalDrivers.length === 0 ? (
+                <p className="text-xs text-foreground/50">Otros conductores autorizados. Sus nombres figuran en el acta; la foto de la licencia queda como respaldo interno.</p>
+              ) : null}
+              {draft.additionalDrivers.map((dr, i) => {
+                const drDocs = draft.documents.filter((doc) => doc.kind === "license" && doc.holderName === dr.id);
+                return (
+                  <div key={dr.id} className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="h-10 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+                        placeholder={`Nombre del conductor #${i + 1}`}
+                        value={dr.name}
+                        onChange={(e) => patch({ additionalDrivers: draft.additionalDrivers.map((x) => (x.id === dr.id ? { ...x, name: e.target.value } : x)) })}
+                      />
+                      <button type="button" className="text-xs text-red-600" onClick={() => patch({ additionalDrivers: draft.additionalDrivers.filter((x) => x.id !== dr.id) })}>
+                        Quitar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto de la licencia">
+                        📷 Licencia
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
+                      </label>
+                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir del teléfono">
+                        🖼️
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
+                      </label>
+                      <div className="flex gap-1">
+                        {drDocs.map((doc) => (
+                          <div key={doc.id} className="relative h-9 w-9">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={doc.preview} alt="" className="h-9 w-9 rounded object-cover" />
+                            {doc.status !== "done" && (
+                              <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-[8px] text-white">…</span>
+                            )}
+                            <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[9px] text-white">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {props.vehicle ? (
@@ -768,14 +894,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
       )}
 
       {current === "Condiciones" && (
-        <div className="flex flex-col gap-4">
-          <TextField id="licenseExpiry" label="Venc. licencia de conducir" type="date" value={draft.licenseExpiry} onChange={(e) => patch({ licenseExpiry: e.target.value })} />
+        <div className="flex flex-col gap-5">
+          {/* Tarifa */}
           <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Condiciones económicas (opcional)</p>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Tarifa</p>
             <div className="grid grid-cols-2 gap-3">
-              {PRICING_FIELDS.map((f) => (
-                <TextField key={f.key} id={`pricing_${f.key}`} label={f.label} type="number" inputMode="numeric" value={draft.pricing[f.key] ?? ""} onChange={(e) => patch({ pricing: { ...draft.pricing, [f.key]: e.target.value } })} min={0} />
-              ))}
+              <TextField id="pricing_dailyRate" label="Precio por día" type="number" inputMode="numeric" prefix="$" value={priceStr("dailyRate")} onChange={(e) => setPrice("dailyRate", e.target.value)} min={0} />
+              <TextField id="pricing_days" label="Cantidad de días" type="number" inputMode="numeric" value={priceStr("days")} onChange={(e) => setPrice("days", e.target.value)} min={0} />
+              <TextField id="pricing_insuranceAmount" label="Seguro" type="number" inputMode="numeric" prefix="$" value={priceStr("insuranceAmount")} onChange={(e) => setPrice("insuranceAmount", e.target.value)} min={0} />
+              <TextField id="pricing_extraHourPercent" label="Hora extra (% tarifa)" type="number" inputMode="numeric" value={priceStr("extraHourPercent")} onChange={(e) => setPrice("extraHourPercent", e.target.value)} min={0} />
             </div>
             {(() => {
               const amount = extraHourAmount({
@@ -788,8 +915,55 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 </p>
               ) : null;
             })()}
-            <p className="mt-2 text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>
           </div>
+
+          {/* Kilometraje */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Kilometraje</p>
+            {!draft.unlimitedKm && (
+              <div className="grid grid-cols-2 gap-3">
+                <TextField id="pricing_kmPerDay" label="Km por día" type="number" inputMode="numeric" value={priceStr("kmPerDay")} onChange={(e) => setPrice("kmPerDay", e.target.value)} min={0} />
+                <TextField id="pricing_extraKmRate" label="Km extra (c/u)" type="number" inputMode="numeric" prefix="$" value={priceStr("extraKmRate")} onChange={(e) => setPrice("extraKmRate", e.target.value)} min={0} />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => patch({ unlimitedKm: !draft.unlimitedKm })}
+              className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.unlimitedKm ? "border-foreground bg-foreground text-background" : "border-foreground/25 text-foreground/70"}`}
+            >
+              {draft.unlimitedKm ? "✓ KM Libres (sin excedente)" : "KM Libres"}
+            </button>
+            {draft.unlimitedKm && (
+              <p className="mt-1 text-xs text-foreground/50">Sin límite de kilómetros: no se cobra excedente en la devolución.</p>
+            )}
+          </div>
+
+          {/* Accesorios */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground/80">Accesorios</p>
+            <TextField id="pricing_accessoriesAmount" label="Importe" type="number" inputMode="numeric" prefix="$" value={priceStr("accessoriesAmount")} onChange={(e) => setPrice("accessoriesAmount", e.target.value)} min={0} />
+            <TextareaField id="accessoriesDesc" label="Detalle de accesorios" hint="Ej. silla de bebé, GPS, portaequipaje" value={draft.accessoriesDesc} onChange={(e) => patch({ accessoriesDesc: e.target.value })} rows={2} />
+          </div>
+
+          {/* Garantía */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground/80">Garantía</p>
+            <TextField id="pricing_deposit" label="Monto de la garantía" type="number" inputMode="numeric" prefix="$" value={priceStr("deposit")} onChange={(e) => setPrice("deposit", e.target.value)} min={0} />
+            <TextareaField id="guaranteeForm" label="Forma de la garantía" hint="Ej. tarjeta de crédito, efectivo, cheque" value={draft.guaranteeForm} onChange={(e) => patch({ guaranteeForm: e.target.value })} rows={2} />
+          </div>
+
+          {/* Pago */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Pago</p>
+            <div className="grid grid-cols-2 gap-3">
+              <TextField id="pricing_total" label="Total a pagar" type="number" inputMode="numeric" prefix="$" value={priceStr("total")} onChange={(e) => setPay("total", e.target.value)} min={0} />
+              <TextField id="pricing_sena" label="Seña" type="number" inputMode="numeric" prefix="$" value={priceStr("sena")} onChange={(e) => setPay("sena", e.target.value)} min={0} />
+              <TextField id="pricing_paid" label="Paga" type="number" inputMode="numeric" prefix="$" value={priceStr("paid")} onChange={(e) => setPay("paid", e.target.value)} min={0} />
+              <TextField id="pricing_balance" label="Saldo" hint="Total − Seña − Paga (editable)" type="number" inputMode="numeric" prefix="$" value={priceStr("balance")} onChange={(e) => setPay("balance", e.target.value)} min={0} />
+            </div>
+          </div>
+
+          <p className="text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>
         </div>
       )}
 
@@ -798,15 +972,25 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Nivel de nafta</p>
-            <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} />
+            <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} max={maxFuel} />
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Checklist</p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-foreground/80">Checklist</p>
+              {(() => {
+                const pending = props.checklistItems.filter((it) => draft.checklist[it.id] == null).length;
+                return pending > 0 ? (
+                  <span className="text-xs font-medium text-amber-600">Faltan {pending}</span>
+                ) : (
+                  <span className="text-xs font-medium text-emerald-600">Completo ✓</span>
+                );
+              })()}
+            </div>
             <ul className="flex flex-col gap-2">
               {props.checklistItems.map((it) => {
-                const val = draft.checklist[it.id] ?? "ok";
+                const val = draft.checklist[it.id]; // undefined = neutro (a decidir)
                 return (
-                  <li key={it.id} className="flex items-center justify-between gap-3">
+                  <li key={it.id} className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1 ${val == null ? "bg-amber-500/10" : ""}`}>
                     <span className="text-sm">{it.label}</span>
                     <div className="flex overflow-hidden rounded-lg border border-foreground/15 text-xs">
                       {(["ok", "fail"] as const).map((opt) => (
@@ -831,6 +1015,18 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <div className="mx-auto w-full max-w-[240px]">
             <Croquis existing={props.existingDamages} markers={draft.damages as Marker[]} onAdd={(posX, posY) => setDraft((d) => ({ ...d, damages: [...d.damages, { id: newId(), posX, posY, description: "" }] }))} onRemove={(id) => setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== id) }))} />
           </div>
+          {props.existingDamages.length > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                Daños ya registrados ({props.existingDamages.length})
+              </p>
+              <ul className="mt-1 list-disc pl-4 text-sm text-foreground/70">
+                {props.existingDamages.map((d, i) => (
+                  <li key={i}>{d.description?.trim() || "Daño sin descripción"}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {draft.damages.map((dm, i) => (
             <div key={dm.id} className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
               <div className="flex items-center justify-between">
@@ -891,7 +1087,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
             <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />
             <CompareRow label="Kilometraje" value={`${props.returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
-            <CompareRow label="Nafta" value={`${props.returnContext.handoverFuel}/8 → ${draft.fuelLevel}/8`} tone={fuelDiff < 0 ? "warn" : undefined} />
+            <CompareRow label="Nafta" value={`${props.returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
           </div>
           <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
             <p className="text-sm font-semibold">
@@ -906,7 +1102,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
             )}
           </div>
           {fuelDiff < 0 && (
-            <p className="text-xs text-amber-600">Devuelve con menos nafta que a la entrega ({fuelDiff}/8).</p>
+            <p className="text-xs text-amber-600">Devuelve con menos nafta que a la entrega ({fuelDiff}/{maxFuel}).</p>
           )}
 
           {settlement && (
@@ -941,7 +1137,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm">
                     Nafta faltante
-                    <span className="text-foreground/50"> ({settlement.fuelMissingEighths}/8)</span>
+                    <span className="text-foreground/50"> ({settlement.fuelMissingEighths}/{maxFuel})</span>
                   </span>
                   <input
                     className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
@@ -1090,7 +1286,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
             {isHandover && <CompareRow label="Cliente" value={draft.clientName || "—"} />}
             <CompareRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
             <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
-            <CompareRow label="Nafta" value={`${draft.fuelLevel}/8`} />
+            <CompareRow label="Nafta" value={`${draft.fuelLevel}/${maxFuel}`} />
             {props.returnContext && <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
             {settlement && (
               <CompareRow

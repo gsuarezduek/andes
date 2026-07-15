@@ -30,6 +30,7 @@ export type Dictionary = {
     conditionsTitle: string;
     vehicleStateTitle: string;
     clientTitle: string;
+    authorizedDrivers: string;
     termsTitle: string;
     vehicle: string;
     plate: string;
@@ -47,10 +48,12 @@ export type Dictionary = {
     dailyRate: string;
     insurance: string;
     kmIncluded: string;
+    unlimitedKm: string;
     extraKm: string;
     extraHour: string;
     extraHourAmount: string;
     accessories: string;
+    guaranteeForm: string;
     total: string;
     paid: string;
     balance: string;
@@ -111,6 +114,7 @@ const es: Dictionary = {
     conditionsTitle: "Condiciones de alquiler y estado del vehículo",
     vehicleStateTitle: "Estado del vehículo",
     clientTitle: "Cliente",
+    authorizedDrivers: "Conductores autorizados",
     termsTitle: "Condiciones del alquiler",
     vehicle: "Vehículo",
     plate: "Dominio",
@@ -128,10 +132,12 @@ const es: Dictionary = {
     dailyRate: "Precio por día",
     insurance: "Seguro con franquicia",
     kmIncluded: "Km para uso",
+    unlimitedKm: "Libre (sin cargo por excedente)",
     extraKm: "Km extra",
     extraHour: "Hora extra",
     extraHourAmount: "Hora extra (importe)",
     accessories: "Accesorios",
+    guaranteeForm: "Forma de garantía",
     total: "Total a pagar",
     paid: "Paga",
     balance: "Saldo",
@@ -207,6 +213,7 @@ const en: Dictionary = {
     conditionsTitle: "Rental conditions and vehicle condition",
     vehicleStateTitle: "Vehicle condition",
     clientTitle: "Customer",
+    authorizedDrivers: "Authorized drivers",
     termsTitle: "Rental terms",
     vehicle: "Vehicle",
     plate: "Plate",
@@ -224,10 +231,12 @@ const en: Dictionary = {
     dailyRate: "Daily rate",
     insurance: "Insurance with excess",
     kmIncluded: "Included km",
+    unlimitedKm: "Unlimited (no excess charge)",
     extraKm: "Extra km",
     extraHour: "Extra hour",
     extraHourAmount: "Extra hour (amount)",
     accessories: "Accessories",
+    guaranteeForm: "Guarantee method",
     total: "Total due",
     paid: "Paid",
     balance: "Balance",

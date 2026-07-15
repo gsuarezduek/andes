@@ -28,11 +28,21 @@ export function TextField({
   hint,
   id,
   className = "",
+  prefix,
   ...props
-}: ComponentProps<"input"> & { label: string; hint?: string; id: string }) {
+}: ComponentProps<"input"> & { label: string; hint?: string; id: string; prefix?: ReactNode }) {
   return (
     <FieldShell label={label} htmlFor={id} hint={hint}>
-      <input id={id} name={id} className={`${inputBase} ${className}`} {...props} />
+      {prefix != null ? (
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-foreground/50">
+            {prefix}
+          </span>
+          <input id={id} name={id} className={`${inputBase} pl-7 ${className}`} {...props} />
+        </div>
+      ) : (
+        <input id={id} name={id} className={`${inputBase} ${className}`} {...props} />
+      )}
     </FieldShell>
   );
 }

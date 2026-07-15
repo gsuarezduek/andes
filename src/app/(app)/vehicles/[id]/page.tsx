@@ -58,11 +58,27 @@ export default async function VehicleDetailPage({
           user: { select: { name: true } },
         },
       },
-      damages: { where: { repaired: false }, select: { id: true, posX: true, posY: true, description: true, photoUrl: true } },
+      damages: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          posX: true,
+          posY: true,
+          description: true,
+          photoUrl: true,
+          repaired: true,
+          createdAt: true,
+          repairedAt: true,
+          reportedBy: { select: { name: true } },
+          repairedBy: { select: { name: true } },
+        },
+      },
       maintenanceLogs: { orderBy: { date: "desc" } },
     },
   });
   if (!vehicle) notFound();
+
+  const activeDamages = vehicle.damages.filter((d) => !d.repaired);
 
   const kmData = vehicle.inspections.map((i) => ({ km: i.km, label: formatDate(i.createdAt) }));
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
@@ -110,6 +126,7 @@ export default async function VehicleDetailPage({
             }
           />
           <Row label="Intervalo de service" value={vehicle.serviceIntervalKm ? `${vehicle.serviceIntervalKm.toLocaleString("es-AR")} km` : "—"} />
+          <Row label="Líneas de combustible" value={`${vehicle.fuelLevels} líneas`} />
           <Row label="Mapeo VikRentCar" value={vehicle.wpCarId ? `idcar ${vehicle.wpCarId} · unidad ${vehicle.wpCarIndex}` : "Sin mapear"} />
           <Row label="Notas" value={vehicle.notes} />
         </div>
@@ -145,16 +162,16 @@ export default async function VehicleDetailPage({
 
       {/* Daños activos */}
       <section className="flex flex-col gap-2">
-        <SectionTitle>Daños activos ({vehicle.damages.length})</SectionTitle>
-        {vehicle.damages.length === 0 ? (
+        <SectionTitle>Daños activos ({activeDamages.length})</SectionTitle>
+        {activeDamages.length === 0 ? (
           <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">Sin daños activos.</p>
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <div className="mx-auto w-full max-w-[180px] shrink-0">
-              <Croquis existing={vehicle.damages} markers={[]} readOnly />
+              <Croquis existing={activeDamages} markers={[]} readOnly />
             </div>
             <ul className="flex-1 divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-              {vehicle.damages.map((d) => (
+              {activeDamages.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                   <div className="flex min-w-0 items-center gap-3">
                     {d.photoUrl && (
@@ -194,9 +211,37 @@ export default async function VehicleDetailPage({
             Agregar daño
           </summary>
           <div className="px-4 pb-4">
-            <AddDamageForm vehicleId={vehicle.id} existing={vehicle.damages} />
+            <AddDamageForm vehicleId={vehicle.id} existing={activeDamages} />
           </div>
         </details>
+      </section>
+
+      {/* Historial de daños (activos + reparados, con auditoría) */}
+      <section className="flex flex-col gap-2">
+        <SectionTitle>Historial de daños ({vehicle.damages.length})</SectionTitle>
+        {vehicle.damages.length === 0 ? (
+          <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">Sin daños registrados.</p>
+        ) : (
+          <ul className="divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
+            {vehicle.damages.map((d) => (
+              <li key={d.id} className="flex flex-col gap-1 px-4 py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 font-medium">{d.description || "Daño sin descripción"}</span>
+                  <Badge tone={d.repaired ? "neutral" : "amber"}>{d.repaired ? "Reparado" : "Activo"}</Badge>
+                </div>
+                <p className="text-xs text-foreground/50">
+                  Cargado por {d.reportedBy?.name ?? "—"} · {formatDateTime(d.createdAt)}
+                </p>
+                {d.repaired && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Reparado por {d.repairedBy?.name ?? "—"}
+                    {d.repairedAt ? ` · ${formatDateTime(d.repairedAt)}` : ""}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Historial de alquileres */}

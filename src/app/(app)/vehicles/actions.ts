@@ -31,6 +31,10 @@ const vehicleSchema = z.object({
     z.number().int().nonnegative(),
   ),
   status: z.enum(["available", "rented", "out_of_service"]),
+  fuelLevels: z.preprocess(
+    (v) => (v === "" || v == null ? 8 : Number(v)),
+    z.number().int().min(4, "Mínimo 4 líneas").max(16, "Máximo 16 líneas"),
+  ),
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
   notes: z.preprocess(
@@ -48,6 +52,7 @@ function parse(formData: FormData) {
     color: formData.get("color"),
     currentKm: formData.get("currentKm"),
     status: formData.get("status"),
+    fuelLevels: formData.get("fuelLevels"),
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),

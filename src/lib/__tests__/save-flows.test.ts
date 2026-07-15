@@ -130,6 +130,38 @@ describe("saveHandover", () => {
     await saveHandover(baseInput);
     expect(tx.rentalDocument.createMany).not.toHaveBeenCalled();
   });
+
+  it("persiste conductores adicionales y la licencia con su nombre", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+    await saveHandover({
+      ...baseInput,
+      additionalDrivers: [{ name: "María Gómez" }],
+      documents: [{ kind: "license", key: "uploads/d1/documents/m.jpg", holderName: "María Gómez" }],
+    });
+
+    // El nombre queda en el alquiler como conductor autorizado.
+    expect(tx.rental.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ additionalDrivers: [{ name: "María Gómez" }] }) }),
+    );
+    // La foto de la licencia lleva holderName.
+    const rows = tx.rentalDocument.createMany.mock.calls[0][0].data;
+    expect(rows[0]).toMatchObject({ kind: "license", holderName: "María Gómez" });
+  });
+
+  it("registra el autor del daño (reportedById) en la inspección", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+    await saveHandover({
+      ...baseInput,
+      newDamages: [{ view: "top", posX: 0.5, posY: 0.5, description: "Rayón" }],
+    });
+
+    const inspArg = tx.inspection.create.mock.calls[0][0].data;
+    expect(inspArg.damages.create[0]).toMatchObject({ description: "Rayón", reportedById: "user1" });
+  });
 });
 
 describe("saveReturn", () => {

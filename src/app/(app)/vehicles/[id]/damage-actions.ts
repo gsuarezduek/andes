@@ -20,7 +20,7 @@ const addDamageSchema = z.object({
 // golpe detectado en el día a día sin abrir una entrega/devolución. Queda como
 // daño activo: se premarca en las próximas inspecciones hasta marcarlo reparado.
 export async function addDamage(vehicleId: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const parsed = addDamageSchema.parse({
     posX: formData.get("posX"),
     posY: formData.get("posY"),
@@ -34,6 +34,7 @@ export async function addDamage(vehicleId: string, formData: FormData) {
       posY: parsed.posY,
       description: parsed.description ?? null,
       photoUrl: parsed.photoKey ?? null,
+      reportedById: user.id,
     },
   });
   revalidatePath(`/vehicles/${vehicleId}`);
@@ -43,10 +44,10 @@ export async function addDamage(vehicleId: string, formData: FormData) {
 // (no aparece en el perfil ni se premarca en las próximas inspecciones). No
 // toca el acta que lo detectó — la evidencia histórica sigue intacta.
 export async function markDamageRepaired(vehicleId: string, id: string) {
-  await requireUser();
+  const user = await requireUser();
   await prisma.damage.update({
     where: { id, vehicleId },
-    data: { repaired: true },
+    data: { repaired: true, repairedById: user.id, repairedAt: new Date() },
   });
   revalidatePath(`/vehicles/${vehicleId}`);
 }

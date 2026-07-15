@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { AppNav } from "@/components/app-nav";
 import { logout } from "./actions";
+import { triggerSync } from "./sync/actions";
 
 export default async function AppLayout({
   children,
@@ -21,7 +22,7 @@ export default async function AppLayout({
             <span className="text-base font-bold tracking-tight">Andes</span>
           </Link>
 
-          <AppNav isAdmin={isAdmin} userName={user.name} logout={logout} />
+          <AppNav isAdmin={isAdmin} userName={user.name} logout={logout} sync={triggerSync} />
         </div>
       </header>
 

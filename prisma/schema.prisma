@@ -113,6 +113,8 @@ model User {
   inspections       Inspection[]
   rentalDocuments   RentalDocument[]
   signatureRequests SignatureRequest[]
+  reportedDamages   Damage[]           @relation("DamageReporter")
+  repairedDamages   Damage[]           @relation("DamageRepairer")
 
   @@map("users")
 }
@@ -131,6 +133,10 @@ model Vehicle {
   currentKm     Int           @default(0) @map("current_km")
   status        VehicleStatus @default(available)
   nextServiceKm Int?          @map("next_service_km")
+  // Cantidad de líneas/octavos del tanque de este auto (4–16, default 8). El
+  // nivel de nafta de cada inspección se mide 0..fuelLevels. Configurable por
+  // unidad: distintos autos tienen distinta granularidad de aguja.
+  fuelLevels    Int           @default(8) @map("fuel_levels")
   // Intervalo de service en km. Al registrar un service, el próximo se
   // reprograma a (km del service + intervalo). Alimenta las alertas.
   serviceIntervalKm Int? @map("service_interval_km")
@@ -179,6 +185,11 @@ model Rental {
   clientPhone     String?   @map("client_phone")
   clientDocNumber String?   @map("client_doc_number") // nro. de documento opcional
   licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
+
+  // Conductores adicionales autorizados (además del titular). Array JSON
+  // [{ name }]; sus fotos de licencia se guardan como RentalDocument con
+  // holderName. Los nombres figuran en el acta como conductores autorizados.
+  additionalDrivers Json? @map("additional_drivers")
 
   startAt DateTime @map("start_at") // fecha/hora de retiro (UTC)
   endAt   DateTime @map("end_at") // fecha/hora de devolución (UTC)
@@ -235,6 +246,10 @@ model RentalDocument {
 
   kind DocumentKind
   url  String // clave en R2 (bucket privado)
+
+  // Nombre del titular del documento cuando pertenece a un conductor adicional
+  // (no al cliente principal). Null = documento del titular del alquiler.
+  holderName String? @map("holder_name")
 
   // Empleado que lo cargó (auditoría). Nullable por robustez.
   uploadedById String? @map("uploaded_by_id")
@@ -370,6 +385,14 @@ model Damage {
   description String?
   photoUrl    String?    @map("photo_url")
   repaired    Boolean    @default(false)
+
+  // Auditoría: quién cargó el daño (createdAt = fecha de carga) y, si se reparó,
+  // quién lo marcó reparado y cuándo. Nullable por robustez (daños del seed).
+  reportedById String? @map("reported_by_id")
+  reportedBy   User?   @relation("DamageReporter", fields: [reportedById], references: [id])
+  repairedById String? @map("repaired_by_id")
+  repairedBy   User?   @relation("DamageRepairer", fields: [repairedById], references: [id])
+  repairedAt   DateTime? @map("repaired_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -1,6 +1,14 @@
 "use client";
 
 import { useRef } from "react";
+import {
+  CROQUIS_VIEWBOX,
+  CROQUIS_BODY,
+  CROQUIS_ROOF,
+  CROQUIS_MIRRORS,
+  CROQUIS_WINDSHIELD,
+  CROQUIS_REAR_WINDOW,
+} from "./croquis-shape";
 
 export type Marker = { id: string; posX: number; posY: number };
 
@@ -41,17 +49,18 @@ export function Croquis({
       className={`relative w-full select-none rounded-xl border border-foreground/15 bg-foreground/[0.02] ${readOnly ? "" : "cursor-crosshair"}`}
       style={{ aspectRatio: "1 / 1.9" }}
     >
-      <svg viewBox="0 0 100 190" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={`0 0 ${CROQUIS_VIEWBOX.width} ${CROQUIS_VIEWBOX.height}`} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
         {/* carrocería */}
-        <rect x="18" y="8" width="64" height="174" rx="26" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.5" />
+        <rect {...CROQUIS_BODY} fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.5" />
         {/* parabrisas / luneta */}
-        <path d="M26 46 Q50 34 74 46" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.2" />
-        <path d="M26 150 Q50 162 74 150" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.2" />
+        <path d={CROQUIS_WINDSHIELD} fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.2" />
+        <path d={CROQUIS_REAR_WINDOW} fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.2" />
         {/* techo */}
-        <rect x="30" y="58" width="40" height="80" rx="12" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1" />
+        <rect {...CROQUIS_ROOF} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1" />
         {/* espejos */}
-        <rect x="12" y="60" width="6" height="10" rx="2" fill="currentColor" fillOpacity="0.15" />
-        <rect x="82" y="60" width="6" height="10" rx="2" fill="currentColor" fillOpacity="0.15" />
+        {CROQUIS_MIRRORS.map((m, i) => (
+          <rect key={i} {...m} fill="currentColor" fillOpacity="0.15" />
+        ))}
         <text x="50" y="26" textAnchor="middle" fontSize="7" fill="currentColor" fillOpacity="0.4">Frente</text>
         <text x="50" y="176" textAnchor="middle" fontSize="7" fill="currentColor" fillOpacity="0.4">Atrás</text>
       </svg>

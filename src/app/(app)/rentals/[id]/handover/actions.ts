@@ -18,15 +18,18 @@ const pricingSchema = z
     insuranceAmount: optNum,
     kmPerDay: optNum,
     extraKmRate: optNum,
+    unlimitedKm: z.boolean().optional(),
     extraHourPercent: optNum,
     kmIncluded: optNum, // compat
     extraHourRate: optNum, // compat
     accessoriesDesc: z.string().optional(),
     accessoriesAmount: optNum,
     total: optNum,
+    sena: optNum,
     paid: optNum,
     balance: optNum,
     deposit: optNum,
+    guaranteeForm: z.string().optional(),
   })
   .optional();
 
@@ -47,7 +50,7 @@ const saveSchema = z.object({
   clientPhone: z.string().trim().optional(),
   clientDocNumber: z.string().trim().optional(),
   km: z.number().int().nonnegative(),
-  fuelLevel: z.number().int().min(0).max(8),
+  fuelLevel: z.number().int().min(0).max(16),
   checklist: z.record(z.string(), z.enum(["ok", "fail"])),
   observations: z.string().optional(),
   newDamages: z.array(damageSchema),
@@ -62,8 +65,12 @@ const saveSchema = z.object({
       z.object({
         kind: z.enum(["license", "dni", "passport"]),
         key: z.string().min(1),
+        holderName: z.string().trim().optional(),
       }),
     )
+    .optional(),
+  additionalDrivers: z
+    .array(z.object({ name: z.string().trim().min(1) }))
     .optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -128,6 +135,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
             posY: d.posY,
             description: d.description ?? null,
             photoUrl: d.photoKey ?? null,
+            reportedById: user.id,
           })),
         },
       },
@@ -151,6 +159,9 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         clientDocNumber: data.clientDocNumber || null,
         ...(licenseExpiry ? { licenseExpiry } : {}),
         ...(hasPricing ? { pricing: data.pricing } : {}),
+        ...(data.additionalDrivers?.length
+          ? { additionalDrivers: data.additionalDrivers }
+          : {}),
       },
     });
     await tx.vehicle.update({
@@ -165,6 +176,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
           rentalId: rental.id,
           kind: doc.kind,
           url: doc.key,
+          holderName: doc.holderName || null,
           uploadedById: user.id,
         })),
       });

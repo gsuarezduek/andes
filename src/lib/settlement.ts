@@ -44,7 +44,7 @@ export type SettlementInput = {
   returnKm: number;
   handoverFuel: number;
   returnFuel: number;
-  pricing?: Pick<ContractPricing, "kmPerDay" | "days" | "extraKmRate" | "deposit"> | null;
+  pricing?: Pick<ContractPricing, "kmPerDay" | "days" | "extraKmRate" | "deposit" | "unlimitedKm"> | null;
   newDamages?: { description?: string }[];
 };
 
@@ -71,7 +71,9 @@ export function computeSettlement(input: SettlementInput): Settlement {
   const kmDriven = Math.max(0, input.returnKm - input.handoverKm);
   const kmPerDay = input.pricing?.kmPerDay ?? 0;
   const days = input.pricing?.days ?? 0;
-  const includedKm = kmPerDay > 0 && days > 0 ? kmPerDay * days : 0;
+  // "KM libres": sin límite pactado → nunca hay excedente que cobrar.
+  const includedKm =
+    input.pricing?.unlimitedKm ? 0 : kmPerDay > 0 && days > 0 ? kmPerDay * days : 0;
   // Sin km incluido pactado no se cobra excedente (no hay límite).
   const extraKm = includedKm > 0 ? Math.max(0, kmDriven - includedKm) : 0;
   const extraKmRate = input.pricing?.extraKmRate ?? 0;

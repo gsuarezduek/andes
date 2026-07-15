@@ -75,6 +75,8 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   ];
   if (pricing.place) termRows.push({ label: t.place, value: pricing.place });
   for (const f of PRICING_FIELDS) {
+    // "KM libres": el km incluido y el km extra no aplican.
+    if (pricing.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate")) continue;
     const v = pricing[f.key];
     if (typeof v === "number" && !Number.isNaN(v)) {
       const value =
@@ -82,10 +84,19 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
       termRows.push({ label: f.label, value });
     }
   }
+  if (pricing.unlimitedKm) {
+    termRows.push({ label: t.kmIncluded, value: t.unlimitedKm });
+  }
   // Importe de la hora extra derivado del % sobre la tarifa diaria.
   const hourAmount = extraHourAmount(pricing);
   if (hourAmount != null) {
     termRows.push({ label: t.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
+  }
+  if (pricing.accessoriesDesc?.trim()) {
+    termRows.push({ label: t.accessories, value: pricing.accessoriesDesc.trim() });
+  }
+  if (pricing.guaranteeForm?.trim()) {
+    termRows.push({ label: t.guaranteeForm, value: pricing.guaranteeForm.trim() });
   }
 
   // Comparación con la entrega (solo devolución).
@@ -111,6 +122,14 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
       ? (inspection.settlement as Settlement)
       : undefined;
 
+  // Conductores autorizados: titular + adicionales cargados en la entrega.
+  const extraDrivers = Array.isArray(r.additionalDrivers)
+    ? (r.additionalDrivers as { name?: string }[])
+        .map((d) => d?.name?.trim())
+        .filter((n): n is string => Boolean(n))
+    : [];
+  const authorizedDrivers = [r.clientName, ...extraDrivers].filter(Boolean);
+
   const data: ActaData = {
     kind: inspection.type === "handover" ? "handover" : "return",
     dict,
@@ -122,11 +141,13 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,
     clientRows,
+    authorizedDrivers: extraDrivers.length > 0 ? authorizedDrivers : undefined,
     termRows,
     km: inspection.km,
     fuelLevel: inspection.fuelLevel,
+    fuelLevels: inspection.vehicle.fuelLevels,
     checklist,
-    damages: inspection.damages.map((d) => ({ view: d.view, description: d.description })),
+    damages: inspection.damages.map((d) => ({ view: d.view, description: d.description, posX: d.posX, posY: d.posY })),
     observations: inspection.observations,
     signerName: inspection.signerName,
     signatureDataUri,

@@ -12,6 +12,7 @@ export type InspectionDamageInput = {
 };
 
 import type { Settlement } from "@/lib/settlement";
+import type { ContractPricing } from "@/lib/contract";
 
 /** Tipo de documento del cliente. Espeja el enum Prisma `DocumentKind`. */
 export type DocumentKindInput = "license" | "dni" | "passport";
@@ -19,6 +20,13 @@ export type DocumentKindInput = "license" | "dni" | "passport";
 export type InspectionDocumentInput = {
   kind: DocumentKindInput;
   key: string;
+  // Nombre del titular cuando la foto es la licencia de un conductor adicional.
+  holderName?: string;
+};
+
+/** Conductor adicional autorizado (además del titular). */
+export type AdditionalDriverInput = {
+  name: string;
 };
 
 export type InspectionInput = {
@@ -41,9 +49,11 @@ export type InspectionInput = {
   signatureKey: string;
   signerName: string;
   licenseExpiry?: string;
-  pricing?: Record<string, number>;
+  pricing?: ContractPricing;
   // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega.
   documents?: InspectionDocumentInput[];
+  // Conductores adicionales autorizados (solo en la entrega).
+  additionalDrivers?: AdditionalDriverInput[];
   // Liquidación (solo en la devolución): excedente de km, nafta y daños.
   settlement?: Settlement;
   latitude?: number;

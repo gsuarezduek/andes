@@ -154,6 +154,27 @@ Plan aprobado, cerrado en la Fase 11 (fases 7–11 desplegables). La Fase 12 (i1
   - **Sin migración.** Queries verificadas contra la base local (incl. `groupBy` de daños). Build/lint/test en verde.
 - [~] **Fase 12 — i18n completo de la UI del empleado — DESCARTADA.** Decisión del dueño: la UI del empleado queda en español. No se implementa.
 
+## v3 — Refinamientos de flota, entrega y acta (post-fase-11)
+
+Tanda de mejoras nacidas del uso real. Construida y probada en local (build/lint + 54 tests en verde, incluido un smoke test que renderiza el acta con el croquis). **Falta desplegar la migración `add_vehicle_fuel_levels_damage_audit_drivers` en Railway** y probar en celular real (375px).
+
+- **Líneas de combustible por auto** ✅: `vehicles.fuel_levels` (Int 4–16, default 8; migración). Configurable en la edición del vehículo (selector) y visible en el perfil. El `FuelSelector` toma `max` dinámico (0..N con etiquetas `n/N`); el wizard lo recibe vía `maxFuel` (del vehículo) y precarga tanque lleno en la entrega; el acta muestra `N/max` en estado, comparación y liquidación. El nivel se sigue guardando como entero; comparación/settlement solo hacen diferencias.
+- **Historial de daños auditable** ✅: `damages.reported_by_id`/`repaired_by_id`/`repaired_at` (migración; `created_at` ya era la fecha de carga). `addDamage` y los daños creados en `saveHandover`/`saveReturn` setean `reportedById`; `markDamageRepaired` setea `repairedById`+`repairedAt`. El perfil del vehículo suma una sección **"Historial de daños"** (activos + reparados) con quién lo cargó/reparó y las fechas; "Daños activos" (croquis) se mantiene.
+- **Wizard de entrega**:
+  - **Detalle del daño existente** ✅: el paso "Daños" lista el texto de los daños ya registrados (antes solo el punto ámbar en el croquis).
+  - **Documentos desde la galería** ✅: cada tipo (licencia/DNI/pasaporte) tiene botón 📷 (cámara, `capture`) y 🖼️ (elegir archivo del teléfono, sin `capture`).
+  - **Fecha de licencia** ✅ movida al paso "Datos" (debajo de los documentos); ya no está en "Condiciones".
+  - **Conductores adicionales** ✅: en "Datos" se agregan conductores (nombre + foto de licencia). Se guardan en `rentals.additional_drivers` (Json `[{name}]`; migración) y la licencia como `RentalDocument` con `holder_name` (migración). Los **nombres figuran en el acta** ("Conductores autorizados", titular + adicionales); la foto queda interna.
+  - **KM Libres** ✅: botón en "Condiciones" (`ContractPricing.unlimitedKm`) que deshabilita km/día y km extra; `computeSettlement` no cobra excedente aunque haya km incluido pactado. Se refleja en el acta.
+  - **Accesorios en texto** ✅: `TextareaField` para `accessoriesDesc` (ya existía en el type) impreso en el acta.
+  - **Símbolo $** ✅ en los inputs de dinero (prop `prefix` nueva en `TextField`).
+  - **Bloque Total / Seña / Paga / Saldo** ✅: `ContractPricing.sena` nuevo; el **saldo se autocalcula** = total − seña − paga (helper puro `computeBalance`, testeado), editable.
+  - **Garantía (entrega) vs excedentes (devolución)** ✅: en la entrega el depósito se rotula "Garantía" y suma un textarea "Forma de garantía" (`ContractPricing.guaranteeForm`); ambos van al acta. La liquidación de la devolución sigue usando "excedentes/depósito".
+  - **Checklist obligatorio** ✅: los ítems arrancan **neutros** (sin OK/Falla); el paso "Estado" no avanza hasta decidir todos (contador "Faltan N"/"Completo ✓"). Se sigue persistiendo solo `ok`/`fail`.
+- **Croquis con daños en el acta** ✅: geometría del auto factorizada a `src/components/inspection/croquis-shape.ts` (usada por el croquis en pantalla y por uno nuevo dibujado con `Svg`/`Path`/`Rect`/`Circle` de react-pdf). La sección "Daños" del acta ahora muestra el **croquis con un círculo rojo por daño** + la lista de texto (antes solo texto).
+- **Sincronizar a mano desde el header** ✅: ícono de sync junto al menú de perfil (desktop) y un ítem en el menú mobile, con spinner y check. Reusa la server action `triggerSync` (auth por sesión), no el endpoint `CRON_SECRET`.
+- Sin cambios de cobros. `ContractPricing` extendido no rompe reportes ni el sync (que nunca pisa `pricing`).
+
 ## Add-on — Andes Pay Stripe (pasarela de pago para VikRentCar)
 
 Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/andes-pay-stripe/`. Agrega **"Andes Pay Stripe"** como método de pago de **VikRentCar Pro (v1.4.6)**: cobra el **total** de la reserva con tarjeta vía **Stripe Checkout** (redirección alojada por Stripe, PCI mínimo). **Probado y funcionando en producción (Live):** cobro → retorno → reserva marcada pagada por VikRentCar.

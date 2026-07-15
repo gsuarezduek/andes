@@ -37,6 +37,13 @@ export function VehicleForm({
         <TextField id="nextServiceKm" label="Próximo service (km)" hint="Opcional — alimenta las alertas" type="number" inputMode="numeric" defaultValue={vehicle?.nextServiceKm ?? ""} min={0} />
       </div>
       <TextField id="serviceIntervalKm" label="Intervalo de service (km)" hint="Opcional — al registrar un service, el próximo se reprograma solo (ej. 10000)" type="number" inputMode="numeric" defaultValue={vehicle?.serviceIntervalKm ?? ""} min={0} />
+      <SelectField id="fuelLevels" label="Líneas de combustible" hint="Divisiones de la aguja de nafta para las inspecciones (4 a 16)" defaultValue={vehicle?.fuelLevels ?? 8}>
+        {Array.from({ length: 13 }, (_, i) => i + 4).map((n) => (
+          <option key={n} value={n}>
+            {n} líneas
+          </option>
+        ))}
+      </SelectField>
       <SelectField id="status" label="Estado" defaultValue={vehicle?.status ?? "available"}>
         {Object.entries(vehicleStatusLabels).map(([value, label]) => (
           <option key={value} value={value}>

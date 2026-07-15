@@ -5,14 +5,26 @@ import {
   Text,
   Image,
   StyleSheet,
+  Svg,
+  Rect,
+  Path,
+  Circle,
 } from "@react-pdf/renderer";
 import type { Dictionary } from "@/lib/i18n";
 import { formatArs } from "@/lib/contract";
 import type { Settlement } from "@/lib/settlement";
+import {
+  CROQUIS_VIEWBOX,
+  CROQUIS_BODY,
+  CROQUIS_ROOF,
+  CROQUIS_MIRRORS,
+  CROQUIS_WINDSHIELD,
+  CROQUIS_REAR_WINDOW,
+} from "@/components/inspection/croquis-shape";
 
 export type ActaRow = { label: string; value: string };
 export type ActaChecklist = { label: string; status: "ok" | "fail" };
-export type ActaDamage = { view: string; description?: string | null };
+export type ActaDamage = { view: string; description?: string | null; posX?: number; posY?: number };
 
 export type ActaData = {
   kind: "handover" | "return";
@@ -30,9 +42,13 @@ export type ActaData = {
   vehicleLabel: string;
   plate: string;
   clientRows: ActaRow[];
+  /** Conductores autorizados (titular + adicionales), por nombre. */
+  authorizedDrivers?: string[];
   termRows: ActaRow[];
   km: number;
   fuelLevel: number;
+  /** Divisiones del tanque de este vehículo (para mostrar N/max). */
+  fuelLevels: number;
   comparison?: {
     handoverKm: number;
     returnKm: number;
@@ -80,6 +96,9 @@ const styles = StyleSheet.create({
   li: { width: "50%", flexDirection: "row", justifyContent: "space-between", paddingVertical: 1, paddingRight: 10 },
   ok: { color: "#16a34a", fontFamily: "Helvetica-Bold" },
   fail: { color: "#dc2626", fontFamily: "Helvetica-Bold" },
+  damagesWrap: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  croquisBox: { width: 90 },
+  damagesList: { flex: 1 },
   photos: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   photo: { width: 110, height: 82, objectFit: "cover", borderRadius: 3 },
   signatureBox: { marginTop: 10, borderTop: "1px solid #e2e8f0", paddingTop: 8 },
@@ -115,6 +134,31 @@ function Header({ data, title }: { data: ActaData; title: string }) {
   );
 }
 
+/**
+ * Croquis del auto (vista superior) dibujado con primitivas de react-pdf, con
+ * un círculo rojo por cada daño de esta inspección. Misma geometría que el
+ * croquis en pantalla (`croquis-shape.ts`).
+ */
+function ActaCroquis({ damages }: { damages: ActaDamage[] }) {
+  const W = 90;
+  const H = (W * CROQUIS_VIEWBOX.height) / CROQUIS_VIEWBOX.width;
+  const marks = damages.filter((d) => d.posX != null && d.posY != null);
+  return (
+    <Svg width={W} height={H} viewBox={`0 0 ${CROQUIS_VIEWBOX.width} ${CROQUIS_VIEWBOX.height}`}>
+      <Rect {...CROQUIS_BODY} fill="none" stroke="#94a3b8" strokeWidth={1.5} />
+      <Path d={CROQUIS_WINDSHIELD} fill="none" stroke="#cbd5e1" strokeWidth={1.2} />
+      <Path d={CROQUIS_REAR_WINDOW} fill="none" stroke="#cbd5e1" strokeWidth={1.2} />
+      <Rect {...CROQUIS_ROOF} fill="none" stroke="#e2e8f0" strokeWidth={1} />
+      {CROQUIS_MIRRORS.map((m, i) => (
+        <Rect key={i} {...m} fill="#e2e8f0" />
+      ))}
+      {marks.map((d, i) => (
+        <Circle key={i} cx={d.posX! * 100} cy={d.posY! * 190} r={4} fill="#dc2626" stroke="#ffffff" strokeWidth={1} />
+      ))}
+    </Svg>
+  );
+}
+
 function Rows({ rows, grid }: { rows: ActaRow[]; grid?: boolean }) {
   if (rows.length === 0) return null;
   return (
@@ -146,6 +190,15 @@ export function ActaDocument(props: ActaData) {
           <Rows rows={props.clientRows} grid />
         </View>
 
+        {props.authorizedDrivers && props.authorizedDrivers.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t.authorizedDrivers}</Text>
+            {props.authorizedDrivers.map((name, i) => (
+              <Text key={i}>• {name}</Text>
+            ))}
+          </View>
+        ) : null}
+
         {props.termRows.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t.termsTitle}</Text>
@@ -170,7 +223,7 @@ export function ActaDocument(props: ActaData) {
             </View>
             <View style={styles.cell}>
               <Text style={styles.label}>{t.fuelLevel}</Text>
-              <Text style={styles.value}>{props.fuelLevel}/8</Text>
+              <Text style={styles.value}>{props.fuelLevel}/{props.fuelLevels}</Text>
             </View>
           </View>
         </View>
@@ -192,7 +245,7 @@ export function ActaDocument(props: ActaData) {
               <View style={styles.cell}>
                 <Text style={styles.label}>{t.fuelDifference}</Text>
                 <Text style={styles.value}>
-                  {props.comparison.handoverFuel}/8 → {props.comparison.returnFuel}/8
+                  {props.comparison.handoverFuel}/{props.fuelLevels} → {props.comparison.returnFuel}/{props.fuelLevels}
                 </Text>
               </View>
               <View style={styles.cell}>
@@ -217,7 +270,7 @@ export function ActaDocument(props: ActaData) {
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>
-                {t.settlement.fuel} ({props.settlement.fuelMissingEighths}/8)
+                {t.settlement.fuel} ({props.settlement.fuelMissingEighths}/{props.fuelLevels})
               </Text>
               <Text style={styles.value}>{formatArs(props.settlement.fuelCharge)}</Text>
             </View>
@@ -273,14 +326,21 @@ export function ActaDocument(props: ActaData) {
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>{t.damages}</Text>
           {props.damages.length === 0 ? (
             <Text style={styles.label}>Sin daños nuevos registrados.</Text>
           ) : (
-            props.damages.map((d, i) => (
-              <Text key={i}>• {d.description ? d.description : `Daño (${d.view})`}</Text>
-            ))
+            <View style={styles.damagesWrap}>
+              <View style={styles.croquisBox}>
+                <ActaCroquis damages={props.damages} />
+              </View>
+              <View style={styles.damagesList}>
+                {props.damages.map((d, i) => (
+                  <Text key={i}>• {d.description ? d.description : `Daño (${d.view})`}</Text>
+                ))}
+              </View>
+            </View>
           )}
         </View>
 

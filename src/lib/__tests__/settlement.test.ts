@@ -30,6 +30,20 @@ describe("computeSettlement", () => {
     expect(s.extraKmCharge).toBe(0);
   });
 
+  it("con KM libres no cobra excedente aunque haya km incluido y tarifa pactados", () => {
+    const s = computeSettlement({
+      handoverKm: 10_000,
+      returnKm: 20_000, // 10.000 recorridos
+      handoverFuel: 8,
+      returnFuel: 8,
+      pricing: { kmPerDay: 200, days: 3, extraKmRate: 50, deposit: 0, unlimitedKm: true },
+    });
+    expect(s.includedKm).toBe(0);
+    expect(s.extraKm).toBe(0);
+    expect(s.extraKmCharge).toBe(0);
+    expect(s.subtotal).toBe(0);
+  });
+
   it("registra la nafta faltante sin cobrarla automáticamente", () => {
     const s = computeSettlement({
       handoverKm: 0,

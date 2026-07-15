@@ -24,15 +24,18 @@ export type ContractPricing = {
   insuranceAmount?: number; // seguro
   kmPerDay?: number; // km incluidos por día
   extraKmRate?: number; // $ por km extra
+  unlimitedKm?: boolean; // "KM libres": sin límite, no se cobra excedente
   extraHourPercent?: number; // hora extra como % de la tarifa diaria
   kmIncluded?: number; // (compat) km para uso — reemplazado por kmPerDay
   extraHourRate?: number; // (compat) $ por hora extra — hoy derivado de extraHourPercent
   accessoriesDesc?: string;
   accessoriesAmount?: number;
   total?: number; // total a pagar
-  paid?: number; // paga
-  balance?: number; // saldo
-  deposit?: number; // excedentes / depósito en garantía
+  sena?: number; // seña / entrega a cuenta
+  paid?: number; // paga (lo abonado ahora)
+  balance?: number; // saldo (total − seña − paga)
+  deposit?: number; // garantía en la entrega / excedentes en la devolución
+  guaranteeForm?: string; // forma de la garantía (efectivo, tarjeta, etc.) — entrega
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
@@ -48,9 +51,10 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
   { key: "extraHourPercent", label: "Hora extra (% de la tarifa)", kind: "percent" },
   { key: "accessoriesAmount", label: "Accesorios", kind: "money" },
   { key: "total", label: "Total a pagar", kind: "money" },
+  { key: "sena", label: "Seña", kind: "money" },
   { key: "paid", label: "Paga", kind: "money" },
   { key: "balance", label: "Saldo", kind: "money" },
-  { key: "deposit", label: "Excedentes / depósito", kind: "money" },
+  { key: "deposit", label: "Garantía", kind: "money" },
 ];
 
 /**
@@ -60,6 +64,18 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
 export function extraHourAmount(p: Pick<ContractPricing, "dailyRate" | "extraHourPercent">): number | null {
   if (p.dailyRate == null || p.extraHourPercent == null) return null;
   const v = (p.dailyRate * p.extraHourPercent) / 100;
+  return Number.isFinite(v) ? Math.round(v) : null;
+}
+
+/**
+ * Saldo sugerido = total − seña − paga. `null` si no hay total cargado (sin
+ * base no hay saldo que calcular). El empleado puede sobrescribirlo.
+ */
+export function computeBalance(
+  p: Pick<ContractPricing, "total" | "sena" | "paid">,
+): number | null {
+  if (p.total == null || Number.isNaN(p.total)) return null;
+  const v = p.total - (p.sena ?? 0) - (p.paid ?? 0);
   return Number.isFinite(v) ? Math.round(v) : null;
 }
 

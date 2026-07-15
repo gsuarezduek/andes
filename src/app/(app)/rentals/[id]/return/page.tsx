@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
+import type { ContractPricing } from "@/lib/contract";
 import { saveReturn } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
 
@@ -42,7 +43,7 @@ export default async function ReturnPage({
     }),
     prisma.damage.findMany({
       where: { vehicleId: rental.vehicle.id, repaired: false, view: "top" },
-      select: { posX: true, posY: true },
+      select: { posX: true, posY: true, description: true },
     }),
   ]);
 
@@ -68,12 +69,13 @@ export default async function ReturnPage({
         vehicleOptions={[]}
         checklistItems={checklistItems}
         existingDamages={existingDamages}
+        maxFuel={rental.vehicle.fuelLevels}
         language={rental.language}
         createRemoteSignature={createRemoteSignature}
         returnContext={{
           handoverKm: handover.km,
           handoverFuel: handover.fuelLevel,
-          pricing: (rental.pricing as Record<string, number> | null) ?? undefined,
+          pricing: (rental.pricing as ContractPricing | null) ?? undefined,
         }}
       />
     </div>
