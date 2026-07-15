@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { fromUnixSeconds } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
-import type { BookingSource, RawBooking, RawCar } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawSeason } from "./types";
 import { createBookingSource } from "./source";
+import { computeDailyRate } from "./rates";
 
 /**
  * Motor de sincronización VikRentCar → Andes (Fase 5).
@@ -66,6 +67,13 @@ export async function runBookingSync(source?: BookingSource): Promise<SyncSummar
         errors++;
         problems.push(`orden #${b.wpBookingId}: ${errMsg(e)}`);
       }
+    }
+    // Refrescar la tarifa por día de cada modelo (best-effort: no debe tumbar el
+    // sync de reservas). Reusa la misma conexión; no la cierra (lo hace el finally).
+    try {
+      await syncCarRates(src);
+    } catch (e) {
+      problems.push(`tarifas: ${errMsg(e)}`);
     }
   } finally {
     await src.close?.();
@@ -181,6 +189,40 @@ async function resolveVehicleId(
     select: { id: true },
   });
   return v?.id ?? null;
+}
+
+/**
+ * Refresca la tarifa por día (referencia, 1 día) de cada modelo desde VikRentCar:
+ * base de `dispcost` × ajuste de la temporada vigente hoy. Actualiza todas las
+ * unidades (`vehicles`) con ese `wpCarId`. Solo actualiza (no crea) y solo cuando
+ * el modelo tiene tarifa base cargada. Se corre en cada `runBookingSync`.
+ */
+export async function syncCarRates(
+  source?: BookingSource,
+): Promise<{ updated: number; models: number }> {
+  const src = source ?? createBookingSource();
+  let cars: RawCar[];
+  let seasons: RawSeason[];
+  try {
+    [cars, seasons] = await Promise.all([src.fetchCars(), src.fetchSeasons()]);
+  } finally {
+    // Solo cerramos si creamos la fuente acá (si viene de runBookingSync, la
+    // cierra el llamador).
+    if (!source) await src.close?.();
+  }
+
+  const now = new Date();
+  let updated = 0;
+  for (const car of cars) {
+    const rate = computeDailyRate(car.baseDailyRate, seasons, car.id, now);
+    if (rate == null) continue;
+    const res = await prisma.vehicle.updateMany({
+      where: { wpCarId: car.id },
+      data: { dailyRate: rate, dailyRateUpdatedAt: now },
+    });
+    updated += res.count;
+  }
+  return { updated, models: cars.length };
 }
 
 /**

@@ -49,10 +49,16 @@ token** y el puerto MySQL (3306) puede volver a estar **cerrado**.
 | Método | Ruta | Devuelve |
 |---|---|---|
 | GET | `/wp-json/andes/v1/bookings?from=<unix>&to=<unix>&include_standby=0` | `{ bookings: RawBooking[] }` |
-| GET | `/wp-json/andes/v1/cars` | `{ cars: RawCar[] }` |
+| GET | `/wp-json/andes/v1/cars` | `{ cars: RawCar[] }` (incluye `baseDailyRate`, v1.1.0) |
+| GET | `/wp-json/andes/v1/seasons` | `{ seasons: RawSeason[] }` (v1.1.0, ajustes de tarifa por temporada) |
 
-Ambos requieren el header `X-Andes-Token` (o `?token=`). `from`/`to` son la
+Todos requieren el header `X-Andes-Token` (o `?token=`). `from`/`to` son la
 ventana en Unix segundos; Andes la calcula sola (hoy−2d … hoy+60d por defecto).
+
+**v1.1.0** agrega la tarifa por día del auto: `/cars` trae `baseDailyRate`
+(precio de 1 día de `wp_vikrentcar_dispcost`) y `/seasons` expone las temporadas
+de porcentaje (`wp_vikrentcar_seasons`). Andes calcula la tarifa vigente. Si tu
+mu-plugin es v1.0.0, Andes lo tolera (la ficha muestra "—" hasta redesplegar).
 
 La forma de `RawBooking` / `RawCar` está en `src/lib/sync/types.ts`. El SQL del
 plugin espeja el del adaptador MySQL (`src/lib/sync/mysql-source.ts`).

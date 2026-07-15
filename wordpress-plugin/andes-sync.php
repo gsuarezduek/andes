@@ -2,8 +2,11 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: MDZ Rent a Car
+ *
+ * v1.1.0: /cars agrega baseDailyRate (dispcost days=1) y se agrega /seasons
+ *         (ajustes de tarifa por temporada) para la tarifa por día en la ficha.
  *
  * INSTALACIÓN
  * -----------
@@ -46,6 +49,12 @@ add_action('rest_api_init', function () {
     register_rest_route('andes/v1', '/cars', [
         'methods'             => 'GET',
         'callback'            => 'andes_sync_cars',
+        'permission_callback' => 'andes_sync_authorized',
+    ]);
+
+    register_rest_route('andes/v1', '/seasons', [
+        'methods'             => 'GET',
+        'callback'            => 'andes_sync_seasons',
         'permission_callback' => 'andes_sync_authorized',
     ]);
 });
@@ -117,26 +126,72 @@ function andes_sync_bookings(WP_REST_Request $request)
     return new WP_REST_Response(['bookings' => $bookings], 200);
 }
 
-/** Modelos de la flota para el seed inicial de vehículos. */
+/** Modelos de la flota (seed de vehículos) + tarifa base 1 día (dispcost days=1). */
 function andes_sync_cars(WP_REST_Request $request)
 {
     global $wpdb;
     $p = $wpdb->prefix . 'vikrentcar_';
 
-    $rows = $wpdb->get_results("SELECT id, name, units FROM {$p}cars ORDER BY id", ARRAY_A);
+    $rows = $wpdb->get_results(
+        "SELECT c.id, c.name, c.units,
+                (SELECT MIN(d.cost) FROM {$p}dispcost d WHERE d.idcar = c.id AND d.days = 1) AS base1
+         FROM {$p}cars c ORDER BY c.id",
+        ARRAY_A
+    );
     if ($rows === null) {
         return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
     }
 
     $cars = array_map(function ($r) {
         return [
-            'id'    => (int) $r['id'],
-            'name'  => andes_sync_clean($r['name']) ?: ('Modelo ' . (int) $r['id']),
-            'units' => max(1, (int) $r['units']),
+            'id'            => (int) $r['id'],
+            'name'          => andes_sync_clean($r['name']) ?: ('Modelo ' . (int) $r['id']),
+            'units'         => max(1, (int) $r['units']),
+            'baseDailyRate' => andes_sync_float_or_null($r['base1']),
         ];
     }, $rows);
 
     return new WP_REST_Response(['cars' => $cars], 200);
+}
+
+/**
+ * Temporadas de ajuste de tarifa (solo porcentaje: type=1, val_pcent=2). `from`/
+ * `to` son segundos dentro del año; `idcars` es "-8-,-5-,". Espeja el adaptador
+ * MySQL de Andes (src/lib/sync/mysql-source.ts).
+ */
+function andes_sync_seasons(WP_REST_Request $request)
+{
+    global $wpdb;
+    $p = $wpdb->prefix . 'vikrentcar_';
+
+    $rows = $wpdb->get_results(
+        "SELECT `from`, `to`, year, diffcost, idcars
+         FROM {$p}seasons WHERE type = 1 AND val_pcent = 2",
+        ARRAY_A
+    );
+    if ($rows === null) {
+        return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
+    }
+
+    $seasons = [];
+    foreach ($rows as $r) {
+        if ($r['from'] === null || $r['to'] === null) {
+            continue;
+        }
+        $idcars = [];
+        if (preg_match_all('/-(\d+)-/', (string) $r['idcars'], $m)) {
+            $idcars = array_map('intval', $m[1]);
+        }
+        $seasons[] = [
+            'from'        => (int) $r['from'],
+            'to'          => (int) $r['to'],
+            'year'        => andes_sync_int_or_null($r['year']),
+            'diffPercent' => (float) $r['diffcost'],
+            'idcars'      => $idcars,
+        ];
+    }
+
+    return new WP_REST_Response(['seasons' => $seasons], 200);
 }
 
 /** Normaliza una fila de orden a la forma RawBooking que espera Andes. */

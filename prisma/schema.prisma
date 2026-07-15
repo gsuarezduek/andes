@@ -143,6 +143,12 @@ model Vehicle {
   photoUrl      String?       @map("photo_url")
   notes         String?
 
+  // Tarifa de referencia por 1 día (traída de VikRentCar: dispcost days=1 ×
+  // ajuste de temporada vigente). La refresca la sincronización; varía según la
+  // fecha/temporada. Ver docs/wordpress-mapping.md y src/lib/sync.
+  dailyRate          Decimal?  @map("daily_rate") @db.Decimal(12, 2)
+  dailyRateUpdatedAt DateTime? @map("daily_rate_updated_at")
+
   // Orden manual en la vista Calendario (menor = más arriba). Refleja la lista
   // "del más caro al más económico" de la agenda; se carga a mano por unidad.
   // Los autos sin orden (null) quedan al final, ordenados por marca/modelo.

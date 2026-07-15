@@ -184,6 +184,18 @@ Vista **Calendario** (`/calendar`, en la barra principal, todos los roles). Cons
 - **Reservas sin unidad asignada** (`vehicleId` null): fila propia por reserva al final, etiquetada con `bookingModel`, para no pisarse entre sí.
 - Lógica en `src/lib/calendar.ts` (`getCalendarData`: ventana, columnas de día en hora Mendoza, recorte de barras a la ventana). UI: `src/app/(app)/calendar/page.tsx` (server) + `calendar-grid.tsx` (client, columna de autos sticky + scroll horizontal + tooltip). Sin dependencias nuevas. Los autos archivados se excluyen.
 
+## v5 — Tarifa por día del auto (desde VikRentCar, actualizada por sync)
+
+Traer y mostrar en la **ficha del auto** el **precio por día de referencia (1 día)**, que varía por temporada y se refresca en cada sincronización. Construida y **verificada end-to-end contra la base real** (acceso MySQL de solo lectura); build/lint + 65 tests en verde. **Falta:** desplegar la migración `add_vehicle_daily_rate` en Railway y **redesplegar el mu-plugin** (v1.1.0) en WordPress.
+
+- **Modelo de datos VikRentCar** (verificado en vivo, ver `docs/wordpress-mapping.md`): tarifa base en `wp_vikrentcar_dispcost` (`days=1`, un solo plan de precios); temporadas en `wp_vikrentcar_seasons` (todas de porcentaje: `type=1`, `val_pcent=2`; `from`/`to` = segundos dentro del año; `idcars` = `-8-,-5-,`). **Tarifa hoy = base × ∏(1+%/100)** de las temporadas activas que incluyan el modelo.
+- **Cálculo puro** `src/lib/sync/rates.ts` (`computeDailyRate`, `parseIdCars`, `secondsIntoYear` en hora Mendoza) — testeado (`rates.test.ts`, 9 tests).
+- **Sync** `syncCarRates` (`src/lib/sync/engine.ts`) corre al final de cada `runBookingSync` (best-effort), calcula por `idcar` y hace `updateMany` de los `vehicles` con ese `wpCarId` (`vehicles.daily_rate` + `daily_rate_updated_at`; migración `add_vehicle_daily_rate`). Solo actualiza, no crea.
+- **Transportes** (`src/lib/sync/{types,mysql-source,rest-source}.ts`): `RawCar.baseDailyRate` + `fetchSeasons()`. La lógica de temporada vive **solo en JS**; los transportes devuelven crudo. **mu-plugin `andes-sync.php` v1.1.0**: `/cars` agrega `baseDailyRate` (subquery a `dispcost`) y nuevo endpoint `/seasons` (SELECT-only). Los adaptadores REST toleran mu-plugins viejos (rate → null, "—" en la ficha).
+- **UI:** fila "Tarifa 1 día (ref.)" en la ficha del auto (`src/app/(app)/vehicles/[id]/page.tsx`) con la fecha de última actualización. `null` → "—".
+- **Verificado:** corrida real → 17 unidades actualizadas con la base correcta (hoy sin temporada activa: Cronos $80.000, idcar 5 $70.000, etc.).
+- **Decisión:** solo 1 día como referencia (acordado con el dueño); v1 soporta temporadas de porcentaje (las únicas en uso).
+
 ## Add-on — Andes Pay Stripe (pasarela de pago para VikRentCar)
 
 Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/andes-pay-stripe/`. Agrega **"Andes Pay Stripe"** como método de pago de **VikRentCar Pro (v1.4.6)**: cobra el **total** de la reserva con tarjeta vía **Stripe Checkout** (redirección alojada por Stripe, PCI mínimo). **Probado y funcionando en producción (Live):** cobro → retorno → reserva marcada pagada por VikRentCar.

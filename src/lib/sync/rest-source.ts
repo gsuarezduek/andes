@@ -1,6 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, SyncWindow } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawSeason, SyncWindow } from "./types";
 
 /**
  * Transporte de producción: consume el mu-plugin `andes-sync` de WordPress por
@@ -38,6 +38,17 @@ export class RestBookingSource implements BookingSource {
 
   async fetchCars(): Promise<RawCar[]> {
     const data = await this.get<{ cars: RawCar[] }>("cars");
-    return data.cars ?? [];
+    // Compat con mu-plugins viejos que no devuelven baseDailyRate.
+    return (data.cars ?? []).map((c) => ({ ...c, baseDailyRate: c.baseDailyRate ?? null }));
+  }
+
+  async fetchSeasons(): Promise<RawSeason[]> {
+    // Compat: si el mu-plugin no tiene el endpoint (404), no hay ajuste de temporada.
+    try {
+      const data = await this.get<{ seasons: RawSeason[] }>("seasons");
+      return data.seasons ?? [];
+    } catch {
+      return [];
+    }
   }
 }

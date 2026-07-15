@@ -46,6 +46,23 @@ export type RawCar = {
   id: number; // → vehicles.wp_car_id
   name: string; // ej. "Renault Kwid Iconic 1.0"
   units: number; // cantidad de unidades físicas
+  // Tarifa base por 1 día (wp_vikrentcar_dispcost, days=1). Sin ajuste de
+  // temporada — el motor la aplica. Null si el modelo no tiene tarifa cargada.
+  baseDailyRate: number | null;
+};
+
+/**
+ * Una temporada de `wp_vikrentcar_seasons` (solo las de ajuste porcentual, que
+ * son las que usa MDZ). `from`/`to` son segundos dentro del año (día del año ×
+ * 86400); `year` fija el año o es null (recurrente cada año). Ver
+ * docs/wordpress-mapping.md.
+ */
+export type RawSeason = {
+  from: number;
+  to: number;
+  year: number | null;
+  diffPercent: number; // % a sumar sobre la tarifa base
+  idcars: number[]; // modelos (idcar) a los que aplica
 };
 
 /** Ventana temporal (Unix segundos) sobre la que se sincroniza. */
@@ -56,8 +73,10 @@ export interface BookingSource {
   readonly kind: "mysql" | "rest";
   /** Reservas cuyo retiro o devolución cae dentro de la ventana. */
   fetchBookings(window: SyncWindow): Promise<RawBooking[]>;
-  /** Modelos de la flota (para el seed inicial de `vehicles`). */
+  /** Modelos de la flota (para el seed inicial de `vehicles` y sus tarifas). */
   fetchCars(): Promise<RawCar[]>;
+  /** Temporadas de ajuste de tarifa (porcentaje). */
+  fetchSeasons(): Promise<RawSeason[]>;
   /** Cierra conexiones abiertas (no-op en REST). */
   close?(): Promise<void>;
 }

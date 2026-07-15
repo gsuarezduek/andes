@@ -109,6 +109,21 @@ export default async function VehicleDetailPage({
         <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
           <Row label="Año" value={vehicle.year} />
           <Row label="Color" value={vehicle.color} />
+          <Row
+            label="Tarifa 1 día (ref.)"
+            value={
+              vehicle.dailyRate != null ? (
+                <span>
+                  {formatArs(Number(vehicle.dailyRate))}
+                  {vehicle.dailyRateUpdatedAt && (
+                    <span className="font-normal text-foreground/50"> · act. {formatDate(vehicle.dailyRateUpdatedAt)}</span>
+                  )}
+                </span>
+              ) : (
+                "—"
+              )
+            }
+          />
           <Row label="Kilometraje" value={`${vehicle.currentKm.toLocaleString("es-AR")} km`} />
           <Row
             label="Próximo service"

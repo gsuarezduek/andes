@@ -88,6 +88,27 @@ Verificado sobre la **ventana de sync** (hoy−2d…hoy+60d, ~21 órdenes confir
   escribe los campos `booking_*` (hechos de la reserva). La "hora extra" del contrato se expresa como
   **% de la tarifa diaria** (`ConditionSettings.extraHourPercent`), configurable en Configuración.
 
+### Tarifa por día del auto (ficha del auto) — `dispcost` + `seasons`
+
+A diferencia del precio por reserva (arriba), la **tarifa del modelo** sí está estructurada:
+
+- **`wp_vikrentcar_dispcost`** (`idcar`, `days`, `idprice`, `cost`): costo total por cantidad de
+  días. El **precio de 1 día** = `cost` con `days = 1`. Hay **un solo plan** de precios
+  (`wp_vikrentcar_prices` id=1, "Alquiler 200km x día"), así que no hay ambigüedad. Ej.: idcar 5 =
+  $70.000, idcar 20 = $110.000, idcar 15 = $10.000.
+- **`wp_vikrentcar_seasons`**: ajustes por temporada. Las que usa MDZ son todas de **porcentaje**
+  (`type = 1`, `val_pcent = 2`); `diffcost` = % a sumar. `from`/`to` son **segundos dentro del año**
+  (`(díaDelAño − 1) × 86400`; verificado: 18-jul → `17107200`). `year` fija el año o es `NULL`
+  (recurrente cada año). `idcars` = `-8-,-5-,` (modelos a los que aplica).
+- **Fórmula (Andes)**: `tarifa_hoy = base(1 día) × ∏(1 + diffcost/100)` de las temporadas activas
+  hoy que incluyan el modelo. Lógica pura en `src/lib/sync/rates.ts` (`computeDailyRate`), testeada.
+- **Sync**: `syncCarRates` (en `src/lib/sync/engine.ts`) corre en cada `runBookingSync`, calcula la
+  tarifa vigente por `idcar` y hace `updateMany` de los `vehicles` con ese `wpCarId`
+  (`dailyRate` + `dailyRateUpdatedAt`). Se muestra en la ficha del auto. Solo actualiza, no crea.
+- **Transportes**: el mu-plugin expone `baseDailyRate` en `/cars` y un endpoint `/seasons`
+  (crudo); el motor JS hace el cálculo (única fuente de verdad). v1 solo soporta temporadas de
+  porcentaje; otros modos se ignoran (quedan en base).
+
 ### Timestamps — confirmado
 
 `ritiro`/`consegna`/`ts` son **Unix en segundos**. Ej. verificado: `ritiro` max

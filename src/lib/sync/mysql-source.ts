@@ -1,7 +1,8 @@
 import "server-only";
 import mysql from "mysql2/promise";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, SyncWindow } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawSeason, SyncWindow } from "./types";
+import { parseIdCars } from "./rates";
 
 /**
  * Adaptador de solo lectura contra el MySQL de VikRentCar (Hostinger).
@@ -40,7 +41,14 @@ type OrderRow = {
   c_docnum: string | null;
 };
 
-type CarRow = { id: number; name: string | null; units: number | null };
+type CarRow = { id: number; name: string | null; units: number | null; base1: string | number | null };
+type SeasonRow = {
+  from: number | null;
+  to: number | null;
+  year: number | null;
+  diffcost: string | number | null;
+  idcars: string | null;
+};
 
 function clean(v: string | null): string | null {
   if (v == null) return null;
@@ -116,13 +124,32 @@ export class MysqlBookingSource implements BookingSource {
   }
 
   async fetchCars(): Promise<RawCar[]> {
-    const sql = `SELECT id, name, units FROM \`${PREFIX}cars\` ORDER BY id`;
+    const sql = `SELECT c.id, c.name, c.units,
+        (SELECT MIN(d.cost) FROM \`${PREFIX}dispcost\` d WHERE d.idcar = c.id AND d.days = 1) AS base1
+      FROM \`${PREFIX}cars\` c ORDER BY c.id`;
     const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(sql);
     return (rows as CarRow[]).map((r) => ({
       id: r.id,
       name: clean(r.name) ?? `Modelo ${r.id}`,
       units: Math.max(1, r.units ?? 1),
+      baseDailyRate: num(r.base1),
     }));
+  }
+
+  async fetchSeasons(): Promise<RawSeason[]> {
+    // Solo temporadas de ajuste porcentual (type=1, val_pcent=2): las que usa MDZ.
+    const sql = `SELECT \`from\`, \`to\`, year, diffcost, idcars
+      FROM \`${PREFIX}seasons\` WHERE type = 1 AND val_pcent = 2`;
+    const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(sql);
+    return (rows as SeasonRow[])
+      .filter((r) => r.from != null && r.to != null)
+      .map((r) => ({
+        from: r.from as number,
+        to: r.to as number,
+        year: r.year ?? null,
+        diffPercent: num(r.diffcost) ?? 0,
+        idcars: parseIdCars(r.idcars),
+      }));
   }
 
   async close(): Promise<void> {
