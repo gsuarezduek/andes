@@ -169,6 +169,9 @@ function bookingFacts(b: RawBooking) {
       ? Math.round((b.carCost / b.days) * 100) / 100
       : null;
   return {
+    // `standby` entra sin confirmar (naranja); `confirmed` confirmada. Si el dueño
+    // confirma en VikRentCar, el próximo sync la actualiza a true.
+    bookingConfirmed: b.status === "confirmed",
     bookingDays: b.days,
     bookingTotal: b.orderTotal,
     bookingPaid: b.paid,

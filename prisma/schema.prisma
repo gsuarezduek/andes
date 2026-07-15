@@ -223,6 +223,11 @@ model Rental {
   bookingPickupPlace String?  @map("booking_pickup_place") // idplace → places.name
   bookingReturnPlace String?  @map("booking_return_place") // idreturnplace → places.name
 
+  // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
+  // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el
+  // dueño la confirma. Los alquileres manuales nacen confirmados (default true).
+  bookingConfirmed Boolean @default(true) @map("booking_confirmed")
+
   origin      RentalOrigin @default(manual)
   wpBookingId Int?         @unique @map("wp_booking_id") // id de la orden VikRentCar
   language    Language     @default(es)

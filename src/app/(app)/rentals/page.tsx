@@ -36,7 +36,10 @@ function RentalList({ rentals }: { rentals: RentalRow[] }) {
                 {formatDateTime(r.startAt)} → {formatDateTime(r.endAt)}
               </p>
             </div>
-            <Badge tone={rentalStatusTone[r.status]}>{rentalStatusLabels[r.status]}</Badge>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <Badge tone={rentalStatusTone[r.status]}>{rentalStatusLabels[r.status]}</Badge>
+              {!r.bookingConfirmed && <Badge tone="orange">Sin confirmar</Badge>}
+            </div>
           </Link>
         </li>
       ))}

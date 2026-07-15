@@ -33,17 +33,22 @@ function MovementRow({
   subtitle,
   time,
   state,
+  unconfirmed,
 }: {
   href: string;
   title: string;
   subtitle: string;
   time: string;
   state: MovementState;
+  unconfirmed?: boolean;
 }) {
   return (
     <Link href={href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]">
       <div className="flex-1">
-        <p className="font-medium">{title}</p>
+        <p className="flex items-center gap-2 font-medium">
+          {title}
+          {unconfirmed ? <Badge tone="orange">Sin confirmar</Badge> : null}
+        </p>
         <p className="text-sm text-foreground/60">{subtitle}</p>
         <p className="text-xs text-foreground/50">{time}</p>
       </div>
@@ -78,6 +83,7 @@ export default async function HomePage() {
                   subtitle={rental.vehicle ? `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}` : "Sin vehículo asignado"}
                   time={`Retiro ${formatDateTime(rental.startAt)}`}
                   state={state}
+                  unconfirmed={!rental.bookingConfirmed}
                 />
               ))}
             </div>
@@ -97,6 +103,7 @@ export default async function HomePage() {
                   subtitle={rental.vehicle ? `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}` : "Sin vehículo"}
                   time={`Devolución ${formatDateTime(rental.endAt)}`}
                   state={state}
+                  unconfirmed={!rental.bookingConfirmed}
                 />
               ))}
             </div>

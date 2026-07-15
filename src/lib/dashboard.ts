@@ -52,7 +52,9 @@ export async function getDashboardData() {
     }),
     prisma.vehicle.findMany({ where: { nextServiceKm: { not: null }, archivedAt: null } }),
     prisma.rental.findMany({
-      where: { status: "reserved", vehicleId: null },
+      // Solo confirmadas: una standby sin confirmar es prematura para asignarle
+      // unidad; se ve igual en el calendario/listado en naranja.
+      where: { status: "reserved", vehicleId: null, bookingConfirmed: true },
       orderBy: { startAt: "asc" },
     }),
   ]);

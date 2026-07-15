@@ -94,10 +94,19 @@ export default async function RentalDetailPage({
             {rental.wpBookingId ? ` · orden #${rental.wpBookingId}` : ""}
           </p>
         </div>
-        <Badge tone={rentalStatusTone[rental.status]}>
-          {rentalStatusLabels[rental.status]}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge tone={rentalStatusTone[rental.status]}>
+            {rentalStatusLabels[rental.status]}
+          </Badge>
+          {!rental.bookingConfirmed && <Badge tone="orange">Sin confirmar</Badge>}
+        </div>
       </div>
+
+      {!rental.bookingConfirmed && (
+        <p className="rounded-lg bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-700 dark:text-orange-400">
+          Reserva sin confirmar en VikRentCar. Verificá con el cliente antes de entregar.
+        </p>
+      )}
 
       {canStartHandover ? (
         <EditDetailsForm

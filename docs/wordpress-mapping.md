@@ -182,8 +182,13 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 
 ## Reglas de sincronización (Fase 5)
 
-- Importar solo `status = 'confirmed'`. `standby` → "pendientes" (configurable, 17
-  hoy). `cancelled` → cancelar el `rental` local **solo si aún no tiene entrega**.
+- Importar `status = 'confirmed'` **y `standby`** (sin confirmar). `standby` entra
+  con `rentals.booking_confirmed = false` y se muestra en **naranja** (calendario,
+  listado, detalle, dashboard); el sync la pasa a `true` si el dueño la confirma.
+  Por defecto se traen (`SYNC_INCLUDE_STANDBY` default true; poner `"false"` para
+  excluirlas). `cancelled` → cancelar el `rental` local **solo si aún no tiene
+  entrega**. (Nota: hoy las 17 standby históricas tienen retiro pasado, así que no
+  aparecen en la ventana; la función se enciende con nuevas standby a futuro.)
 - **Sync incremental — decisión (Fase 5): ventana móvil.** `orders` no tiene
   columna de modificación (solo `ts` de creación). Se optó por re-escanear en
   cada corrida las órdenes cuyo `ritiro`/`consegna` caiga en

@@ -17,6 +17,8 @@ export type CalendarBar = {
   span: number;
   clientName: string;
   status: string;
+  /** Reserva confirmada en VikRentCar. `false` = standby → barra naranja. */
+  confirmed: boolean;
   /** Nota de la reserva (custdata de VikRentCar), para el tooltip. */
   note: string | null;
   /** Nombres de conductores adicionales, para el tooltip. */
@@ -50,7 +52,7 @@ export type CalendarColumn = {
 export type CalendarData = {
   columns: CalendarColumn[];
   rows: CalendarRow[];
-  /** Reservas confirmadas sin unidad asignada (una fila por reserva). */
+  /** Reservas sin unidad asignada (una fila por reserva; incluye sin confirmar). */
   unassigned: CalendarRow[];
   from: string;
   prevFrom: string;
@@ -89,6 +91,7 @@ type RentalRow = {
   vehicleId: string | null;
   clientName: string;
   status: string;
+  bookingConfirmed: boolean;
   startAt: Date;
   endAt: Date;
   bookingNote: string | null;
@@ -124,6 +127,7 @@ function toBar(
     span: endIndex - startIndex + 1,
     clientName: r.clientName?.trim() || "Sin nombre",
     status: r.status,
+    confirmed: r.bookingConfirmed,
     note: r.bookingNote?.trim() || null,
     extraDrivers: extraDriverNames(r.additionalDrivers),
     startAt: r.startAt,
@@ -165,6 +169,7 @@ export async function getCalendarData(opts?: {
         vehicleId: true,
         clientName: true,
         status: true,
+        bookingConfirmed: true,
         startAt: true,
         endAt: true,
         bookingNote: true,

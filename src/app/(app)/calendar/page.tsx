@@ -46,6 +46,19 @@ export default async function CalendarPage({
         unassigned={data.unassigned}
       />
 
+      {/* Leyenda de colores de las barras */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-blue-600/90" /> Confirmada
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-orange-500/90" /> Sin confirmar
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-slate-400/90" /> Finalizada
+        </span>
+      </div>
+
       <p className="text-xs text-foreground/40">
         Autos ordenados por su orden de calendario (editable en cada ficha). Se
         muestran los alquileres no cancelados; pasá el mouse por una barra para
