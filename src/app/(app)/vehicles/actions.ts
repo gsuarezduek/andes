@@ -9,9 +9,12 @@ import { requireAdmin, requireUser } from "@/lib/auth-helpers";
 
 export type FormState = { error?: string };
 
+// Vacío → null (no undefined): en updateVehicle, Prisma ignora undefined (no
+// actualiza), así que un campo borrado quedaría con el valor viejo. Con null se
+// limpia de verdad la columna.
 const optionalInt = z.preprocess(
-  (v) => (v === "" || v == null ? undefined : Number(v)),
-  z.number({ error: "Debe ser un número" }).int().nonnegative().optional(),
+  (v) => (v === "" || v == null ? null : Number(v)),
+  z.number({ error: "Debe ser un número" }).int().nonnegative().nullable(),
 );
 
 const vehicleSchema = z.object({
@@ -19,12 +22,12 @@ const vehicleSchema = z.object({
   brand: z.string().trim().min(1, "La marca es obligatoria"),
   model: z.string().trim().min(1, "El modelo es obligatorio"),
   year: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    z.number().int().min(1950).max(2100).optional(),
+    (v) => (v === "" || v == null ? null : Number(v)),
+    z.number().int().min(1950).max(2100).nullable(),
   ),
   color: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
-    z.string().optional(),
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
+    z.string().nullable(),
   ),
   currentKm: z.preprocess(
     (v) => (v === "" || v == null ? 0 : Number(v)),
@@ -38,8 +41,8 @@ const vehicleSchema = z.object({
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
   notes: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
-    z.string().optional(),
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
+    z.string().nullable(),
   ),
 });
 
