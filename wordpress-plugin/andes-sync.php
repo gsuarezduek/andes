@@ -2,17 +2,26 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: MDZ Rent a Car
  *
+ * v1.2.0: pantalla de ajustes (Ajustes → Andes Sync) con toggles agrupados para
+ *         elegir qué datos se comparten (cliente/PII, económico, texto libre,
+ *         extras de la reserva y tarifa/temporadas). Los campos estructurales
+ *         (clave del upsert, mapeo de unidad y fechas) van siempre.
  * v1.1.0: /cars agrega baseDailyRate (dispcost days=1) y se agrega /seasons
  *         (ajustes de tarifa por temporada) para la tarifa por día en la ficha.
  *
  * INSTALACIÓN
  * -----------
- * 1. Subí este archivo a  wp-content/mu-plugins/andes-sync.php
- *    (si la carpeta mu-plugins no existe, creala). Los "must-use plugins" se
- *    activan solos y no se pueden desactivar por error desde el panel.
+ * Podés instalarlo como plugin normal (recomendado si querés usar los toggles) o
+ * como mu-plugin. Como plugin normal aparece en Ajustes → Andes Sync.
+ *
+ * 1a. Plugin normal: subí este archivo (o su .zip) a wp-content/plugins/ y
+ *     activalo desde Plugins. Vas a ver el menú Ajustes → Andes Sync.
+ * 1b. mu-plugin: subilo a wp-content/mu-plugins/andes-sync.php (si la carpeta no
+ *     existe, creala). Los "must-use plugins" se activan solos y no se pueden
+ *     desactivar por error desde el panel (la pantalla de ajustes igual aparece).
  * 2. Definí el token en wp-config.php (arriba de "That's all, stop editing"):
  *
  *        define('ANDES_SYNC_TOKEN', 'un-secreto-largo-y-aleatorio');
@@ -32,6 +41,145 @@
 
 if (!defined('ABSPATH')) {
     exit;
+}
+
+/* ---------------------------------------------------------------------------
+ * Ajustes: qué datos se comparten (toggles agrupados)
+ * -------------------------------------------------------------------------*/
+
+define('ANDES_SYNC_OPTION', 'andes_sync_options');
+
+/** Grupos apagables (los estructurales no están: van siempre). Todo ON por defecto. */
+function andes_sync_default_opts()
+{
+    return [
+        'share_client'        => 1, // clientName, clientEmail, clientPhone, clientDocNumber
+        'share_financial'     => 1, // orderTotal, carCost
+        'share_custdata'      => 1, // custData (texto libre de la reserva)
+        'share_booking_extra' => 1, // createdUnix, days, lang, carName, pickupPlace, returnPlace
+        'share_rates'         => 1, // baseDailyRate (/cars) y endpoint /seasons
+    ];
+}
+
+function andes_sync_opts()
+{
+    $saved = get_option(ANDES_SYNC_OPTION, []);
+    if (!is_array($saved)) {
+        $saved = [];
+    }
+    return array_merge(andes_sync_default_opts(), $saved);
+}
+
+/** ¿Está habilitado compartir este grupo? */
+function andes_sync_share($key)
+{
+    $o = andes_sync_opts();
+    return !empty($o[$key]);
+}
+
+function andes_sync_sanitize_opts($input)
+{
+    $out = [];
+    foreach (array_keys(andes_sync_default_opts()) as $k) {
+        $out[$k] = empty($input[$k]) ? 0 : 1;
+    }
+    return $out;
+}
+
+add_action('admin_init', function () {
+    register_setting('andes_sync', ANDES_SYNC_OPTION, [
+        'type'              => 'array',
+        'sanitize_callback' => 'andes_sync_sanitize_opts',
+        'default'           => andes_sync_default_opts(),
+    ]);
+});
+
+add_action('admin_menu', function () {
+    add_options_page(
+        'Andes Sync',
+        'Andes Sync',
+        'manage_options',
+        'andes-sync',
+        'andes_sync_settings_page'
+    );
+});
+
+/** Link "Configuración" en la fila del plugin (Plugins → Andes Sync). */
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links) {
+    $url  = admin_url('options-general.php?page=andes-sync');
+    $link = '<a href="' . esc_url($url) . '">Configuración</a>';
+    array_unshift($links, $link);
+    return $links;
+});
+
+/** Grupos con su etiqueta y los campos que incluyen (para mostrarlos en el panel). */
+function andes_sync_groups()
+{
+    return [
+        'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber'],
+        'share_financial'     => ['Económico', 'orderTotal, carCost'],
+        'share_custdata'      => ['Texto libre de la reserva', 'custData (la "Info de la reserva")'],
+        'share_booking_extra' => ['Extras de la reserva', 'createdUnix, days, lang, carName, pickupPlace, returnPlace'],
+        'share_rates'         => ['Tarifa y temporadas', 'baseDailyRate en /cars y el endpoint /seasons'],
+    ];
+}
+
+function andes_sync_settings_page()
+{
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    $opts       = andes_sync_opts();
+    $token_set  = defined('ANDES_SYNC_TOKEN') && ANDES_SYNC_TOKEN !== '';
+    ?>
+    <div class="wrap">
+        <h1>Andes Sync</h1>
+        <p>Elegí qué datos comparte el plugin con la app Andes. Los campos
+           <strong>estructurales</strong> se envían siempre porque el sync no
+           funciona sin ellos.</p>
+
+        <p>
+            Token:
+            <?php if ($token_set): ?>
+                <strong style="color:#1a7f37">definido</strong> en <code>wp-config.php</code> ✓
+            <?php else: ?>
+                <strong style="color:#b32d2e">no definido</strong> — agregá
+                <code>define('ANDES_SYNC_TOKEN', '…');</code> en <code>wp-config.php</code>.
+            <?php endif; ?>
+        </p>
+
+        <h2>Siempre se comparten (estructural)</h2>
+        <p><code>wpBookingId, status, idcar, carindex, startUnix, endUnix</code> —
+           clave del upsert, mapeo de unidad y fechas.</p>
+
+        <form method="post" action="options.php">
+            <?php settings_fields('andes_sync'); ?>
+            <h2>Opcionales</h2>
+            <table class="form-table" role="presentation">
+                <tbody>
+                <?php foreach (andes_sync_groups() as $key => $g): ?>
+                    <tr>
+                        <th scope="row"><?php echo esc_html($g[0]); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox"
+                                       name="<?php echo esc_attr(ANDES_SYNC_OPTION . '[' . $key . ']'); ?>"
+                                       value="1" <?php checked(!empty($opts[$key])); ?> />
+                                Compartir
+                            </label>
+                            <p class="description"><code><?php echo esc_html($g[1]); ?></code></p>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p class="description">Un campo apagado se envía como <code>null</code>
+               (o, para tarifa/temporadas, el endpoint queda vacío y la ficha del
+               auto muestra "—"). Andes tolera todos estos como nulos.</p>
+            <?php submit_button('Guardar cambios'); ?>
+        </form>
+    </div>
+    <?php
 }
 
 add_action('rest_api_init', function () {
@@ -122,7 +270,10 @@ function andes_sync_bookings(WP_REST_Request $request)
         return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
     }
 
-    $bookings = array_map('andes_sync_normalize_order', $rows);
+    $opts     = andes_sync_opts();
+    $bookings = array_map(function ($r) use ($opts) {
+        return andes_sync_normalize_order($r, $opts);
+    }, $rows);
     return new WP_REST_Response(['bookings' => $bookings], 200);
 }
 
@@ -142,12 +293,13 @@ function andes_sync_cars(WP_REST_Request $request)
         return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
     }
 
-    $cars = array_map(function ($r) {
+    $shareRates = andes_sync_share('share_rates');
+    $cars = array_map(function ($r) use ($shareRates) {
         return [
             'id'            => (int) $r['id'],
             'name'          => andes_sync_clean($r['name']) ?: ('Modelo ' . (int) $r['id']),
             'units'         => max(1, (int) $r['units']),
-            'baseDailyRate' => andes_sync_float_or_null($r['base1']),
+            'baseDailyRate' => $shareRates ? andes_sync_float_or_null($r['base1']) : null,
         ];
     }, $rows);
 
@@ -161,6 +313,11 @@ function andes_sync_cars(WP_REST_Request $request)
  */
 function andes_sync_seasons(WP_REST_Request $request)
 {
+    // Si la tarifa está apagada, no tiene sentido devolver temporadas.
+    if (!andes_sync_share('share_rates')) {
+        return new WP_REST_Response(['seasons' => []], 200);
+    }
+
     global $wpdb;
     $p = $wpdb->prefix . 'vikrentcar_';
 
@@ -194,38 +351,57 @@ function andes_sync_seasons(WP_REST_Request $request)
     return new WP_REST_Response(['seasons' => $seasons], 200);
 }
 
-/** Normaliza una fila de orden a la forma RawBooking que espera Andes. */
-function andes_sync_normalize_order($r)
+/**
+ * Normaliza una fila de orden a la forma RawBooking que espera Andes.
+ * $opts controla qué grupos opcionales se comparten (los apagados van null).
+ */
+function andes_sync_normalize_order($r, $opts = null)
 {
-    $full  = trim(trim((string) $r['c_first']) . ' ' . trim((string) $r['c_last']));
-    $name  = andes_sync_clean($full);
-    if ($name === null) {
-        $name = andes_sync_clean($r['nominative']);
+    if ($opts === null) {
+        $opts = andes_sync_default_opts();
     }
-    if ($name === null) {
-        $name = 'Sin nombre';
+    $client  = !empty($opts['share_client']);
+    $money   = !empty($opts['share_financial']);
+    $note    = !empty($opts['share_custdata']);
+    $extra   = !empty($opts['share_booking_extra']);
+
+    $name = null;
+    if ($client) {
+        $full = trim(trim((string) $r['c_first']) . ' ' . trim((string) $r['c_last']));
+        $name = andes_sync_clean($full);
+        if ($name === null) {
+            $name = andes_sync_clean($r['nominative']);
+        }
+        if ($name === null) {
+            $name = 'Sin nombre';
+        }
     }
 
     return [
+        // Estructural (siempre)
         'wpBookingId'     => (int) $r['id'],
         'status'          => strtolower((string) $r['status']),
         'idcar'           => andes_sync_int_or_null($r['idcar']),
         'carindex'        => andes_sync_int_or_null($r['carindex']),
         'startUnix'       => (int) $r['ritiro'],
         'endUnix'         => (int) $r['consegna'],
-        'createdUnix'     => andes_sync_int_or_null($r['ts']),
-        'days'            => andes_sync_int_or_null($r['days']),
-        'lang'            => andes_sync_clean($r['lang']),
+        // Extras de la reserva
+        'createdUnix'     => $extra ? andes_sync_int_or_null($r['ts']) : null,
+        'days'            => $extra ? andes_sync_int_or_null($r['days']) : null,
+        'lang'            => $extra ? andes_sync_clean($r['lang']) : null,
+        'carName'         => $extra ? andes_sync_clean($r['car_name']) : null,
+        'pickupPlace'     => $extra ? andes_sync_clean($r['pickup_place']) : null,
+        'returnPlace'     => $extra ? andes_sync_clean($r['return_place']) : null,
+        // Cliente (datos personales)
         'clientName'      => $name,
-        'clientEmail'     => andes_sync_clean($r['c_email']) ?: andes_sync_clean($r['custmail']),
-        'clientPhone'     => andes_sync_clean($r['c_phone']) ?: andes_sync_clean($r['phone']),
-        'clientDocNumber' => andes_sync_clean($r['c_docnum']),
-        'custData'        => andes_sync_clean($r['custdata']),
-        'orderTotal'      => andes_sync_float_or_null($r['order_total']),
-        'carCost'         => andes_sync_float_or_null($r['car_cost']),
-        'carName'         => andes_sync_clean($r['car_name']),
-        'pickupPlace'     => andes_sync_clean($r['pickup_place']),
-        'returnPlace'     => andes_sync_clean($r['return_place']),
+        'clientEmail'     => $client ? (andes_sync_clean($r['c_email']) ?: andes_sync_clean($r['custmail'])) : null,
+        'clientPhone'     => $client ? (andes_sync_clean($r['c_phone']) ?: andes_sync_clean($r['phone'])) : null,
+        'clientDocNumber' => $client ? andes_sync_clean($r['c_docnum']) : null,
+        // Texto libre
+        'custData'        => $note ? andes_sync_clean($r['custdata']) : null,
+        // Económico
+        'orderTotal'      => $money ? andes_sync_float_or_null($r['order_total']) : null,
+        'carCost'         => $money ? andes_sync_float_or_null($r['car_cost']) : null,
     ];
 }
 

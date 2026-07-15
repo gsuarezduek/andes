@@ -42,6 +42,9 @@ yarn-error.log*
 # zip de build del plugin Andes Pay Stripe (se regenera desde el fuente)
 /wordpress-plugin/andes-pay-stripe.zip
 
+# zip de build del plugin Andes Sync (se regenera desde el .php)
+/wordpress-plugin/andes-sync.php.zip
+
 # vercel
 .vercel
 

@@ -13,9 +13,18 @@ token** y el puerto MySQL (3306) puede volver a estar **cerrado**.
 
 ## Instalación
 
-1. Subí `andes-sync.php` a `wp-content/mu-plugins/andes-sync.php`.
-   - Si la carpeta `mu-plugins/` no existe, creala. Los *must-use plugins* se
-     activan solos y no se pueden desactivar por accidente desde el panel.
+Se puede instalar de dos formas. Como **plugin normal** aparece en
+**Ajustes → Andes Sync** (recomendado si querés usar los toggles de datos
+compartidos, v1.2.0). Como **mu-plugin** no se puede desactivar por accidente.
+
+1. Elegí una:
+   - **Plugin normal:** subí `andes-sync.php` (o el `.zip`) a
+     `wp-content/plugins/` y activalo desde **Plugins**. Vas a ver el menú
+     **Ajustes → Andes Sync**.
+   - **mu-plugin:** subí `andes-sync.php` a `wp-content/mu-plugins/andes-sync.php`.
+     Si la carpeta `mu-plugins/` no existe, creala. Los *must-use plugins* se
+     activan solos y no se pueden desactivar desde el panel (la pantalla de
+     ajustes igual aparece).
 2. Definí el token en `wp-config.php` (antes de `/* That's all, stop editing! */`):
 
    ```php
@@ -62,6 +71,26 @@ mu-plugin es v1.0.0, Andes lo tolera (la ficha muestra "—" hasta redesplegar).
 
 La forma de `RawBooking` / `RawCar` está en `src/lib/sync/types.ts`. El SQL del
 plugin espeja el del adaptador MySQL (`src/lib/sync/mysql-source.ts`).
+
+## Qué datos se comparten (toggles, v1.2.0)
+
+En **Ajustes → Andes Sync** podés elegir qué grupos de datos comparte el plugin.
+Los **estructurales** van siempre (sin ellos el sync no funciona):
+`wpBookingId, status, idcar, carindex, startUnix, endUnix`.
+
+Grupos apagables (todos ON por defecto):
+
+| Grupo | Campos |
+|---|---|
+| Cliente (datos personales) | `clientName, clientEmail, clientPhone, clientDocNumber` |
+| Económico | `orderTotal, carCost` |
+| Texto libre de la reserva | `custData` |
+| Extras de la reserva | `createdUnix, days, lang, carName, pickupPlace, returnPlace` |
+| Tarifa y temporadas | `baseDailyRate` en `/cars` y el endpoint `/seasons` |
+
+Un grupo apagado se envía como `null` (o, para tarifa/temporadas, el endpoint
+queda vacío y la ficha del auto muestra "—"). Andes tolera todos estos como
+nulos; si apagás **Cliente**, usa el placeholder "Sin nombre" para el contrato.
 
 ## Seguridad
 

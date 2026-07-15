@@ -33,7 +33,13 @@ export class RestBookingSource implements BookingSource {
       to: String(window.toUnix),
       include_standby: window.includeStandby ? "1" : "0",
     });
-    return data.bookings ?? [];
+    // `clientName` es NOT NULL en el modelo. El plugin puede mandarlo null si el
+    // admin apagó el grupo "Cliente" en sus ajustes; usamos el mismo placeholder
+    // que el adaptador MySQL para que el sync no falle.
+    return (data.bookings ?? []).map((b) => ({
+      ...b,
+      clientName: b.clientName ?? "Sin nombre",
+    }));
   }
 
   async fetchCars(): Promise<RawCar[]> {
