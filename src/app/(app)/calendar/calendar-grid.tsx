@@ -170,7 +170,6 @@ function Row({
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
-            title={plainTooltip(bar)}
             className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm transition-shadow hover:ring-2 hover:ring-blue-300 ${
               bar.status === "finished" ? "bg-slate-400/90" : "bg-blue-600/90 hover:bg-blue-600"
             }`}
@@ -224,15 +223,4 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       )}
     </div>
   );
-}
-
-/** Tooltip en texto plano (fallback nativo para touch / accesibilidad). */
-function plainTooltip(bar: CalendarBar): string {
-  const parts = [
-    bar.clientName,
-    `${formatDateTime(bar.startAt)} → ${formatDateTime(bar.endAt)}`,
-  ];
-  if (bar.extraDrivers.length > 0) parts.push(`Adicionales: ${bar.extraDrivers.join(", ")}`);
-  if (bar.note) parts.push(bar.note);
-  return parts.join("\n");
 }
