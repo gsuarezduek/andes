@@ -175,6 +175,15 @@ Tanda de mejoras nacidas del uso real. Construida y probada en local (build/lint
 - **Sincronizar a mano desde el header** ✅: ícono de sync junto al menú de perfil (desktop) y un ítem en el menú mobile, con spinner y check. Reusa la server action `triggerSync` (auth por sesión), no el endpoint `CRON_SECRET`.
 - Sin cambios de cobros. `ContractPricing` extendido no rompe reportes ni el sync (que nunca pisa `pricing`).
 
+## v4 — Calendario de flota (timeline)
+
+Vista **Calendario** (`/calendar`, en la barra principal, todos los roles). Construida y probada en local (build/lint en verde; render verificado por HTTP autenticado). **Falta desplegar la migración `add_vehicle_sort_order` en Railway.**
+
+- **Grilla tipo Gantt:** filas = autos, columnas = días (ventana móvil de 30 días desde hoy, navegable con Anterior/Hoy/Siguiente vía `?from=YYYY-MM-DD`). Cada alquiler no cancelado se pinta como una barra continua sobre los días que ocupa, con el **nombre del cliente**; al pasar el mouse, tooltip flotante con fechas (hora Mendoza), estado, conductores adicionales y **notas de la reserva** (`bookingNote`/custdata). `title` nativo como fallback para touch. Barras finalizadas en gris, el resto en azul (colores mínimos, no codifican estado por pedido del dueño).
+- **Orden manual de autos** (del más caro al más económico, como la agenda): campo nuevo `vehicles.sortOrder` (Int nullable; migración `add_vehicle_sort_order`), editable en la ficha del auto ("Orden en el calendario"). `asc` con NULLS LAST → los sin orden quedan al final por marca/modelo/patente. **Decisión:** el vehículo no tenía precio (sólo vive en el alquiler y con baja cobertura), así que se optó por orden manual explícito en vez de derivarlo.
+- **Reservas sin unidad asignada** (`vehicleId` null): fila propia por reserva al final, etiquetada con `bookingModel`, para no pisarse entre sí.
+- Lógica en `src/lib/calendar.ts` (`getCalendarData`: ventana, columnas de día en hora Mendoza, recorte de barras a la ventana). UI: `src/app/(app)/calendar/page.tsx` (server) + `calendar-grid.tsx` (client, columna de autos sticky + scroll horizontal + tooltip). Sin dependencias nuevas. Los autos archivados se excluyen.
+
 ## Add-on — Andes Pay Stripe (pasarela de pago para VikRentCar)
 
 Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/andes-pay-stripe/`. Agrega **"Andes Pay Stripe"** como método de pago de **VikRentCar Pro (v1.4.6)**: cobra el **total** de la reserva con tarjeta vía **Stripe Checkout** (redirección alojada por Stripe, PCI mínimo). **Probado y funcionando en producción (Live):** cobro → retorno → reserva marcada pagada por VikRentCar.

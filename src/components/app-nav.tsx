@@ -93,6 +93,7 @@ export function AppNav({
 
   const mainItems: Item[] = [
     { href: "/rentals", label: "Alquileres" },
+    { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
   ];
 

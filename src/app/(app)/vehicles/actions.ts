@@ -40,6 +40,7 @@ const vehicleSchema = z.object({
   ),
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
+  sortOrder: optionalInt,
   notes: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
     z.string().nullable(),
@@ -58,6 +59,7 @@ function parse(formData: FormData) {
     fuelLevels: formData.get("fuelLevels"),
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
+    sortOrder: formData.get("sortOrder"),
     notes: formData.get("notes"),
   });
 }

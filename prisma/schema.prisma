@@ -143,6 +143,11 @@ model Vehicle {
   photoUrl      String?       @map("photo_url")
   notes         String?
 
+  // Orden manual en la vista Calendario (menor = más arriba). Refleja la lista
+  // "del más caro al más económico" de la agenda; se carga a mano por unidad.
+  // Los autos sin orden (null) quedan al final, ordenados por marca/modelo.
+  sortOrder Int? @map("sort_order")
+
   // Archivado: baja de la flota operativa sin borrar la ficha (histórico,
   // actas y daños se conservan — evidencia inmutable). Ortogonal a `status`:
   // un auto puede archivarse recién cuando deja de estar `rented`. Los autos
