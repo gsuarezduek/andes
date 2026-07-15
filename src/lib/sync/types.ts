@@ -32,9 +32,11 @@ export type RawBooking = {
   clientEmail: string | null;
   clientPhone: string | null;
   clientDocNumber: string | null;
+  clientCountry: string | null; // orders.country (~24%): país del cliente
   // Datos económicos de la orden (referencia; ver docs/wordpress-mapping.md).
   custData: string | null; // custdata: info de la reserva (texto libre del staff)
   orderTotal: number | null; // order_total (con extras)
+  paid: number | null; // totpaid: pagado/anticipo (precarga "Seña"; baja cobertura, crece con Andes Pay Stripe)
   carCost: number | null; // car_cost (tarifa del auto, sin extras)
   carName: string | null; // cars.name (vía idcar): modelo, para reservas sin unidad
   pickupPlace: string | null; // places.name (idplace)

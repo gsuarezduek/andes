@@ -130,6 +130,7 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
         clientEmail: b.clientEmail,
         clientPhone: b.clientPhone,
         clientDocNumber: b.clientDocNumber,
+        clientCountry: b.clientCountry,
         ...booking,
       },
     });
@@ -170,6 +171,7 @@ function bookingFacts(b: RawBooking) {
   return {
     bookingDays: b.days,
     bookingTotal: b.orderTotal,
+    bookingPaid: b.paid,
     bookingNote: b.custData,
     bookingPricePerDay: perDay,
     bookingModel: b.carName,

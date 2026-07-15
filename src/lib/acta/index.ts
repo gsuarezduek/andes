@@ -62,6 +62,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   // Datos del cliente.
   const clientRows: ActaRow[] = [{ label: t.client, value: r.clientName }];
   if (r.clientDocNumber) clientRows.push({ label: t.dni, value: r.clientDocNumber });
+  if (r.clientCountry) clientRows.push({ label: t.country, value: r.clientCountry });
   if (r.licenseExpiry)
     clientRows.push({ label: t.licenseExpiry, value: formatDate(r.licenseExpiry, locale) });
   if (r.clientEmail) clientRows.push({ label: "Email", value: r.clientEmail });

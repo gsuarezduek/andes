@@ -2,9 +2,12 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: MDZ Rent a Car
  *
+ * v1.3.0: /bookings agrega `country` (país del cliente, grupo Cliente) y
+ *         `totpaid` (pagado/anticipo de la reserva, grupo Económico → precarga
+ *         la "Seña" en la entrega de Andes).
  * v1.2.0: pantalla de ajustes (Ajustes → Andes Sync) con toggles agrupados para
  *         elegir qué datos se comparten (cliente/PII, económico, texto libre,
  *         extras de la reserva y tarifa/temporadas). Los campos estructurales
@@ -116,8 +119,8 @@ add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links)
 function andes_sync_groups()
 {
     return [
-        'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber'],
-        'share_financial'     => ['Económico', 'orderTotal, carCost'],
+        'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber, clientCountry'],
+        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost'],
         'share_custdata'      => ['Texto libre de la reserva', 'custData (la "Info de la reserva")'],
         'share_booking_extra' => ['Extras de la reserva', 'createdUnix, days, lang, carName, pickupPlace, returnPlace'],
         'share_rates'         => ['Tarifa y temporadas', 'baseDailyRate en /cars y el endpoint /seasons'],
@@ -248,7 +251,7 @@ function andes_sync_bookings(WP_REST_Request $request)
     $sql = $wpdb->prepare(
         "SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
                 o.days, o.lang, o.nominative, o.custmail, o.phone,
-                o.custdata, o.order_total, o.car_cost,
+                o.custdata, o.country, o.order_total, o.totpaid, o.car_cost,
                 car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
                 c.first_name AS c_first, c.last_name AS c_last,
                 c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -397,10 +400,12 @@ function andes_sync_normalize_order($r, $opts = null)
         'clientEmail'     => $client ? (andes_sync_clean($r['c_email']) ?: andes_sync_clean($r['custmail'])) : null,
         'clientPhone'     => $client ? (andes_sync_clean($r['c_phone']) ?: andes_sync_clean($r['phone'])) : null,
         'clientDocNumber' => $client ? andes_sync_clean($r['c_docnum']) : null,
+        'clientCountry'   => $client ? andes_sync_clean($r['country']) : null,
         // Texto libre
         'custData'        => $note ? andes_sync_clean($r['custdata']) : null,
         // Económico
         'orderTotal'      => $money ? andes_sync_float_or_null($r['order_total']) : null,
+        'paid'            => $money ? andes_sync_float_or_null($r['totpaid']) : null,
         'carCost'         => $money ? andes_sync_float_or_null($r['car_cost']) : null,
     ];
 }

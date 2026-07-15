@@ -29,7 +29,9 @@ type OrderRow = {
   custmail: string | null;
   phone: string | null;
   custdata: string | null;
+  country: string | null;
   order_total: string | number | null;
+  totpaid: string | number | null;
   car_cost: string | number | null;
   car_name: string | null;
   pickup_place: string | null;
@@ -94,7 +96,7 @@ export class MysqlBookingSource implements BookingSource {
     const sql = `
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
-             o.custdata, o.order_total, o.car_cost,
+             o.custdata, o.country, o.order_total, o.totpaid, o.car_cost,
              car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -179,8 +181,10 @@ function normalizeOrder(r: OrderRow): RawBooking {
     clientEmail: clean(r.c_email) ?? clean(r.custmail),
     clientPhone: clean(r.c_phone) ?? clean(r.phone),
     clientDocNumber: clean(r.c_docnum),
+    clientCountry: clean(r.country),
     custData: clean(r.custdata),
     orderTotal: num(r.order_total),
+    paid: num(r.totpaid),
     carCost: num(r.car_cost),
     carName: clean(r.car_name),
     pickupPlace: clean(r.pickup_place),

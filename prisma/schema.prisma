@@ -195,6 +195,7 @@ model Rental {
   clientEmail     String?   @map("client_email")
   clientPhone     String?   @map("client_phone")
   clientDocNumber String?   @map("client_doc_number") // nro. de documento opcional
+  clientCountry   String?   @map("client_country") // país del cliente (VikRentCar orders.country, ~24%)
   licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
 
   // Conductores adicionales autorizados (además del titular). Array JSON
@@ -214,6 +215,7 @@ model Rental {
   bookingDays        Int?     @map("booking_days") // days de la orden
   bookingPricePerDay Decimal? @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
   bookingTotal       Decimal? @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
+  bookingPaid        Decimal? @map("booking_paid") @db.Decimal(12, 2) // totpaid: pagado/anticipo de la reserva (precarga "Seña")
   bookingNote        String?  @map("booking_note") @db.Text // custdata: info de la reserva (staff)
   // Modelo de VikRentCar (cars.name vía idcar): se muestra cuando la reserva
   // llegó sin unidad física asignada (carindex NULL).

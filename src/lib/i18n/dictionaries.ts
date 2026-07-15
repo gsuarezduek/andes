@@ -39,6 +39,7 @@ export type Dictionary = {
     registeredBy: string;
     place: string;
     dni: string;
+    country: string;
     licenseExpiry: string;
     mileage: string;
     fuelLevel: string;
@@ -123,6 +124,7 @@ const es: Dictionary = {
     registeredBy: "Registrado por",
     place: "Lugar",
     dni: "DNI",
+    country: "País",
     licenseExpiry: "Venc. licencia de conducir",
     mileage: "Kilometraje",
     fuelLevel: "Nivel de nafta",
@@ -222,6 +224,7 @@ const en: Dictionary = {
     registeredBy: "Registered by",
     place: "Location",
     dni: "ID",
+    country: "Country",
     licenseExpiry: "Driver's license expiry",
     mileage: "Mileage",
     fuelLevel: "Fuel level",

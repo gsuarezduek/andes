@@ -55,6 +55,9 @@ export default async function HandoverPage({
   };
   preset("dailyRate", rental.bookingPricePerDay ? Number(rental.bookingPricePerDay) : null);
   preset("days", rental.bookingDays);
+  // totpaid de VikRentCar = lo ya pagado/anticipado (p. ej. cobro online con
+  // Andes Pay Stripe) → precarga la "Seña"; el saldo se autocalcula.
+  preset("sena", rental.bookingPaid ? Number(rental.bookingPaid) : null);
   preset("insuranceAmount", conditions?.insuranceAmount ? Number(conditions.insuranceAmount) : null);
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);

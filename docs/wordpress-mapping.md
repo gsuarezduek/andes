@@ -62,7 +62,8 @@ Columnas verificadas (las relevantes; hay más de pagos/impuestos que no usamos)
 | `country` | varchar(5) | sí | país |
 | `car_cost` | decimal(12,2) | sí | tarifa del auto (sin extras). `car_cost/days` → `rentals.booking_price_per_day`. **Cobertura ~24%.** |
 | `order_total` | decimal(12,2) | sí | total con extras → `rentals.booking_total` (referencia). Cobertura ~95%. |
-| `totpaid` | decimal(12,2) | sí | pagado (informativo; cobros fuera de v1) |
+| `totpaid` | decimal(12,2) | sí | pagado/anticipo → `rentals.booking_paid`. **Precarga la "Seña" en la entrega.** Cobertura baja hoy (~8% en ventana) pero crece con el cobro online (Andes Pay Stripe). Sin cobro en Andes. |
+| `country` | varchar(5) | sí | país del cliente → `rentals.client_country` (se muestra en el acta). Cobertura ~24%. |
 | `idtar` | int(10) | sí | id de tarifa aplicada (no usado) |
 | `adminnotes` | text | sí | notas del admin en el plugin |
 
@@ -147,6 +148,13 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 
 - **`customers_orders`**: `id`, `idcustomer` (→ `customers.id`), `idorder`
   (→ `orders.id`), `drivers_data` (text). Join directo por `idorder`.
+  - ⚠️ **`drivers_data` está prácticamente sin uso** (verificado 2026-07): de 559
+    filas, 1 sola no vacía y su valor es `[]`. **No** sirve para precargar
+    conductores adicionales en Andes. Descartado.
+- **Opcionales/extras** (a futuro, no sincronizado aún): existen estructurados —
+  `orders.optionals` (varchar 128), `orders.extracosts` (varchar 2048) y la tabla
+  `wp_vikrentcar_optionals`. Candidato para mapear a "Accesorios" del contrato;
+  falta muestrear el formato antes de programarlo.
 - **`customers`** (857 filas) es rico: `first_name`, `last_name`, `email`, `phone`,
   `country`, `address`, `city`, `zip`, **`doctype`**, **`docnum`** (tipo y nº de
   documento → alimenta el nro. de documento opcional de `rentals`), `company`,
