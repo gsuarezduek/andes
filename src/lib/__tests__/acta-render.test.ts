@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { renderToBuffer } from "@react-pdf/renderer";
-import { createElement } from "react";
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
+import { createElement, type ReactElement } from "react";
 import { ActaDocument, type ActaData } from "@/lib/acta/pdf";
 import { getDictionary } from "@/lib/i18n";
 import { COMPANY } from "@/lib/contract";
@@ -43,7 +43,8 @@ describe("ActaDocument", () => {
       photoDataUris: [],
     };
 
-    const buf = await renderToBuffer(createElement(ActaDocument, data));
+    const element = createElement(ActaDocument, data) as unknown as ReactElement<DocumentProps>;
+    const buf = await renderToBuffer(element);
     // %PDF header + tamaño razonable.
     expect(buf.length).toBeGreaterThan(1000);
     expect(buf.subarray(0, 4).toString()).toBe("%PDF");

@@ -321,6 +321,7 @@ export default async function VehicleDetailPage({
                 <input type="number" name="cost" inputMode="numeric" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
               </label>
             </div>
+            <input name="place" placeholder="Lugar / taller (opcional)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
             <input name="description" required placeholder="Descripción (ej. cambio de aceite y filtros)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
             <SubmitButton pendingLabel="Agregando…">Agregar registro</SubmitButton>
           </form>
@@ -337,6 +338,7 @@ export default async function VehicleDetailPage({
                     <span className="text-xs text-foreground/50">{formatDate(m.date)}{m.km != null ? ` · ${m.km.toLocaleString("es-AR")} km` : ""}</span>
                   </div>
                   <p className="mt-1">{m.description}</p>
+                  {m.place && <p className="text-xs text-foreground/50">📍 {m.place}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   {m.cost != null && <span className="font-medium">{formatArs(Number(m.cost))}</span>}

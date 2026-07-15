@@ -12,8 +12,10 @@ import {
   documentKindLabels,
 } from "@/lib/labels";
 import { rentalStatusTone } from "@/lib/rental-ui";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatDateInput } from "@/lib/datetime";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { EditDetailsForm } from "./edit-details-form";
+import { markVehicleService } from "./service-actions";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
 
@@ -64,6 +66,10 @@ export default async function RentalDetailPage({
     : [];
   // Requerimos un vehículo asignado para iniciar la entrega (el wizard ya no lo pide).
   const canStartHandoverNow = canStartHandover && Boolean(rental.vehicleId);
+  // Marcar service/arreglo en vez de entregar: para alquileres cargados solo
+  // para bloquear el auto (reservado, con unidad, sin entrega hecha).
+  const canMarkService = canStartHandover && Boolean(rental.vehicleId);
+  const today = formatDateInput(new Date());
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -208,6 +214,52 @@ export default async function RentalDetailPage({
         <p className="rounded-lg bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
           Asigná un vehículo arriba para poder iniciar la entrega.
         </p>
+      )}
+
+      {/* Service / arreglo: para autos cargados como alquiler solo para
+          bloquearlos. Registra el arreglo y deja el auto fuera de servicio. */}
+      {canMarkService && (
+        <details className="rounded-xl border border-foreground/10">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground/70">
+            ¿El auto va a service o arreglo? (no hacer entrega)
+          </summary>
+          <form
+            action={markVehicleService.bind(null, rental.id, rental.vehicleId!)}
+            className="flex flex-col gap-3 border-t border-foreground/10 p-4"
+          >
+            <p className="text-xs text-foreground/50">
+              Registra el service/arreglo y deja el auto <strong>fuera de servicio</strong>. Este
+              alquiler queda cancelado. Cuando vuelva, reactivá el auto desde su ficha.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-foreground/70">Tipo</span>
+                <select name="type" defaultValue="repair" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm">
+                  <option value="service">Service</option>
+                  <option value="repair">Arreglo</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-foreground/70">Fecha</span>
+                <input type="date" name="date" required defaultValue={today} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-foreground/70">Km</span>
+                <input type="number" name="km" inputMode="numeric" defaultValue={rental.vehicle?.currentKm ?? ""} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-foreground/70">Costo</span>
+                <input type="number" name="cost" inputMode="numeric" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-foreground/70">Lugar / taller</span>
+              <input name="place" placeholder="Ej. taller del centro" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
+            </label>
+            <input name="description" required placeholder="Qué arreglo/service (ej. cambio de correa)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
+            <SubmitButton pendingLabel="Guardando…">Marcar fuera de servicio</SubmitButton>
+          </form>
+        </details>
       )}
 
       <div className="flex gap-3">

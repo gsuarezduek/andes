@@ -20,6 +20,7 @@ const schema = z.object({
   date: z.string().min(1),
   km: optInt,
   cost: optCost,
+  place: z.string().trim().optional(),
   description: z.string().trim().min(1),
 });
 
@@ -30,6 +31,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
     date: formData.get("date"),
     km: formData.get("km"),
     cost: formData.get("cost"),
+    place: formData.get("place"),
     description: formData.get("description"),
   });
   if (!parsed.success) return;
@@ -41,6 +43,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
       date: mendozaWallTimeToUtc(`${parsed.data.date}T12:00`),
       km: parsed.data.km ?? null,
       cost: parsed.data.cost ?? null,
+      place: parsed.data.place || null,
       description: parsed.data.description,
     },
   });
