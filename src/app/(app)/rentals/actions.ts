@@ -152,3 +152,54 @@ export async function updateRentalDetails(
   revalidatePath("/rentals");
   return { ok: true };
 }
+
+const returnSchema = z.object({
+  rentalId: z.string().min(1),
+  endAt: z.string().min(1, "La fecha de devolución es obligatoria"),
+  returnPlace: optionalStr,
+});
+
+/**
+ * Modifica la fecha y el lugar de devolución de un alquiler — típico cuando el
+ * cliente extiende el alquiler. Se permite mientras el alquiler no esté
+ * finalizado ni cancelado (reservado o activo). La devolución debe ser posterior
+ * al retiro.
+ */
+export async function updateReturnDetails(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireUser();
+
+  const parsed = returnSchema.safeParse({
+    rentalId: formData.get("rentalId"),
+    endAt: formData.get("endAt"),
+    returnPlace: formData.get("returnPlace"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const rental = await prisma.rental.findUnique({
+    where: { id: parsed.data.rentalId },
+    select: { id: true, startAt: true, status: true },
+  });
+  if (!rental) return { error: "El alquiler no existe." };
+  if (rental.status === "finished" || rental.status === "cancelled") {
+    return { error: "No se puede modificar un alquiler finalizado o cancelado." };
+  }
+
+  const endAt = mendozaWallTimeToUtc(parsed.data.endAt);
+  if (endAt <= rental.startAt) {
+    return { error: "La devolución debe ser posterior al retiro." };
+  }
+
+  await prisma.rental.update({
+    where: { id: rental.id },
+    data: { endAt, bookingReturnPlace: parsed.data.returnPlace ?? null },
+  });
+
+  revalidatePath(`/rentals/${rental.id}`);
+  revalidatePath("/rentals");
+  return { ok: true };
+}

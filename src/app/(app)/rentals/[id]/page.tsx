@@ -12,9 +12,10 @@ import {
   documentKindLabels,
 } from "@/lib/labels";
 import { rentalStatusTone } from "@/lib/rental-ui";
-import { formatDateTime, formatDateInput } from "@/lib/datetime";
+import { formatDateTime, formatDateInput, formatDateTimeInput } from "@/lib/datetime";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EditDetailsForm } from "./edit-details-form";
+import { EditReturnForm } from "./edit-return-form";
 import { markVehicleService } from "./service-actions";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
@@ -70,6 +71,8 @@ export default async function RentalDetailPage({
   // para bloquear el auto (reservado, con unidad, sin entrega hecha).
   const canMarkService = canStartHandover && Boolean(rental.vehicleId);
   const today = formatDateInput(new Date());
+  // Extensión: modificar fecha/lugar de devolución mientras no esté cerrado.
+  const canEditReturn = rental.status === "reserved" || rental.status === "active";
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -145,6 +148,14 @@ export default async function RentalDetailPage({
         )}
         <Row label="Idioma" value={languageLabels[rental.language]} />
       </div>
+
+      {canEditReturn && (
+        <EditReturnForm
+          rentalId={rental.id}
+          endAt={formatDateTimeInput(rental.endAt)}
+          returnPlace={rental.bookingReturnPlace ?? ""}
+        />
+      )}
 
       {rental.bookingNote && (
         <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">

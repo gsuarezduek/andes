@@ -230,11 +230,11 @@ export default async function VehicleDetailPage({
                   <Badge tone={d.repaired ? "neutral" : "amber"}>{d.repaired ? "Reparado" : "Activo"}</Badge>
                 </div>
                 <p className="text-xs text-foreground/50">
-                  Cargado por {d.reportedBy?.name ?? "—"} · {formatDateTime(d.createdAt)}
+                  {d.reportedBy?.name ? `Cargado por ${d.reportedBy.name}` : "Cargado"} · {formatDateTime(d.createdAt)}
                 </p>
                 {d.repaired && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    Reparado por {d.repairedBy?.name ?? "—"}
+                    {d.repairedBy?.name ? `Reparado por ${d.repairedBy.name}` : "Reparado"}
                     {d.repairedAt ? ` · ${formatDateTime(d.repairedAt)}` : ""}
                   </p>
                 )}

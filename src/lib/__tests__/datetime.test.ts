@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   mendozaWallTimeToUtc,
   formatDateInput,
+  formatDateTimeInput,
   formatDateTime,
   fromUnixSeconds,
 } from "@/lib/datetime";
@@ -19,6 +20,19 @@ describe("mendozaWallTimeToUtc", () => {
     const shown = formatDateTime(utc, "es");
     expect(shown).toContain("05/01/2026");
     expect(shown).toContain("09:30");
+  });
+});
+
+describe("formatDateTimeInput", () => {
+  it("formatea un instante UTC como YYYY-MM-DDTHH:mm en hora de Mendoza", () => {
+    // 15:00 UTC == 12:00 en Mendoza (UTC−3).
+    const d = new Date("2026-07-12T15:00:00.000Z");
+    expect(formatDateTimeInput(d)).toBe("2026-07-12T12:00");
+  });
+
+  it("round-trip con mendozaWallTimeToUtc conserva el valor del input", () => {
+    const wall = "2026-03-01T23:45";
+    expect(formatDateTimeInput(mendozaWallTimeToUtc(wall))).toBe(wall);
   });
 });
 

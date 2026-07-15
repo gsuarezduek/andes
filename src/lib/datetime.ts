@@ -39,6 +39,28 @@ export function formatDateInput(date: Date): string {
   }).format(date);
 }
 
+/**
+ * Formats an instant as "YYYY-MM-DDTHH:mm" in Mendoza local time (para inputs
+ * `datetime-local`). Es el inverso de `mendozaWallTimeToUtc`.
+ */
+export function formatDateTimeInput(date: Date): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: APP_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .filter((x) => x.type !== "literal")
+      .map((x) => [x.type, x.value]),
+  ) as Record<string, string>;
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
 /** Formats an instant as a Mendoza-local date string (no time). */
 export function formatDate(date: Date, locale: "es" | "en" = "es"): string {
   return new Intl.DateTimeFormat(LOCALE_TAG[locale], {
