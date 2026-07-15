@@ -142,6 +142,10 @@ export default async function VehicleDetailPage({
           />
           <Row label="Intervalo de service" value={vehicle.serviceIntervalKm ? `${vehicle.serviceIntervalKm.toLocaleString("es-AR")} km` : "—"} />
           <Row label="Líneas de combustible" value={`${vehicle.fuelLevels} líneas`} />
+          <Row label="Número de motor" value={vehicle.engineNumber} />
+          <Row label="Chasis" value={vehicle.chassisNumber} />
+          <Row label="Empresa de seguro" value={vehicle.insuranceCompany} />
+          <Row label="Número de póliza" value={vehicle.insurancePolicyNumber} />
           <Row label="Mapeo VikRentCar" value={vehicle.wpCarId ? `idcar ${vehicle.wpCarId} · unidad ${vehicle.wpCarIndex}` : "Sin mapear"} />
           <Row label="Notas" value={vehicle.notes} />
         </div>

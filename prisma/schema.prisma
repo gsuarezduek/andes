@@ -143,6 +143,12 @@ model Vehicle {
   photoUrl      String?       @map("photo_url")
   notes         String?
 
+  // Identificación y seguro (opcionales, se cargan a mano en la ficha).
+  engineNumber          String? @map("engine_number") // número de motor
+  chassisNumber         String? @map("chassis_number") // número de chasis
+  insurancePolicyNumber String? @map("insurance_policy_number") // número de póliza
+  insuranceCompany      String? @map("insurance_company") // empresa de seguro
+
   // Tarifa de referencia por 1 día (traída de VikRentCar: dispcost days=1 ×
   // ajuste de temporada vigente). La refresca la sincronización; varía según la
   // fecha/temporada. Ver docs/wordpress-mapping.md y src/lib/sync.

@@ -17,6 +17,12 @@ const optionalInt = z.preprocess(
   z.number({ error: "Debe ser un número" }).int().nonnegative().nullable(),
 );
 
+// Texto recortado, o null si viene vacío (limpia la columna en updateVehicle).
+const optionalStr = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
+  z.string().nullable(),
+);
+
 const vehicleSchema = z.object({
   plate: z.string().trim().min(1, "La patente es obligatoria").max(16),
   brand: z.string().trim().min(1, "La marca es obligatoria"),
@@ -40,10 +46,11 @@ const vehicleSchema = z.object({
   ),
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
-  notes: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
-    z.string().nullable(),
-  ),
+  notes: optionalStr,
+  engineNumber: optionalStr,
+  chassisNumber: optionalStr,
+  insurancePolicyNumber: optionalStr,
+  insuranceCompany: optionalStr,
 });
 
 function parse(formData: FormData) {
@@ -59,6 +66,10 @@ function parse(formData: FormData) {
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),
+    engineNumber: formData.get("engineNumber"),
+    chassisNumber: formData.get("chassisNumber"),
+    insurancePolicyNumber: formData.get("insurancePolicyNumber"),
+    insuranceCompany: formData.get("insuranceCompany"),
   });
 }
 

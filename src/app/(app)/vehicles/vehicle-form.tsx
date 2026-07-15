@@ -51,6 +51,14 @@ export function VehicleForm({
           </option>
         ))}
       </SelectField>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField id="engineNumber" label="Número de motor" defaultValue={vehicle?.engineNumber ?? ""} />
+        <TextField id="chassisNumber" label="Chasis" defaultValue={vehicle?.chassisNumber ?? ""} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField id="insuranceCompany" label="Empresa de seguro" defaultValue={vehicle?.insuranceCompany ?? ""} />
+        <TextField id="insurancePolicyNumber" label="Número de póliza" defaultValue={vehicle?.insurancePolicyNumber ?? ""} />
+      </div>
       <TextareaField id="notes" label="Notas" defaultValue={vehicle?.notes ?? ""} />
 
       <FormError>{state.error}</FormError>
