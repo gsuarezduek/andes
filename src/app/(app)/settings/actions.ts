@@ -74,3 +74,21 @@ export async function saveEmailSettings(formData: FormData) {
   });
   revalidatePath("/settings/emails");
 }
+
+/**
+ * Guarda el orden de los autos en el calendario. `orderedIds` es la lista de
+ * ids de vehículos en el orden deseado (de arriba hacia abajo); se persiste como
+ * `sortOrder = posición` (0, 1, 2, …). Alimenta la vista Calendario.
+ */
+export async function saveCalendarOrder(orderedIds: string[]): Promise<{ ok: boolean }> {
+  await requireAdmin();
+  const ids = Array.isArray(orderedIds) ? orderedIds.filter((x) => typeof x === "string") : [];
+  if (ids.length === 0) return { ok: false };
+
+  await prisma.$transaction(
+    ids.map((id, index) => prisma.vehicle.update({ where: { id }, data: { sortOrder: index } })),
+  );
+  revalidatePath("/settings/calendar");
+  revalidatePath("/calendar");
+  return { ok: true };
+}

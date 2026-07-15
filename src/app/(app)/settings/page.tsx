@@ -11,6 +11,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Condiciones económicas precargadas y checklist de entrega/devolución.",
   },
   {
+    href: "/settings/calendar",
+    title: "Calendario",
+    description: "Orden de los autos y ajustes de la vista de calendario.",
+  },
+  {
     href: "/settings/emails",
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",
