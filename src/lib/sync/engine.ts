@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { vikRentCarUnixToUtc } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
-import type { BookingSource, RawBooking, RawCar, RawSeason } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason } from "./types";
 import { createBookingSource } from "./source";
 import { computeDailyRate } from "./rates";
+import { resolveOptionals } from "./optionals";
 
 /**
  * Motor de sincronización VikRentCar → Andes (Fase 5).
@@ -55,10 +56,19 @@ export async function runBookingSync(source?: BookingSource): Promise<SyncSummar
     return { result: "error", imported: 0, updated: 0, cancelled: 0, skipped: 0, errors: 1, message };
   }
 
+  // Catálogo de opcionales (para resolver packs de km / mejora de seguro por
+  // reserva). Best-effort: si falla, se importa sin opcionales.
+  let optionals: RawOptional[] = [];
+  try {
+    optionals = await src.fetchOptionals();
+  } catch {
+    optionals = [];
+  }
+
   try {
     for (const b of bookings) {
       try {
-        const outcome = await upsertBooking(b);
+        const outcome = await upsertBooking(b, optionals);
         if (outcome === "imported") imported++;
         else if (outcome === "updated") updated++;
         else if (outcome === "cancelled") cancelled++;
@@ -87,7 +97,7 @@ export async function runBookingSync(source?: BookingSource): Promise<SyncSummar
 
 type Outcome = "imported" | "updated" | "cancelled" | "skipped";
 
-async function upsertBooking(b: RawBooking): Promise<Outcome> {
+async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Promise<Outcome> {
   const existing = await prisma.rental.findUnique({
     where: { wpBookingId: b.wpBookingId },
     include: { inspections: { select: { id: true }, take: 1 } },
@@ -114,7 +124,7 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
   const language = resolveLocale(b.lang);
   const startAt = vikRentCarUnixToUtc(b.startUnix);
   const endAt = vikRentCarUnixToUtc(b.endUnix);
-  const booking = bookingFacts(b);
+  const booking = bookingFacts(b, optionals);
 
   if (!existing) {
     await prisma.rental.create({
@@ -163,11 +173,13 @@ async function upsertBooking(b: RawBooking): Promise<Outcome> {
  * condiciones). NO son pricing del contrato: eso lo carga el empleado y el sync
  * nunca lo pisa. Ver docs/wordpress-mapping.md.
  */
-function bookingFacts(b: RawBooking) {
+function bookingFacts(b: RawBooking, optionals: RawOptional[] = []) {
   const perDay =
     b.carCost != null && b.days && b.days > 0
       ? Math.round((b.carCost / b.days) * 100) / 100
       : null;
+  // Opcionales: packs de km → accesorios (desc + importe), mejora de seguro → flag.
+  const opt = resolveOptionals(b.optionals, optionals, b.days);
   return {
     // `standby` entra sin confirmar (naranja); `confirmed` confirmada. Si el dueño
     // confirma en VikRentCar, el próximo sync la actualiza a true.
@@ -180,6 +192,9 @@ function bookingFacts(b: RawBooking) {
     bookingModel: b.carName,
     bookingPickupPlace: b.pickupPlace,
     bookingReturnPlace: b.returnPlace,
+    bookingAccessories: opt.accessoriesDesc,
+    bookingAccessoriesAmount: opt.accessoriesAmount,
+    bookingInsuranceUpgrade: opt.insuranceUpgrade,
   };
 }
 

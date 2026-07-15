@@ -22,6 +22,8 @@ export type ContractPricing = {
   dailyRate?: number; // $ por día (se precarga de VikRentCar: car_cost/days)
   days?: number; // cantidad de días (se precarga de VikRentCar: days)
   insuranceAmount?: number; // seguro
+  insuranceUpgrade?: boolean; // "Mejora de Seguro": baja la franquicia (destacado)
+  deductible?: number; // franquicia (deducible) aplicable; menor si hay mejora de seguro
   kmPerDay?: number; // km incluidos por día
   extraKmRate?: number; // $ por km extra
   unlimitedKm?: boolean; // "KM libres": sin límite, no se cobra excedente

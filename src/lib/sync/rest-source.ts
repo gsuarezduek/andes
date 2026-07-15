@@ -1,6 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, RawSeason, SyncWindow } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason, SyncWindow } from "./types";
 
 /**
  * Transporte de producción: consume el mu-plugin `andes-sync` de WordPress por
@@ -39,6 +39,8 @@ export class RestBookingSource implements BookingSource {
     return (data.bookings ?? []).map((b) => ({
       ...b,
       clientName: b.clientName ?? "Sin nombre",
+      // Compat con plugins < v1.4.0 que no devuelven `optionals`.
+      optionals: b.optionals ?? null,
     }));
   }
 
@@ -53,6 +55,16 @@ export class RestBookingSource implements BookingSource {
     try {
       const data = await this.get<{ seasons: RawSeason[] }>("seasons");
       return data.seasons ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async fetchOptionals(): Promise<RawOptional[]> {
+    // Compat: si el plugin es < v1.4.0 (sin /optionals, 404), no hay catálogo.
+    try {
+      const data = await this.get<{ optionals: RawOptional[] }>("optionals");
+      return data.optionals ?? [];
     } catch {
       return [];
     }

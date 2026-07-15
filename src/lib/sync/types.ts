@@ -41,6 +41,19 @@ export type RawBooking = {
   carName: string | null; // cars.name (vía idcar): modelo, para reservas sin unidad
   pickupPlace: string | null; // places.name (idplace)
   returnPlace: string | null; // places.name (idreturnplace)
+  optionals: string | null; // orders.optionals: "id:cantidad;" (ver optionals.ts)
+};
+
+/**
+ * Un opcional del catálogo `wp_vikrentcar_optionals` (GPS, packs de km, mejora de
+ * seguro, …). La lógica de clasificación/importe vive en `optionals.ts`.
+ */
+export type RawOptional = {
+  id: number;
+  name: string;
+  cost: number | null; // costo unitario
+  perDay: boolean; // se cobra por día (perday=1)
+  hasMany: boolean; // admite cantidad (hmany=1)
 };
 
 /** Un modelo de `wp_vikrentcar_cars`, para el seed inicial de la flota. */
@@ -79,6 +92,8 @@ export interface BookingSource {
   fetchCars(): Promise<RawCar[]>;
   /** Temporadas de ajuste de tarifa (porcentaje). */
   fetchSeasons(): Promise<RawSeason[]>;
+  /** Catálogo de opcionales (packs de km, mejora de seguro, …). */
+  fetchOptionals(): Promise<RawOptional[]>;
   /** Cierra conexiones abiertas (no-op en REST). */
   close?(): Promise<void>;
 }

@@ -24,6 +24,8 @@ export async function saveConditions(formData: FormData) {
     kmPerDay: intOrNull(formData.get("kmPerDay")),
     extraKmRate: intOrNull(formData.get("extraKmRate")),
     extraHourPercent: intOrNull(formData.get("extraHourPercent")),
+    deductible: intOrNull(formData.get("deductible")),
+    deductibleReduced: intOrNull(formData.get("deductibleReduced")),
   };
   await prisma.conditionSettings.upsert({
     where: { id: 1 },

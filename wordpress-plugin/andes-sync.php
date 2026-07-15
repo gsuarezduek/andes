@@ -2,9 +2,12 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: MDZ Rent a Car
  *
+ * v1.4.0: /bookings agrega `optionals` (opcionales elegidos, "id:cant;") y se
+ *         agrega /optionals (catálogo: packs de km, mejora de seguro). Andes los
+ *         mapea a accesorios + franquicia. Grupo Económico.
  * v1.3.0: /bookings agrega `country` (país del cliente, grupo Cliente) y
  *         `totpaid` (pagado/anticipo de la reserva, grupo Económico → precarga
  *         la "Seña" en la entrega de Andes).
@@ -120,7 +123,7 @@ function andes_sync_groups()
 {
     return [
         'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber, clientCountry'],
-        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost'],
+        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost, optionals (+ catálogo /optionals)'],
         'share_custdata'      => ['Texto libre de la reserva', 'custData (la "Info de la reserva")'],
         'share_booking_extra' => ['Extras de la reserva', 'createdUnix, days, lang, carName, pickupPlace, returnPlace'],
         'share_rates'         => ['Tarifa y temporadas', 'baseDailyRate en /cars y el endpoint /seasons'],
@@ -208,6 +211,12 @@ add_action('rest_api_init', function () {
         'callback'            => 'andes_sync_seasons',
         'permission_callback' => 'andes_sync_authorized',
     ]);
+
+    register_rest_route('andes/v1', '/optionals', [
+        'methods'             => 'GET',
+        'callback'            => 'andes_sync_optionals',
+        'permission_callback' => 'andes_sync_authorized',
+    ]);
 });
 
 /** Autenticación por token compartido (header X-Andes-Token o ?token=). */
@@ -251,7 +260,7 @@ function andes_sync_bookings(WP_REST_Request $request)
     $sql = $wpdb->prepare(
         "SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
                 o.days, o.lang, o.nominative, o.custmail, o.phone,
-                o.custdata, o.country, o.order_total, o.totpaid, o.car_cost,
+                o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals,
                 car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
                 c.first_name AS c_first, c.last_name AS c_last,
                 c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -355,6 +364,41 @@ function andes_sync_seasons(WP_REST_Request $request)
 }
 
 /**
+ * Catálogo de opcionales (`wp_vikrentcar_optionals`): packs de km, mejora de
+ * seguro, etc. Andes los mapea a accesorios (importe) y franquicia (mejora de
+ * seguro). Gateado por el grupo Económico (igual que `optionals` en /bookings).
+ */
+function andes_sync_optionals(WP_REST_Request $request)
+{
+    if (!andes_sync_share('share_financial')) {
+        return new WP_REST_Response(['optionals' => []], 200);
+    }
+
+    global $wpdb;
+    $p = $wpdb->prefix . 'vikrentcar_';
+
+    $rows = $wpdb->get_results(
+        "SELECT id, name, cost, perday, hmany FROM {$p}optionals ORDER BY ordering, id",
+        ARRAY_A
+    );
+    if ($rows === null) {
+        return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
+    }
+
+    $optionals = array_map(function ($r) {
+        return [
+            'id'      => (int) $r['id'],
+            'name'    => andes_sync_clean($r['name']) ?: ('Opcional ' . (int) $r['id']),
+            'cost'    => andes_sync_float_or_null($r['cost']),
+            'perDay'  => (int) $r['perday'] === 1,
+            'hasMany' => (int) $r['hmany'] === 1,
+        ];
+    }, $rows);
+
+    return new WP_REST_Response(['optionals' => $optionals], 200);
+}
+
+/**
  * Normaliza una fila de orden a la forma RawBooking que espera Andes.
  * $opts controla qué grupos opcionales se comparten (los apagados van null).
  */
@@ -407,6 +451,7 @@ function andes_sync_normalize_order($r, $opts = null)
         'orderTotal'      => $money ? andes_sync_float_or_null($r['order_total']) : null,
         'paid'            => $money ? andes_sync_float_or_null($r['totpaid']) : null,
         'carCost'         => $money ? andes_sync_float_or_null($r['car_cost']) : null,
+        'optionals'       => $money ? andes_sync_clean($r['optionals']) : null,
     ];
 }
 

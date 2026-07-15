@@ -104,6 +104,20 @@ export default async function GeneralSettingsPage() {
               hint="% de la tarifa diaria"
               defaultValue={conditions?.extraHourPercent?.toString()}
             />
+            <ConditionField
+              name="deductible"
+              label="Franquicia estándar"
+              prefix="$"
+              hint="deducible del seguro"
+              defaultValue={conditions?.deductible?.toString()}
+            />
+            <ConditionField
+              name="deductibleReduced"
+              label="Franquicia con mejora de seguro"
+              prefix="$"
+              hint="franquicia reducida"
+              defaultValue={conditions?.deductibleReduced?.toString()}
+            />
           </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-foreground/50">

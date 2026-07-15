@@ -222,6 +222,12 @@ model Rental {
   bookingModel       String?  @map("booking_model")
   bookingPickupPlace String?  @map("booking_pickup_place") // idplace → places.name
   bookingReturnPlace String?  @map("booking_return_place") // idreturnplace → places.name
+  // Opcionales de VikRentCar (wp_vikrentcar_optionals). Los packs de km → accesorios
+  // (descripción + importe precalculado); la "Mejora de Seguro" → flag que baja la
+  // franquicia. Precargan las condiciones; el sync nunca pisa `pricing`.
+  bookingAccessories       String?  @map("booking_accessories") @db.Text
+  bookingAccessoriesAmount Decimal? @map("booking_accessories_amount") @db.Decimal(12, 2)
+  bookingInsuranceUpgrade  Boolean  @default(false) @map("booking_insurance_upgrade")
 
   // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
   // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el
@@ -472,6 +478,10 @@ model ConditionSettings {
   kmPerDay         Int?     @map("km_per_day") // km incluidos por día
   extraKmRate      Decimal? @map("extra_km_rate") @db.Decimal(12, 2) // $ por km extra
   extraHourPercent Int?     @map("extra_hour_percent") // % de la tarifa diaria por hora extra
+  // Franquicia (deducible del seguro): la estándar y la reducida cuando el
+  // alquiler lleva "Mejora de Seguro" (ej. 600.000 → 400.000).
+  deductible        Decimal? @map("deductible") @db.Decimal(12, 2) // franquicia estándar
+  deductibleReduced Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("condition_settings")

@@ -151,10 +151,17 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
   - ⚠️ **`drivers_data` está prácticamente sin uso** (verificado 2026-07): de 559
     filas, 1 sola no vacía y su valor es `[]`. **No** sirve para precargar
     conductores adicionales en Andes. Descartado.
-- **Opcionales/extras** (a futuro, no sincronizado aún): existen estructurados —
-  `orders.optionals` (varchar 128), `orders.extracosts` (varchar 2048) y la tabla
-  `wp_vikrentcar_optionals`. Candidato para mapear a "Accesorios" del contrato;
-  falta muestrear el formato antes de programarlo.
+- **Opcionales** ✅ (sincronizados, v6): `orders.optionals` = `"id:cantidad;"`
+  (ej. `"4:1;5:1;"`); catálogo en `wp_vikrentcar_optionals` (`id, name, cost,
+  perday, hmany`). Verificado: solo 3 opcionales (200km camionetas $23.000,
+  200km autos $20.000, **Mejora de Seguro** $20.000/día), ~6% de cobertura.
+  **Mapeo (Andes, `src/lib/sync/optionals.ts`):** la "Mejora de Seguro" (nombre con
+  "seguro") es un **flag** que baja la franquicia (`bookingInsuranceUpgrade`); el
+  resto son **accesorios** → `bookingAccessories` (desc) + `bookingAccessoriesAmount`
+  (importe = `cost × (perday?días:1) × cantidad`). Precargan las condiciones de la
+  entrega; el sync nunca pisa `pricing`. El transporte expone `/optionals` (catálogo
+  crudo) y `optionals` por reserva; el cálculo vive solo en JS. **`extracosts` está
+  muerto** (0 filas) → ignorado.
 - **`customers`** (857 filas) es rico: `first_name`, `last_name`, `email`, `phone`,
   `country`, `address`, `city`, `zip`, **`doctype`**, **`docnum`** (tipo y nº de
   documento → alimenta el nro. de documento opcional de `rentals`), `company`,

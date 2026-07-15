@@ -96,6 +96,11 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   if (pricing.accessoriesDesc?.trim()) {
     termRows.push({ label: t.accessories, value: pricing.accessoriesDesc.trim() });
   }
+  // Franquicia (deducible del seguro), con nota si lleva mejora de seguro.
+  if (typeof pricing.deductible === "number" && !Number.isNaN(pricing.deductible)) {
+    const label = pricing.insuranceUpgrade ? `${t.deductible} (${t.insuranceUpgrade})` : t.deductible;
+    termRows.push({ label, value: formatArs(pricing.deductible) });
+  }
   if (pricing.guaranteeForm?.trim()) {
     termRows.push({ label: t.guaranteeForm, value: pricing.guaranteeForm.trim() });
   }

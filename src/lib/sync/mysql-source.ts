@@ -1,7 +1,7 @@
 import "server-only";
 import mysql from "mysql2/promise";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, RawSeason, SyncWindow } from "./types";
+import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason, SyncWindow } from "./types";
 import { parseIdCars } from "./rates";
 
 /**
@@ -36,6 +36,7 @@ type OrderRow = {
   car_name: string | null;
   pickup_place: string | null;
   return_place: string | null;
+  optionals: string | null;
   c_first: string | null;
   c_last: string | null;
   c_email: string | null;
@@ -96,7 +97,7 @@ export class MysqlBookingSource implements BookingSource {
     const sql = `
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
-             o.custdata, o.country, o.order_total, o.totpaid, o.car_cost,
+             o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals,
              car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -154,6 +155,18 @@ export class MysqlBookingSource implements BookingSource {
       }));
   }
 
+  async fetchOptionals(): Promise<RawOptional[]> {
+    const sql = `SELECT id, name, cost, perday, hmany FROM \`${PREFIX}optionals\` ORDER BY ordering, id`;
+    const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(sql);
+    return (rows as OptionalRow[]).map((r) => ({
+      id: r.id,
+      name: clean(r.name) ?? `Opcional ${r.id}`,
+      cost: num(r.cost),
+      perDay: Number(r.perday) === 1,
+      hasMany: Number(r.hmany) === 1,
+    }));
+  }
+
   async close(): Promise<void> {
     if (this.pool) {
       await this.pool.end();
@@ -161,6 +174,14 @@ export class MysqlBookingSource implements BookingSource {
     }
   }
 }
+
+type OptionalRow = {
+  id: number;
+  name: string | null;
+  cost: string | number | null;
+  perday: number | null;
+  hmany: number | null;
+};
 
 function normalizeOrder(r: OrderRow): RawBooking {
   const name =
@@ -189,5 +210,6 @@ function normalizeOrder(r: OrderRow): RawBooking {
     carName: clean(r.car_name),
     pickupPlace: clean(r.pickup_place),
     returnPlace: clean(r.return_place),
+    optionals: clean(r.optionals),
   };
 }

@@ -61,6 +61,8 @@ type Draft = {
   pricing: Record<string, string>;
   // "KM libres": sin límite → no se cobra excedente en la devolución.
   unlimitedKm: boolean;
+  // "Mejora de Seguro": baja la franquicia (destacado en el acta).
+  insuranceUpgrade: boolean;
   accessoriesDesc: string;
   // Forma de la garantía tomada en la entrega (efectivo, tarjeta, etc.).
   guaranteeForm: string;
@@ -102,6 +104,10 @@ export type InspectionWizardProps = {
   language: Lang;
   licenseExpiry?: string;
   pricing?: Record<string, string>;
+  /** Franquicia estándar y reducida (con mejora de seguro), de Configuración →
+   *  Condiciones. Al activar la mejora se cambia la franquicia por la reducida. */
+  deductibleBase?: number;
+  deductibleReduced?: number;
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
@@ -166,6 +172,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
     unlimitedKm: props.pricing?.unlimitedKm === "true",
+    insuranceUpgrade: props.pricing?.insuranceUpgrade === "true",
     accessoriesDesc: props.pricing?.accessoriesDesc ?? "",
     guaranteeForm: props.pricing?.guaranteeForm ?? "",
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
@@ -443,6 +450,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (draft.accessoriesDesc.trim()) {
         conditions.push({ label: dict.acta.accessories, value: draft.accessoriesDesc.trim() });
       }
+      const dedSummary = Number(draft.pricing.deductible);
+      if (draft.pricing.deductible && !Number.isNaN(dedSummary)) {
+        const label = draft.insuranceUpgrade
+          ? `${dict.acta.deductible} (${dict.acta.insuranceUpgrade})`
+          : dict.acta.deductible;
+        conditions.push({ label, value: formatArs(dedSummary) });
+      }
       if (draft.guaranteeForm.trim()) {
         conditions.push({ label: "Forma de garantía", value: draft.guaranteeForm.trim() });
       }
@@ -662,6 +676,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
         }
       }
       if (draft.unlimitedKm) pricing.unlimitedKm = true;
+      if (draft.insuranceUpgrade) pricing.insuranceUpgrade = true;
+      {
+        const ded = Number(draft.pricing.deductible);
+        if (draft.pricing.deductible && !Number.isNaN(ded)) pricing.deductible = ded;
+      }
       if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
       if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
       const payload: InspectionInput = {
@@ -917,6 +936,27 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 </p>
               ) : null;
             })()}
+          </div>
+
+          {/* Seguro y franquicia */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Franquicia</p>
+            <TextField id="pricing_deductible" label="Franquicia (deducible del seguro)" type="number" inputMode="numeric" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} min={0} />
+            <button
+              type="button"
+              onClick={() => {
+                const next = !draft.insuranceUpgrade;
+                const ded = next ? props.deductibleReduced : props.deductibleBase;
+                patch({ insuranceUpgrade: next });
+                if (ded != null) setPrice("deductible", String(ded));
+              }}
+              className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.insuranceUpgrade ? "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-400" : "border-foreground/25 text-foreground/70"}`}
+            >
+              {draft.insuranceUpgrade ? "✓ Con mejora de seguro (franquicia reducida)" : "Mejora de seguro"}
+            </button>
+            {draft.insuranceUpgrade && (
+              <p className="mt-1 text-xs text-foreground/50">Franquicia reducida por la mejora de seguro contratada.</p>
+            )}
           </div>
 
           {/* Kilometraje */}

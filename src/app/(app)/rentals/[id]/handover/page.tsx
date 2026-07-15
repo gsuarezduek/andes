@@ -62,6 +62,27 @@ export default async function HandoverPage({
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
   preset("extraHourPercent", conditions?.extraHourPercent);
+  // Accesorios (packs de km de VikRentCar) → importe.
+  preset("accessoriesAmount", rental.bookingAccessoriesAmount ? Number(rental.bookingAccessoriesAmount) : null);
+  // Franquicia: la reducida si la reserva trae mejora de seguro; si no, la estándar.
+  preset(
+    "deductible",
+    rental.bookingInsuranceUpgrade
+      ? conditions?.deductibleReduced
+        ? Number(conditions.deductibleReduced)
+        : null
+      : conditions?.deductible
+        ? Number(conditions.deductible)
+        : null,
+  );
+  // Precargas de texto/flag (no numéricas): descripción de accesorios y mejora de
+  // seguro. Solo si el empleado todavía no las cargó (saved gana).
+  if (saved.accessoriesDesc === undefined && rental.bookingAccessories) {
+    initialPricing.accessoriesDesc = rental.bookingAccessories;
+  }
+  if (saved.insuranceUpgrade === undefined && rental.bookingInsuranceUpgrade) {
+    initialPricing.insuranceUpgrade = "true";
+  }
   // Campos que solo puede haber cargado el empleado (no se precargan).
   for (const [k, v] of Object.entries(saved)) {
     if (initialPricing[k] === undefined && v !== null && v !== undefined) initialPricing[k] = String(v);
@@ -89,6 +110,8 @@ export default async function HandoverPage({
         }}
         licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
         pricing={initialPricing}
+        deductibleBase={conditions?.deductible ? Number(conditions.deductible) : undefined}
+        deductibleReduced={conditions?.deductibleReduced ? Number(conditions.deductibleReduced) : undefined}
         bookingNote={rental.bookingNote ?? undefined}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={
