@@ -108,6 +108,14 @@ export default async function RentalDetailPage({
         </p>
       )}
 
+      {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}
+      {rental.bookingNote && (
+        <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
+          <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{rental.bookingNote}</p>
+        </div>
+      )}
+
       {canStartHandover ? (
         <EditDetailsForm
           rentalId={rental.id}
@@ -164,13 +172,6 @@ export default async function RentalDetailPage({
           endAt={formatDateTimeInput(rental.endAt)}
           returnPlace={rental.bookingReturnPlace ?? ""}
         />
-      )}
-
-      {rental.bookingNote && (
-        <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
-          <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{rental.bookingNote}</p>
-        </div>
       )}
 
       {/* Documentos del cliente (solo interno: no van al acta ni al email) */}
