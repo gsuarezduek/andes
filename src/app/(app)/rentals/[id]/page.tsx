@@ -163,6 +163,9 @@ export default async function RentalDetailPage({
         {rental.bookingReturnPlace && (
           <Row label="Lugar de devolución" value={rental.bookingReturnPlace} />
         )}
+        {rental.bookingPaymentMethod && (
+          <Row label="Método de pago" value={rental.bookingPaymentMethod} />
+        )}
         <Row label="Idioma" value={languageLabels[rental.language]} />
       </div>
 

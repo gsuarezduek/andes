@@ -84,7 +84,7 @@ Grupos apagables (todos ON por defecto):
 | Grupo | Campos |
 |---|---|
 | Cliente (datos personales) | `clientName, clientEmail, clientPhone, clientDocNumber, clientCountry` |
-| Económico | `orderTotal, totpaid (pagado), carCost, optionals` + catálogo `/optionals` |
+| Económico | `orderTotal, totpaid (pagado), carCost, optionals` + catálogo `/optionals`, `paymentMethod` |
 | Texto libre de la reserva | `custData` |
 | Extras de la reserva | `createdUnix, days, lang, carName, pickupPlace, returnPlace` |
 | Tarifa y temporadas | `baseDailyRate` en `/cars` y el endpoint `/seasons` |

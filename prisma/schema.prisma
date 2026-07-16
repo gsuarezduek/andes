@@ -234,6 +234,10 @@ model Rental {
   bookingAccessories       String?  @map("booking_accessories") @db.Text
   bookingAccessoriesAmount Decimal? @map("booking_accessories_amount") @db.Decimal(12, 2)
   bookingInsuranceUpgrade  Boolean  @default(false) @map("booking_insurance_upgrade")
+  // Método de pago de VikRentCar (orders.idpayment, ej. "Transferencia de Banco",
+  // "Stripe", "Mercado Pago"). Solo el nombre; el `paymentlog` (datos de tarjeta)
+  // NO se importa. ~25% de cobertura.
+  bookingPaymentMethod     String?  @map("booking_payment_method")
 
   // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
   // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el

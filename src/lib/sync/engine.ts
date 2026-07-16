@@ -195,6 +195,7 @@ function bookingFacts(b: RawBooking, optionals: RawOptional[] = []) {
     bookingAccessories: opt.accessoriesDesc,
     bookingAccessoriesAmount: opt.accessoriesAmount,
     bookingInsuranceUpgrade: opt.insuranceUpgrade,
+    bookingPaymentMethod: b.paymentMethod,
   };
 }
 

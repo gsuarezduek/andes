@@ -41,6 +41,8 @@ export class RestBookingSource implements BookingSource {
       clientName: b.clientName ?? "Sin nombre",
       // Compat con plugins < v1.4.0 que no devuelven `optionals`.
       optionals: b.optionals ?? null,
+      // Compat con plugins < v1.5.0 que no devuelven `paymentMethod`.
+      paymentMethod: b.paymentMethod ?? null,
     }));
   }
 

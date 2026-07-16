@@ -64,6 +64,7 @@ Columnas verificadas (las relevantes; hay más de pagos/impuestos que no usamos)
 | `order_total` | decimal(12,2) | sí | total con extras → `rentals.booking_total` (referencia). Cobertura ~95%. |
 | `totpaid` | decimal(12,2) | sí | pagado/anticipo → `rentals.booking_paid`. **Precarga la "Seña" en la entrega.** Cobertura baja hoy (~8% en ventana) pero crece con el cobro online (Andes Pay Stripe). Sin cobro en Andes. |
 | `country` | varchar(5) | sí | país del cliente → `rentals.client_country` (se muestra en el acta). Cobertura ~24%. |
+| `idpayment` | varchar(128) | sí | método de pago, formato `"id=Nombre"` (ej. `"8=Stripe"`) → `rentals.booking_payment_method` (solo el nombre; se muestra en el detalle). ~25% cobertura. **`paymentlog` NO se importa** (datos de tarjeta). |
 | `idtar` | int(10) | sí | id de tarifa aplicada (no usado) |
 | `adminnotes` | text | sí | notas del admin en el plugin |
 

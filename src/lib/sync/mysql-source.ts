@@ -37,6 +37,7 @@ type OrderRow = {
   pickup_place: string | null;
   return_place: string | null;
   optionals: string | null;
+  idpayment: string | null;
   c_first: string | null;
   c_last: string | null;
   c_email: string | null;
@@ -64,6 +65,15 @@ function num(v: string | number | null): number | null {
   if (v == null) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** idpayment de VikRentCar ("1=Transferencia de Banco") → "Transferencia de Banco". */
+export function paymentMethodName(v: string | null): string | null {
+  const t = clean(v);
+  if (t == null) return null;
+  const eq = t.indexOf("=");
+  const name = eq >= 0 ? t.slice(eq + 1).trim() : t;
+  return name.length > 0 ? name : null;
 }
 
 export class MysqlBookingSource implements BookingSource {
@@ -98,6 +108,7 @@ export class MysqlBookingSource implements BookingSource {
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
              o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals,
+             o.idpayment,
              car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -211,5 +222,6 @@ function normalizeOrder(r: OrderRow): RawBooking {
     pickupPlace: clean(r.pickup_place),
     returnPlace: clean(r.return_place),
     optionals: clean(r.optionals),
+    paymentMethod: paymentMethodName(r.idpayment),
   };
 }

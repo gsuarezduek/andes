@@ -42,6 +42,7 @@ export type RawBooking = {
   pickupPlace: string | null; // places.name (idplace)
   returnPlace: string | null; // places.name (idreturnplace)
   optionals: string | null; // orders.optionals: "id:cantidad;" (ver optionals.ts)
+  paymentMethod: string | null; // orders.idpayment, solo el nombre (ej. "Stripe"); sin paymentlog
 };
 
 /**

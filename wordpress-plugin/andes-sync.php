@@ -2,9 +2,11 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: MDZ Rent a Car
  *
+ * v1.5.0: /bookings agrega `paymentMethod` (nombre del método de pago, de
+ *         orders.idpayment; SIN el paymentlog con datos de tarjeta). Grupo Económico.
  * v1.4.0: /bookings agrega `optionals` (opcionales elegidos, "id:cant;") y se
  *         agrega /optionals (catálogo: packs de km, mejora de seguro). Andes los
  *         mapea a accesorios + franquicia. Grupo Económico.
@@ -123,7 +125,7 @@ function andes_sync_groups()
 {
     return [
         'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber, clientCountry'],
-        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost, optionals (+ catálogo /optionals)'],
+        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost, optionals (+ catálogo /optionals), paymentMethod'],
         'share_custdata'      => ['Texto libre de la reserva', 'custData (la "Info de la reserva")'],
         'share_booking_extra' => ['Extras de la reserva', 'createdUnix, days, lang, carName, pickupPlace, returnPlace'],
         'share_rates'         => ['Tarifa y temporadas', 'baseDailyRate en /cars y el endpoint /seasons'],
@@ -260,7 +262,7 @@ function andes_sync_bookings(WP_REST_Request $request)
     $sql = $wpdb->prepare(
         "SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
                 o.days, o.lang, o.nominative, o.custmail, o.phone,
-                o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals,
+                o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals, o.idpayment,
                 car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
                 c.first_name AS c_first, c.last_name AS c_last,
                 c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -452,7 +454,20 @@ function andes_sync_normalize_order($r, $opts = null)
         'paid'            => $money ? andes_sync_float_or_null($r['totpaid']) : null,
         'carCost'         => $money ? andes_sync_float_or_null($r['car_cost']) : null,
         'optionals'       => $money ? andes_sync_clean($r['optionals']) : null,
+        'paymentMethod'   => $money ? andes_sync_payment_method($r['idpayment']) : null,
     ];
+}
+
+/** idpayment ("1=Transferencia de Banco") → "Transferencia de Banco". Sin el nombre → null. */
+function andes_sync_payment_method($v)
+{
+    $t = andes_sync_clean($v);
+    if ($t === null) {
+        return null;
+    }
+    $eq = strpos($t, '=');
+    $name = $eq !== false ? trim(substr($t, $eq + 1)) : $t;
+    return $name === '' ? null : $name;
 }
 
 function andes_sync_clean($v)
