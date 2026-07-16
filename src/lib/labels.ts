@@ -47,6 +47,6 @@ export const userRoleLabels: Record<UserRole, string> = {
 
 export const documentKindLabels: Record<DocumentKind, string> = {
   license: "Licencia de conducir",
-  dni: "DNI",
-  passport: "Pasaporte",
+  dni: "DNI / Pasaporte",
+  passport: "Pasaporte", // legacy: ya no se ofrece en la carga (se usa "dni" = DNI/Pasaporte)
 };

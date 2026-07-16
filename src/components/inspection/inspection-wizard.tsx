@@ -47,7 +47,9 @@ type DocItem = { id: string; kind: DocumentKindInput; key?: string; status: "upl
 // Conductor adicional autorizado (además del titular).
 type DriverItem = { id: string; name: string };
 
-const DOC_KINDS: DocumentKindInput[] = ["license", "dni", "passport"];
+// Solo 2 opciones de carga: Licencia y DNI/Pasaporte (el valor `passport` sigue
+// existiendo en el enum por compatibilidad, pero ya no se ofrece).
+const DOC_KINDS: DocumentKindInput[] = ["license", "dni"];
 
 type Draft = {
   draftId: string;
@@ -802,23 +804,17 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {isHandover && (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium text-foreground/80">Documentos del cliente (opcional)</p>
-              <p className="text-xs text-foreground/50">Licencia, DNI o pasaporte. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
-              <div className="grid grid-cols-3 gap-2">
+              <p className="text-xs text-foreground/50">Licencia y DNI/Pasaporte. Al tocar, el teléfono deja sacar una foto o elegir de la galería. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
+              <div className="grid grid-cols-2 gap-2">
                 {DOC_KINDS.map((kind) => {
                   const docs = draft.documents.filter((doc) => doc.kind === kind && !doc.holderName);
                   return (
                     <div key={kind} className="flex flex-col gap-1.5">
                       <p className="text-center text-xs font-medium text-foreground/70">{documentKindLabels[kind]}</p>
-                      <div className="flex gap-1">
-                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto">
-                          📷
-                          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
-                        </label>
-                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Elegir del teléfono">
-                          🖼️
-                          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
-                        </label>
-                      </div>
+                      <label className="flex h-9 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto o elegir de la galería">
+                        📷 Agregar
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                      </label>
                       {docs.map((doc) => (
                         <div key={doc.id} className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -867,12 +863,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto de la licencia">
+                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto o elegir de la galería">
                         📷 Licencia
-                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
-                      </label>
-                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir del teléfono">
-                        🖼️
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                       </label>
                       <div className="flex gap-1">
