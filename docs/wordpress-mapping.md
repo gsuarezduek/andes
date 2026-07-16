@@ -199,7 +199,7 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 - **Sync incremental — decisión (Fase 5): ventana móvil.** `orders` no tiene
   columna de modificación (solo `ts` de creación). Se optó por re-escanear en
   cada corrida las órdenes cuyo `ritiro`/`consegna` caiga en
-  \[hoy − `SYNC_WINDOW_DAYS_BACK` (2), hoy + `SYNC_WINDOW_DAYS_FORWARD` (60)],
+  \[hoy − `SYNC_WINDOW_DAYS_BACK` (2), hoy + `SYNC_WINDOW_DAYS_FORWARD` (120)],
   comparando contra el estado local (upsert idempotente). Más simple y robusto
   que `orderhistory` para el volumen actual (~2k órdenes; ~25 en ventana típica).
   El upsert **nunca pisa** reservas que ya tienen inspección o dejaron de estar

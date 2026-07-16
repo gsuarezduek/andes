@@ -87,7 +87,10 @@ export const env = {
   get sync() {
     return {
       daysBack: Number(optional("SYNC_WINDOW_DAYS_BACK") ?? "2"),
-      daysForward: Number(optional("SYNC_WINDOW_DAYS_FORWARD") ?? "60"),
+      // 120 días para adelante: las reservas entran con meses de anticipación
+      // (una rentadora vende para la temporada). Con 60 las reservas a >2 meses
+      // no se importaban. Configurable por env.
+      daysForward: Number(optional("SYNC_WINDOW_DAYS_FORWARD") ?? "120"),
       // Traemos las `standby` (sin confirmar) por defecto: se muestran en naranja
       // en el calendario y el resto. Poné SYNC_INCLUDE_STANDBY="false" para excluirlas.
       includeStandby: optional("SYNC_INCLUDE_STANDBY") !== "false",
