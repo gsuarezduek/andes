@@ -45,6 +45,9 @@ yarn-error.log*
 # zip de build del plugin Andes Sync (se regenera desde el .php)
 /wordpress-plugin/andes-sync.php.zip
 
+# preview de diseño suelto del ícono/loader (scratch, no usado por la app)
+/public/icons/preview.html
+
 # vercel
 .vercel
 
