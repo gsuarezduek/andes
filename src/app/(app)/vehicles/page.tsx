@@ -1,28 +1,60 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { Prisma, VehicleStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { vehicleStatusLabels } from "@/lib/labels";
 import { vehicleStatusTone } from "@/lib/vehicle-ui";
+import { formatArs } from "@/lib/contract";
+import { VehicleFilters } from "./vehicle-filters";
 
 export const metadata: Metadata = { title: "Vehículos — Andes" };
+
+type Sort = "model" | "price" | "plate" | "km";
+const SORTS: Sort[] = ["model", "price", "plate", "km"];
+const STATUS_FILTERS: VehicleStatus[] = ["available", "rented", "out_of_service"];
+
+/** orderBy de Prisma según el criterio elegido (precio nullable → nulls al final). */
+function orderByFor(sort: Sort, dir: "asc" | "desc"): Prisma.VehicleOrderByWithRelationInput[] {
+  switch (sort) {
+    case "price":
+      return [{ dailyRate: { sort: dir, nulls: "last" } }, { brand: "asc" }, { model: "asc" }];
+    case "plate":
+      return [{ plate: dir }];
+    case "km":
+      return [{ currentKm: dir }];
+    case "model":
+    default:
+      return [{ brand: dir }, { model: dir }, { plate: "asc" }];
+  }
+}
 
 export default async function VehiclesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>;
+  searchParams: Promise<{ archived?: string; sort?: string; dir?: string; status?: string }>;
 }) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
-  const showArchived = (await searchParams).archived === "1";
+  const sp = await searchParams;
+  const showArchived = sp.archived === "1";
+
+  const sort: Sort = SORTS.includes(sp.sort as Sort) ? (sp.sort as Sort) : "model";
+  const dir: "asc" | "desc" =
+    sp.dir === "asc" || sp.dir === "desc" ? sp.dir : sort === "price" || sort === "km" ? "desc" : "asc";
+  const statusFilter = STATUS_FILTERS.includes(sp.status as VehicleStatus)
+    ? (sp.status as VehicleStatus)
+    : null;
+
+  const where: Prisma.VehicleWhereInput = {
+    archivedAt: showArchived ? { not: null } : null,
+    ...(statusFilter ? { status: statusFilter } : {}),
+  };
 
   const [vehicles, archivedCount] = await Promise.all([
-    prisma.vehicle.findMany({
-      where: { archivedAt: showArchived ? { not: null } : null },
-      orderBy: [{ brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-    }),
+    prisma.vehicle.findMany({ where, orderBy: orderByFor(sort, dir) }),
     prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
   ]);
 
@@ -34,7 +66,9 @@ export default async function VehiclesPage({
           <p className="text-sm text-foreground/60">
             {showArchived
               ? `${vehicles.length} archivado${vehicles.length === 1 ? "" : "s"}`
-              : `${vehicles.length} en la flota`}
+              : statusFilter
+                ? `${vehicles.length} resultado${vehicles.length === 1 ? "" : "s"}`
+                : `${vehicles.length} en la flota`}
           </p>
         </div>
         {isAdmin ? (
@@ -62,6 +96,8 @@ export default async function VehiclesPage({
         </div>
       )}
 
+      <VehicleFilters sort={sort} dir={dir} status={statusFilter ?? "all"} />
+
       {vehicles.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
           {showArchived ? "No hay vehículos archivados." : "Todavía no hay vehículos cargados."}
@@ -80,6 +116,7 @@ export default async function VehiclesPage({
                   </p>
                   <p className="text-sm text-foreground/60">
                     {v.plate} · {v.currentKm.toLocaleString("es-AR")} km
+                    {v.dailyRate != null ? ` · ${formatArs(Number(v.dailyRate))}/día` : ""}
                   </p>
                 </div>
                 <Badge tone={vehicleStatusTone[v.status]}>
