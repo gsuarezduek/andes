@@ -202,6 +202,10 @@ model Rental {
   clientPhone     String?   @map("client_phone")
   clientDocNumber String?   @map("client_doc_number") // nro. de documento opcional
   clientCountry   String?   @map("client_country") // país del cliente (VikRentCar orders.country, ~24%)
+  // Marca de que el empleado editó los datos del cliente a mano. A partir de ahí
+  // el sync NO vuelve a pisar nombre/email/teléfono/documento (VikRentCar deja de
+  // ser la fuente de verdad de esos campos para esta reserva).
+  clientEditedAt  DateTime? @map("client_edited_at")
   licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
 
   // Conductores adicionales autorizados (además del titular). Array JSON

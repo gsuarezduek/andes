@@ -145,6 +145,8 @@ export async function updateRentalDetails(
       clientPhone: parsed.data.clientPhone ?? null,
       clientDocNumber: parsed.data.clientDocNumber ?? null,
       vehicleId: parsed.data.vehicleId ?? null,
+      // A partir de esta edición, el sync no vuelve a pisar los datos del cliente.
+      clientEditedAt: new Date(),
     },
   });
 

@@ -213,6 +213,10 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
   El upsert **nunca pisa** reservas que ya tienen inspección o dejaron de estar
   en `reserved` (la orden de VikRentCar deja de ser la verdad una vez que Andes
   registró el estado físico). Verificado idempotente contra datos reales.
+- **Datos del cliente editados a mano:** si el empleado edita nombre/email/
+  teléfono/documento desde el detalle del alquiler, se marca `clientEditedAt` y el
+  sync **deja de pisar** esos campos (aunque la reserva siga en `reserved`). Sin la
+  marca, el sync los refresca desde VikRentCar en cada corrida.
 - Mapeo de vehículo por par (`idcar`, `carindex`). `carindex` NULL → alerta.
 - `lang` → `rentals.language` según la tabla de arriba.
 - Registrar cada corrida en `sync_logs` (importadas / actualizadas / errores).
