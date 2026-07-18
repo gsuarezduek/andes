@@ -173,6 +173,13 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
   1. Intentar el join `customers_orders` → `customers` (preferido).
   2. Si no existe, **caer a los campos de la propia orden**: `nominative`
      (nombre), `custmail`, `phone`. `custdata` como último recurso.
+  3. **Nombre desde la nota** (`src/lib/sync/client-name.ts`): si aun así la
+     reserva vendría "Sin nombre", se toma la **1ª línea del `custdata`** como
+     nombre — convención del staff (línea 1 = nombre, línea 2 = hora de retiro).
+     Solo si esa línea **parece un nombre** (sin dígitos ni "$": las notas
+     operativas viejas arrancan con la hora/precio y se descartan). El sync
+     **actualiza solo** las reservas ya importadas como "Sin nombre" en la
+     próxima corrida. Ej. orden 2883 → "DIEGO ALEJANDRO SOTO".
 
 ## `cars` → seed de `vehicles` (Fase 5)
 

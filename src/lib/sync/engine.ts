@@ -7,6 +7,7 @@ import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason } from "
 import { createBookingSource } from "./source";
 import { computeDailyRate } from "./rates";
 import { resolveOptionals } from "./optionals";
+import { effectiveClientName } from "./client-name";
 
 /**
  * Motor de sincronización VikRentCar → Andes (Fase 5).
@@ -125,6 +126,8 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
   const startAt = vikRentCarUnixToUtc(b.startUnix);
   const endAt = vikRentCarUnixToUtc(b.endUnix);
   const booking = bookingFacts(b, optionals);
+  // Si no hay nombre real, se toma de la 1ª línea de la nota (convención del staff).
+  const clientName = effectiveClientName(b.clientName, b.custData);
 
   if (!existing) {
     await prisma.rental.create({
@@ -136,7 +139,7 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
         language,
         startAt,
         endAt,
-        clientName: b.clientName,
+        clientName,
         clientEmail: b.clientEmail,
         clientPhone: b.clientPhone,
         clientDocNumber: b.clientDocNumber,
@@ -158,7 +161,7 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
       language,
       startAt,
       endAt,
-      clientName: b.clientName,
+      clientName,
       clientEmail: b.clientEmail,
       clientPhone: b.clientPhone,
       clientDocNumber: b.clientDocNumber,
