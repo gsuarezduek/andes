@@ -154,9 +154,11 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
   // ni las que el empleado cerró: la orden de VikRentCar deja de ser la verdad.
   if (hasInspection || existing.status !== "reserved") return "skipped";
 
-  // Si el empleado ya editó los datos del cliente a mano, el sync no los pisa
-  // (VikRentCar deja de ser la verdad de esos campos para esta reserva).
-  const clientData = existing.clientEditedAt
+  // Si el empleado ya editó la reserva a mano, el sync no pisa los datos del
+  // cliente ni el vehículo asignado (VikRentCar deja de ser la verdad de esos
+  // campos para esta reserva).
+  const edited = existing.clientEditedAt != null;
+  const clientData = edited
     ? {}
     : {
         clientName,
@@ -164,14 +166,18 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
         clientPhone: b.clientPhone,
         clientDocNumber: b.clientDocNumber,
       };
+  // El vehículo tampoco se pisa si fue editado; y NUNCA se limpia a null desde el
+  // sync (las reservas de VikRentCar suelen venir sin unidad → carindex null →
+  // resolveVehicleId null, que borraría la asignación manual).
+  const vehicleData = !edited && vehicleId != null ? { vehicleId } : {};
 
   await prisma.rental.update({
     where: { id: existing.id },
     data: {
-      vehicleId,
       language,
       startAt,
       endAt,
+      ...vehicleData,
       ...clientData,
       ...booking,
     },
