@@ -150,10 +150,11 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
     return "imported";
   }
 
-  // ¿Cambió la fecha de devolución en VikRentCar (extensión) y no se editó a mano
-  // en Andes? Solo entonces la traemos.
-  const returnChangedInWp =
-    existing.returnEditedAt == null && endAt.getTime() !== existing.endAt.getTime();
+  // ¿Cambió la fecha de devolución en VikRentCar (extensión)? VikRentCar es la
+  // única fuente de verdad de las fechas de una reserva importada: la edición de
+  // fechas en Andes está deshabilitada para estas reservas, así que la web siempre
+  // manda.
+  const returnChangedInWp = endAt.getTime() !== existing.endAt.getTime();
 
   // No tocamos reservas que ya arrancaron el flujo físico (entrega/devolución) ni
   // las cerradas. ÚNICA excepción: si una reserva ACTIVA (entregada, sin devolución
@@ -182,15 +183,13 @@ async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []): Prom
   // sync (las reservas de VikRentCar suelen venir sin unidad → carindex null →
   // resolveVehicleId null, que borraría la asignación manual).
   const vehicleData = !edited && vehicleId != null ? { vehicleId } : {};
-  // La fecha de devolución no se pisa si se extendió a mano en Andes.
-  const returnData = existing.returnEditedAt ? {} : { endAt };
 
   await prisma.rental.update({
     where: { id: existing.id },
     data: {
       language,
       startAt,
-      ...returnData,
+      endAt,
       ...vehicleData,
       ...clientData,
       ...booking,

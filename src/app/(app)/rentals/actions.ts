@@ -163,9 +163,11 @@ const returnSchema = z.object({
 
 /**
  * Modifica la fecha y el lugar de devolución de un alquiler — típico cuando el
- * cliente extiende el alquiler. Se permite mientras el alquiler no esté
- * finalizado ni cancelado (reservado o activo). La devolución debe ser posterior
- * al retiro.
+ * cliente extiende el alquiler. Solo se permite en **reservas manuales**: las de
+ * VikRentCar se gestionan desde la web (fuente de verdad de las fechas) y se
+ * sincronizan solas; editarlas acá dejaría la disponibilidad de VikRentCar
+ * inconsistente. Se permite mientras el alquiler no esté finalizado ni cancelado
+ * (reservado o activo). La devolución debe ser posterior al retiro.
  */
 export async function updateReturnDetails(
   _prev: FormState,
@@ -184,9 +186,15 @@ export async function updateReturnDetails(
 
   const rental = await prisma.rental.findUnique({
     where: { id: parsed.data.rentalId },
-    select: { id: true, startAt: true, status: true },
+    select: { id: true, startAt: true, status: true, origin: true },
   });
   if (!rental) return { error: "El alquiler no existe." };
+  if (rental.origin === "vikrentcar") {
+    return {
+      error:
+        "Las fechas de una reserva de VikRentCar se cambian desde la web; se sincronizan solas.",
+    };
+  }
   if (rental.status === "finished" || rental.status === "cancelled") {
     return { error: "No se puede modificar un alquiler finalizado o cancelado." };
   }
@@ -198,8 +206,7 @@ export async function updateReturnDetails(
 
   await prisma.rental.update({
     where: { id: rental.id },
-    // A partir de esta edición manual, el sync no vuelve a pisar la devolución.
-    data: { endAt, bookingReturnPlace: parsed.data.returnPlace ?? null, returnEditedAt: new Date() },
+    data: { endAt, bookingReturnPlace: parsed.data.returnPlace ?? null },
   });
 
   revalidatePath(`/rentals/${rental.id}`);

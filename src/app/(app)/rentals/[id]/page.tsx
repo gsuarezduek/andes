@@ -74,7 +74,15 @@ export default async function RentalDetailPage({
   const canMarkService = canStartHandover && Boolean(rental.vehicleId);
   const today = formatDateInput(new Date());
   // Extensión: modificar fecha/lugar de devolución mientras no esté cerrado.
-  const canEditReturn = rental.status === "reserved" || rental.status === "active";
+  // La edición de fechas solo se permite en reservas manuales. Las de VikRentCar
+  // se gestionan desde la web (fuente de verdad) y se sincronizan solas: editarlas
+  // acá dejaría la disponibilidad de VikRentCar inconsistente.
+  const canEditReturn =
+    rental.origin === "manual" &&
+    (rental.status === "reserved" || rental.status === "active");
+  const returnManagedInWp =
+    rental.origin === "vikrentcar" &&
+    (rental.status === "reserved" || rental.status === "active");
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -175,6 +183,13 @@ export default async function RentalDetailPage({
           endAt={formatDateTimeInput(rental.endAt)}
           returnPlace={rental.bookingReturnPlace ?? ""}
         />
+      )}
+
+      {returnManagedInWp && (
+        <p className="rounded-xl border border-foreground/10 px-4 py-3 text-sm text-foreground/60">
+          Las fechas de esta reserva se gestionan desde VikRentCar (la web). Si el
+          cliente extiende el alquiler, cambiá la fecha allí y se sincroniza sola.
+        </p>
       )}
 
       {/* Documentos del cliente (solo interno: no van al acta ni al email) */}

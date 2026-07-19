@@ -206,9 +206,6 @@ model Rental {
   // el sync NO vuelve a pisar nombre/email/teléfono/documento (VikRentCar deja de
   // ser la fuente de verdad de esos campos para esta reserva).
   clientEditedAt  DateTime? @map("client_edited_at")
-  // Marca de que se editó la devolución (fecha/lugar) a mano en Andes. Si está
-  // seteada, el sync NO pisa la fecha de devolución con la de VikRentCar.
-  returnEditedAt  DateTime? @map("return_edited_at")
   licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
 
   // Conductores adicionales autorizados (además del titular). Array JSON
