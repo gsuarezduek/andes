@@ -198,7 +198,8 @@ export async function updateReturnDetails(
 
   await prisma.rental.update({
     where: { id: rental.id },
-    data: { endAt, bookingReturnPlace: parsed.data.returnPlace ?? null },
+    // A partir de esta edición manual, el sync no vuelve a pisar la devolución.
+    data: { endAt, bookingReturnPlace: parsed.data.returnPlace ?? null, returnEditedAt: new Date() },
   });
 
   revalidatePath(`/rentals/${rental.id}`);

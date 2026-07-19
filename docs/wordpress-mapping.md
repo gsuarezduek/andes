@@ -221,6 +221,12 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
   vienen sin unidad (`carindex` null → sin vehículo), pisar con null borraría una
   asignación manual, así que el vehículo solo se actualiza cuando VikRentCar trae
   una unidad concreta.
+- **Extensión de la devolución:** si en VikRentCar cambia la fecha de devolución
+  (`consegna`) de una reserva, el sync trae la nueva fecha — **también para
+  reservas activas** (ya entregadas, sin devolución), donde solo actualiza esa
+  fecha y nada más. Se trae solo si **difiere** de la actual y **no** se editó la
+  devolución a mano en Andes (`returnEditedAt`, seteada por `updateReturnDetails`);
+  si se editó a mano, esa gana.
 - Mapeo de vehículo por par (`idcar`, `carindex`). `carindex` NULL → alerta.
 - `lang` → `rentals.language` según la tabla de arriba.
 - Registrar cada corrida en `sync_logs` (importadas / actualizadas / errores).
