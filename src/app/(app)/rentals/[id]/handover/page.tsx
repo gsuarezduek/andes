@@ -58,6 +58,9 @@ export default async function HandoverPage({
   // totpaid de VikRentCar = lo ya pagado/anticipado (p. ej. cobro online con
   // Andes Pay Stripe) → precarga la "Seña"; el saldo se autocalcula.
   preset("sena", rental.bookingPaid ? Number(rental.bookingPaid) : null);
+  // order_total de VikRentCar = total con extras (incluye accesorios y, si
+  // corresponde, el extra por combinación de lugar de retiro/devolución).
+  preset("total", rental.bookingTotal ? Number(rental.bookingTotal) : null);
   preset("insuranceAmount", conditions?.insuranceAmount ? Number(conditions.insuranceAmount) : null);
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
