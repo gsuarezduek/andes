@@ -1,6 +1,14 @@
 import "server-only";
+import dns from "node:dns";
 import { env } from "@/lib/env";
 import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason, SyncWindow } from "./types";
+
+// El sitio de WordPress (Hostinger) resuelve a IPv4 y a IPv6 (A + AAAA). En
+// Railway el egreso IPv6 hacia ese host no completa y `fetch` termina en
+// `TypeError: fetch failed` / `AggregateError ETIMEDOUT` (falla la conexión
+// IPv6, y a veces también el reintento). Forzamos IPv4 primero a nivel
+// proceso para las resoluciones DNS de este server.
+dns.setDefaultResultOrder("ipv4first");
 
 /**
  * Transporte de producción: consume el mu-plugin `andes-sync` de WordPress por
