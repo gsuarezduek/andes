@@ -74,6 +74,18 @@ describe("computeSettlement", () => {
     const s = computeSettlement({ handoverKm: 100, returnKm: 90, handoverFuel: 8, returnFuel: 8, pricing: null });
     expect(s.kmDriven).toBe(0);
   });
+
+  it("preserva centavos en el cargo por km extra", () => {
+    const s = computeSettlement({
+      handoverKm: 10_000,
+      returnKm: 10_003, // 3 km sobre lo incluido
+      handoverFuel: 8,
+      returnFuel: 8,
+      pricing: { kmPerDay: 1, days: 1, extraKmRate: 33.33, deposit: 0 }, // 1 incluido
+    });
+    expect(s.extraKm).toBe(2);
+    expect(s.extraKmCharge).toBe(66.66);
+  });
 });
 
 describe("rollupSettlement", () => {

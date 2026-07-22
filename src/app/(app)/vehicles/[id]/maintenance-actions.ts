@@ -5,13 +5,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
+import { parseDecimal } from "@/lib/number-input";
 
 const optInt = z.preprocess(
   (v) => (v === "" || v == null ? undefined : Number(v)),
   z.number().int().nonnegative().optional(),
 );
 const optCost = z.preprocess(
-  (v) => (v === "" || v == null ? undefined : Number(v)),
+  (v) => (v === "" || v == null ? undefined : parseDecimal(String(v))),
   z.number().nonnegative().optional(),
 );
 

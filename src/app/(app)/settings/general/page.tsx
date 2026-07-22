@@ -21,6 +21,7 @@ function ConditionField({
   defaultValue,
   prefix,
   suffix,
+  decimal = false,
 }: {
   name: string;
   label: string;
@@ -28,6 +29,8 @@ function ConditionField({
   defaultValue?: string;
   prefix?: string;
   suffix?: string;
+  /** Importes en pesos aceptan decimales (coma o punto); km/% son enteros. */
+  decimal?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -36,9 +39,9 @@ function ConditionField({
         {prefix ? <span className="text-sm text-foreground/50">{prefix}</span> : null}
         <input
           name={name}
-          type="number"
-          inputMode="numeric"
-          min={0}
+          type={decimal ? "text" : "number"}
+          inputMode={decimal ? "decimal" : "numeric"}
+          min={decimal ? undefined : 0}
           defaultValue={defaultValue}
           placeholder="—"
           className="h-11 flex-1 bg-transparent text-base outline-none"
@@ -82,6 +85,7 @@ export default async function GeneralSettingsPage() {
               name="insuranceAmount"
               label="Seguro"
               prefix="$"
+              decimal
               defaultValue={conditions?.insuranceAmount?.toString()}
             />
             <ConditionField
@@ -95,6 +99,7 @@ export default async function GeneralSettingsPage() {
               label="Km extra"
               prefix="$"
               suffix="c/u"
+              decimal
               defaultValue={conditions?.extraKmRate?.toString()}
             />
             <ConditionField
@@ -109,6 +114,7 @@ export default async function GeneralSettingsPage() {
               label="Franquicia estándar"
               prefix="$"
               hint="deducible del seguro"
+              decimal
               defaultValue={conditions?.deductible?.toString()}
             />
             <ConditionField
@@ -116,6 +122,7 @@ export default async function GeneralSettingsPage() {
               label="Franquicia con mejora de seguro"
               prefix="$"
               hint="franquicia reducida"
+              decimal
               defaultValue={conditions?.deductibleReduced?.toString()}
             />
           </div>

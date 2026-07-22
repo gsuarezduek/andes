@@ -26,6 +26,7 @@ import { languageLabels, documentKindLabels } from "@/lib/labels";
 import { PRICING_FIELDS, extraHourAmount, formatArs, computeBalance, type ContractPricing } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import { computeSettlement, rollupSettlement, type SettlementMethod } from "@/lib/settlement";
+import { parseDecimal } from "@/lib/number-input";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 
@@ -309,7 +310,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
   // Helpers de precios (paso "Condiciones").
   const priceStr = (k: string) => draft.pricing[k] ?? "";
   const setPrice = (k: string, v: string) => patch({ pricing: { ...draft.pricing, [k]: v } });
-  const numOrUndef = (s?: string) => (s && s.trim() !== "" ? Number(s) : undefined);
+  const numOrUndef = (s?: string) => parseDecimal(s);
   // Al cambiar total/seña/paga, el saldo se autocompleta (editable).
   const setPay = (k: "total" | "sena" | "paid" | "balance", v: string) => {
     const next = { ...draft.pricing, [k]: v };
@@ -397,7 +398,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       pricing: props.returnContext.pricing,
       newDamages: draft.damages.map((d) => ({ description: d.description })),
     });
-    const numOr = (s: string, fallback: number) => (s.trim() === "" ? fallback : Number(s) || 0);
+    const numOr = (s: string, fallback: number) => (s.trim() === "" ? fallback : parseDecimal(s) ?? 0);
     return rollupSettlement({
       ...base,
       extraKmCharge: numOr(draft.settlementExtraKmCharge, base.extraKmCharge),
@@ -405,7 +406,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       deposit: numOr(draft.settlementDeposit, base.deposit),
       damageCharges: draft.damages.map((d, i) => ({
         description: d.description.trim() || `Daño #${i + 1}`,
-        amount: Number(draft.damageAmounts[d.id] || 0),
+        amount: parseDecimal(draft.damageAmounts[d.id]) ?? 0,
       })),
       method: draft.settlementMethod,
       note: draft.settlementNote.trim() || undefined,
@@ -429,10 +430,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
       const p: Record<string, number> = {};
       for (const f of PRICING_FIELDS) {
         const raw = draft.pricing[f.key];
-        if (raw != null && String(raw).trim() !== "") {
-          const n = Number(raw);
-          if (!Number.isNaN(n)) p[f.key] = n;
-        }
+        const n = parseDecimal(raw as string | undefined);
+        if (n !== undefined) p[f.key] = n;
       }
       const conditions = PRICING_FIELDS.flatMap((f) => {
         // "KM libres": el km incluido y el km extra no aplican.
@@ -452,8 +451,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (draft.accessoriesDesc.trim()) {
         conditions.push({ label: dict.acta.accessories, value: draft.accessoriesDesc.trim() });
       }
-      const dedSummary = Number(draft.pricing.deductible);
-      if (draft.pricing.deductible && !Number.isNaN(dedSummary)) {
+      const dedSummary = parseDecimal(draft.pricing.deductible as string | undefined);
+      if (dedSummary !== undefined) {
         const label = draft.insuranceUpgrade
           ? `${dict.acta.deductible} (${dict.acta.insuranceUpgrade})`
           : dict.acta.deductible;
@@ -671,17 +670,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
       }
       const pricing: ContractPricing = {};
       for (const f of PRICING_FIELDS) {
-        const raw = draft.pricing[f.key];
-        if (raw !== undefined && raw !== "") {
-          const n = Number(raw);
-          if (!Number.isNaN(n)) (pricing as Record<string, number>)[f.key] = n;
-        }
+        const n = parseDecimal(draft.pricing[f.key] as string | undefined);
+        if (n !== undefined) (pricing as Record<string, number>)[f.key] = n;
       }
       if (draft.unlimitedKm) pricing.unlimitedKm = true;
       if (draft.insuranceUpgrade) pricing.insuranceUpgrade = true;
       {
-        const ded = Number(draft.pricing.deductible);
-        if (draft.pricing.deductible && !Number.isNaN(ded)) pricing.deductible = ded;
+        const ded = parseDecimal(draft.pricing.deductible as string | undefined);
+        if (ded !== undefined) pricing.deductible = ded;
       }
       if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
       if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
@@ -804,17 +800,23 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {isHandover && (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium text-foreground/80">Documentos del cliente (opcional)</p>
-              <p className="text-xs text-foreground/50">Licencia y DNI/Pasaporte. Al tocar, el teléfono deja sacar una foto o elegir de la galería. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
+              <p className="text-xs text-foreground/50">Licencia y DNI/Pasaporte: sacá una foto o elegí una de la galería. Quedan como respaldo interno; no se envían al cliente ni figuran en el acta.</p>
               <div className="grid grid-cols-2 gap-2">
                 {DOC_KINDS.map((kind) => {
                   const docs = draft.documents.filter((doc) => doc.kind === kind && !doc.holderName);
                   return (
                     <div key={kind} className="flex flex-col gap-1.5">
                       <p className="text-center text-xs font-medium text-foreground/70">{documentKindLabels[kind]}</p>
-                      <label className="flex h-9 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto o elegir de la galería">
-                        📷 Agregar
-                        <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
-                      </label>
+                      <div className="flex gap-1.5">
+                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto">
+                          📷
+                          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                        </label>
+                        <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Elegir de la galería">
+                          🖼️
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
+                        </label>
+                      </div>
                       {docs.map((doc) => (
                         <div key={doc.id} className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -863,8 +865,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto o elegir de la galería">
+                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto">
                         📷 Licencia
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
+                      </label>
+                      <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir de la galería">
+                        🖼️
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                       </label>
                       <div className="flex gap-1">
@@ -912,15 +918,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Tarifa</p>
             <div className="grid grid-cols-2 gap-3">
-              <TextField id="pricing_dailyRate" label="Precio por día" type="number" inputMode="numeric" prefix="$" value={priceStr("dailyRate")} onChange={(e) => setPrice("dailyRate", e.target.value)} min={0} />
+              <TextField id="pricing_dailyRate" label="Precio por día" type="text" inputMode="decimal" prefix="$" value={priceStr("dailyRate")} onChange={(e) => setPrice("dailyRate", e.target.value)} />
               <TextField id="pricing_days" label="Cantidad de días" type="number" inputMode="numeric" value={priceStr("days")} onChange={(e) => setPrice("days", e.target.value)} min={0} />
-              <TextField id="pricing_insuranceAmount" label="Seguro" type="number" inputMode="numeric" prefix="$" value={priceStr("insuranceAmount")} onChange={(e) => setPrice("insuranceAmount", e.target.value)} min={0} />
+              <TextField id="pricing_insuranceAmount" label="Seguro" type="text" inputMode="decimal" prefix="$" value={priceStr("insuranceAmount")} onChange={(e) => setPrice("insuranceAmount", e.target.value)} />
               <TextField id="pricing_extraHourPercent" label="Hora extra (% tarifa)" type="number" inputMode="numeric" value={priceStr("extraHourPercent")} onChange={(e) => setPrice("extraHourPercent", e.target.value)} min={0} />
             </div>
             {(() => {
               const amount = extraHourAmount({
-                dailyRate: Number(draft.pricing.dailyRate) || undefined,
-                extraHourPercent: Number(draft.pricing.extraHourPercent) || undefined,
+                dailyRate: parseDecimal(draft.pricing.dailyRate as string | undefined),
+                extraHourPercent: parseDecimal(draft.pricing.extraHourPercent as string | undefined),
               });
               return amount != null ? (
                 <p className="mt-2 text-xs text-foreground/60">
@@ -933,7 +939,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {/* Seguro y franquicia */}
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Franquicia</p>
-            <TextField id="pricing_deductible" label="Franquicia (deducible del seguro)" type="number" inputMode="numeric" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} min={0} />
+            <TextField id="pricing_deductible" label="Franquicia (deducible del seguro)" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
             <button
               type="button"
               onClick={() => {
@@ -957,7 +963,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
             {!draft.unlimitedKm && (
               <div className="grid grid-cols-2 gap-3">
                 <TextField id="pricing_kmPerDay" label="Km por día" type="number" inputMode="numeric" value={priceStr("kmPerDay")} onChange={(e) => setPrice("kmPerDay", e.target.value)} min={0} />
-                <TextField id="pricing_extraKmRate" label="Km extra (c/u)" type="number" inputMode="numeric" prefix="$" value={priceStr("extraKmRate")} onChange={(e) => setPrice("extraKmRate", e.target.value)} min={0} />
+                <TextField id="pricing_extraKmRate" label="Km extra (c/u)" type="text" inputMode="decimal" prefix="$" value={priceStr("extraKmRate")} onChange={(e) => setPrice("extraKmRate", e.target.value)} />
               </div>
             )}
             <button
@@ -975,14 +981,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {/* Accesorios */}
           <div className="flex flex-col gap-3">
             <p className="text-sm font-medium text-foreground/80">Accesorios</p>
-            <TextField id="pricing_accessoriesAmount" label="Importe" type="number" inputMode="numeric" prefix="$" value={priceStr("accessoriesAmount")} onChange={(e) => setPrice("accessoriesAmount", e.target.value)} min={0} />
+            <TextField id="pricing_accessoriesAmount" label="Importe" type="text" inputMode="decimal" prefix="$" value={priceStr("accessoriesAmount")} onChange={(e) => setPrice("accessoriesAmount", e.target.value)} />
             <TextareaField id="accessoriesDesc" label="Detalle de accesorios" hint="Ej. silla de bebé, GPS, portaequipaje" value={draft.accessoriesDesc} onChange={(e) => patch({ accessoriesDesc: e.target.value })} rows={2} />
           </div>
 
           {/* Garantía */}
           <div className="flex flex-col gap-3">
             <p className="text-sm font-medium text-foreground/80">Garantía</p>
-            <TextField id="pricing_deposit" label="Monto de la garantía" type="number" inputMode="numeric" prefix="$" value={priceStr("deposit")} onChange={(e) => setPrice("deposit", e.target.value)} min={0} />
+            <TextField id="pricing_deposit" label="Monto de la garantía" type="text" inputMode="decimal" prefix="$" value={priceStr("deposit")} onChange={(e) => setPrice("deposit", e.target.value)} />
             <TextareaField id="guaranteeForm" label="Forma de la garantía" hint="Ej. tarjeta de crédito, efectivo, cheque" value={draft.guaranteeForm} onChange={(e) => patch({ guaranteeForm: e.target.value })} rows={2} />
           </div>
 
@@ -990,10 +996,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Pago</p>
             <div className="grid grid-cols-2 gap-3">
-              <TextField id="pricing_total" label="Total a pagar" type="number" inputMode="numeric" prefix="$" value={priceStr("total")} onChange={(e) => setPay("total", e.target.value)} min={0} />
-              <TextField id="pricing_sena" label="Seña" type="number" inputMode="numeric" prefix="$" value={priceStr("sena")} onChange={(e) => setPay("sena", e.target.value)} min={0} />
-              <TextField id="pricing_paid" label="Paga" type="number" inputMode="numeric" prefix="$" value={priceStr("paid")} onChange={(e) => setPay("paid", e.target.value)} min={0} />
-              <TextField id="pricing_balance" label="Saldo" hint="Total − Seña − Paga (editable)" type="number" inputMode="numeric" prefix="$" value={priceStr("balance")} onChange={(e) => setPay("balance", e.target.value)} min={0} />
+              <TextField id="pricing_total" label="Total a pagar" type="text" inputMode="decimal" prefix="$" value={priceStr("total")} onChange={(e) => setPay("total", e.target.value)} />
+              <TextField id="pricing_sena" label="Seña" type="text" inputMode="decimal" prefix="$" value={priceStr("sena")} onChange={(e) => setPay("sena", e.target.value)} />
+              <TextField id="pricing_paid" label="Paga" type="text" inputMode="decimal" prefix="$" value={priceStr("paid")} onChange={(e) => setPay("paid", e.target.value)} />
+              <TextField id="pricing_balance" label="Saldo" hint="Total − Seña − Paga (editable)" type="text" inputMode="decimal" prefix="$" value={priceStr("balance")} onChange={(e) => setPay("balance", e.target.value)} />
             </div>
           </div>
 
@@ -1159,9 +1165,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   </span>
                   <input
                     className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
+                    type="text"
+                    inputMode="decimal"
                     placeholder={String(settlement.extraKmCharge)}
                     value={draft.settlementExtraKmCharge}
                     onChange={(e) => patch({ settlementExtraKmCharge: e.target.value })}
@@ -1175,9 +1180,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   </span>
                   <input
                     className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0"
                     value={draft.settlementFuelCharge}
                     onChange={(e) => patch({ settlementFuelCharge: e.target.value })}
@@ -1189,9 +1193,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
                     <span className="text-sm text-red-600">Daño: {dm.description.trim() || `#${i + 1}`}</span>
                     <input
                       className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0"
                       value={draft.damageAmounts[dm.id] ?? ""}
                       onChange={(e) => patch({ damageAmounts: { ...draft.damageAmounts, [dm.id]: e.target.value } })}
@@ -1203,9 +1206,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
                   <span className="text-sm text-foreground/70">Depósito / excedente tomado</span>
                   <input
                     className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
+                    type="text"
+                    inputMode="decimal"
                     placeholder={String(settlement.deposit)}
                     value={draft.settlementDeposit}
                     onChange={(e) => patch({ settlementDeposit: e.target.value })}

@@ -66,7 +66,7 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
 export function extraHourAmount(p: Pick<ContractPricing, "dailyRate" | "extraHourPercent">): number | null {
   if (p.dailyRate == null || p.extraHourPercent == null) return null;
   const v = (p.dailyRate * p.extraHourPercent) / 100;
-  return Number.isFinite(v) ? Math.round(v) : null;
+  return Number.isFinite(v) ? roundMoney(v) : null;
 }
 
 /**
@@ -78,7 +78,12 @@ export function computeBalance(
 ): number | null {
   if (p.total == null || Number.isNaN(p.total)) return null;
   const v = p.total - (p.sena ?? 0) - (p.paid ?? 0);
-  return Number.isFinite(v) ? Math.round(v) : null;
+  return Number.isFinite(v) ? roundMoney(v) : null;
+}
+
+/** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
+function roundMoney(v: number): number {
+  return Math.round(v * 100) / 100;
 }
 
 /** Checklist de verificación del contrato (entrega). Configurable por el admin. */
@@ -111,7 +116,8 @@ export const CANONICAL_CHECKLIST = [
 const arsFormatter = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 export function formatArs(n: number | null | undefined): string {

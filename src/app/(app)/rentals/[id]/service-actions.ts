@@ -6,18 +6,22 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
+import { parseDecimal } from "@/lib/number-input";
 
-const optNum = (nonneg = true) =>
-  z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    (nonneg ? z.number().nonnegative() : z.number()).optional(),
-  );
+const optNum = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : Number(v)),
+  z.number().nonnegative().optional(),
+);
+const optCost = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : parseDecimal(String(v))),
+  z.number().nonnegative().optional(),
+);
 
 const schema = z.object({
   type: z.enum(["service", "repair"]),
   date: z.string().min(1),
-  km: optNum(),
-  cost: optNum(),
+  km: optNum,
+  cost: optCost,
   place: z.string().trim().optional(),
   description: z.string().trim().min(1, "Describí el service o arreglo"),
 });

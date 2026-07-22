@@ -337,7 +337,7 @@ export default async function VehicleDetailPage({
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-foreground/70">Costo</span>
-                <input type="number" name="cost" inputMode="numeric" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+                <input type="text" name="cost" inputMode="decimal" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
               </label>
             </div>
             <input name="place" placeholder="Lugar / taller (opcional)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />

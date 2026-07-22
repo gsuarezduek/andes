@@ -15,6 +15,10 @@ describe("computeBalance", () => {
     expect(computeBalance({ sena: 10_000, paid: 5_000 })).toBeNull();
     expect(computeBalance({ total: undefined })).toBeNull();
   });
+
+  it("preserva centavos", () => {
+    expect(computeBalance({ total: 100_000.5, sena: 30_000.25, paid: 20_000 })).toBe(50_000.25);
+  });
 });
 
 describe("extraHourAmount", () => {
@@ -22,9 +26,9 @@ describe("extraHourAmount", () => {
     expect(extraHourAmount({ dailyRate: 30_000, extraHourPercent: 10 })).toBe(3_000);
   });
 
-  it("redondea al entero", () => {
+  it("redondea a centavos (preserva decimales)", () => {
     expect(extraHourAmount({ dailyRate: 10_000, extraHourPercent: 3.3 })).toBe(330);
-    expect(extraHourAmount({ dailyRate: 999, extraHourPercent: 10 })).toBe(100); // 99.9 → 100
+    expect(extraHourAmount({ dailyRate: 999, extraHourPercent: 10 })).toBe(99.9);
   });
 
   it("devuelve null si falta la tarifa o el porcentaje", () => {
@@ -34,10 +38,15 @@ describe("extraHourAmount", () => {
 });
 
 describe("formatArs", () => {
-  it("formatea números como pesos sin decimales", () => {
+  it("formatea números enteros como pesos sin decimales", () => {
     // Usa NBSP entre símbolo y número; comparamos de forma tolerante.
     const out = formatArs(30_000).replace(/\s/g, " ");
     expect(out).toMatch(/\$\s?30\.000/);
+  });
+
+  it("muestra los centavos cuando el valor los tiene", () => {
+    const out = formatArs(30_000.5).replace(/\s/g, " ");
+    expect(out).toMatch(/\$\s?30\.000,5/);
   });
 
   it("devuelve — para valores nulos o NaN", () => {

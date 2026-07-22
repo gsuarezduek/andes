@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { parseDecimal } from "@/lib/number-input";
 
 /** Entero no negativo, o null si el campo viene vacío. */
 function intOrNull(v: FormDataEntryValue | null): number | null {
@@ -10,6 +11,12 @@ function intOrNull(v: FormDataEntryValue | null): number | null {
   if (s === "") return null;
   const n = Math.round(Number(s));
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Importe no negativo (acepta coma o punto decimal), o null si viene vacío. */
+function moneyOrNull(v: FormDataEntryValue | null): number | null {
+  const n = parseDecimal(String(v ?? ""));
+  return n !== undefined && n >= 0 ? n : null;
 }
 
 /**
@@ -20,12 +27,12 @@ function intOrNull(v: FormDataEntryValue | null): number | null {
 export async function saveConditions(formData: FormData) {
   await requireAdmin();
   const data = {
-    insuranceAmount: intOrNull(formData.get("insuranceAmount")),
+    insuranceAmount: moneyOrNull(formData.get("insuranceAmount")),
     kmPerDay: intOrNull(formData.get("kmPerDay")),
-    extraKmRate: intOrNull(formData.get("extraKmRate")),
+    extraKmRate: moneyOrNull(formData.get("extraKmRate")),
     extraHourPercent: intOrNull(formData.get("extraHourPercent")),
-    deductible: intOrNull(formData.get("deductible")),
-    deductibleReduced: intOrNull(formData.get("deductibleReduced")),
+    deductible: moneyOrNull(formData.get("deductible")),
+    deductibleReduced: moneyOrNull(formData.get("deductibleReduced")),
   };
   await prisma.conditionSettings.upsert({
     where: { id: 1 },

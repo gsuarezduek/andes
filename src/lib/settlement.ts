@@ -8,7 +8,8 @@
  * depósito en garantía y arroja el saldo. **No procesa cobros** (pagos fuera de
  * alcance): sólo calcula y registra cómo se saldó.
  *
- * Convenciones: importes enteros en ARS, km entero, nafta en octavos (0–8).
+ * Convenciones: importes en ARS con hasta 2 decimales, km entero, nafta en
+ * octavos (0–8).
  */
 import type { ContractPricing } from "@/lib/contract";
 
@@ -48,8 +49,9 @@ export type SettlementInput = {
   newDamages?: { description?: string }[];
 };
 
+/** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
 function round(n: number): number {
-  return Number.isFinite(n) ? Math.round(n) : 0;
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
 /**

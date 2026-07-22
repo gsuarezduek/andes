@@ -288,7 +288,7 @@ export default async function RentalDetailPage({
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-foreground/70">Costo</span>
-                <input type="number" name="cost" inputMode="numeric" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+                <input type="text" name="cost" inputMode="decimal" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
               </label>
             </div>
             <label className="flex flex-col gap-1 text-sm">
