@@ -60,6 +60,7 @@ type Draft = {
   clientEmail: string;
   clientPhone: string;
   clientDocNumber: string;
+  clientAddress: string;
   licenseExpiry: string;
   pricing: Record<string, string>;
   // "KM libres": sin límite → no se cobra excedente en la devolución.
@@ -96,7 +97,7 @@ export type InspectionWizardProps = {
   mode: Mode;
   save: (input: InspectionInput) => Promise<SaveResult>;
   rentalId: string;
-  client: { name: string; email: string | null; phone: string | null; dni: string | null };
+  client: { name: string; email: string | null; phone: string | null; dni: string | null; address: string | null };
   datesLabel: string;
   vehicle: { id: string; label: string; currentKm: number } | null;
   vehicleOptions: { id: string; label: string }[];
@@ -130,8 +131,7 @@ export type InspectionWizardProps = {
       datesLabel?: string;
       conditions?: { label: string; value: string }[];
       settlementRows?: { label: string; value: string }[];
-      balanceLabel?: string;
-      balanceValue?: string;
+      balanceRows?: { label: string; value: string }[];
     };
   }) => Promise<CreateRemoteSignatureResult>;
 };
@@ -172,6 +172,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     clientEmail: props.client.email ?? "",
     clientPhone: props.client.phone ?? "",
     clientDocNumber: props.client.dni ?? "",
+    clientAddress: props.client.address ?? "",
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
     unlimitedKm: props.pricing?.unlimitedKm === "true",
@@ -423,8 +424,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
   function summaryConditions(): {
     conditions?: { label: string; value: string }[];
     settlementRows?: { label: string; value: string }[];
-    balanceLabel?: string;
-    balanceValue?: string;
+    balanceRows?: { label: string; value: string }[];
   } {
     if (isHandover) {
       const p: Record<string, number> = {};
@@ -483,12 +483,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (settlement.depositApplied > 0) {
         rows.push({ label: st.depositApplied, value: formatArs(settlement.depositApplied) });
       }
-      const isDue = settlement.balanceDue > 0;
-      return {
-        settlementRows: rows,
-        balanceLabel: isDue ? st.balanceDue : st.depositReturn,
-        balanceValue: formatArs(isDue ? settlement.balanceDue : settlement.depositReturn),
-      };
+      const balanceRows: { label: string; value: string }[] = [];
+      if (settlement.balanceDue > 0) {
+        balanceRows.push({ label: st.balanceDue, value: formatArs(settlement.balanceDue) });
+      }
+      if (settlement.depositReturn > 0) {
+        balanceRows.push({ label: st.depositReturn, value: formatArs(settlement.depositReturn) });
+      }
+      return { settlementRows: rows, balanceRows };
     }
     return {};
   }
@@ -676,8 +678,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (draft.unlimitedKm) pricing.unlimitedKm = true;
       if (draft.insuranceUpgrade) pricing.insuranceUpgrade = true;
       {
+        // Franquicia/Garantía: un solo importe cargado por el empleado, que
+        // vale tanto de deducible (acta) como de garantía tomada (liquidación
+        // de la devolución, donde solo cubre daños).
         const ded = parseDecimal(draft.pricing.deductible as string | undefined);
-        if (ded !== undefined) pricing.deductible = ded;
+        if (ded !== undefined) {
+          pricing.deductible = ded;
+          pricing.deposit = ded;
+        }
       }
       if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
       if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
@@ -705,6 +713,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
               clientEmail: draft.clientEmail.trim() || undefined,
               clientPhone: draft.clientPhone.trim() || undefined,
               clientDocNumber: draft.clientDocNumber.trim() || undefined,
+              clientAddress: draft.clientAddress.trim() || undefined,
               licenseExpiry: draft.licenseExpiry || undefined,
               pricing: Object.keys(pricing).length ? pricing : undefined,
               documents: (() => {
@@ -784,6 +793,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <p className="text-foreground/60">{draft.clientEmail || "sin email"}</p>
             <p className="text-foreground/60">{draft.clientPhone || "sin teléfono"}</p>
             {draft.clientDocNumber ? <p className="text-foreground/60">Doc: {draft.clientDocNumber}</p> : null}
+            {draft.clientAddress ? <p className="text-foreground/60">Domicilio: {draft.clientAddress}</p> : null}
             <p className="mt-2 text-foreground/60">{props.datesLabel}</p>
             {isHandover && (
               <p className="mt-2 text-xs text-foreground/50">
@@ -920,7 +930,6 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <div className="grid grid-cols-2 gap-3">
               <TextField id="pricing_dailyRate" label="Precio por día" type="text" inputMode="decimal" prefix="$" value={priceStr("dailyRate")} onChange={(e) => setPrice("dailyRate", e.target.value)} />
               <TextField id="pricing_days" label="Cantidad de días" type="number" inputMode="numeric" value={priceStr("days")} onChange={(e) => setPrice("days", e.target.value)} min={0} />
-              <TextField id="pricing_insuranceAmount" label="Seguro" type="text" inputMode="decimal" prefix="$" value={priceStr("insuranceAmount")} onChange={(e) => setPrice("insuranceAmount", e.target.value)} />
               <TextField id="pricing_extraHourPercent" label="Hora extra (% tarifa)" type="number" inputMode="numeric" value={priceStr("extraHourPercent")} onChange={(e) => setPrice("extraHourPercent", e.target.value)} min={0} />
             </div>
             {(() => {
@@ -936,10 +945,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
             })()}
           </div>
 
-          {/* Seguro y franquicia */}
-          <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Franquicia</p>
-            <TextField id="pricing_deductible" label="Franquicia (deducible del seguro)" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
+          {/* Franquicia/Garantía: un solo importe (deducible del seguro y garantía tomada). */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground/80">Franquicia/Garantía</p>
+            <TextField id="pricing_deductible" label="Franquicia/Garantía" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
             <button
               type="button"
               onClick={() => {
@@ -948,13 +957,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 patch({ insuranceUpgrade: next });
                 if (ded != null) setPrice("deductible", String(ded));
               }}
-              className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.insuranceUpgrade ? "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-400" : "border-foreground/25 text-foreground/70"}`}
+              className={`w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.insuranceUpgrade ? "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-400" : "border-foreground/25 text-foreground/70"}`}
             >
               {draft.insuranceUpgrade ? "✓ Con mejora de seguro (franquicia reducida)" : "Mejora de seguro"}
             </button>
             {draft.insuranceUpgrade && (
-              <p className="mt-1 text-xs text-foreground/50">Franquicia reducida por la mejora de seguro contratada.</p>
+              <p className="text-xs text-foreground/50">Franquicia reducida por la mejora de seguro contratada.</p>
             )}
+            <TextareaField id="guaranteeForm" label="Forma de la garantía" hint="Ej. tarjeta de crédito, efectivo, cheque" value={draft.guaranteeForm} onChange={(e) => patch({ guaranteeForm: e.target.value })} rows={2} />
           </div>
 
           {/* Kilometraje */}
@@ -985,13 +995,6 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <TextareaField id="accessoriesDesc" label="Detalle de accesorios" hint="Ej. silla de bebé, GPS, portaequipaje" value={draft.accessoriesDesc} onChange={(e) => patch({ accessoriesDesc: e.target.value })} rows={2} />
           </div>
 
-          {/* Garantía */}
-          <div className="flex flex-col gap-3">
-            <p className="text-sm font-medium text-foreground/80">Garantía</p>
-            <TextField id="pricing_deposit" label="Monto de la garantía" type="text" inputMode="decimal" prefix="$" value={priceStr("deposit")} onChange={(e) => setPrice("deposit", e.target.value)} />
-            <TextareaField id="guaranteeForm" label="Forma de la garantía" hint="Ej. tarjeta de crédito, efectivo, cheque" value={draft.guaranteeForm} onChange={(e) => patch({ guaranteeForm: e.target.value })} rows={2} />
-          </div>
-
           {/* Pago */}
           <div>
             <p className="mb-2 text-sm font-medium text-foreground/80">Pago</p>
@@ -1009,11 +1012,6 @@ export function InspectionWizard(props: InspectionWizardProps) {
 
       {current === "Estado" && (
         <div className="flex flex-col gap-5">
-          <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
-          <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Nivel de nafta</p>
-            <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} max={maxFuel} />
-          </div>
           <div>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-foreground/80">Checklist</p>
@@ -1043,6 +1041,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 );
               })}
             </ul>
+          </div>
+          <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Nivel de nafta</p>
+            <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} max={maxFuel} />
           </div>
         </div>
       )}
@@ -1203,7 +1206,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 ))}
 
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-foreground/70">Depósito / excedente tomado</span>
+                  <span className="text-sm text-foreground/70">Garantía tomada (cubre daños)</span>
                   <input
                     className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
                     type="text"
@@ -1217,10 +1220,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
 
               <div className="divide-y divide-foreground/10 border-t border-foreground/10 pt-1">
                 <CompareRow label="Subtotal" value={formatArs(settlement.subtotal)} />
-                <CompareRow label="Cubierto por depósito" value={formatArs(settlement.depositApplied)} />
-                {settlement.balanceDue > 0 ? (
+                {settlement.depositApplied > 0 && (
+                  <CompareRow label="Cubierto por depósito (daños)" value={formatArs(settlement.depositApplied)} />
+                )}
+                {settlement.balanceDue > 0 && (
                   <CompareRow label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
-                ) : (
+                )}
+                {settlement.depositReturn > 0 && (
                   <CompareRow label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
                 )}
               </div>
@@ -1248,8 +1254,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
                 {signConditionRows.map((r, i) => (
                   <CompareRow key={i} label={r.label} value={r.value} />
                 ))}
-                {!isHandover && signConditions.balanceLabel && (
-                  <CompareRow label={signConditions.balanceLabel} value={signConditions.balanceValue ?? "—"} tone="warn" />
+                {!isHandover && settlement && settlement.balanceDue > 0 && (
+                  <CompareRow label={dict.acta.settlement.balanceDue} value={formatArs(settlement.balanceDue)} tone="warn" />
+                )}
+                {!isHandover && settlement && settlement.depositReturn > 0 && (
+                  <CompareRow label={dict.acta.settlement.depositReturn} value={formatArs(settlement.depositReturn)} />
                 )}
               </div>
             </section>
@@ -1324,12 +1333,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
             <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
             <CompareRow label="Nafta" value={`${draft.fuelLevel}/${maxFuel}`} />
             {props.returnContext && <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
-            {settlement && (
-              <CompareRow
-                label={settlement.balanceDue > 0 ? "Saldo a cobrar" : "Depósito a devolver"}
-                value={formatArs(settlement.balanceDue > 0 ? settlement.balanceDue : settlement.depositReturn)}
-                tone={settlement.balanceDue > 0 ? "warn" : undefined}
-              />
+            {settlement && settlement.balanceDue > 0 && (
+              <CompareRow label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
+            )}
+            {settlement && settlement.depositReturn > 0 && (
+              <CompareRow label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
             )}
             <CompareRow label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
             <CompareRow label="Daños nuevos" value={String(draft.damages.length)} />

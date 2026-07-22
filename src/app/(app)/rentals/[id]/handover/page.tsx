@@ -61,7 +61,6 @@ export default async function HandoverPage({
   // order_total de VikRentCar = total con extras (incluye accesorios y, si
   // corresponde, el extra por combinación de lugar de retiro/devolución).
   preset("total", rental.bookingTotal ? Number(rental.bookingTotal) : null);
-  preset("insuranceAmount", conditions?.insuranceAmount ? Number(conditions.insuranceAmount) : null);
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
   preset("extraHourPercent", conditions?.extraHourPercent);
@@ -110,6 +109,7 @@ export default async function HandoverPage({
           email: rental.clientEmail,
           phone: rental.clientPhone,
           dni: rental.clientDocNumber,
+          address: rental.clientAddress,
         }}
         licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
         pricing={initialPricing}

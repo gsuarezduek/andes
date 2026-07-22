@@ -21,9 +21,11 @@ export type ContractPricing = {
   place?: string; // lugar de retiro/devolución
   dailyRate?: number; // $ por día (se precarga de VikRentCar: car_cost/days)
   days?: number; // cantidad de días (se precarga de VikRentCar: days)
-  insuranceAmount?: number; // seguro
   insuranceUpgrade?: boolean; // "Mejora de Seguro": baja la franquicia (destacado)
-  deductible?: number; // franquicia (deducible) aplicable; menor si hay mejora de seguro
+  // Franquicia/Garantía: un solo importe que es a la vez el deducible del
+  // seguro (impreso en el acta) y la garantía tomada en la entrega (`deposit`,
+  // que cubre daños en la liquidación de la devolución — nunca km/nafta).
+  deductible?: number;
   kmPerDay?: number; // km incluidos por día
   extraKmRate?: number; // $ por km extra
   unlimitedKm?: boolean; // "KM libres": sin límite, no se cobra excedente
@@ -36,7 +38,7 @@ export type ContractPricing = {
   sena?: number; // seña / entrega a cuenta
   paid?: number; // paga (lo abonado ahora)
   balance?: number; // saldo (total − seña − paga)
-  deposit?: number; // garantía en la entrega / excedentes en la devolución
+  deposit?: number; // garantía tomada en la entrega (= deductible); cubre daños en la devolución
   guaranteeForm?: string; // forma de la garantía (efectivo, tarjeta, etc.) — entrega
 };
 
@@ -47,7 +49,6 @@ export type PricingKind = "money" | "int" | "percent";
 export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: PricingKind }[] = [
   { key: "dailyRate", label: "Precio por día", kind: "money" },
   { key: "days", label: "Cantidad de días", kind: "int" },
-  { key: "insuranceAmount", label: "Seguro", kind: "money" },
   { key: "kmPerDay", label: "Km por día", kind: "int" },
   { key: "extraKmRate", label: "Km extra ($ c/u)", kind: "money" },
   { key: "extraHourPercent", label: "Hora extra (% de la tarifa)", kind: "percent" },
@@ -56,7 +57,6 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
   { key: "sena", label: "Seña", kind: "money" },
   { key: "paid", label: "Paga", kind: "money" },
   { key: "balance", label: "Saldo", kind: "money" },
-  { key: "deposit", label: "Garantía", kind: "money" },
 ];
 
 /**

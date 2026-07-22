@@ -100,12 +100,12 @@ export function RemoteSignForm({
             {conditionRows.map((r, i) => (
               <SummaryRow key={i} label={r.label} value={r.value} />
             ))}
-            {isReturn && summary?.balanceLabel && (
-              <div className="flex justify-between gap-4 py-2 text-sm font-semibold">
-                <span>{summary.balanceLabel}</span>
-                <span className="text-right">{summary.balanceValue}</span>
+            {isReturn && summary?.balanceRows?.map((r, i) => (
+              <div key={i} className="flex justify-between gap-4 py-2 text-sm font-semibold">
+                <span>{r.label}</span>
+                <span className="text-right">{r.value}</span>
               </div>
-            )}
+            ))}
           </div>
         </section>
       )}

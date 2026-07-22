@@ -133,6 +133,7 @@ export default async function RentalDetailPage({
           clientEmail={rental.clientEmail ?? ""}
           clientPhone={rental.clientPhone ?? ""}
           clientDocNumber={rental.clientDocNumber ?? ""}
+          clientAddress={rental.clientAddress ?? ""}
           vehicleId={rental.vehicleId ?? ""}
           vehicles={editableVehicles.map((v) => ({
             id: v.id,
@@ -144,6 +145,7 @@ export default async function RentalDetailPage({
           <Row label="Email" value={rental.clientEmail} />
           <Row label="Teléfono" value={rental.clientPhone} />
           <Row label="Documento" value={rental.clientDocNumber} />
+          <Row label="Domicilio" value={rental.clientAddress} />
           <Row
             label="Vehículo"
             value={

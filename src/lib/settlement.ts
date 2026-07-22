@@ -4,8 +4,10 @@
  *
  * Cierra el círculo económico: a partir de la comparación entrega↔devolución y
  * de las condiciones del contrato (`Rental.pricing`), calcula el excedente de
- * km, la nafta faltante y los cargos por daño nuevo, los contrasta con el
- * depósito en garantía y arroja el saldo. **No procesa cobros** (pagos fuera de
+ * km, la nafta faltante y los cargos por daño nuevo. El excedente de km y la
+ * nafta se cobran siempre aparte (el cliente los abona directamente); la
+ * garantía (depósito) **solo cubre daños nuevos** y se devuelve por el resto
+ * — nunca se descuenta por km/nafta. **No procesa cobros** (pagos fuera de
  * alcance): sólo calcula y registra cómo se saldó.
  *
  * Convenciones: importes en ARS con hasta 2 decimales, km entero, nafta en
@@ -32,10 +34,12 @@ export type Settlement = {
   damageCharges: SettlementDamageCharge[];
   damagesTotal: number;
   subtotal: number; // extraKmCharge + fuelCharge + damagesTotal
-  deposit: number; // depósito/excedente tomado en la entrega
-  depositApplied: number; // parte del depósito que cubre el subtotal
-  balanceDue: number; // lo que el cliente aún debe tras aplicar el depósito
-  depositReturn: number; // depósito a devolver si el subtotal no lo consume
+  deposit: number; // garantía tomada en la entrega
+  depositApplied: number; // parte del depósito que cubre los daños
+  // Lo que el cliente debe abonar aparte: km extra + nafta + daños que
+  // exceden el depósito. Puede coexistir con depositReturn > 0.
+  balanceDue: number;
+  depositReturn: number; // depósito a devolver (lo no consumido por daños)
   method: SettlementMethod;
   note?: string;
 };
@@ -62,9 +66,11 @@ export function rollupSettlement(s: Settlement): Settlement {
   const damagesTotal = round(s.damageCharges.reduce((a, d) => a + (d.amount || 0), 0));
   const subtotal = round((s.extraKmCharge || 0) + (s.fuelCharge || 0) + damagesTotal);
   const deposit = s.deposit || 0;
-  const depositApplied = Math.min(subtotal, deposit);
-  const balanceDue = Math.max(0, subtotal - deposit);
-  const depositReturn = Math.max(0, deposit - subtotal);
+  // La garantía solo cubre daños nuevos: km extra y nafta se cobran aparte y
+  // nunca se descuentan del depósito.
+  const depositApplied = Math.min(damagesTotal, deposit);
+  const balanceDue = round((s.extraKmCharge || 0) + (s.fuelCharge || 0) + Math.max(0, damagesTotal - deposit));
+  const depositReturn = Math.max(0, deposit - damagesTotal);
   return { ...s, damagesTotal, subtotal, depositApplied, balanceDue, depositReturn };
 }
 

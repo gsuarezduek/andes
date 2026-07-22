@@ -28,6 +28,7 @@ export function RentalForm({
         <TextField id="clientPhone" label="Teléfono" hint="Opcional" />
       </div>
       <TextField id="clientDocNumber" label="Nro. de documento" hint="Opcional" />
+      <TextField id="clientAddress" label="Domicilio en Mendoza" hint="Opcional" />
 
       <SelectField id="vehicleId" label="Vehículo" hint="Se puede asignar más tarde">
         <option value="">Sin asignar</option>

@@ -202,6 +202,7 @@ model Rental {
   clientPhone     String?   @map("client_phone")
   clientDocNumber String?   @map("client_doc_number") // nro. de documento opcional
   clientCountry   String?   @map("client_country") // país del cliente (VikRentCar orders.country, ~24%)
+  clientAddress   String?   @map("client_address") // domicilio en Mendoza
   // Marca de que el empleado editó los datos del cliente a mano. A partir de ahí
   // el sync NO vuelve a pisar nombre/email/teléfono/documento (VikRentCar deja de
   // ser la fuente de verdad de esos campos para esta reserva).
@@ -496,6 +497,10 @@ model ConditionSettings {
   // alquiler lleva "Mejora de Seguro" (ej. 600.000 → 400.000).
   deductible        Decimal? @map("deductible") @db.Decimal(12, 2) // franquicia estándar
   deductibleReduced Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
+  // Envío del acta al cliente por email (el admin siempre la recibe). Apagar
+  // para dejar de mandarle al cliente el acta de entrega o de devolución.
+  sendHandoverActa Boolean  @default(true) @map("send_handover_acta")
+  sendReturnActa   Boolean  @default(true) @map("send_return_acta")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("condition_settings")

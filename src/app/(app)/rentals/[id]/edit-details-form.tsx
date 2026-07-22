@@ -18,6 +18,7 @@ export function EditDetailsForm({
   clientEmail,
   clientPhone,
   clientDocNumber,
+  clientAddress,
   vehicleId,
   vehicles,
 }: {
@@ -26,6 +27,7 @@ export function EditDetailsForm({
   clientEmail: string;
   clientPhone: string;
   clientDocNumber: string;
+  clientAddress: string;
   vehicleId: string;
   vehicles: VehicleOption[];
 }) {
@@ -47,6 +49,7 @@ export function EditDetailsForm({
         defaultValue={clientEmail}
         hint="Ahí llega el acta firmada."
       />
+      <TextField id="clientAddress" label="Domicilio en Mendoza" defaultValue={clientAddress} />
       <SelectField
         id="vehicleId"
         label="Vehículo"

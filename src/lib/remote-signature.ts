@@ -23,9 +23,12 @@ export type SignatureSummary = {
   conditions?: SummaryRow[];
   /** Liquidación ya formateada (devolución): km extra, nafta, daños, depósito. */
   settlementRows?: SummaryRow[];
-  /** Saldo final de la liquidación (devolución), ya formateado. */
-  balanceLabel?: string;
-  balanceValue?: string;
+  /**
+   * Filas finales destacadas de la liquidación (devolución): saldo a cobrar
+   * y/o depósito a devolver, ya formateados. Pueden coexistir (la garantía
+   * solo cubre daños; el km extra/nafta se cobran aparte).
+   */
+  balanceRows?: SummaryRow[];
 };
 
 /** Vida útil del pedido de firma (30 min). */

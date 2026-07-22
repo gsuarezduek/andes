@@ -99,12 +99,12 @@ describe("rollupSettlement", () => {
       newDamages: [{ description: "Golpe paragolpes" }],
     });
 
-  it("el depósito cubre el subtotal: saldo 0 y devolución del remanente", () => {
-    const s = rollupSettlement({ ...base(), fuelCharge: 2_000 }); // subtotal 20000 + 2000 = 22000 > 20000
+  it("sin daños: el km extra y la nafta se cobran aparte y no descuentan del depósito", () => {
+    const s = rollupSettlement({ ...base(), fuelCharge: 2_000 }); // sin daño cargado (amount 0)
     expect(s.subtotal).toBe(22_000);
-    expect(s.depositApplied).toBe(20_000);
-    expect(s.balanceDue).toBe(2_000);
-    expect(s.depositReturn).toBe(0);
+    expect(s.depositApplied).toBe(0);
+    expect(s.balanceDue).toBe(22_000); // km extra + nafta, íntegro
+    expect(s.depositReturn).toBe(20_000); // depósito entero, no consumido por daños
   });
 
   it("subtotal menor al depósito: saldo 0 y se devuelve la diferencia", () => {
@@ -127,5 +127,16 @@ describe("rollupSettlement", () => {
     expect(s.subtotal).toBe(35_000);
     expect(s.depositApplied).toBe(20_000);
     expect(s.balanceDue).toBe(15_000);
+  });
+
+  it("daño parcial: cubre lo que puede del depósito y devuelve el resto, además del km/nafta aparte", () => {
+    const b = base(); // extraKmCharge 20000, deposit 20000
+    const s = rollupSettlement({
+      ...b,
+      damageCharges: [{ description: "Golpe paragolpes", amount: 5_000 }],
+    });
+    expect(s.depositApplied).toBe(5_000);
+    expect(s.depositReturn).toBe(15_000);
+    expect(s.balanceDue).toBe(20_000); // el km extra, ajeno al depósito
   });
 });

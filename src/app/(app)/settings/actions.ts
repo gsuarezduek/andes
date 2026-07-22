@@ -27,12 +27,13 @@ function moneyOrNull(v: FormDataEntryValue | null): number | null {
 export async function saveConditions(formData: FormData) {
   await requireAdmin();
   const data = {
-    insuranceAmount: moneyOrNull(formData.get("insuranceAmount")),
     kmPerDay: intOrNull(formData.get("kmPerDay")),
     extraKmRate: moneyOrNull(formData.get("extraKmRate")),
     extraHourPercent: intOrNull(formData.get("extraHourPercent")),
     deductible: moneyOrNull(formData.get("deductible")),
     deductibleReduced: moneyOrNull(formData.get("deductibleReduced")),
+    sendHandoverActa: formData.get("sendHandoverActa") === "on",
+    sendReturnActa: formData.get("sendReturnActa") === "on",
   };
   await prisma.conditionSettings.upsert({
     where: { id: 1 },

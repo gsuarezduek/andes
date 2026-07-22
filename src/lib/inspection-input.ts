@@ -39,6 +39,7 @@ export type InspectionInput = {
   clientEmail?: string;
   clientPhone?: string;
   clientDocNumber?: string;
+  clientAddress?: string;
   km: number;
   fuelLevel: number;
   checklist: Record<string, "ok" | "fail">;

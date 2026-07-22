@@ -22,6 +22,7 @@ const rentalSchema = z.object({
   ),
   clientPhone: optionalStr,
   clientDocNumber: optionalStr,
+  clientAddress: optionalStr,
   vehicleId: optionalStr,
   startAt: z.string().min(1, "La fecha de retiro es obligatoria"),
   endAt: z.string().min(1, "La fecha de devolución es obligatoria"),
@@ -39,6 +40,7 @@ export async function createRental(
     clientEmail: formData.get("clientEmail"),
     clientPhone: formData.get("clientPhone"),
     clientDocNumber: formData.get("clientDocNumber"),
+    clientAddress: formData.get("clientAddress"),
     vehicleId: formData.get("vehicleId"),
     startAt: formData.get("startAt"),
     endAt: formData.get("endAt"),
@@ -69,6 +71,7 @@ export async function createRental(
       clientEmail: parsed.data.clientEmail ?? null,
       clientPhone: parsed.data.clientPhone ?? null,
       clientDocNumber: parsed.data.clientDocNumber ?? null,
+      clientAddress: parsed.data.clientAddress ?? null,
       vehicleId: parsed.data.vehicleId ?? null,
       startAt,
       endAt,
@@ -91,6 +94,7 @@ const updateSchema = z.object({
   ),
   clientPhone: optionalStr,
   clientDocNumber: optionalStr,
+  clientAddress: optionalStr,
   vehicleId: optionalStr,
 });
 
@@ -112,6 +116,7 @@ export async function updateRentalDetails(
     clientEmail: formData.get("clientEmail"),
     clientPhone: formData.get("clientPhone"),
     clientDocNumber: formData.get("clientDocNumber"),
+    clientAddress: formData.get("clientAddress"),
     vehicleId: formData.get("vehicleId"),
   });
   if (!parsed.success) {
@@ -144,6 +149,7 @@ export async function updateRentalDetails(
       clientEmail: parsed.data.clientEmail ?? null,
       clientPhone: parsed.data.clientPhone ?? null,
       clientDocNumber: parsed.data.clientDocNumber ?? null,
+      clientAddress: parsed.data.clientAddress ?? null,
       vehicleId: parsed.data.vehicleId ?? null,
       // A partir de esta edición, el sync no vuelve a pisar los datos del cliente.
       clientEditedAt: new Date(),

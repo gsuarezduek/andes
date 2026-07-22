@@ -286,18 +286,24 @@ export function ActaDocument(props: ActaData) {
               <Text style={styles.label}>{t.settlement.subtotal}</Text>
               <Text style={styles.value}>{formatArs(props.settlement.subtotal)}</Text>
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t.settlement.depositApplied}</Text>
-              <Text style={styles.value}>{formatArs(props.settlement.depositApplied)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>
-                {props.settlement.balanceDue > 0 ? t.settlement.balanceDue : t.settlement.depositReturn}
-              </Text>
-              <Text style={props.settlement.balanceDue > 0 ? styles.fail : styles.value}>
-                {formatArs(props.settlement.balanceDue > 0 ? props.settlement.balanceDue : props.settlement.depositReturn)}
-              </Text>
-            </View>
+            {props.settlement.depositApplied > 0 ? (
+              <View style={styles.row}>
+                <Text style={styles.label}>{t.settlement.depositApplied}</Text>
+                <Text style={styles.value}>{formatArs(props.settlement.depositApplied)}</Text>
+              </View>
+            ) : null}
+            {props.settlement.balanceDue > 0 ? (
+              <View style={styles.row}>
+                <Text style={styles.label}>{t.settlement.balanceDue}</Text>
+                <Text style={styles.fail}>{formatArs(props.settlement.balanceDue)}</Text>
+              </View>
+            ) : null}
+            {props.settlement.depositReturn > 0 ? (
+              <View style={styles.row}>
+                <Text style={styles.label}>{t.settlement.depositReturn}</Text>
+                <Text style={styles.value}>{formatArs(props.settlement.depositReturn)}</Text>
+              </View>
+            ) : null}
             {props.settlement.method !== "none" ? (
               <View style={styles.row}>
                 <Text style={styles.label}>{t.settlement.method}</Text>

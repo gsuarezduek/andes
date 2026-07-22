@@ -22,8 +22,7 @@ const inputSchema = z.object({
     datesLabel: z.string().optional(),
     conditions: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
     settlementRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-    balanceLabel: z.string().optional(),
-    balanceValue: z.string().optional(),
+    balanceRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
   }),
 });
 

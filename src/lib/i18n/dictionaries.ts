@@ -40,6 +40,7 @@ export type Dictionary = {
     place: string;
     dni: string;
     country: string;
+    address: string;
     licenseExpiry: string;
     mileage: string;
     fuelLevel: string;
@@ -127,6 +128,7 @@ const es: Dictionary = {
     place: "Lugar",
     dni: "DNI",
     country: "País",
+    address: "Domicilio",
     licenseExpiry: "Venc. licencia de conducir",
     mileage: "Kilometraje",
     fuelLevel: "Nivel de nafta",
@@ -135,7 +137,7 @@ const es: Dictionary = {
     days: "Cant. días",
     dailyRate: "Precio por día",
     insurance: "Seguro con franquicia",
-    deductible: "Franquicia",
+    deductible: "Franquicia/Garantía",
     insuranceUpgrade: "con mejora de seguro",
     kmIncluded: "Km para uso",
     unlimitedKm: "Libre (sin cargo por excedente)",
@@ -229,6 +231,7 @@ const en: Dictionary = {
     place: "Location",
     dni: "ID",
     country: "Country",
+    address: "Address",
     licenseExpiry: "Driver's license expiry",
     mileage: "Mileage",
     fuelLevel: "Fuel level",
@@ -237,7 +240,7 @@ const en: Dictionary = {
     days: "Days",
     dailyRate: "Daily rate",
     insurance: "Insurance with excess",
-    deductible: "Deductible",
+    deductible: "Deductible/Guarantee",
     insuranceUpgrade: "with insurance upgrade",
     kmIncluded: "Included km",
     unlimitedKm: "Unlimited (no excess charge)",

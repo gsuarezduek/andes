@@ -63,6 +63,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   const clientRows: ActaRow[] = [{ label: t.client, value: r.clientName }];
   if (r.clientDocNumber) clientRows.push({ label: t.dni, value: r.clientDocNumber });
   if (r.clientCountry) clientRows.push({ label: t.country, value: r.clientCountry });
+  if (r.clientAddress) clientRows.push({ label: t.address, value: r.clientAddress });
   if (r.licenseExpiry)
     clientRows.push({ label: t.licenseExpiry, value: formatDate(r.licenseExpiry, locale) });
   if (r.clientEmail) clientRows.push({ label: "Email", value: r.clientEmail });
@@ -189,8 +190,15 @@ export async function generateAndSendActa(inspectionId: string): Promise<void> {
   const subject = isHandover ? content.handoverSubject : content.returnSubject;
   const body = isHandover ? content.handoverBody : content.returnBody;
 
+  // El admin siempre recibe el acta; el envío al cliente es configurable
+  // (Configuración → Condiciones y checklist → Envío de actas).
+  const conditions = await prisma.conditionSettings.findUnique({ where: { id: 1 } });
+  const sendToClient = isHandover
+    ? (conditions?.sendHandoverActa ?? true)
+    : (conditions?.sendReturnActa ?? true);
+
   const to: string[] = [];
-  if (inspection.rental.clientEmail) to.push(inspection.rental.clientEmail);
+  if (sendToClient && inspection.rental.clientEmail) to.push(inspection.rental.clientEmail);
   const admin = process.env.ADMIN_EMAIL;
   if (to.length === 0 && admin) to.push(admin);
   if (to.length === 0) {

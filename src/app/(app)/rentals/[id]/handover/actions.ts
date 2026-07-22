@@ -15,7 +15,6 @@ const pricingSchema = z
     place: z.string().optional(),
     dailyRate: optNum,
     days: optNum,
-    insuranceAmount: optNum,
     kmPerDay: optNum,
     extraKmRate: optNum,
     unlimitedKm: z.boolean().optional(),
@@ -49,6 +48,7 @@ const saveSchema = z.object({
   clientEmail: z.string().trim().optional(),
   clientPhone: z.string().trim().optional(),
   clientDocNumber: z.string().trim().optional(),
+  clientAddress: z.string().trim().optional(),
   km: z.number().int().nonnegative(),
   fuelLevel: z.number().int().min(0).max(16),
   checklist: z.record(z.string(), z.enum(["ok", "fail"])),
@@ -157,6 +157,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         clientEmail: data.clientEmail || null,
         clientPhone: data.clientPhone || null,
         clientDocNumber: data.clientDocNumber || null,
+        clientAddress: data.clientAddress || null,
         ...(licenseExpiry ? { licenseExpiry } : {}),
         ...(hasPricing ? { pricing: data.pricing } : {}),
         ...(data.additionalDrivers?.length

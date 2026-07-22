@@ -59,6 +59,7 @@ export default async function ReturnPage({
           email: rental.clientEmail,
           phone: rental.clientPhone,
           dni: rental.clientDocNumber,
+          address: rental.clientAddress,
         }}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={{

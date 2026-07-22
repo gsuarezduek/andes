@@ -82,13 +82,6 @@ export default async function GeneralSettingsPage() {
         <form action={saveConditions} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <ConditionField
-              name="insuranceAmount"
-              label="Seguro"
-              prefix="$"
-              decimal
-              defaultValue={conditions?.insuranceAmount?.toString()}
-            />
-            <ConditionField
               name="kmPerDay"
               label="Km por día"
               suffix="km"
@@ -111,21 +104,39 @@ export default async function GeneralSettingsPage() {
             />
             <ConditionField
               name="deductible"
-              label="Franquicia estándar"
+              label="Franquicia/Garantía estándar"
               prefix="$"
-              hint="deducible del seguro"
+              hint="deducible del seguro y garantía tomada"
               decimal
               defaultValue={conditions?.deductible?.toString()}
             />
             <ConditionField
               name="deductibleReduced"
-              label="Franquicia con mejora de seguro"
+              label="Franquicia/Garantía con mejora de seguro"
               prefix="$"
-              hint="franquicia reducida"
+              hint="reducida"
               decimal
               defaultValue={conditions?.deductibleReduced?.toString()}
             />
           </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Envío de actas al cliente</p>
+            <p className="mb-2 text-xs text-foreground/50">
+              El admin siempre recibe una copia; esto solo controla si también le llega al cliente.
+            </p>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="sendHandoverActa" defaultChecked={conditions?.sendHandoverActa ?? true} className="size-4" />
+                Enviar Acta de Entrega
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="sendReturnActa" defaultChecked={conditions?.sendReturnActa ?? true} className="size-4" />
+                Enviar Acta de Devolución
+              </label>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between">
             <p className="text-xs text-foreground/50">
               Dejá un campo vacío para no precargarlo. Andes no procesa cobros.
