@@ -3,15 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { CalendarBar, CalendarColumn, CalendarRow } from "@/lib/calendar";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatTime } from "@/lib/datetime";
 
-const COL_W = 46; // ancho de cada columna de día (px)
+// Vista Mes: columnas angostas, sólo se ve qué días están ocupados.
+const COL_W_MONTH = 46;
+const ROW_H_MONTH = 40;
+// Vista Semana: columnas bien más anchas — no es "el mismo mes recortado",
+// hay lugar de sobra para mostrar el horario de retiro/devolución en la barra.
+const COL_W_WEEK = 168;
+const ROW_H_WEEK = 60;
+/** A partir de esta cantidad de columnas se usa el layout compacto de Mes. */
+const WEEK_MAX_COLUMNS = 7;
+
 // Columna fija de autos: angosta en mobile (sólo los últimos 3 de la patente,
 // sin modelo) y más ancha desde `sm:` (patente completa + modelo). El valor
 // móvil se usa como piso conservador para el minWidth del contenido scrolleable.
 const LABEL_W_MOBILE = 64;
 const LABEL_W_CLASS = "w-16 sm:w-[168px]";
-const ROW_H = 40; // alto de cada fila (px)
 
 /** Etiqueta de estado para el tooltip. "Reservado" se divide en Confirmado
  *  (ya pagó) vs Pendiente (standby / sin pagar) según `confirmed`. */
@@ -72,7 +80,10 @@ export function CalendarGrid({
   unassigned: CalendarRow[];
 }) {
   const [hover, setHover] = useState<Hover>(null);
-  const trackW = columns.length * COL_W;
+  const dense = columns.length <= WEEK_MAX_COLUMNS;
+  const colW = dense ? COL_W_WEEK : COL_W_MONTH;
+  const rowH = dense ? ROW_H_WEEK : ROW_H_MONTH;
+  const trackW = columns.length * colW;
 
   const show = (bar: CalendarBar, e: React.MouseEvent) =>
     setHover({ bar, x: e.clientX, y: e.clientY });
@@ -97,17 +108,17 @@ export function CalendarGrid({
                 className={`relative shrink-0 py-1 text-center ${
                   c.isWeekend ? "bg-foreground/[0.04]" : ""
                 } ${c.isToday ? "bg-blue-500/10" : ""}`}
-                style={{ width: COL_W }}
+                style={{ width: colW }}
               >
                 {c.monthLabel ? (
                   <span className="absolute -top-0 left-1 text-[9px] font-semibold uppercase text-blue-600">
                     {c.monthLabel}
                   </span>
                 ) : null}
-                <div className={`text-[10px] uppercase ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
+                <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
                   {c.weekday}
                 </div>
-                <div className={`text-sm tabular-nums ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
+                <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
                   {c.day}
                 </div>
               </div>
@@ -121,6 +132,9 @@ export function CalendarGrid({
               row={row}
               columns={columns}
               trackW={trackW}
+              colW={colW}
+              rowH={rowH}
+              dense={dense}
               onEnter={show}
               onMove={move}
               onLeave={hide}
@@ -151,6 +165,9 @@ export function CalendarGrid({
                   row={row}
                   columns={columns}
                   trackW={trackW}
+                  colW={colW}
+                  rowH={rowH}
+                  dense={dense}
                   onEnter={show}
                   onMove={move}
                   onLeave={hide}
@@ -170,6 +187,9 @@ function Row({
   row,
   columns,
   trackW,
+  colW,
+  rowH,
+  dense,
   onEnter,
   onMove,
   onLeave,
@@ -177,6 +197,9 @@ function Row({
   row: CalendarRow;
   columns: CalendarColumn[];
   trackW: number;
+  colW: number;
+  rowH: number;
+  dense: boolean;
   onEnter: (bar: CalendarBar, e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
   onLeave: () => void;
@@ -190,7 +213,7 @@ function Row({
         <Link
           href={`/vehicles/${row.id}`}
           className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
-          style={{ height: ROW_H }}
+          style={{ height: rowH }}
         >
           {/* Mobile: sólo los últimos 3 de la patente, sin modelo (columna angosta).
               Desktop (sm+): patente completa + modelo. */}
@@ -205,7 +228,7 @@ function Row({
       ) : (
         <div
           className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 ${LABEL_W_CLASS}`}
-          style={{ height: ROW_H }}
+          style={{ height: rowH }}
         >
           <span className="truncate text-sm font-medium leading-tight">{row.label}</span>
         </div>
@@ -214,7 +237,7 @@ function Row({
       {/* Track de días (rosa claro si el auto está fuera de servicio) */}
       <div
         className={`relative ${row.outOfService ? "bg-rose-500/10" : ""}`}
-        style={{ width: trackW, height: ROW_H }}
+        style={{ width: trackW, height: rowH }}
       >
         {/* Líneas de grilla / resaltados por columna */}
         {columns.map((c, i) => (
@@ -223,10 +246,11 @@ function Row({
             className={`absolute top-0 h-full border-r border-foreground/5 ${
               c.isWeekend ? "bg-foreground/[0.03]" : ""
             } ${c.isToday ? "bg-blue-500/[0.07]" : ""}`}
-            style={{ left: i * COL_W, width: COL_W }}
+            style={{ left: i * colW, width: colW }}
           />
         ))}
-        {/* Barras de alquiler */}
+        {/* Barras de alquiler. En vista Semana (dense) hay lugar de sobra:
+            se suma el horario de retiro/devolución debajo del cliente. */}
         {row.bars.map((bar) => (
           <Link
             key={bar.rentalId}
@@ -234,15 +258,22 @@ function Row({
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
-            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${barClasses(bar)}`}
+            className={`absolute overflow-hidden rounded-md px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
+              dense ? "flex flex-col justify-center gap-0.5 py-1 text-xs" : "flex items-center text-[11px]"
+            } ${barClasses(bar)}`}
             style={{
-              left: bar.startIndex * COL_W + 2,
-              width: bar.span * COL_W - 4,
+              left: bar.startIndex * colW + 2,
+              width: bar.span * colW - 4,
               top: 6,
-              height: ROW_H - 12,
+              height: rowH - 12,
             }}
           >
             <span className="truncate">{bar.clientName}</span>
+            {dense ? (
+              <span className="truncate text-[11px] font-normal opacity-90">
+                {formatTime(bar.startAt)} → {formatTime(bar.endAt)}
+              </span>
+            ) : null}
           </Link>
         ))}
       </div>

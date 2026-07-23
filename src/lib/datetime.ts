@@ -61,6 +61,16 @@ export function formatDateTimeInput(date: Date): string {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
+/** Formats an instant as a Mendoza-local time string (e.g. "14:35"), no date. */
+export function formatTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: APP_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
 /** Formats an instant as a Mendoza-local date string (no time). */
 export function formatDate(date: Date, locale: "es" | "en" = "es"): string {
   return new Intl.DateTimeFormat(LOCALE_TAG[locale], {
