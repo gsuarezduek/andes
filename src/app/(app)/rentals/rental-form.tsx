@@ -5,7 +5,7 @@ import { TextField, SelectField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ButtonLink } from "@/components/ui/button";
 import { languageLabels } from "@/lib/labels";
-import type { FormState } from "./actions";
+import type { FormState } from "./actions/schemas";
 
 type VehicleOption = { id: string; label: string };
 

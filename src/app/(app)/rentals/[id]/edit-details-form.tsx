@@ -3,7 +3,8 @@
 import { useActionState } from "react";
 import { TextField, SelectField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { updateRentalDetails, type FormState } from "../actions";
+import { updateRentalDetails } from "../actions/update-details";
+import type { FormState } from "../actions/schemas";
 
 type VehicleOption = { id: string; label: string };
 

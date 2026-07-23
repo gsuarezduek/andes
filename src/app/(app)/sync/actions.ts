@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
-import { runBookingSync, seedFleetFromWp } from "@/lib/sync/engine";
+import { runBookingSync } from "@/lib/sync/engine";
+import { seedFleetFromWp } from "@/lib/sync/fleet-seed";
 
 /** Corre la sincronización manualmente (botón "Sincronizar ahora"). */
 export async function triggerSync() {

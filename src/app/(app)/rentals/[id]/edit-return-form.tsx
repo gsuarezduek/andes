@@ -3,7 +3,8 @@
 import { useActionState } from "react";
 import { TextField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { updateReturnDetails, type FormState } from "../actions";
+import { updateReturnDetails } from "../actions/update-return";
+import type { FormState } from "../actions/schemas";
 
 /**
  * Modifica la fecha y el lugar de devolución desde el detalle del alquiler —

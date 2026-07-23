@@ -1,35 +1,26 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import {
-  rentalOriginLabels,
-  languageLabels,
-  documentKindLabels,
-} from "@/lib/labels";
+import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
-import { formatArs, computeBalance, type ContractPricing } from "@/lib/contract";
-import { formatDateTime, formatDateInput, formatDateTimeInput } from "@/lib/datetime";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { EditDetailsForm } from "./edit-details-form";
-import { EditReturnForm } from "./edit-return-form";
-import { markVehicleService } from "./service-actions";
-import { addRentalNote, resolveRentalNote } from "./notes-actions";
-import { deleteRental } from "../actions";
+import { formatDateInput } from "@/lib/datetime";
+import { StatusBanners } from "@/components/rentals/status-banners";
+import { TeamNotesSection } from "@/components/rentals/team-notes-section";
+import { ClientInfoSection } from "@/components/rentals/client-info-section";
+import { DateInfoSection } from "@/components/rentals/date-info-section";
+import { PaymentsSection } from "@/components/rentals/payments-section";
+import { ReturnEditSection } from "@/components/rentals/return-edit-section";
+import { DocumentsSection } from "@/components/rentals/documents-section";
+import { InspectionsSection } from "@/components/rentals/inspections-section";
+import { ServiceFormSection } from "@/components/rentals/service-form-section";
+import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
+import { getRentalDetail, getEditableVehicles } from "@/lib/rental-detail-queries";
+import { computeRentalFlags } from "@/lib/rental-flags";
+import { computeRentalPayments } from "@/lib/rental-payments";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4 py-2 text-sm">
-      <span className="text-foreground/60">{label}</span>
-      <span className="text-right font-medium">{value ?? "—"}</span>
-    </div>
-  );
-}
 
 export default async function RentalDetailPage({
   params,
@@ -43,89 +34,32 @@ export default async function RentalDetailPage({
   const user = await requireUser();
   const isAdmin = user.role === "admin";
 
-  const rental = await prisma.rental.findUnique({
-    where: { id },
-    include: {
-      vehicle: true,
-      inspections: {
-        orderBy: { createdAt: "asc" },
-        include: { user: { select: { name: true } } },
-      },
-      documents: { orderBy: { createdAt: "asc" } },
-      teamNotes: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: { select: { name: true } },
-          resolvedBy: { select: { name: true } },
-        },
-      },
-    },
-  });
+  const rental = await getRentalDetail(id);
   if (!rental) notFound();
 
   const activeNotes = rental.teamNotes.filter((n) => !n.resolvedAt);
   const resolvedNotes = rental.teamNotes.filter((n) => n.resolvedAt);
 
-  const handover = rental.inspections.find((i) => i.type === "handover");
-  const returnInsp = rental.inspections.find((i) => i.type === "return_");
-  const canStartHandover = rental.status === "reserved" && !handover;
-  const canStartReturn = rental.status === "active" && Boolean(handover) && !returnInsp;
-  // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
-  const editableVehicles = canStartHandover
-    ? await prisma.vehicle.findMany({
-        where: { archivedAt: null },
-        orderBy: [{ brand: "asc" }, { model: "asc" }],
-        select: { id: true, plate: true, brand: true, model: true },
-      })
-    : [];
-  // Requerimos un vehículo asignado para iniciar la entrega (el wizard ya no lo pide).
-  const canStartHandoverNow = canStartHandover && Boolean(rental.vehicleId);
-  // Marcar service/arreglo en vez de entregar: para alquileres cargados solo
-  // para bloquear el auto (reservado, con unidad, sin entrega hecha).
-  const canMarkService = canStartHandover && Boolean(rental.vehicleId);
-  const today = formatDateInput(new Date());
-  // Extensión: modificar fecha/lugar de devolución mientras no esté cerrado.
-  // La edición de fechas solo se permite en reservas manuales. Las de VikRentCar
-  // se gestionan desde la web (fuente de verdad) y se sincronizan solas: editarlas
-  // acá dejaría la disponibilidad de VikRentCar inconsistente.
-  const canEditReturn =
-    rental.origin === "manual" &&
-    (rental.status === "reserved" || rental.status === "active");
-  const returnManagedInWp =
-    rental.origin === "vikrentcar" &&
-    (rental.status === "reserved" || rental.status === "active");
+  const {
+    canStartHandover,
+    canStartReturn,
+    canStartHandoverNow,
+    canMarkService,
+    canEditReturn,
+    returnManagedInWp,
+  } = computeRentalFlags(rental);
 
-  // Pagos: antes de la entrega solo tenemos lo que trae VikRentCar (total de
-  // referencia + pagado/anticipo, ej. cuando el cliente paga por privado y se
-  // anota en la orden). Una vez hecha la entrega, el contrato cargado en el
-  // wizard (rental.pricing) pasa a ser la fuente — puede diferir del de VikRentCar.
-  const pricing = rental.pricing as ContractPricing | null;
-  const hasContract = pricing != null && (pricing.total != null || pricing.sena != null || pricing.paid != null);
-  const totalRef = hasContract ? (pricing!.total ?? null) : rental.bookingTotal ? Number(rental.bookingTotal) : null;
-  const paidSoFar = hasContract
-    ? (pricing!.sena ?? 0) + (pricing!.paid ?? 0)
-    : rental.bookingPaid
-      ? Number(rental.bookingPaid)
-      : null;
-  const balance = hasContract
-    ? (pricing!.balance ?? computeBalance({ total: pricing!.total, sena: pricing!.sena, paid: pricing!.paid }))
-    : totalRef != null && paidSoFar != null
-      ? totalRef - paidSoFar
-      : null;
-  const showPayments = totalRef != null || paidSoFar != null;
+  // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
+  const editableVehicles = canStartHandover ? await getEditableVehicles() : [];
+
+  const today = formatDateInput(new Date());
+
+  const { hasContract, totalRef, paidSoFar, balance, showPayments } = computeRentalPayments(rental);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
-      {entrega === "ok" && (
-        <p className="rounded-lg bg-green-500/10 px-4 py-3 text-sm font-medium text-green-700 dark:text-green-400">
-          Entrega registrada. El acta y los emails se están generando.
-        </p>
-      )}
-      {devolucion === "ok" && (
-        <p className="rounded-lg bg-green-500/10 px-4 py-3 text-sm font-medium text-green-700 dark:text-green-400">
-          Devolución registrada. El alquiler quedó finalizado; el acta y los emails se están generando.
-        </p>
-      )}
+      <StatusBanners entrega={entrega} devolucion={devolucion} />
+
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{rental.clientName}</h1>
@@ -151,59 +85,7 @@ export default async function RentalDetailPage({
       {/* Notas del equipo: mensajes internos entre compañeros sobre esta
           reserva. Mientras no se resuelven, alertan en el listado de
           Alquileres y en la barra del Calendario. */}
-      <div className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Notas del equipo</h2>
-        {activeNotes.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {activeNotes.map((n) => (
-              <li
-                key={n.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="whitespace-pre-wrap">{n.text}</p>
-                  <p className="mt-1 text-xs text-foreground/50">
-                    {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
-                  </p>
-                </div>
-                <form action={resolveRentalNote.bind(null, rental.id, n.id)} className="shrink-0">
-                  <button className="text-xs font-medium text-emerald-600">Resolver</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form action={addRentalNote.bind(null, rental.id)} className="flex flex-col gap-2 sm:flex-row sm:items-start">
-          <textarea
-            name="text"
-            required
-            rows={2}
-            placeholder="Ej: el cliente pidió cambiar el horario de entrega…"
-            className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
-          />
-          <SubmitButton pendingLabel="Agregando…">Agregar nota</SubmitButton>
-        </form>
-        {resolvedNotes.length > 0 && (
-          <details className="mt-1">
-            <summary className="cursor-pointer text-xs font-medium text-foreground/60">
-              Historial de notas ({resolvedNotes.length})
-            </summary>
-            <ul className="mt-2 flex flex-col gap-2">
-              {resolvedNotes.map((n) => (
-                <li key={n.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-                  <p className="whitespace-pre-wrap text-foreground/70">{n.text}</p>
-                  <p className="mt-1 text-xs text-foreground/50">
-                    {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
-                  </p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    Resuelto por {n.resolvedBy?.name ?? "—"} · {n.resolvedAt ? formatDateTime(n.resolvedAt) : ""}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-      </div>
+      <TeamNotesSection rentalId={rental.id} activeNotes={activeNotes} resolvedNotes={resolvedNotes} />
 
       {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}
       {rental.bookingNote && (
@@ -213,138 +95,21 @@ export default async function RentalDetailPage({
         </div>
       )}
 
-      {canStartHandover ? (
-        <EditDetailsForm
-          rentalId={rental.id}
-          clientName={rental.clientName}
-          clientEmail={rental.clientEmail ?? ""}
-          clientPhone={rental.clientPhone ?? ""}
-          clientDocNumber={rental.clientDocNumber ?? ""}
-          clientAddress={rental.clientAddress ?? ""}
-          vehicleId={rental.vehicleId ?? ""}
-          vehicles={editableVehicles.map((v) => ({
-            id: v.id,
-            label: `${v.plate} · ${v.brand} ${v.model}`,
-          }))}
-        />
-      ) : (
-        <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-          <Row label="Email" value={rental.clientEmail} />
-          <Row label="Teléfono" value={rental.clientPhone} />
-          <Row label="Documento" value={rental.clientDocNumber} />
-          <Row label="Domicilio" value={rental.clientAddress} />
-          <Row
-            label="Vehículo"
-            value={
-              rental.vehicle ? (
-                <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
-                  {rental.vehicle.brand} {rental.vehicle.model} · {rental.vehicle.plate}
-                </Link>
-              ) : rental.bookingModel ? (
-                <span>
-                  {rental.bookingModel}
-                  <span className="font-normal text-foreground/50"> · sin unidad asignada</span>
-                </span>
-              ) : (
-                "Sin asignar"
-              )
-            }
-          />
-        </div>
-      )}
+      <ClientInfoSection rental={rental} canStartHandover={canStartHandover} editableVehicles={editableVehicles} />
 
-      <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        <Row label="Retiro" value={formatDateTime(rental.startAt)} />
-        {rental.bookingPickupPlace && (
-          <Row label="Lugar de retiro" value={rental.bookingPickupPlace} />
-        )}
-        <Row label="Devolución" value={formatDateTime(rental.endAt)} />
-        {rental.bookingReturnPlace && (
-          <Row label="Lugar de devolución" value={rental.bookingReturnPlace} />
-        )}
-        <Row label="Idioma" value={languageLabels[rental.language]} />
-        <Row label="Método de pago" value={rental.bookingPaymentMethod} />
-      </div>
+      <DateInfoSection rental={rental} />
 
       {showPayments && (
-        <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-          <Row label={hasContract ? "Total" : "Total (ref. VikRentCar)"} value={totalRef != null ? formatArs(totalRef) : null} />
-          <Row label={hasContract ? "Pagado" : "Pagado (VikRentCar)"} value={paidSoFar != null ? formatArs(paidSoFar) : null} />
-          <Row label="Saldo" value={balance != null ? formatArs(balance) : null} />
-        </div>
+        <PaymentsSection hasContract={hasContract} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
       )}
 
-      {canEditReturn && (
-        <EditReturnForm
-          rentalId={rental.id}
-          endAt={formatDateTimeInput(rental.endAt)}
-          returnPlace={rental.bookingReturnPlace ?? ""}
-        />
-      )}
-
-      {returnManagedInWp && (
-        <p className="rounded-xl border border-foreground/10 px-4 py-3 text-sm text-foreground/60">
-          Las fechas de esta reserva se gestionan desde VikRentCar (la web). Si el
-          cliente extiende el alquiler, cambiá la fecha allí y se sincroniza sola.
-        </p>
-      )}
+      <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
 
       {/* Documentos del cliente (solo interno: no van al acta ni al email) */}
-      {rental.documents.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-foreground/70">Documentos del cliente</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {rental.documents.map((doc) => (
-              <a
-                key={doc.id}
-                href={`/api/media?key=${encodeURIComponent(doc.url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col gap-1"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/media?key=${encodeURIComponent(doc.url)}`}
-                  alt={documentKindLabels[doc.kind]}
-                  className="aspect-square w-full rounded-lg border border-foreground/10 object-cover"
-                />
-                <span className="text-center text-[11px] text-foreground/60">{documentKindLabels[doc.kind]}</span>
-              </a>
-            ))}
-          </div>
-          <p className="text-xs text-foreground/40">Respaldo interno. No se incluyen en el acta ni en los emails.</p>
-        </div>
-      )}
+      <DocumentsSection documents={rental.documents} />
 
       {/* Inspecciones registradas */}
-      {rental.inspections.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-foreground/70">Actas</h2>
-          <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-            {rental.inspections.map((insp) => (
-              <li key={insp.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                <div>
-                  <p className="font-medium">
-                    {insp.type === "handover" ? "Entrega" : "Devolución"}
-                  </p>
-                  <p className="text-xs text-foreground/50">
-                    {formatDateTime(insp.createdAt)} · Responsable:{" "}
-                    {insp.user?.name ?? "—"}
-                  </p>
-                </div>
-                <a
-                  className="shrink-0 font-medium underline"
-                  href={`/api/acta?inspectionId=${insp.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Ver acta PDF
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <InspectionsSection inspections={rental.inspections} />
 
       {canStartHandover && !canStartHandoverNow && (
         <p className="rounded-lg bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -358,47 +123,12 @@ export default async function RentalDetailPage({
       {/* Service / arreglo: para autos cargados como alquiler solo para
           bloquearlos. Registra el arreglo y deja el auto fuera de servicio. */}
       {canMarkService && (
-        <details className="rounded-xl border border-foreground/10">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground/70">
-            ¿El auto va a service o arreglo? (no hacer entrega)
-          </summary>
-          <form
-            action={markVehicleService.bind(null, rental.id, rental.vehicleId!)}
-            className="flex flex-col gap-3 border-t border-foreground/10 p-4"
-          >
-            <p className="text-xs text-foreground/50">
-              Registra el service/arreglo y deja el auto <strong>fuera de servicio</strong>. Este
-              alquiler queda cancelado. Cuando vuelva, reactivá el auto desde su ficha.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-foreground/70">Tipo</span>
-                <select name="type" defaultValue="repair" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm">
-                  <option value="service">Service</option>
-                  <option value="repair">Arreglo</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-foreground/70">Fecha</span>
-                <input type="date" name="date" required defaultValue={today} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-foreground/70">Km</span>
-                <input type="number" name="km" inputMode="numeric" defaultValue={rental.vehicle?.currentKm ?? ""} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-foreground/70">Costo</span>
-                <input type="text" name="cost" inputMode="decimal" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-              </label>
-            </div>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-foreground/70">Lugar / taller</span>
-              <input name="place" placeholder="Ej. taller del centro" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-            </label>
-            <input name="description" required placeholder="Qué arreglo/service (ej. cambio de correa)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-            <SubmitButton pendingLabel="Guardando…">Marcar fuera de servicio</SubmitButton>
-          </form>
-        </details>
+        <ServiceFormSection
+          rentalId={rental.id}
+          vehicleId={rental.vehicleId!}
+          currentKm={rental.vehicle?.currentKm ?? null}
+          today={today}
+        />
       )}
 
       <div className="flex gap-3">
@@ -418,26 +148,7 @@ export default async function RentalDetailPage({
 
       {/* Eliminar reserva (admin, solo si no tiene entrega/acta). Para reservas
           huérfanas: órdenes borradas en VikRentCar o cargas manuales erróneas. */}
-      {isAdmin && rental.inspections.length === 0 && (
-        <details className="rounded-xl border border-red-500/20">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-red-700 dark:text-red-400">
-            Eliminar reserva
-          </summary>
-          <form
-            action={deleteRental.bind(null, rental.id)}
-            className="flex flex-col gap-3 border-t border-red-500/20 p-4"
-          >
-            <p className="text-xs text-foreground/60">
-              Borra esta reserva de forma <strong>definitiva</strong>. Usalo para reservas que
-              borraste en VikRentCar (quedaron huérfanas acá) o cargas manuales erróneas. No se
-              puede deshacer. Una reserva con entrega/acta registrada no se puede eliminar.
-            </p>
-            <SubmitButton variant="danger" pendingLabel="Eliminando…">
-              Eliminar definitivamente
-            </SubmitButton>
-          </form>
-        </details>
-      )}
+      {isAdmin && rental.inspections.length === 0 && <DangerZoneSection rentalId={rental.id} />}
     </div>
   );
 }

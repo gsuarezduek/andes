@@ -1,177 +1,22 @@
-import {
-  Document,
-  Page,
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  Svg,
-  Rect,
-  Path,
-  Circle,
-} from "@react-pdf/renderer";
-import type { Dictionary } from "@/lib/i18n";
-import { formatArs } from "@/lib/contract";
-import type { Settlement } from "@/lib/settlement";
-import {
-  CROQUIS_VIEWBOX,
-  CROQUIS_BODY,
-  CROQUIS_ROOF,
-  CROQUIS_MIRRORS,
-  CROQUIS_WINDSHIELD,
-  CROQUIS_REAR_WINDOW,
-} from "@/components/inspection/croquis-shape";
+import { Document, Page, Text } from "@react-pdf/renderer";
+import { styles } from "./styles";
+import { Header } from "./components/header";
+import { Footer } from "./components/footer";
+import { ClientSection } from "./sections/client-section";
+import { AuthorizedDriversSection } from "./sections/authorized-drivers-section";
+import { TermsSection } from "./sections/terms-section";
+import { VehicleStateSection } from "./sections/vehicle-state-section";
+import { ComparisonSection } from "./sections/comparison-section";
+import { SettlementSection } from "./sections/settlement-section";
+import { ChecklistSection } from "./sections/checklist-section";
+import { DamagesSection } from "./sections/damages-section";
+import { ObservationsSection } from "./sections/observations-section";
+import { PhotosSection } from "./sections/photos-section";
+import { LegalSection } from "./sections/legal-section";
+import { SignatureSection } from "./sections/signature-section";
+import type { ActaData, ActaRow, ActaChecklist, ActaDamage } from "./types";
 
-export type ActaRow = { label: string; value: string };
-export type ActaChecklist = { label: string; status: "ok" | "fail" };
-export type ActaDamage = { view: string; description?: string | null; posX?: number; posY?: number };
-
-export type ActaData = {
-  kind: "handover" | "return";
-  dict: Dictionary;
-  company: {
-    name: string;
-    legalName: string;
-    cuit: string;
-    address: string;
-    phone: string;
-    web: string;
-  };
-  dateStr: string;
-  registeredBy?: string | null;
-  vehicleLabel: string;
-  plate: string;
-  clientRows: ActaRow[];
-  /** Conductores autorizados (titular + adicionales), por nombre. */
-  authorizedDrivers?: string[];
-  termRows: ActaRow[];
-  km: number;
-  fuelLevel: number;
-  /** Divisiones del tanque de este vehículo (para mostrar N/max). */
-  fuelLevels: number;
-  comparison?: {
-    handoverKm: number;
-    returnKm: number;
-    kmDriven: number;
-    handoverFuel: number;
-    returnFuel: number;
-    fuelDiff: number;
-    newDamages: number;
-  };
-  settlement?: Settlement;
-  checklist: ActaChecklist[];
-  damages: ActaDamage[];
-  observations?: string | null;
-  signerName?: string | null;
-  signatureDataUri?: string;
-  photoDataUris: string[];
-};
-
-const styles = StyleSheet.create({
-  page: { padding: 30, fontSize: 9, color: "#0f172a", fontFamily: "Helvetica", lineHeight: 1.4 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    borderBottom: "1px solid #e2e8f0",
-    paddingBottom: 8,
-  },
-  brand: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#16a34a" },
-  brandSub: { fontSize: 8, color: "#64748b" },
-  title: { fontSize: 11, fontFamily: "Helvetica-Bold", textAlign: "right", maxWidth: 200 },
-  section: { marginTop: 12 },
-  sectionTitle: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 5,
-    color: "#334155",
-    textTransform: "uppercase",
-  },
-  grid2: { flexDirection: "row", flexWrap: "wrap" },
-  cell: { width: "50%", flexDirection: "row", justifyContent: "space-between", paddingVertical: 1.5, paddingRight: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 1.5 },
-  label: { color: "#64748b" },
-  value: { fontFamily: "Helvetica-Bold" },
-  checklistWrap: { flexDirection: "row", flexWrap: "wrap" },
-  li: { width: "50%", flexDirection: "row", justifyContent: "space-between", paddingVertical: 1, paddingRight: 10 },
-  ok: { color: "#16a34a", fontFamily: "Helvetica-Bold" },
-  fail: { color: "#dc2626", fontFamily: "Helvetica-Bold" },
-  damagesWrap: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  croquisBox: { width: 90 },
-  damagesList: { flex: 1 },
-  photos: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  photo: { width: 110, height: 82, objectFit: "cover", borderRadius: 3 },
-  signatureBox: { marginTop: 10, borderTop: "1px solid #e2e8f0", paddingTop: 8 },
-  signatureImg: { width: 180, height: 70, objectFit: "contain" },
-  small: { fontSize: 8, color: "#64748b", marginTop: 3 },
-  legalP: { fontSize: 8, color: "#334155", marginBottom: 6, textAlign: "justify" },
-  footer: { position: "absolute", bottom: 20, left: 30, right: 30, fontSize: 7, color: "#94a3b8", textAlign: "center" },
-});
-
-function Header({ data, title }: { data: ActaData; title: string }) {
-  return (
-    <View style={styles.header}>
-      <View>
-        <Text style={styles.brand}>{data.company.name}</Text>
-        <Text style={styles.brandSub}>{data.company.address}</Text>
-        <Text style={styles.brandSub}>
-          {data.company.phone} · {data.company.web}
-        </Text>
-        <Text style={styles.brandSub}>
-          {data.company.legalName} · CUIT {data.company.cuit}
-        </Text>
-      </View>
-      <View>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={[styles.brandSub, { textAlign: "right" }]}>{data.dateStr}</Text>
-        {data.registeredBy ? (
-          <Text style={[styles.brandSub, { textAlign: "right" }]}>
-            {data.dict.acta.registeredBy}: {data.registeredBy}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-/**
- * Croquis del auto (vista superior) dibujado con primitivas de react-pdf, con
- * un círculo rojo por cada daño de esta inspección. Misma geometría que el
- * croquis en pantalla (`croquis-shape.ts`).
- */
-function ActaCroquis({ damages }: { damages: ActaDamage[] }) {
-  const W = 90;
-  const H = (W * CROQUIS_VIEWBOX.height) / CROQUIS_VIEWBOX.width;
-  const marks = damages.filter((d) => d.posX != null && d.posY != null);
-  return (
-    <Svg width={W} height={H} viewBox={`0 0 ${CROQUIS_VIEWBOX.width} ${CROQUIS_VIEWBOX.height}`}>
-      <Rect {...CROQUIS_BODY} fill="none" stroke="#94a3b8" strokeWidth={1.5} />
-      <Path d={CROQUIS_WINDSHIELD} fill="none" stroke="#cbd5e1" strokeWidth={1.2} />
-      <Path d={CROQUIS_REAR_WINDOW} fill="none" stroke="#cbd5e1" strokeWidth={1.2} />
-      <Rect {...CROQUIS_ROOF} fill="none" stroke="#e2e8f0" strokeWidth={1} />
-      {CROQUIS_MIRRORS.map((m, i) => (
-        <Rect key={i} {...m} fill="#e2e8f0" />
-      ))}
-      {marks.map((d, i) => (
-        <Circle key={i} cx={d.posX! * 100} cy={d.posY! * 190} r={4} fill="#dc2626" stroke="#ffffff" strokeWidth={1} />
-      ))}
-    </Svg>
-  );
-}
-
-function Rows({ rows, grid }: { rows: ActaRow[]; grid?: boolean }) {
-  if (rows.length === 0) return null;
-  return (
-    <View style={grid ? styles.grid2 : undefined}>
-      {rows.map((r, i) => (
-        <View key={i} style={grid ? styles.cell : styles.row}>
-          <Text style={styles.label}>{r.label}</Text>
-          <Text style={styles.value}>{r.value}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
+export type { ActaData, ActaRow, ActaChecklist, ActaDamage };
 
 export function ActaDocument(props: ActaData) {
   const { dict } = props;
@@ -185,229 +30,28 @@ export function ActaDocument(props: ActaData) {
       <Page size="A4" style={styles.page}>
         <Header data={props} title={title} />
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.clientTitle}</Text>
-          <Rows rows={props.clientRows} grid />
-        </View>
-
-        {props.authorizedDrivers && props.authorizedDrivers.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t.authorizedDrivers}</Text>
-            {props.authorizedDrivers.map((name, i) => (
-              <Text key={i}>• {name}</Text>
-            ))}
-          </View>
-        ) : null}
-
-        {props.termRows.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t.termsTitle}</Text>
-            <Rows rows={props.termRows} grid />
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.vehicleStateTitle}</Text>
-          <View style={styles.grid2}>
-            <View style={styles.cell}>
-              <Text style={styles.label}>{t.vehicle}</Text>
-              <Text style={styles.value}>{props.vehicleLabel}</Text>
-            </View>
-            <View style={styles.cell}>
-              <Text style={styles.label}>{t.plate}</Text>
-              <Text style={styles.value}>{props.plate}</Text>
-            </View>
-            <View style={styles.cell}>
-              <Text style={styles.label}>{t.mileage}</Text>
-              <Text style={styles.value}>{props.km.toLocaleString()} km</Text>
-            </View>
-            <View style={styles.cell}>
-              <Text style={styles.label}>{t.fuelLevel}</Text>
-              <Text style={styles.value}>{props.fuelLevel}/{props.fuelLevels}</Text>
-            </View>
-          </View>
-        </View>
-
-        {props.comparison ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Comparación con la entrega</Text>
-            <View style={styles.grid2}>
-              <View style={styles.cell}>
-                <Text style={styles.label}>{t.kmDriven}</Text>
-                <Text style={styles.value}>{props.comparison.kmDriven.toLocaleString()} km</Text>
-              </View>
-              <View style={styles.cell}>
-                <Text style={styles.label}>{t.mileage}</Text>
-                <Text style={styles.value}>
-                  {props.comparison.handoverKm.toLocaleString()} → {props.comparison.returnKm.toLocaleString()}
-                </Text>
-              </View>
-              <View style={styles.cell}>
-                <Text style={styles.label}>{t.fuelDifference}</Text>
-                <Text style={styles.value}>
-                  {props.comparison.handoverFuel}/{props.fuelLevels} → {props.comparison.returnFuel}/{props.fuelLevels}
-                </Text>
-              </View>
-              <View style={styles.cell}>
-                <Text style={styles.label}>{t.newDamages}</Text>
-                <Text style={props.comparison.newDamages > 0 ? styles.fail : styles.value}>
-                  {props.comparison.newDamages}
-                </Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {props.settlement ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t.settlement.title}</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>
-                {t.settlement.extraKm}
-                {props.settlement.extraKm > 0 ? ` (${props.settlement.extraKm.toLocaleString()} km)` : ""}
-              </Text>
-              <Text style={styles.value}>{formatArs(props.settlement.extraKmCharge)}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>
-                {t.settlement.fuel} ({props.settlement.fuelMissingEighths}/{props.fuelLevels})
-              </Text>
-              <Text style={styles.value}>{formatArs(props.settlement.fuelCharge)}</Text>
-            </View>
-            {props.settlement.damageCharges.map((d, i) => (
-              <View style={styles.row} key={i}>
-                <Text style={styles.label}>
-                  {t.settlement.damage}: {d.description}
-                </Text>
-                <Text style={styles.value}>{formatArs(d.amount)}</Text>
-              </View>
-            ))}
-            <View style={[styles.row, { borderTop: "1px solid #e2e8f0", marginTop: 3, paddingTop: 3 }]}>
-              <Text style={styles.label}>{t.settlement.subtotal}</Text>
-              <Text style={styles.value}>{formatArs(props.settlement.subtotal)}</Text>
-            </View>
-            {props.settlement.depositApplied > 0 ? (
-              <View style={styles.row}>
-                <Text style={styles.label}>{t.settlement.depositApplied}</Text>
-                <Text style={styles.value}>{formatArs(props.settlement.depositApplied)}</Text>
-              </View>
-            ) : null}
-            {props.settlement.balanceDue > 0 ? (
-              <View style={styles.row}>
-                <Text style={styles.label}>{t.settlement.balanceDue}</Text>
-                <Text style={styles.fail}>{formatArs(props.settlement.balanceDue)}</Text>
-              </View>
-            ) : null}
-            {props.settlement.depositReturn > 0 ? (
-              <View style={styles.row}>
-                <Text style={styles.label}>{t.settlement.depositReturn}</Text>
-                <Text style={styles.value}>{formatArs(props.settlement.depositReturn)}</Text>
-              </View>
-            ) : null}
-            {props.settlement.method !== "none" ? (
-              <View style={styles.row}>
-                <Text style={styles.label}>{t.settlement.method}</Text>
-                <Text style={styles.value}>{t.settlement.methods[props.settlement.method]}</Text>
-              </View>
-            ) : null}
-            {props.settlement.note ? (
-              <Text style={styles.small}>
-                {t.settlement.note}: {props.settlement.note}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Checklist</Text>
-          <View style={styles.checklistWrap}>
-            {props.checklist.map((c, i) => (
-              <View style={styles.li} key={i}>
-                <Text>{c.label}</Text>
-                <Text style={c.status === "ok" ? styles.ok : styles.fail}>
-                  {c.status === "ok" ? "OK" : "✗"}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section} wrap={false}>
-          <Text style={styles.sectionTitle}>{t.damages}</Text>
-          {props.damages.length === 0 ? (
-            <Text style={styles.label}>Sin daños nuevos registrados.</Text>
-          ) : (
-            <View style={styles.damagesWrap}>
-              <View style={styles.croquisBox}>
-                <ActaCroquis damages={props.damages} />
-              </View>
-              <View style={styles.damagesList}>
-                {props.damages.map((d, i) => (
-                  <Text key={i}>• {d.description ? d.description : `Daño (${d.view})`}</Text>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-
-        {props.observations ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t.observations}</Text>
-            <Text>{props.observations}</Text>
-          </View>
-        ) : null}
-
-        {props.photoDataUris.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Fotos</Text>
-            <View style={styles.photos}>
-              {props.photoDataUris.map((src, i) => (
-                // eslint-disable-next-line jsx-a11y/alt-text
-                <Image key={i} src={src} style={styles.photo} />
-              ))}
-            </View>
-          </View>
-        ) : null}
+        <ClientSection data={props} />
+        <AuthorizedDriversSection data={props} />
+        <TermsSection data={props} />
+        <VehicleStateSection data={props} />
+        <ComparisonSection data={props} />
+        <SettlementSection data={props} />
+        <ChecklistSection data={props} />
+        <DamagesSection data={props} />
+        <ObservationsSection data={props} />
+        <PhotosSection data={props} />
 
         <Text style={styles.small}>{t.fuelPolicy}</Text>
 
-        <Text style={styles.footer} fixed>
-          {props.company.name} — Andes · {props.dateStr}
-        </Text>
+        <Footer companyName={props.company.name} dateStr={props.dateStr} />
       </Page>
 
       {/* Página 2 — condiciones generales y firma */}
       <Page size="A4" style={styles.page}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{dict.legal.title}</Text>
-          {dict.legal.paragraphs.map((p, i) => (
-            <Text key={i} style={styles.legalP}>
-              {p}
-            </Text>
-          ))}
-          <Text style={styles.legalP}>{dict.legal.photoConsent}</Text>
-          <Text style={styles.legalP}>{dict.legal.jurisdiction}</Text>
-          <Text style={styles.legalP}>{dict.legal.acceptance}</Text>
-        </View>
+        <LegalSection dict={dict} />
+        <SignatureSection data={props} />
 
-        <View style={[styles.section, styles.signatureBox]}>
-          <Text style={styles.sectionTitle}>{t.signature}</Text>
-          <Text style={styles.small}>{dict.signature.legal}</Text>
-          {props.signatureDataUri ? (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <Image src={props.signatureDataUri} style={styles.signatureImg} />
-          ) : null}
-          {props.signerName ? <Text style={styles.value}>{props.signerName}</Text> : null}
-          {props.registeredBy ? (
-            <Text style={styles.small}>
-              {t.registeredBy}: {props.registeredBy}
-            </Text>
-          ) : null}
-        </View>
-
-        <Text style={styles.footer} fixed>
-          {props.company.name} — Andes · {props.dateStr}
-        </Text>
+        <Footer companyName={props.company.name} dateStr={props.dateStr} />
       </Page>
     </Document>
   );

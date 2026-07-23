@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { RentalForm } from "../rental-form";
-import { createRental } from "../actions";
+import { createRental } from "../actions/create";
 
 export const metadata: Metadata = { title: "Nuevo alquiler — Andes" };
 
