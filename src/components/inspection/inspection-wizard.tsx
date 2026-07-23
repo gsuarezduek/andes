@@ -63,6 +63,13 @@ type Draft = {
   clientAddress: string;
   licenseExpiry: string;
   pricing: Record<string, string>;
+  // Snapshot de `props.pricing` (precarga desde la reserva/condiciones) al
+  // momento de crear el draft. Permite distinguir, al rehidratar desde
+  // localStorage, qué valores de `pricing` tocó el empleado a mano de los que
+  // solo venían precargados — para no pisar un dato real editado por el
+  // empleado, pero tampoco quedar pegado a una precarga vieja si la reserva
+  // cambió en VikRentCar (ej. de 1 a 2 días) después de abrir el wizard.
+  pricingBaseline: Record<string, string>;
   // "KM libres": sin límite → no se cobra excedente en la devolución.
   unlimitedKm: boolean;
   // "Mejora de Seguro": baja la franquicia (destacado en el acta).
@@ -175,6 +182,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     clientAddress: props.client.address ?? "",
     licenseExpiry: props.licenseExpiry ?? "",
     pricing: props.pricing ?? {},
+    pricingBaseline: props.pricing ?? {},
     unlimitedKm: props.pricing?.unlimitedKm === "true",
     insuranceUpgrade: props.pricing?.insuranceUpgrade === "true",
     accessoriesDesc: props.pricing?.accessoriesDesc ?? "",
@@ -206,7 +214,27 @@ export function InspectionWizard(props: InspectionWizardProps) {
         const saved = JSON.parse(raw);
         if (saved.draftId) draftId = saved.draftId;
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDraft((d) => ({ ...d, ...saved }));
+        setDraft((d) => {
+          const merged = { ...d, ...saved };
+          // No pisar la precarga fresca (dailyRate/days/total/seña, etc.) con
+          // un borrador viejo si la reserva cambió en VikRentCar (ej. de 1 a 2
+          // días) después de haber abierto el wizard por primera vez. Solo se
+          // conservan del borrador los valores de `pricing` que el empleado
+          // efectivamente tocó (difieren de la precarga que tenían en ese momento).
+          const cachedBaseline: Record<string, string> = saved.pricingBaseline ?? {};
+          const cachedPricing: Record<string, string> = saved.pricing ?? {};
+          const freshBaseline = d.pricingBaseline;
+          const pricing: Record<string, string> = { ...cachedPricing };
+          for (const key of new Set([...Object.keys(freshBaseline), ...Object.keys(cachedBaseline)])) {
+            const untouched = cachedPricing[key] === cachedBaseline[key];
+            if (!untouched) continue;
+            if (freshBaseline[key] !== undefined) pricing[key] = freshBaseline[key];
+            else delete pricing[key];
+          }
+          merged.pricing = pricing;
+          merged.pricingBaseline = freshBaseline;
+          return merged;
+        });
       }
     } catch {
       /* ignorar */
