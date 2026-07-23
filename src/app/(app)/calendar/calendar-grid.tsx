@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { RentalStatus } from "@prisma/client";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import { formatDateTime, formatTime } from "@/lib/datetime";
+import { rentalStatusDisplay } from "@/lib/rental-ui";
 
 // Vista Mes: columnas angostas, sólo se ve qué días están ocupados.
 const COL_W_MONTH = 46;
@@ -21,19 +23,10 @@ const WEEK_MAX_COLUMNS = 7;
 const LABEL_W_MOBILE = 64;
 const LABEL_W_CLASS = "w-16 sm:w-[168px]";
 
-/** Etiqueta de estado para el tooltip. "Reservado" se divide en Confirmado
- *  (ya pagó) vs Pendiente (standby / sin pagar) según `confirmed`. */
+/** Etiqueta de estado para el tooltip: la "oficial" (src/lib/rental-ui), la
+ *  misma que se usa en el listado de Alquileres y el detalle del alquiler. */
 function statusLabel(bar: CalendarBar): string {
-  switch (bar.status) {
-    case "cancelled":
-      return "Cancelado";
-    case "active":
-      return "Activo";
-    case "finished":
-      return "Finalizado";
-    default: // reserved
-      return bar.confirmed ? "Confirmado" : "Pendiente";
-  }
+  return rentalStatusDisplay(bar.status as RentalStatus, bar.confirmed).label;
 }
 
 /** Clases de color de la barra según estado (ver leyenda en la página). */
@@ -70,7 +63,7 @@ function chipClasses(bar: CalendarBar): string {
 
 type HoverContent =
   | { type: "bar"; bar: CalendarBar }
-  | { type: "notes"; plate: string; notes: CalendarNote[] };
+  | { type: "notes"; title: string; notes: CalendarNote[] };
 type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function CalendarGrid({
@@ -90,8 +83,8 @@ export function CalendarGrid({
 
   const show = (bar: CalendarBar, e: React.MouseEvent) =>
     setHover({ type: "bar", bar, x: e.clientX, y: e.clientY });
-  const showNotes = (plate: string, notes: CalendarNote[], e: React.MouseEvent) =>
-    setHover({ type: "notes", plate, notes, x: e.clientX, y: e.clientY });
+  const showNotes = (title: string, notes: CalendarNote[], e: React.MouseEvent) =>
+    setHover({ type: "notes", title, notes, x: e.clientX, y: e.clientY });
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -209,7 +202,7 @@ function Row({
   rowH: number;
   dense: boolean;
   onEnter: (bar: CalendarBar, e: React.MouseEvent) => void;
-  onEnterNote: (plate: string, notes: CalendarNote[], e: React.MouseEvent) => void;
+  onEnterNote: (title: string, notes: CalendarNote[], e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
   onLeave: () => void;
 }) {
@@ -289,6 +282,26 @@ function Row({
               height: rowH - 12,
             }}
           >
+            {bar.activeNotes.length > 0 && (
+              <span
+                onMouseEnter={(e) => {
+                  e.stopPropagation();
+                  onEnterNote(bar.clientName, bar.activeNotes, e);
+                }}
+                onMouseMove={(e) => {
+                  e.stopPropagation();
+                  onMove(e);
+                }}
+                onMouseLeave={(e) => {
+                  e.stopPropagation();
+                  onEnter(bar, e);
+                }}
+                className="absolute -right-1 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+                title={`${bar.activeNotes.length} nota(s) sin resolver`}
+              >
+                {bar.activeNotes.length}
+              </span>
+            )}
             <span className="truncate">{bar.clientName}</span>
             {dense ? (
               <span className="truncate text-[11px] font-normal opacity-90">
@@ -312,7 +325,7 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       className="pointer-events-none fixed z-50 w-72 rounded-lg border border-foreground/15 bg-background p-3 text-xs shadow-xl"
       style={{ left, top }}
     >
-      {hover.type === "notes" ? <NotesTooltipBody plate={hover.plate} notes={hover.notes} /> : <BarTooltipBody bar={hover.bar} />}
+      {hover.type === "notes" ? <NotesTooltipBody title={hover.title} notes={hover.notes} /> : <BarTooltipBody bar={hover.bar} />}
     </div>
   );
 }
@@ -349,11 +362,11 @@ function BarTooltipBody({ bar }: { bar: CalendarBar }) {
   );
 }
 
-function NotesTooltipBody({ plate, notes }: { plate: string; notes: CalendarNote[] }) {
+function NotesTooltipBody({ title, notes }: { title: string; notes: CalendarNote[] }) {
   return (
     <>
       <p className="flex items-center gap-2 text-sm font-semibold">
-        <span className="truncate">{plate}</span>
+        <span className="truncate">{title}</span>
         <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-400">
           {notes.length} nota{notes.length === 1 ? "" : "s"} sin resolver
         </span>

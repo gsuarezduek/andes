@@ -6,13 +6,15 @@ import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { rentalStatusLabels } from "@/lib/labels";
-import { rentalStatusTone } from "@/lib/rental-ui";
+import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatDateTime, mendozaWallTimeToUtc } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Alquileres — Andes" };
 
 // Fila del listado: patente (o modelo) primero, luego el nombre del cliente.
-type RentalRow = Prisma.RentalGetPayload<{ include: { vehicle: true } }>;
+type RentalRow = Prisma.RentalGetPayload<{
+  include: { vehicle: true; _count: { select: { teamNotes: true } } };
+}>;
 
 const RENTAL_STATUSES: RentalStatus[] = ["reserved", "active", "finished", "cancelled"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -26,31 +28,44 @@ function vehicleTitle(r: RentalRow): string {
 function RentalList({ rentals }: { rentals: RentalRow[] }) {
   return (
     <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-      {rentals.map((r) => (
-        <li key={r.id}>
-          <Link
-            href={`/rentals/${r.id}`}
-            className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{vehicleTitle(r)}</p>
-              <p className="truncate text-sm text-foreground/70">
-                {r.clientName}
-                {r.wpBookingId ? (
-                  <span className="text-foreground/45"> · Orden #{r.wpBookingId}</span>
-                ) : null}
-              </p>
-              <p className="text-xs text-foreground/50">
-                {formatDateTime(r.startAt)} → {formatDateTime(r.endAt)}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <Badge tone={rentalStatusTone[r.status]}>{rentalStatusLabels[r.status]}</Badge>
-              {!r.bookingConfirmed && <Badge tone="orange">Sin confirmar</Badge>}
-            </div>
-          </Link>
-        </li>
-      ))}
+      {rentals.map((r) => {
+        const { label, tone } = rentalStatusDisplay(r.status, r.bookingConfirmed);
+        const noteCount = r._count.teamNotes;
+        return (
+          <li key={r.id}>
+            <Link
+              href={`/rentals/${r.id}`}
+              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5 truncate font-medium">
+                  {vehicleTitle(r)}
+                  {noteCount > 0 && (
+                    <span
+                      title={`${noteCount} nota(s) sin resolver`}
+                      className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white"
+                    >
+                      {noteCount}
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-sm text-foreground/70">
+                  {r.clientName}
+                  {r.wpBookingId ? (
+                    <span className="text-foreground/45"> · Orden #{r.wpBookingId}</span>
+                  ) : null}
+                </p>
+                <p className="text-xs text-foreground/50">
+                  {formatDateTime(r.startAt)} → {formatDateTime(r.endAt)}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <Badge tone={tone}>{label}</Badge>
+              </div>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -117,14 +132,14 @@ export default async function RentalsPage({
     prisma.rental.findMany({
       where: currentWhere,
       orderBy: { startAt: "asc" }, // en curso primero, luego los próximos
-      include: { vehicle: true },
+      include: { vehicle: true, _count: { select: { teamNotes: { where: { resolvedAt: null } } } } },
       take: LIMIT,
     }),
     prisma.rental.count({ where: currentWhere }),
     prisma.rental.findMany({
       where: pastWhere,
       orderBy: { endAt: "desc" }, // los que terminaron hace menos, primero
-      include: { vehicle: true },
+      include: { vehicle: true, _count: { select: { teamNotes: { where: { resolvedAt: null } } } } },
       take: LIMIT,
     }),
     prisma.rental.count({ where: pastWhere }),

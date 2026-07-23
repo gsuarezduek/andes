@@ -39,6 +39,8 @@ export type CalendarBar = {
   endAt: Date;
   /** Modelo pactado cuando la reserva no tiene unidad asignada. */
   bookingModel: string | null;
+  /** Notas del equipo sin resolver → notificación roja sobre la barra. */
+  activeNotes: CalendarNote[];
 };
 
 /** Nota interna del equipo sobre el auto, aún sin resolver. */
@@ -120,6 +122,7 @@ type RentalRow = {
   bookingNote: string | null;
   bookingModel: string | null;
   additionalDrivers: unknown;
+  teamNotes: { id: string; text: string; createdAt: Date; createdBy: { name: string } | null }[];
 };
 
 function extraDriverNames(value: unknown): string[] {
@@ -156,6 +159,12 @@ function toBar(
     startAt: r.startAt,
     endAt: r.endAt,
     bookingModel: r.bookingModel,
+    activeNotes: r.teamNotes.map((n) => ({
+      id: n.id,
+      text: n.text,
+      authorName: n.createdBy?.name ?? null,
+      createdAt: n.createdAt,
+    })),
   };
 }
 
@@ -210,6 +219,11 @@ export async function getCalendarData(opts?: {
         bookingNote: true,
         bookingModel: true,
         additionalDrivers: true,
+        teamNotes: {
+          where: { resolvedAt: null },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, text: true, createdAt: true, createdBy: { select: { name: true } } },
+        },
       },
       orderBy: { startAt: "asc" },
     }),

@@ -117,6 +117,8 @@ model User {
   repairedDamages      Damage[]           @relation("DamageRepairer")
   createdVehicleNotes  VehicleNote[]      @relation("VehicleNoteCreator")
   resolvedVehicleNotes VehicleNote[]      @relation("VehicleNoteResolver")
+  createdRentalNotes   RentalNote[]       @relation("RentalNoteCreator")
+  resolvedRentalNotes  RentalNote[]       @relation("RentalNoteResolver")
 
   @@map("users")
 }
@@ -216,6 +218,31 @@ model VehicleNote {
   @@map("vehicle_notes")
 }
 
+// Misma lógica que VehicleNote, pero sobre una reserva/alquiler: avisos entre
+// compañeros a tener en cuenta (ej. "el cliente pidió cambiar el horario de
+// entrega"). Sin resolver, alerta en el listado de Alquileres y en la barra
+// del Calendario; al resolverse pasa al historial del detalle del alquiler.
+model RentalNote {
+  id String @id @default(cuid())
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  text String @db.Text
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("RentalNoteCreator", fields: [createdById], references: [id])
+
+  resolvedById String?   @map("resolved_by_id")
+  resolvedBy   User?     @relation("RentalNoteResolver", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime? @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([rentalId])
+  @@map("rental_notes")
+}
+
 // ---------------------------------------------------------------------------
 // Alquileres
 // ---------------------------------------------------------------------------
@@ -293,6 +320,7 @@ model Rental {
   inspections       Inspection[]
   documents         RentalDocument[]
   signatureRequests SignatureRequest[]
+  teamNotes         RentalNote[]
 
   @@index([status])
   @@index([startAt])

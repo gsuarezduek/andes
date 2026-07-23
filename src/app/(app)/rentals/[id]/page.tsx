@@ -6,18 +6,18 @@ import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import {
-  rentalStatusLabels,
   rentalOriginLabels,
   languageLabels,
   documentKindLabels,
 } from "@/lib/labels";
-import { rentalStatusTone } from "@/lib/rental-ui";
+import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatArs, computeBalance, type ContractPricing } from "@/lib/contract";
 import { formatDateTime, formatDateInput, formatDateTimeInput } from "@/lib/datetime";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EditDetailsForm } from "./edit-details-form";
 import { EditReturnForm } from "./edit-return-form";
 import { markVehicleService } from "./service-actions";
+import { addRentalNote, resolveRentalNote } from "./notes-actions";
 import { deleteRental } from "../actions";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
@@ -52,9 +52,19 @@ export default async function RentalDetailPage({
         include: { user: { select: { name: true } } },
       },
       documents: { orderBy: { createdAt: "asc" } },
+      teamNotes: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          createdBy: { select: { name: true } },
+          resolvedBy: { select: { name: true } },
+        },
+      },
     },
   });
   if (!rental) notFound();
+
+  const activeNotes = rental.teamNotes.filter((n) => !n.resolvedAt);
+  const resolvedNotes = rental.teamNotes.filter((n) => n.resolvedAt);
 
   const handover = rental.inspections.find((i) => i.type === "handover");
   const returnInsp = rental.inspections.find((i) => i.type === "return_");
@@ -125,10 +135,10 @@ export default async function RentalDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge tone={rentalStatusTone[rental.status]}>
-            {rentalStatusLabels[rental.status]}
-          </Badge>
-          {!rental.bookingConfirmed && <Badge tone="orange">Sin confirmar</Badge>}
+          {(() => {
+            const { label, tone } = rentalStatusDisplay(rental.status, rental.bookingConfirmed);
+            return <Badge tone={tone}>{label}</Badge>;
+          })()}
         </div>
       </div>
 
@@ -137,6 +147,63 @@ export default async function RentalDetailPage({
           Reserva sin confirmar en VikRentCar. Verificá con el cliente antes de entregar.
         </p>
       )}
+
+      {/* Notas del equipo: mensajes internos entre compañeros sobre esta
+          reserva. Mientras no se resuelven, alertan en el listado de
+          Alquileres y en la barra del Calendario. */}
+      <div className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Notas del equipo</h2>
+        {activeNotes.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {activeNotes.map((n) => (
+              <li
+                key={n.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="whitespace-pre-wrap">{n.text}</p>
+                  <p className="mt-1 text-xs text-foreground/50">
+                    {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
+                  </p>
+                </div>
+                <form action={resolveRentalNote.bind(null, rental.id, n.id)} className="shrink-0">
+                  <button className="text-xs font-medium text-emerald-600">Resolver</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={addRentalNote.bind(null, rental.id)} className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <textarea
+            name="text"
+            required
+            rows={2}
+            placeholder="Ej: el cliente pidió cambiar el horario de entrega…"
+            className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
+          />
+          <SubmitButton pendingLabel="Agregando…">Agregar nota</SubmitButton>
+        </form>
+        {resolvedNotes.length > 0 && (
+          <details className="mt-1">
+            <summary className="cursor-pointer text-xs font-medium text-foreground/60">
+              Historial de notas ({resolvedNotes.length})
+            </summary>
+            <ul className="mt-2 flex flex-col gap-2">
+              {resolvedNotes.map((n) => (
+                <li key={n.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
+                  <p className="whitespace-pre-wrap text-foreground/70">{n.text}</p>
+                  <p className="mt-1 text-xs text-foreground/50">
+                    {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
+                  </p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Resuelto por {n.resolvedBy?.name ?? "—"} · {n.resolvedAt ? formatDateTime(n.resolvedAt) : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
 
       {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}
       {rental.bookingNote && (
