@@ -12,6 +12,7 @@ import {
   documentKindLabels,
 } from "@/lib/labels";
 import { rentalStatusTone } from "@/lib/rental-ui";
+import { formatArs, computeBalance, type ContractPricing } from "@/lib/contract";
 import { formatDateTime, formatDateInput, formatDateTimeInput } from "@/lib/datetime";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EditDetailsForm } from "./edit-details-form";
@@ -83,6 +84,25 @@ export default async function RentalDetailPage({
   const returnManagedInWp =
     rental.origin === "vikrentcar" &&
     (rental.status === "reserved" || rental.status === "active");
+
+  // Pagos: antes de la entrega solo tenemos lo que trae VikRentCar (total de
+  // referencia + pagado/anticipo, ej. cuando el cliente paga por privado y se
+  // anota en la orden). Una vez hecha la entrega, el contrato cargado en el
+  // wizard (rental.pricing) pasa a ser la fuente — puede diferir del de VikRentCar.
+  const pricing = rental.pricing as ContractPricing | null;
+  const hasContract = pricing != null && (pricing.total != null || pricing.sena != null || pricing.paid != null);
+  const totalRef = hasContract ? (pricing!.total ?? null) : rental.bookingTotal ? Number(rental.bookingTotal) : null;
+  const paidSoFar = hasContract
+    ? (pricing!.sena ?? 0) + (pricing!.paid ?? 0)
+    : rental.bookingPaid
+      ? Number(rental.bookingPaid)
+      : null;
+  const balance = hasContract
+    ? (pricing!.balance ?? computeBalance({ total: pricing!.total, sena: pricing!.sena, paid: pricing!.paid }))
+    : totalRef != null && paidSoFar != null
+      ? totalRef - paidSoFar
+      : null;
+  const showPayments = totalRef != null || paidSoFar != null;
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -178,6 +198,14 @@ export default async function RentalDetailPage({
         <Row label="Idioma" value={languageLabels[rental.language]} />
         <Row label="Método de pago" value={rental.bookingPaymentMethod} />
       </div>
+
+      {showPayments && (
+        <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+          <Row label={hasContract ? "Total" : "Total (ref. VikRentCar)"} value={totalRef != null ? formatArs(totalRef) : null} />
+          <Row label={hasContract ? "Pagado" : "Pagado (VikRentCar)"} value={paidSoFar != null ? formatArs(paidSoFar) : null} />
+          <Row label="Saldo" value={balance != null ? formatArs(balance) : null} />
+        </div>
+      )}
 
       {canEditReturn && (
         <EditReturnForm
