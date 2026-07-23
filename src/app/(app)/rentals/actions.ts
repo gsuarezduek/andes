@@ -158,6 +158,17 @@ export async function updateRentalDetails(
 
   revalidatePath(`/rentals/${rental.id}`);
   revalidatePath("/rentals");
+
+  // El botón "Guardar e iniciar entrega" guarda y navega en un solo click, para
+  // que no se pierdan ediciones hechas acá si el empleado se olvida de tocar
+  // "Guardar datos" antes de ir al wizard.
+  if (formData.get("intent") === "startHandover") {
+    if (!parsed.data.vehicleId) {
+      return { error: "Asigná un vehículo para poder iniciar la entrega." };
+    }
+    redirect(`/rentals/${rental.id}/handover`);
+  }
+
   return { ok: true };
 }
 

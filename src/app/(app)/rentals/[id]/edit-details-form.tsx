@@ -71,7 +71,12 @@ export function EditDetailsForm({
         </p>
       )}
 
-      <SubmitButton className="self-start">Guardar datos</SubmitButton>
+      <div className="flex gap-3">
+        <SubmitButton variant="secondary">Guardar datos</SubmitButton>
+        <SubmitButton name="intent" value="startHandover" pendingLabel="Guardando…" className="flex-1">
+          Guardar e iniciar entrega
+        </SubmitButton>
+      </div>
     </form>
   );
 }

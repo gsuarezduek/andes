@@ -285,6 +285,9 @@ export default async function RentalDetailPage({
         </p>
       )}
 
+      {/* El botón para iniciar la entrega vive dentro de EditDetailsForm
+          ("Guardar e iniciar entrega") para no perder ediciones sin guardar. */}
+
       {/* Service / arreglo: para autos cargados como alquiler solo para
           bloquearlos. Registra el arreglo y deja el auto fuera de servicio. */}
       {canMarkService && (
@@ -332,11 +335,6 @@ export default async function RentalDetailPage({
       )}
 
       <div className="flex gap-3">
-        {canStartHandoverNow && (
-          <ButtonLink href={`/rentals/${rental.id}/handover`} className="flex-1">
-            Iniciar entrega
-          </ButtonLink>
-        )}
         {canStartReturn && (
           <ButtonLink href={`/rentals/${rental.id}/return`} className="flex-1">
             Iniciar devolución
@@ -345,7 +343,7 @@ export default async function RentalDetailPage({
         <ButtonLink
           href="/rentals"
           variant="secondary"
-          className={canStartHandoverNow || canStartReturn ? "" : "flex-1"}
+          className={canStartReturn ? "" : "flex-1"}
         >
           Volver
         </ButtonLink>
