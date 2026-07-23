@@ -9,11 +9,52 @@ const COL_W = 46; // ancho de cada columna de día (px)
 const LABEL_W = 168; // ancho de la columna fija de autos (px)
 const ROW_H = 40; // alto de cada fila (px)
 
-const statusLabels: Record<string, string> = {
-  reserved: "Reservado",
-  active: "En curso",
-  finished: "Finalizado",
-};
+/** Etiqueta de estado para el tooltip. "Reservado" se divide en Confirmado
+ *  (ya pagó) vs Pendiente (standby / sin pagar) según `confirmed`. */
+function statusLabel(bar: CalendarBar): string {
+  switch (bar.status) {
+    case "cancelled":
+      return "Cancelado";
+    case "active":
+      return "Activo";
+    case "finished":
+      return "Finalizado";
+    default: // reserved
+      return bar.confirmed ? "Confirmado" : "Pendiente";
+  }
+}
+
+/** Clases de color de la barra según estado (ver leyenda en la página). */
+function barClasses(bar: CalendarBar): string {
+  switch (bar.status) {
+    case "cancelled":
+      return "bg-red-600/90 text-white hover:bg-red-600 hover:ring-red-300";
+    case "active":
+      return "bg-green-600/90 text-white hover:bg-green-600 hover:ring-green-300";
+    case "finished":
+      return "bg-slate-400/90 text-white hover:ring-slate-300";
+    default: // reserved
+      return bar.confirmed
+        ? "bg-amber-400 text-amber-950 hover:bg-amber-400/90 hover:ring-amber-300" // Confirmado (pagado)
+        : "bg-orange-500/90 text-white hover:bg-orange-500 hover:ring-orange-300"; // Pendiente
+  }
+}
+
+/** Clases del chip de estado en el tooltip (fondo suave + texto). */
+function chipClasses(bar: CalendarBar): string {
+  switch (bar.status) {
+    case "cancelled":
+      return "bg-red-500/20 text-red-700 dark:text-red-400";
+    case "active":
+      return "bg-green-500/20 text-green-700 dark:text-green-400";
+    case "finished":
+      return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
+    default: // reserved
+      return bar.confirmed
+        ? "bg-amber-500/20 text-amber-700 dark:text-amber-500"
+        : "bg-orange-500/20 text-orange-700 dark:text-orange-400";
+  }
+}
 
 type Hover = { bar: CalendarBar; x: number; y: number } | null;
 
@@ -160,8 +201,11 @@ function Row({
         </div>
       )}
 
-      {/* Track de días */}
-      <div className="relative" style={{ width: trackW, height: ROW_H }}>
+      {/* Track de días (rosa claro si el auto está fuera de servicio) */}
+      <div
+        className={`relative ${row.outOfService ? "bg-rose-500/10" : ""}`}
+        style={{ width: trackW, height: ROW_H }}
+      >
         {/* Líneas de grilla / resaltados por columna */}
         {columns.map((c, i) => (
           <div
@@ -180,13 +224,7 @@ function Row({
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
-            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium text-white shadow-sm transition-shadow hover:ring-2 ${
-              bar.status === "finished"
-                ? "bg-slate-400/90 hover:ring-slate-300"
-                : !bar.confirmed
-                  ? "bg-orange-500/90 hover:bg-orange-500 hover:ring-orange-300" // sin confirmar (standby)
-                  : "bg-blue-600/90 hover:bg-blue-600 hover:ring-blue-300" // confirmada
-            }`}
+            className={`absolute flex items-center overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${barClasses(bar)}`}
             style={{
               left: bar.startIndex * COL_W + 2,
               width: bar.span * COL_W - 4,
@@ -213,18 +251,13 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       style={{ left, top }}
     >
       <p className="flex items-center gap-2 text-sm font-semibold">
-        {bar.clientName}
-        {!bar.confirmed ? (
-          <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-medium text-orange-700 dark:text-orange-400">
-            Sin confirmar
-          </span>
-        ) : null}
+        <span className="truncate">{bar.clientName}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${chipClasses(bar)}`}>
+          {statusLabel(bar)}
+        </span>
       </p>
       <p className="mt-0.5 text-foreground/60">
         {formatDateTime(bar.startAt)} → {formatDateTime(bar.endAt)}
-      </p>
-      <p className="mt-0.5 text-foreground/60">
-        {statusLabels[bar.status] ?? bar.status}
         {bar.bookingModel ? ` · ${bar.bookingModel}` : ""}
       </p>
       {bar.extraDrivers.length > 0 ? (

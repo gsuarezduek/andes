@@ -49,20 +49,28 @@ export default async function CalendarPage({
       {/* Leyenda de colores de las barras */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-blue-600/90" /> Confirmada
+          <span className="inline-block h-3 w-3 rounded bg-green-600/90" /> Activo
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-orange-500/90" /> Sin confirmar
+          <span className="inline-block h-3 w-3 rounded bg-amber-400" /> Confirmado (pagado)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-slate-400/90" /> Finalizada
+          <span className="inline-block h-3 w-3 rounded bg-orange-500/90" /> Pendiente
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-red-600/90" /> Cancelado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-slate-400/90" /> Finalizado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio
         </span>
       </div>
 
       <p className="text-xs text-foreground/40">
-        Autos ordenados por su orden de calendario (editable en cada ficha). Se
-        muestran los alquileres no cancelados; pasá el mouse por una barra para
-        ver las notas de la reserva.
+        Autos ordenados por su orden de calendario (editable en cada ficha).
+        Pasá el mouse por una barra para ver las notas de la reserva.
       </p>
     </div>
   );

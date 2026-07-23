@@ -34,6 +34,8 @@ export type CalendarRow = {
   id: string;
   plate: string | null;
   label: string;
+  /** Auto en service / fuera de servicio → fila resaltada en rosa claro. */
+  outOfService: boolean;
   bars: CalendarBar[];
 };
 
@@ -156,11 +158,12 @@ export async function getCalendarData(opts?: {
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
       orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-      select: { id: true, plate: true, brand: true, model: true },
+      select: { id: true, plate: true, brand: true, model: true, status: true },
     }),
     prisma.rental.findMany({
+      // Se incluyen las canceladas (se pintan en rojo); el recorte de ventana
+      // por fechas evita traer histórico irrelevante.
       where: {
-        status: { not: "cancelled" },
         startAt: { lt: windowEnd },
         endAt: { gt: windowStart },
       },
@@ -217,6 +220,7 @@ export async function getCalendarData(opts?: {
         id: r.id,
         plate: null,
         label: bar.bookingModel ? `${bar.bookingModel} · sin unidad` : "Sin unidad asignada",
+        outOfService: false,
         bars: [bar],
       });
     }
@@ -226,6 +230,7 @@ export async function getCalendarData(opts?: {
     id: v.id,
     plate: v.plate,
     label: `${v.brand} ${v.model}`,
+    outOfService: v.status === "out_of_service",
     bars: barsByVehicle.get(v.id) ?? [],
   }));
 
