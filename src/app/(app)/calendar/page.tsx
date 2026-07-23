@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
-import { getCalendarData } from "@/lib/calendar";
+import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS } from "@/lib/calendar";
 import { ButtonLink } from "@/components/ui/button";
 import { CalendarGrid } from "./calendar-grid";
 
@@ -9,17 +9,19 @@ export const metadata: Metadata = { title: "Calendario — Andes" };
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; days?: string }>;
 }) {
   await requireUser();
-  const { from } = await searchParams;
-  const data = await getCalendarData({ from });
+  const { from, days: rawDays } = await searchParams;
+  const days = normalizeCalendarDays(rawDays);
+  const data = await getCalendarData({ from, days });
 
   const rangeStart = data.columns[0]?.key;
   const rangeEnd = data.columns[data.columns.length - 1]?.key;
+  const nav = (targetFrom: string) => `/calendar?from=${targetFrom}&days=${data.days}`;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4">
+    <div className="ml-[calc(50%-50vw)] flex w-screen flex-col gap-4 px-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
@@ -27,16 +29,26 @@ export default async function CalendarPage({
             {fmtRange(rangeStart, rangeEnd)} · {data.days} días
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <ButtonLink href={`/calendar?from=${data.prevFrom}`} variant="secondary">
-            ← Anterior
-          </ButtonLink>
-          <ButtonLink href={`/calendar?from=${data.todayFrom}`} variant="secondary">
-            Hoy
-          </ButtonLink>
-          <ButtonLink href={`/calendar?from=${data.nextFrom}`} variant="secondary">
-            Siguiente →
-          </ButtonLink>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <ButtonLink href={`/calendar?from=${data.from}&days=${WEEK_DAYS}`} variant={data.days === WEEK_DAYS ? "primary" : "secondary"}>
+              Semana
+            </ButtonLink>
+            <ButtonLink href={`/calendar?from=${data.from}&days=${MONTH_DAYS}`} variant={data.days === MONTH_DAYS ? "primary" : "secondary"}>
+              Mes
+            </ButtonLink>
+          </div>
+          <div className="flex items-center gap-2">
+            <ButtonLink href={nav(data.prevFrom)} variant="secondary">
+              ← Anterior
+            </ButtonLink>
+            <ButtonLink href={nav(data.todayFrom)} variant="secondary">
+              Hoy
+            </ButtonLink>
+            <ButtonLink href={nav(data.nextFrom)} variant="secondary">
+              Siguiente →
+            </ButtonLink>
+          </div>
         </div>
       </div>
 

@@ -6,7 +6,11 @@ import type { CalendarBar, CalendarColumn, CalendarRow } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
 
 const COL_W = 46; // ancho de cada columna de día (px)
-const LABEL_W = 168; // ancho de la columna fija de autos (px)
+// Columna fija de autos: angosta en mobile (sólo los últimos 3 de la patente,
+// sin modelo) y más ancha desde `sm:` (patente completa + modelo). El valor
+// móvil se usa como piso conservador para el minWidth del contenido scrolleable.
+const LABEL_W_MOBILE = 64;
+const LABEL_W_CLASS = "w-16 sm:w-[168px]";
 const ROW_H = 40; // alto de cada fila (px)
 
 /** Etiqueta de estado para el tooltip. "Reservado" se divide en Confirmado
@@ -79,12 +83,11 @@ export function CalendarGrid({
   return (
     <div className="relative rounded-xl border border-foreground/10">
       <div className="overflow-x-auto">
-        <div style={{ minWidth: LABEL_W + trackW }}>
+        <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
           {/* Encabezado de días */}
           <div className="flex border-b border-foreground/10">
             <div
-              className="sticky left-0 z-20 shrink-0 border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50"
-              style={{ width: LABEL_W }}
+              className={`sticky left-0 z-20 shrink-0 truncate border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50 ${LABEL_W_CLASS}`}
             >
               Vehículo
             </div>
@@ -135,10 +138,10 @@ export function CalendarGrid({
             <>
               <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
                 <div
-                  className="sticky left-0 z-10 shrink-0 bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50"
-                  style={{ width: LABEL_W }}
+                  className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
-                  Sin unidad asignada
+                  <span className="sm:hidden">Sin unidad</span>
+                  <span className="hidden sm:inline">Sin unidad asignada</span>
                 </div>
                 <div style={{ width: trackW }} />
               </div>
@@ -186,16 +189,23 @@ function Row({
       {row.plate ? (
         <Link
           href={`/vehicles/${row.id}`}
-          className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5"
-          style={{ width: LABEL_W, height: ROW_H }}
+          className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
+          style={{ height: ROW_H }}
         >
-          <span className="truncate text-sm font-semibold leading-tight">{row.plate}</span>
-          <span className="truncate text-[11px] text-foreground/45">{row.label}</span>
+          {/* Mobile: sólo los últimos 3 de la patente, sin modelo (columna angosta).
+              Desktop (sm+): patente completa + modelo. */}
+          <span className="truncate text-sm font-semibold leading-tight sm:hidden">
+            {row.plate.slice(-3)}
+          </span>
+          <span className="hidden truncate text-sm font-semibold leading-tight sm:block">
+            {row.plate}
+          </span>
+          <span className="hidden truncate text-[11px] text-foreground/45 sm:block">{row.label}</span>
         </Link>
       ) : (
         <div
-          className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3"
-          style={{ width: LABEL_W, height: ROW_H }}
+          className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 ${LABEL_W_CLASS}`}
+          style={{ height: ROW_H }}
         >
           <span className="truncate text-sm font-medium leading-tight">{row.label}</span>
         </div>

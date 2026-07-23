@@ -8,6 +8,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Ventana por defecto (columnas de día) que muestra el calendario. */
 export const DEFAULT_CALENDAR_DAYS = 30;
 
+/** Presets de rango que ofrece el filtro Semana/Mes. */
+export const WEEK_DAYS = 7;
+export const MONTH_DAYS = 30;
+
+/** Valida el parámetro `days` de la URL; cualquier otra cosa cae al default. */
+export function normalizeCalendarDays(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 90) return DEFAULT_CALENDAR_DAYS;
+  return n;
+}
+
 /** Un tramo alquilado de un auto dentro de la ventana visible. */
 export type CalendarBar = {
   rentalId: string;
