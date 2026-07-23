@@ -41,6 +41,14 @@ export type CalendarBar = {
   bookingModel: string | null;
 };
 
+/** Nota interna del equipo sobre el auto, aún sin resolver. */
+export type CalendarNote = {
+  id: string;
+  text: string;
+  authorName: string | null;
+  createdAt: Date;
+};
+
 export type CalendarRow = {
   id: string;
   plate: string | null;
@@ -48,6 +56,8 @@ export type CalendarRow = {
   /** Auto en service / fuera de servicio → fila resaltada en rosa claro. */
   outOfService: boolean;
   bars: CalendarBar[];
+  /** Notas del equipo sin resolver → notificación roja sobre la patente. */
+  activeNotes: CalendarNote[];
 };
 
 export type CalendarColumn = {
@@ -164,12 +174,23 @@ export async function getCalendarData(opts?: {
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
   const todayKey = formatDateInput(new Date());
 
-  const [vehicles, rentals] = await Promise.all([
+  const [vehicles, notes, rentals] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
       orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
       select: { id: true, plate: true, brand: true, model: true, status: true },
+    }),
+    prisma.vehicleNote.findMany({
+      where: { resolvedAt: null },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        vehicleId: true,
+        text: true,
+        createdAt: true,
+        createdBy: { select: { name: true } },
+      },
     }),
     prisma.rental.findMany({
       // Se incluyen las canceladas (se pintan en rojo); el recorte de ventana
@@ -215,6 +236,14 @@ export async function getCalendarData(opts?: {
     });
   }
 
+  // Notas sin resolver por vehículo.
+  const notesByVehicle = new Map<string, CalendarNote[]>();
+  for (const n of notes) {
+    const list = notesByVehicle.get(n.vehicleId) ?? [];
+    list.push({ id: n.id, text: n.text, authorName: n.createdBy?.name ?? null, createdAt: n.createdAt });
+    notesByVehicle.set(n.vehicleId, list);
+  }
+
   // Barras por vehículo.
   const barsByVehicle = new Map<string, CalendarBar[]>();
   const unassigned: CalendarRow[] = [];
@@ -233,6 +262,7 @@ export async function getCalendarData(opts?: {
         label: bar.bookingModel ? `${bar.bookingModel} · sin unidad` : "Sin unidad asignada",
         outOfService: false,
         bars: [bar],
+        activeNotes: [],
       });
     }
   }
@@ -243,6 +273,7 @@ export async function getCalendarData(opts?: {
     label: `${v.brand} ${v.model}`,
     outOfService: v.status === "out_of_service",
     bars: barsByVehicle.get(v.id) ?? [],
+    activeNotes: notesByVehicle.get(v.id) ?? [],
   }));
 
   return {

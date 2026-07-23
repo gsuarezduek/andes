@@ -110,11 +110,13 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  inspections       Inspection[]
-  rentalDocuments   RentalDocument[]
-  signatureRequests SignatureRequest[]
-  reportedDamages   Damage[]           @relation("DamageReporter")
-  repairedDamages   Damage[]           @relation("DamageRepairer")
+  inspections          Inspection[]
+  rentalDocuments      RentalDocument[]
+  signatureRequests    SignatureRequest[]
+  reportedDamages      Damage[]           @relation("DamageReporter")
+  repairedDamages      Damage[]           @relation("DamageRepairer")
+  createdVehicleNotes  VehicleNote[]      @relation("VehicleNoteCreator")
+  resolvedVehicleNotes VehicleNote[]      @relation("VehicleNoteResolver")
 
   @@map("users")
 }
@@ -178,9 +180,40 @@ model Vehicle {
   inspections     Inspection[]
   damages         Damage[]
   maintenanceLogs MaintenanceLog[]
+  teamNotes       VehicleNote[]
 
   @@unique([wpCarId, wpCarIndex])
   @@map("vehicles")
+}
+
+// ---------------------------------------------------------------------------
+// Notas del equipo sobre un vehículo (mensajería interna, no el campo `notes`
+// libre de la ficha). Sirven para avisarse situaciones a tener en cuenta entre
+// compañeros. Mientras no se resuelven, se marcan como "notificación" (círculo
+// rojo) sobre la patente en el Calendario; al resolverse pasan al historial de
+// la ficha del auto y dejan de alertar. Auditoría de quién la cargó y quién la
+// resolvió.
+// ---------------------------------------------------------------------------
+
+model VehicleNote {
+  id String @id @default(cuid())
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  text String @db.Text
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("VehicleNoteCreator", fields: [createdById], references: [id])
+
+  resolvedById String?   @map("resolved_by_id")
+  resolvedBy   User?     @relation("VehicleNoteResolver", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime? @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([vehicleId])
+  @@map("vehicle_notes")
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { CalendarBar, CalendarColumn, CalendarRow } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import { formatDateTime, formatTime } from "@/lib/datetime";
 
 // Vista Mes: columnas angostas, sólo se ve qué días están ocupados.
@@ -68,7 +68,10 @@ function chipClasses(bar: CalendarBar): string {
   }
 }
 
-type Hover = { bar: CalendarBar; x: number; y: number } | null;
+type HoverContent =
+  | { type: "bar"; bar: CalendarBar }
+  | { type: "notes"; plate: string; notes: CalendarNote[] };
+type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function CalendarGrid({
   columns,
@@ -86,7 +89,9 @@ export function CalendarGrid({
   const trackW = columns.length * colW;
 
   const show = (bar: CalendarBar, e: React.MouseEvent) =>
-    setHover({ bar, x: e.clientX, y: e.clientY });
+    setHover({ type: "bar", bar, x: e.clientX, y: e.clientY });
+  const showNotes = (plate: string, notes: CalendarNote[], e: React.MouseEvent) =>
+    setHover({ type: "notes", plate, notes, x: e.clientX, y: e.clientY });
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -136,6 +141,7 @@ export function CalendarGrid({
               rowH={rowH}
               dense={dense}
               onEnter={show}
+              onEnterNote={showNotes}
               onMove={move}
               onLeave={hide}
             />
@@ -169,6 +175,7 @@ export function CalendarGrid({
                   rowH={rowH}
                   dense={dense}
                   onEnter={show}
+                  onEnterNote={showNotes}
                   onMove={move}
                   onLeave={hide}
                 />
@@ -191,6 +198,7 @@ function Row({
   rowH,
   dense,
   onEnter,
+  onEnterNote,
   onMove,
   onLeave,
 }: {
@@ -201,9 +209,11 @@ function Row({
   rowH: number;
   dense: boolean;
   onEnter: (bar: CalendarBar, e: React.MouseEvent) => void;
+  onEnterNote: (plate: string, notes: CalendarNote[], e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
   onLeave: () => void;
 }) {
+  const hasNotes = row.activeNotes.length > 0;
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
       {/* Etiqueta del auto (fija a la izquierda). En filas de vehículo la
@@ -212,9 +222,20 @@ function Row({
       {row.plate ? (
         <Link
           href={`/vehicles/${row.id}`}
-          className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
+          className={`sticky left-0 z-10 relative flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
           style={{ height: rowH }}
         >
+          {hasNotes && (
+            <span
+              onMouseEnter={(e) => onEnterNote(row.plate!, row.activeNotes, e)}
+              onMouseMove={onMove}
+              onMouseLeave={onLeave}
+              className="absolute right-1 top-1 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+              title={`${row.activeNotes.length} nota(s) sin resolver`}
+            >
+              {row.activeNotes.length}
+            </span>
+          )}
           {/* Mobile: sólo los últimos 3 de la patente, sin modelo (columna angosta).
               Desktop (sm+): patente completa + modelo. */}
           <span className="truncate text-sm font-semibold leading-tight sm:hidden">
@@ -282,7 +303,7 @@ function Row({
 }
 
 function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
-  const { bar, x, y } = hover;
+  const { x, y } = hover;
   // Se ubica cerca del cursor, corrido para no taparlo; fixed + pointer-events-none.
   const left = Math.min(x + 14, (typeof window !== "undefined" ? window.innerWidth : 9999) - 300);
   const top = y + 18;
@@ -291,6 +312,14 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       className="pointer-events-none fixed z-50 w-72 rounded-lg border border-foreground/15 bg-background p-3 text-xs shadow-xl"
       style={{ left, top }}
     >
+      {hover.type === "notes" ? <NotesTooltipBody plate={hover.plate} notes={hover.notes} /> : <BarTooltipBody bar={hover.bar} />}
+    </div>
+  );
+}
+
+function BarTooltipBody({ bar }: { bar: CalendarBar }) {
+  return (
+    <>
       <p className="flex items-center gap-2 text-sm font-semibold">
         <span className="truncate">{bar.clientName}</span>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${chipClasses(bar)}`}>
@@ -316,6 +345,29 @@ function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
           Sin notas de la reserva.
         </p>
       )}
-    </div>
+    </>
+  );
+}
+
+function NotesTooltipBody({ plate, notes }: { plate: string; notes: CalendarNote[] }) {
+  return (
+    <>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="truncate">{plate}</span>
+        <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-400">
+          {notes.length} nota{notes.length === 1 ? "" : "s"} sin resolver
+        </span>
+      </p>
+      <ul className="mt-1.5 flex flex-col gap-1.5 border-t border-foreground/10 pt-1.5">
+        {notes.map((n) => (
+          <li key={n.id}>
+            <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
+            <p className="text-foreground/45">
+              {n.authorName ?? "—"} · {formatDateTime(n.createdAt)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
