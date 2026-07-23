@@ -223,7 +223,7 @@ function Row({
               onMouseEnter={(e) => onEnterNote(row.plate!, row.activeNotes, e)}
               onMouseMove={onMove}
               onMouseLeave={onLeave}
-              className="absolute right-1 top-1 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+              className="absolute right-2 top-1.5 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
               title={`${row.activeNotes.length} nota(s) sin resolver`}
             >
               {row.activeNotes.length}
@@ -296,7 +296,7 @@ function Row({
                   e.stopPropagation();
                   onEnter(bar, e);
                 }}
-                className="absolute -right-1 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+                className="absolute right-0 top-0 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
                 title={`${bar.activeNotes.length} nota(s) sin resolver`}
               >
                 {bar.activeNotes.length}
