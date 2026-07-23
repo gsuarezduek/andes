@@ -45,7 +45,13 @@ type OrderRow = {
   c_docnum: string | null;
 };
 
-type CarRow = { id: number; name: string | null; units: number | null; base1: string | number | null };
+type CarRow = {
+  id: number;
+  name: string | null;
+  units: number | null;
+  base1: string | number | null;
+  avail: number | null;
+};
 type SeasonRow = {
   from: number | null;
   to: number | null;
@@ -138,7 +144,7 @@ export class MysqlBookingSource implements BookingSource {
   }
 
   async fetchCars(): Promise<RawCar[]> {
-    const sql = `SELECT c.id, c.name, c.units,
+    const sql = `SELECT c.id, c.name, c.units, c.avail,
         (SELECT MIN(d.cost) FROM \`${PREFIX}dispcost\` d WHERE d.idcar = c.id AND d.days = 1) AS base1
       FROM \`${PREFIX}cars\` c ORDER BY c.id`;
     const [rows] = await this.getPool().query<mysql.RowDataPacket[]>(sql);
@@ -147,6 +153,7 @@ export class MysqlBookingSource implements BookingSource {
       name: clean(r.name) ?? `Modelo ${r.id}`,
       units: Math.max(1, r.units ?? 1),
       baseDailyRate: num(r.base1),
+      avail: r.avail == null ? null : r.avail === 1,
     }));
   }
 

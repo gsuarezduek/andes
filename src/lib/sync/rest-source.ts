@@ -56,8 +56,12 @@ export class RestBookingSource implements BookingSource {
 
   async fetchCars(): Promise<RawCar[]> {
     const data = await this.get<{ cars: RawCar[] }>("cars");
-    // Compat con mu-plugins viejos que no devuelven baseDailyRate.
-    return (data.cars ?? []).map((c) => ({ ...c, baseDailyRate: c.baseDailyRate ?? null }));
+    // Compat con mu-plugins viejos que no devuelven baseDailyRate/avail.
+    return (data.cars ?? []).map((c) => ({
+      ...c,
+      baseDailyRate: c.baseDailyRate ?? null,
+      avail: c.avail ?? null,
+    }));
   }
 
   async fetchSeasons(): Promise<RawSeason[]> {

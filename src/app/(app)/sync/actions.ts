@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
 import { runBookingSync, seedFleetFromWp } from "@/lib/sync/engine";
 
@@ -11,10 +12,12 @@ export async function triggerSync() {
   revalidatePath("/sync");
 }
 
-/** Seed inicial de la flota desde wp_vikrentcar_cars (crea las unidades faltantes). */
+/** Seed inicial de la flota desde wp_vikrentcar_cars (crea las unidades faltantes
+ *  y reactiva las archivadas cuyo modelo volvió a estar disponible). */
 export async function triggerFleetSeed() {
   await requireUser();
-  await seedFleetFromWp();
+  const result = await seedFleetFromWp();
   revalidatePath("/sync");
   revalidatePath("/vehicles");
+  redirect(`/sync?flota=${result.created}-${result.reactivated}`);
 }

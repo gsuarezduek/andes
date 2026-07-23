@@ -65,6 +65,9 @@ export type RawCar = {
   // Tarifa base por 1 día (wp_vikrentcar_dispcost, days=1). Sin ajuste de
   // temporada — el motor la aplica. Null si el modelo no tiene tarifa cargada.
   baseDailyRate: number | null;
+  // Toggle de disponibilidad del modelo en VikRentCar (`avail`). `null` si el
+  // plugin instalado es viejo y no lo manda (no se sabe → no se toca el archivo).
+  avail: boolean | null;
 };
 
 /**

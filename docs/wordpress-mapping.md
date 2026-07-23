@@ -194,6 +194,15 @@ No es un caso borde: hay que diseñar el flujo asumiéndolo.
 - No se detectaron tablas de daños/check-in propias del plugin en uso (VikRentCar
   free); **nada que migrar** en el seed inicial. (Reconfirmar con el dueño si
   alguna vez cargaron daños manualmente.)
+- **Reactivación automática (`avail`) — plugin v1.6.0:** `avail` es un toggle a
+  **nivel de modelo** (`idcar`), no por unidad física — la misma ambigüedad que
+  ya impedía auto-archivar (no dice qué `carindex` puntual cambió). Por eso
+  **archivar sigue siendo 100% manual**. Pero la acción inversa es de bajo
+  riesgo y reversible: al correr "Importar flota" (`seedFleetFromWp`), si
+  `car.avail === true` y ya existe una unidad archivada para ese `wp_car_id`, se
+  **reactiva** (`archivedAt = null`). Si el plugin instalado es viejo y no manda
+  `avail` (`null`), no se toca nada. Vía REST el campo es **estructural** (no
+  gateado por ningún toggle de privacidad — es dato operativo, no de cliente).
 
 ## Reglas de sincronización (Fase 5)
 

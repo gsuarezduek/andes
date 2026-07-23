@@ -22,8 +22,14 @@ const resultLabel: Record<SyncResult, string> = {
   error: "Error",
 };
 
-export default async function SyncPage() {
+export default async function SyncPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ flota?: string }>;
+}) {
   await requireUser();
+  const { flota } = await searchParams;
+  const [flotaCreated, flotaReactivated] = flota?.split("-").map(Number) ?? [];
 
   const logs = await prisma.syncLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
 
@@ -75,8 +81,19 @@ export default async function SyncPage() {
           </SubmitButton>
         </form>
       </div>
+      {flota !== undefined && (
+        <p className="-mt-4 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-700 dark:text-green-400">
+          Flota importada: {flotaCreated} unidad{flotaCreated === 1 ? "" : "es"} nueva
+          {flotaCreated === 1 ? "" : "s"}
+          {flotaReactivated > 0
+            ? `, ${flotaReactivated} reactivada${flotaReactivated === 1 ? "" : "s"} (volvió a estar disponible en VikRentCar)`
+            : ""}
+          .
+        </p>
+      )}
       <p className="-mt-4 text-xs text-foreground/50">
-        &quot;Importar flota&quot; crea las unidades que falten con patente provisoria; nunca pisa un
+        &quot;Importar flota&quot; crea las unidades que falten con patente provisoria y reactiva las
+        archivadas cuyo modelo volvió a estar disponible en VikRentCar; nunca archiva ni pisa un
         vehículo ya cargado. El cron de Railway llama a <code>POST /api/sync</code> cada 5–10 min.
       </p>
 

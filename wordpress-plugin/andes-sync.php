@@ -2,9 +2,13 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: MDZ Rent a Car
  *
+ * v1.6.0: /cars agrega `avail` (toggle de disponibilidad del modelo). Andes lo
+ *         usa para **reactivar automáticamente** unidades archivadas cuando el
+ *         modelo vuelve a estar disponible al correr "Importar flota". Nunca
+ *         archiva solo (eso sigue siendo 100% manual).
  * v1.5.0: /bookings agrega `paymentMethod` (nombre del método de pago, de
  *         orders.idpayment; SIN el paymentlog con datos de tarjeta). Grupo Económico.
  * v1.4.0: /bookings agrega `optionals` (opcionales elegidos, "id:cant;") y se
@@ -298,7 +302,7 @@ function andes_sync_cars(WP_REST_Request $request)
     $p = $wpdb->prefix . 'vikrentcar_';
 
     $rows = $wpdb->get_results(
-        "SELECT c.id, c.name, c.units,
+        "SELECT c.id, c.name, c.units, c.avail,
                 (SELECT MIN(d.cost) FROM {$p}dispcost d WHERE d.idcar = c.id AND d.days = 1) AS base1
          FROM {$p}cars c ORDER BY c.id",
         ARRAY_A
@@ -314,6 +318,7 @@ function andes_sync_cars(WP_REST_Request $request)
             'name'          => andes_sync_clean($r['name']) ?: ('Modelo ' . (int) $r['id']),
             'units'         => max(1, (int) $r['units']),
             'baseDailyRate' => $shareRates ? andes_sync_float_or_null($r['base1']) : null,
+            'avail'         => (int) $r['avail'] === 1,
         ];
     }, $rows);
 
