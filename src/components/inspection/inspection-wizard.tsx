@@ -948,7 +948,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           {/* Franquicia/Garantía: un solo importe (deducible del seguro y garantía tomada). */}
           <div className="flex flex-col gap-3">
             <p className="text-sm font-medium text-foreground/80">Franquicia/Garantía</p>
-            <TextField id="pricing_deductible" label="Franquicia/Garantía" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
+            <TextField id="pricing_deductible" label="Importe" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
             <button
               type="button"
               onClick={() => {
