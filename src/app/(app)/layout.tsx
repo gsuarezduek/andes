@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { AppNav } from "@/components/app-nav";
+import { InactivityLogout } from "@/components/inactivity-logout";
 import { logout } from "./actions";
 import { triggerSync } from "./sync/actions";
 
@@ -27,6 +28,8 @@ export default async function AppLayout({
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+
+      <InactivityLogout />
     </div>
   );
 }

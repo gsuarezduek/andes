@@ -16,6 +16,14 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
+    // Cierre de sesión por inactividad (30 min): el proxy corre `auth()` en
+    // cada request protegida y renueva la cookie mientras haya actividad
+    // (rolling session); sin requests durante 30 min, el JWT expira solo.
+    // Es el backstop server-side; el logout activo por inactividad real
+    // (sin requests, ej. tab abierta sin tocar nada) vive en
+    // `inactivity-logout.tsx`, montado en el layout autenticado.
+    maxAge: 30 * 60,
+    updateAge: 5 * 60,
   },
   callbacks: {
     // Protege toda la app; deja pasar /login. Redirige al home si ya hay sesión.
