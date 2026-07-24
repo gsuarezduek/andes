@@ -54,7 +54,6 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
   { key: "kmPerDay", label: "Km por día", kind: "int" },
   { key: "extraKmRate", label: "Km extra ($ c/u)", kind: "money" },
   { key: "kmPacks", label: "Packs de KM (200 km c/u)", kind: "int" },
-  { key: "kmPackPrice", label: "Precio por pack de KM", kind: "money" },
   { key: "extraHourPercent", label: "Hora extra (% de la tarifa)", kind: "percent" },
   { key: "accessoriesAmount", label: "Accesorios", kind: "money" },
   { key: "total", label: "Total a pagar", kind: "money" },
@@ -71,6 +70,18 @@ export const KM_PACK_MAX = 20;
 /** Km adicionales comprados en packs (packs × 200). 0 si no hay packs cargados. */
 export function kmPackKm(p: Pick<ContractPricing, "kmPacks">): number {
   return Math.max(0, Math.round(p.kmPacks ?? 0)) * KM_PACK_SIZE;
+}
+
+/**
+ * Importe total de los packs de KM (packs × precio del pack). `null` si no
+ * hay packs cargados o falta el precio (el precio no se edita en el wizard:
+ * se precarga de Configuración → Condiciones y viaja oculto en `pricing`).
+ */
+export function kmPackAmount(p: Pick<ContractPricing, "kmPacks" | "kmPackPrice">): number | null {
+  const packs = Math.max(0, Math.round(p.kmPacks ?? 0));
+  if (packs <= 0 || p.kmPackPrice == null) return null;
+  const v = packs * p.kmPackPrice;
+  return Number.isFinite(v) ? roundMoney(v) : null;
 }
 
 /**

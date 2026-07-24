@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extraHourAmount, formatArs, computeBalance } from "@/lib/contract";
+import { extraHourAmount, formatArs, computeBalance, kmPackKm, kmPackAmount } from "@/lib/contract";
 
 describe("computeBalance", () => {
   it("saldo = total − seña − paga", () => {
@@ -34,6 +34,28 @@ describe("extraHourAmount", () => {
   it("devuelve null si falta la tarifa o el porcentaje", () => {
     expect(extraHourAmount({ dailyRate: undefined, extraHourPercent: 10 })).toBeNull();
     expect(extraHourAmount({ dailyRate: 30_000, extraHourPercent: undefined })).toBeNull();
+  });
+});
+
+describe("kmPackKm", () => {
+  it("multiplica los packs por 200 km", () => {
+    expect(kmPackKm({ kmPacks: 3 })).toBe(600);
+  });
+
+  it("0 si no hay packs cargados", () => {
+    expect(kmPackKm({})).toBe(0);
+    expect(kmPackKm({ kmPacks: 0 })).toBe(0);
+  });
+});
+
+describe("kmPackAmount", () => {
+  it("packs × precio del pack", () => {
+    expect(kmPackAmount({ kmPacks: 3, kmPackPrice: 20_000 })).toBe(60_000);
+  });
+
+  it("null si no hay packs o falta el precio", () => {
+    expect(kmPackAmount({ kmPacks: 0, kmPackPrice: 20_000 })).toBeNull();
+    expect(kmPackAmount({ kmPacks: 3, kmPackPrice: undefined })).toBeNull();
   });
 });
 

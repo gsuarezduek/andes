@@ -479,6 +479,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
           pricing.deposit = ded;
         }
       }
+      // Precio del pack de KM: no se edita en el wizard (viene de Configuración
+      // → Condiciones), pero viaja en `pricing` para poder calcular su importe
+      // en el acta y en la liquidación de la devolución.
+      {
+        const packPrice = parseDecimal(draft.pricing.kmPackPrice as string | undefined);
+        if (packPrice !== undefined) pricing.kmPackPrice = packPrice;
+      }
       if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
       if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
       const payload: InspectionInput = {

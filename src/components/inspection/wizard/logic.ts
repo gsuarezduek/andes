@@ -1,6 +1,6 @@
 import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
 import { parseDecimal } from "@/lib/number-input";
-import { PRICING_FIELDS, extraHourAmount, formatArs, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
 import type { Draft } from "./types";
 
@@ -66,10 +66,7 @@ export function summaryConditions(
     }
     const conditions = PRICING_FIELDS.flatMap((f) => {
       // "KM libres": el km incluido y el km extra no aplican.
-      if (
-        draft.unlimitedKm &&
-        (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks" || f.key === "kmPackPrice")
-      )
+      if (draft.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks"))
         return [];
       const v = p[f.key];
       if (typeof v !== "number") return [];
@@ -82,6 +79,13 @@ export function summaryConditions(
     const hourAmount = extraHourAmount(p as ContractPricing);
     if (hourAmount != null) {
       conditions.push({ label: dict.acta.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
+    }
+    if (!draft.unlimitedKm) {
+      const packPrice = parseDecimal(draft.pricing.kmPackPrice as string | undefined);
+      const packAmount = kmPackAmount({ kmPacks: p.kmPacks, kmPackPrice: packPrice });
+      if (packAmount != null) {
+        conditions.push({ label: "Packs de KM (importe)", value: formatArs(packAmount) });
+      }
     }
     if (draft.accessoriesDesc.trim()) {
       conditions.push({ label: dict.acta.accessories, value: draft.accessoriesDesc.trim() });

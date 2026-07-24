@@ -6,7 +6,14 @@ import { storage, actaKey } from "@/lib/storage";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDateTime, formatDate } from "@/lib/datetime";
-import { COMPANY, formatArs, PRICING_FIELDS, extraHourAmount, type ContractPricing } from "@/lib/contract";
+import {
+  COMPANY,
+  formatArs,
+  PRICING_FIELDS,
+  extraHourAmount,
+  kmPackAmount,
+  type ContractPricing,
+} from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import type { Settlement } from "@/lib/settlement";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
@@ -78,10 +85,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   if (pricing.place) termRows.push({ label: t.place, value: pricing.place });
   for (const f of PRICING_FIELDS) {
     // "KM libres": el km incluido y el km extra no aplican.
-    if (
-      pricing.unlimitedKm &&
-      (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks" || f.key === "kmPackPrice")
-    )
+    if (pricing.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks"))
       continue;
     const v = pricing[f.key];
     if (typeof v === "number" && !Number.isNaN(v)) {
@@ -97,6 +101,13 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   const hourAmount = extraHourAmount(pricing);
   if (hourAmount != null) {
     termRows.push({ label: t.extraHourAmount, value: `${formatArs(hourAmount)} / h` });
+  }
+  // Importe total de los packs de KM (el precio por pack no se imprime suelto).
+  if (!pricing.unlimitedKm) {
+    const packAmount = kmPackAmount(pricing);
+    if (packAmount != null) {
+      termRows.push({ label: "Packs de KM (importe)", value: formatArs(packAmount) });
+    }
   }
   if (pricing.accessoriesDesc?.trim()) {
     termRows.push({ label: t.accessories, value: pricing.accessoriesDesc.trim() });
