@@ -7,6 +7,7 @@ import {
   kmPackKm,
   kmPackAmount,
   paymentAdjustedAmount,
+  computeBalance,
   roundMoney,
   KM_PACK_SIZE,
   KM_PACK_MAX,
@@ -42,13 +43,32 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
   }
 
   // Pago: "Paga" es la suma de las líneas agregadas (cada una ya ajustada por
-  // el % del medio elegido), ya no se tipea a mano.
+  // el % del medio elegido), ya no se tipea a mano. El recargo/descuento de
+  // cada línea (adjustedAmount − amount) también se suma/resta del "Total a
+  // pagar", para que el Saldo cierre en $0 en vez de quedar negativo cuando
+  // se cobra con un medio con recargo.
   const paidTotal = draft.payments.reduce((a, p) => a + p.adjustedAmount, 0);
+  const paymentsSurcharge = draft.payments.reduce((a, p) => a + (p.adjustedAmount - p.amount), 0);
   const selectedMethod = props.paymentMethods?.find((m) => m.id === payMethodId);
 
-  function syncPaid(payments: RentalPayment[]) {
-    const sum = payments.reduce((a, p) => a + p.adjustedAmount, 0);
-    setPay("paid", payments.length ? String(roundMoney(sum)) : "");
+  // Aplica en un solo `patch` el nuevo array de pagos + el ajuste de Total y
+  // Paga (y recalcula Saldo) — dos `setPay` seguidos pisarían el pricing del
+  // otro porque ambos parten del mismo snapshot de `draft.pricing`.
+  function applyPayments(nextPayments: RentalPayment[], totalDelta: number) {
+    const currentTotal = parseDecimal(draft.pricing.total as string | undefined) ?? 0;
+    const nextPaid = roundMoney(nextPayments.reduce((a, p) => a + p.adjustedAmount, 0));
+    const nextPricing: Record<string, string> = {
+      ...draft.pricing,
+      total: String(roundMoney(currentTotal + totalDelta)),
+      paid: nextPayments.length ? String(nextPaid) : "",
+    };
+    const bal = computeBalance({
+      total: parseDecimal(nextPricing.total),
+      sena: parseDecimal(nextPricing.sena),
+      paid: parseDecimal(nextPricing.paid),
+    });
+    if (bal != null) nextPricing.balance = String(bal);
+    patch({ payments: nextPayments, pricing: nextPricing });
   }
   function openPayModal() {
     setPayMethodId("");
@@ -59,22 +79,21 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
     const method = selectedMethod;
     const amount = parseDecimal(payAmount) ?? 0;
     if (!method || amount <= 0) return;
+    const adjustedAmount = paymentAdjustedAmount(amount, method.adjustmentPercent);
     const payment: RentalPayment = {
       methodId: method.id,
       methodName: method.name,
       adjustmentPercent: method.adjustmentPercent,
       amount,
-      adjustedAmount: paymentAdjustedAmount(amount, method.adjustmentPercent),
+      adjustedAmount,
     };
-    const next = [...draft.payments, payment];
-    patch({ payments: next });
-    syncPaid(next);
+    applyPayments([...draft.payments, payment], adjustedAmount - amount);
     setPayModalOpen(false);
   }
   function removePayment(index: number) {
+    const removed = draft.payments[index];
     const next = draft.payments.filter((_, i) => i !== index);
-    patch({ payments: next });
-    syncPaid(next);
+    applyPayments(next, -(removed.adjustedAmount - removed.amount));
   }
 
   return (
@@ -180,6 +199,11 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
           <TextField id="pricing_total" label="Total a pagar" type="text" inputMode="decimal" prefix="$" value={priceStr("total")} onChange={(e) => setPay("total", e.target.value)} />
           <TextField id="pricing_sena" label="Seña" type="text" inputMode="decimal" prefix="$" value={priceStr("sena")} onChange={(e) => setPay("sena", e.target.value)} />
         </div>
+        {Math.abs(paymentsSurcharge) > 0.001 && (
+          <p className="mt-1 text-xs text-foreground/50">
+            Incluye {formatArs(paymentsSurcharge)} de {paymentsSurcharge > 0 ? "recargo" : "descuento"} por medios de pago.
+          </p>
+        )}
 
         <div className="mt-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
