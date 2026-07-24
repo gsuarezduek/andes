@@ -120,6 +120,13 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   if (pricing.guaranteeForm?.trim()) {
     termRows.push({ label: t.guaranteeForm, value: pricing.guaranteeForm.trim() });
   }
+  // Medios de pago usados en la entrega (sin la referencia/alias: es interna).
+  for (const pay of pricing.payments ?? []) {
+    const label = pay.adjustmentPercent
+      ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
+      : pay.methodName;
+    termRows.push({ label, value: formatArs(pay.adjustedAmount) });
+  }
 
   // Comparación con la entrega (solo devolución).
   let comparison: ActaData["comparison"];

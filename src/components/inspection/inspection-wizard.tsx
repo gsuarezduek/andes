@@ -16,7 +16,7 @@ import {
   type QueueSlot,
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
-import { PRICING_FIELDS, computeBalance, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import { parseDecimal } from "@/lib/number-input";
 import type { InspectionInput, DocumentKindInput } from "@/lib/inspection-input";
@@ -75,6 +75,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     insuranceUpgrade: props.pricing?.insuranceUpgrade === "true",
     accessoriesDesc: props.pricing?.accessoriesDesc ?? "",
     guaranteeForm: props.pricing?.guaranteeForm ?? "",
+    payments: [],
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
     // Arranca en 0 (tanque vacío) a propósito: obliga a elegir el nivel real en
     // vez de aceptar un default. Igual criterio en entrega y devolución.
@@ -488,6 +489,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
       }
       if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
       if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
+      if (draft.payments.length) {
+        pricing.payments = draft.payments;
+        pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.adjustedAmount, 0));
+      }
       const payload: InspectionInput = {
         rentalId: props.rentalId,
         vehicleId: draft.vehicleId,

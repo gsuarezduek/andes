@@ -100,6 +100,12 @@ export function summaryConditions(
     if (draft.guaranteeForm.trim()) {
       conditions.push({ label: "Forma de garantía", value: draft.guaranteeForm.trim() });
     }
+    for (const pay of draft.payments) {
+      const label = pay.adjustmentPercent
+        ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
+        : pay.methodName;
+      conditions.push({ label, value: formatArs(pay.adjustedAmount) });
+    }
     return { conditions };
   }
   if (settlement) {

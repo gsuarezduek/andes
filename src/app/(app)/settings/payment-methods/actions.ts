@@ -1,0 +1,79 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { parseDecimal } from "@/lib/number-input";
+
+/** Texto recortado, o null si viene vacío. */
+function strOrNull(v: FormDataEntryValue | null): string | null {
+  const s = String(v ?? "").trim();
+  return s === "" ? null : s;
+}
+
+/** % con signo (recargo/descuento), o null si viene vacío. */
+function percentOrNull(v: FormDataEntryValue | null): number | null {
+  const n = parseDecimal(String(v ?? ""));
+  return n !== undefined ? n : null;
+}
+
+export async function createPaymentMethod(formData: FormData) {
+  await requireAdmin();
+  const name = strOrNull(formData.get("name"));
+  if (!name) return;
+  const max = await prisma.paymentMethod.aggregate({ _max: { ordering: true } });
+  await prisma.paymentMethod.create({
+    data: {
+      name,
+      adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
+      reference: strOrNull(formData.get("reference")),
+      ordering: (max._max.ordering ?? 0) + 1,
+    },
+  });
+  revalidatePath("/settings/payment-methods");
+}
+
+export async function updatePaymentMethod(id: string, formData: FormData) {
+  await requireAdmin();
+  const name = strOrNull(formData.get("name"));
+  if (!name) return;
+  await prisma.paymentMethod.update({
+    where: { id },
+    data: {
+      name,
+      adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
+      reference: strOrNull(formData.get("reference")),
+    },
+  });
+  revalidatePath("/settings/payment-methods");
+}
+
+export async function togglePaymentMethod(id: string) {
+  await requireAdmin();
+  const item = await prisma.paymentMethod.findUnique({ where: { id } });
+  if (item) {
+    await prisma.paymentMethod.update({ where: { id }, data: { active: !item.active } });
+  }
+  revalidatePath("/settings/payment-methods");
+}
+
+export async function deletePaymentMethod(id: string) {
+  await requireAdmin();
+  await prisma.paymentMethod.delete({ where: { id } });
+  revalidatePath("/settings/payment-methods");
+}
+
+export async function movePaymentMethod(id: string, dir: "up" | "down") {
+  await requireAdmin();
+  const items = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const idx = items.findIndex((i) => i.id === id);
+  const swap = dir === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swap < 0 || swap >= items.length) return;
+  const a = items[idx];
+  const b = items[swap];
+  await prisma.$transaction([
+    prisma.paymentMethod.update({ where: { id: a.id }, data: { ordering: b.ordering } }),
+    prisma.paymentMethod.update({ where: { id: b.id }, data: { ordering: a.ordering } }),
+  ]);
+  revalidatePath("/settings/payment-methods");
+}

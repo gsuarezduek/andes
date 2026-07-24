@@ -42,6 +42,22 @@ export type ContractPricing = {
   balance?: number; // saldo (total − seña − paga)
   deposit?: number; // garantía tomada en la entrega (= deductible); cubre daños en la devolución
   guaranteeForm?: string; // forma de la garantía (efectivo, tarjeta, etc.) — entrega
+  // Medios de pago con los que se cobró "Paga" (entrega). `paid` es la suma de
+  // `adjustedAmount` de estas líneas — dejó de tipearse a mano.
+  payments?: RentalPayment[];
+};
+
+/**
+ * Una línea de pago cargada en la entrega (medio de pago elegido + importe).
+ * Snapshot al momento de cargarla: si el medio de pago cambia de nombre o %
+ * después, esta línea no se ve afectada (la inspección es inmutable).
+ */
+export type RentalPayment = {
+  methodId?: string; // referencia informativa al PaymentMethod (puede haber sido borrado)
+  methodName: string;
+  adjustmentPercent?: number; // % al momento de cargar el pago (+ recargo, − descuento)
+  amount: number; // importe base cargado por el empleado
+  adjustedAmount: number; // amount ajustado por el %; es lo que suma a "Paga"
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
@@ -70,6 +86,16 @@ export const KM_PACK_MAX = 20;
 /** Km adicionales comprados en packs (packs × 200). 0 si no hay packs cargados. */
 export function kmPackKm(p: Pick<ContractPricing, "kmPacks">): number {
   return Math.max(0, Math.round(p.kmPacks ?? 0)) * KM_PACK_SIZE;
+}
+
+/**
+ * Importe final de una línea de pago tras aplicar el % del medio (+ recargo,
+ * − descuento). Sin condición (`percent` null/undefined/0) devuelve el mismo
+ * importe.
+ */
+export function paymentAdjustedAmount(amount: number, percent?: number | null): number {
+  const v = amount * (1 + (percent ?? 0) / 100);
+  return Number.isFinite(v) ? roundMoney(v) : amount;
 }
 
 /**
@@ -107,7 +133,7 @@ export function computeBalance(
 }
 
 /** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
-function roundMoney(v: number): number {
+export function roundMoney(v: number): number {
   return Math.round(v * 100) / 100;
 }
 

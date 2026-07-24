@@ -1,5 +1,5 @@
 import type { SettlementMethod } from "@/lib/settlement";
-import type { ContractPricing } from "@/lib/contract";
+import type { ContractPricing, RentalPayment } from "@/lib/contract";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 
@@ -50,6 +50,9 @@ export type Draft = {
   accessoriesDesc: string;
   // Forma de la garantía tomada en la entrega (efectivo, tarjeta, etc.).
   guaranteeForm: string;
+  // Líneas de pago agregadas en "Pago" (entrega): "Paga" es la suma de sus
+  // `adjustedAmount`, ya no se tipea a mano.
+  payments: RentalPayment[];
   km: string;
   fuelLevel: number;
   // Neutral por defecto: cada ítem debe decidirse OK/Falla antes de avanzar.
@@ -92,6 +95,8 @@ export type InspectionWizardProps = {
    *  Condiciones. Al activar la mejora se cambia la franquicia por la reducida. */
   deductibleBase?: number;
   deductibleReduced?: number;
+  /** Medios de pago activos (Configuración → Medios de pago), para "Agregar pago" en la entrega. */
+  paymentMethods?: { id: string; name: string; adjustmentPercent?: number; reference?: string }[];
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };

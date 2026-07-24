@@ -30,7 +30,7 @@ export default async function HandoverPage({
     redirect(`/rentals/${rental.id}`);
   }
 
-  const [checklistItems, vehicles, conditions] = await Promise.all([
+  const [checklistItems, vehicles, conditions, paymentMethods] = await Promise.all([
     prisma.checklistItem.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
@@ -42,6 +42,11 @@ export default async function HandoverPage({
       select: { id: true, plate: true, brand: true, model: true },
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
+    prisma.paymentMethod.findMany({
+      where: { active: true },
+      orderBy: { ordering: "asc" },
+      select: { id: true, name: true, adjustmentPercent: true, reference: true },
+    }),
   ]);
 
   // Condiciones precargadas: lo que ya cargó el empleado (rental.pricing) tiene
@@ -87,7 +92,10 @@ export default async function HandoverPage({
     initialPricing.insuranceUpgrade = "true";
   }
   // Campos que solo puede haber cargado el empleado (no se precargan).
+  // "payments" es un array (líneas de pago), no un escalar: se maneja aparte
+  // en `draft.payments`, nunca como string en `pricing`.
   for (const [k, v] of Object.entries(saved)) {
+    if (k === "payments") continue;
     if (initialPricing[k] === undefined && v !== null && v !== undefined) initialPricing[k] = String(v);
   }
 
@@ -116,6 +124,12 @@ export default async function HandoverPage({
         pricing={initialPricing}
         deductibleBase={conditions?.deductible ? Number(conditions.deductible) : undefined}
         deductibleReduced={conditions?.deductibleReduced ? Number(conditions.deductibleReduced) : undefined}
+        paymentMethods={paymentMethods.map((m) => ({
+          id: m.id,
+          name: m.name,
+          adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
+          reference: m.reference ?? undefined,
+        }))}
         bookingNote={rental.bookingNote ?? undefined}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={

@@ -529,6 +529,27 @@ model MaintenanceLog {
 // Configuración del checklist
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Medios de pago (lista configurable, admin)
+// ---------------------------------------------------------------------------
+//
+// Cada uno puede tener un % de ajuste (positivo = recargo, negativo =
+// descuento) y una referencia interna (alias/CVU) que se muestra al empleado
+// al agregar el pago en la entrega — nunca se imprime en el acta.
+model PaymentMethod {
+  id                String   @id @default(cuid())
+  name              String
+  adjustmentPercent Decimal? @map("adjustment_percent") @db.Decimal(6, 2)
+  reference         String?  @map("reference") @db.Text
+  ordering          Int      @default(0)
+  active            Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_methods")
+}
+
 model ChecklistItem {
   id       String  @id @default(cuid())
   label    String // etiqueta mostrada al empleado (español)

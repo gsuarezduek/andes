@@ -16,6 +16,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Orden de los autos y ajustes de la vista de calendario.",
   },
   {
+    href: "/settings/payment-methods",
+    title: "Medios de pago",
+    description: "Medios de pago disponibles al cobrar en la entrega, con % de recargo/descuento.",
+  },
+  {
     href: "/settings/emails",
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",

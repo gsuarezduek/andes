@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extraHourAmount, formatArs, computeBalance, kmPackKm, kmPackAmount } from "@/lib/contract";
+import { extraHourAmount, formatArs, computeBalance, kmPackKm, kmPackAmount, paymentAdjustedAmount } from "@/lib/contract";
 
 describe("computeBalance", () => {
   it("saldo = total − seña − paga", () => {
@@ -56,6 +56,22 @@ describe("kmPackAmount", () => {
   it("null si no hay packs o falta el precio", () => {
     expect(kmPackAmount({ kmPacks: 0, kmPackPrice: 20_000 })).toBeNull();
     expect(kmPackAmount({ kmPacks: 3, kmPackPrice: undefined })).toBeNull();
+  });
+});
+
+describe("paymentAdjustedAmount", () => {
+  it("aplica el recargo (%)", () => {
+    expect(paymentAdjustedAmount(200_000, 10)).toBe(220_000);
+  });
+
+  it("aplica el descuento (% negativo)", () => {
+    expect(paymentAdjustedAmount(200_000, -5)).toBe(190_000);
+  });
+
+  it("sin condición devuelve el mismo importe", () => {
+    expect(paymentAdjustedAmount(200_000)).toBe(200_000);
+    expect(paymentAdjustedAmount(200_000, null)).toBe(200_000);
+    expect(paymentAdjustedAmount(200_000, 0)).toBe(200_000);
   });
 });
 
