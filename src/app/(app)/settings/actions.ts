@@ -32,6 +32,7 @@ export async function saveConditions(formData: FormData) {
     extraHourPercent: intOrNull(formData.get("extraHourPercent")),
     deductible: moneyOrNull(formData.get("deductible")),
     deductibleReduced: moneyOrNull(formData.get("deductibleReduced")),
+    kmPackPrice: moneyOrNull(formData.get("kmPackPrice")),
     sendHandoverActa: formData.get("sendHandoverActa") === "on",
     sendReturnActa: formData.get("sendReturnActa") === "on",
   };

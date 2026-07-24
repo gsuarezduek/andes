@@ -28,6 +28,8 @@ export type ContractPricing = {
   deductible?: number;
   kmPerDay?: number; // km incluidos por día
   extraKmRate?: number; // $ por km extra
+  kmPacks?: number; // packs de KM adicionales contratados (0–20, 200 km c/u)
+  kmPackPrice?: number; // $ por pack de KM
   unlimitedKm?: boolean; // "KM libres": sin límite, no se cobra excedente
   extraHourPercent?: number; // hora extra como % de la tarifa diaria
   kmIncluded?: number; // (compat) km para uso — reemplazado por kmPerDay
@@ -51,6 +53,8 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
   { key: "days", label: "Cantidad de días", kind: "int" },
   { key: "kmPerDay", label: "Km por día", kind: "int" },
   { key: "extraKmRate", label: "Km extra ($ c/u)", kind: "money" },
+  { key: "kmPacks", label: "Packs de KM (200 km c/u)", kind: "int" },
+  { key: "kmPackPrice", label: "Precio por pack de KM", kind: "money" },
   { key: "extraHourPercent", label: "Hora extra (% de la tarifa)", kind: "percent" },
   { key: "accessoriesAmount", label: "Accesorios", kind: "money" },
   { key: "total", label: "Total a pagar", kind: "money" },
@@ -58,6 +62,16 @@ export const PRICING_FIELDS: { key: keyof ContractPricing; label: string; kind: 
   { key: "paid", label: "Paga", kind: "money" },
   { key: "balance", label: "Saldo", kind: "money" },
 ];
+
+/** Km que suma cada pack de KM adicional. */
+export const KM_PACK_SIZE = 200;
+/** Cantidad máxima de packs de KM por alquiler. */
+export const KM_PACK_MAX = 20;
+
+/** Km adicionales comprados en packs (packs × 200). 0 si no hay packs cargados. */
+export function kmPackKm(p: Pick<ContractPricing, "kmPacks">): number {
+  return Math.max(0, Math.round(p.kmPacks ?? 0)) * KM_PACK_SIZE;
+}
 
 /**
  * Importe de la hora extra derivado del % sobre la tarifa diaria.

@@ -66,7 +66,11 @@ export function summaryConditions(
     }
     const conditions = PRICING_FIELDS.flatMap((f) => {
       // "KM libres": el km incluido y el km extra no aplican.
-      if (draft.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate")) return [];
+      if (
+        draft.unlimitedKm &&
+        (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks" || f.key === "kmPackPrice")
+      )
+        return [];
       const v = p[f.key];
       if (typeof v !== "number") return [];
       const value = f.kind === "money" ? formatArs(v) : f.kind === "percent" ? `${v}%` : String(v);

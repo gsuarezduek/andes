@@ -78,7 +78,11 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   if (pricing.place) termRows.push({ label: t.place, value: pricing.place });
   for (const f of PRICING_FIELDS) {
     // "KM libres": el km incluido y el km extra no aplican.
-    if (pricing.unlimitedKm && (f.key === "kmPerDay" || f.key === "extraKmRate")) continue;
+    if (
+      pricing.unlimitedKm &&
+      (f.key === "kmPerDay" || f.key === "extraKmRate" || f.key === "kmPacks" || f.key === "kmPackPrice")
+    )
+      continue;
     const v = pricing[f.key];
     if (typeof v === "number" && !Number.isNaN(v)) {
       const value =

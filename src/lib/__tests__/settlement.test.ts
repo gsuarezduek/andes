@@ -75,6 +75,45 @@ describe("computeSettlement", () => {
     expect(s.kmDriven).toBe(0);
   });
 
+  it("suma los km de los packs de KM al km incluido", () => {
+    const s = computeSettlement({
+      handoverKm: 10_000,
+      returnKm: 11_000, // 1000 recorridos
+      handoverFuel: 8,
+      returnFuel: 8,
+      // 600 incluidos por día + 2 packs × 200 = 1000 incluidos
+      pricing: { kmPerDay: 200, days: 3, extraKmRate: 50, deposit: 0, kmPacks: 2 },
+    });
+    expect(s.includedKm).toBe(1_000);
+    expect(s.extraKm).toBe(0);
+    expect(s.extraKmCharge).toBe(0);
+  });
+
+  it("los packs de KM suman incluido aunque no haya km/día pactado", () => {
+    const s = computeSettlement({
+      handoverKm: 10_000,
+      returnKm: 10_300,
+      handoverFuel: 8,
+      returnFuel: 8,
+      pricing: { extraKmRate: 50, deposit: 0, kmPacks: 1 }, // 200 incluidos por el pack
+    });
+    expect(s.includedKm).toBe(200);
+    expect(s.extraKm).toBe(100);
+    expect(s.extraKmCharge).toBe(5_000);
+  });
+
+  it("con KM libres, los packs de KM no aportan incluido (no hay excedente que cobrar)", () => {
+    const s = computeSettlement({
+      handoverKm: 10_000,
+      returnKm: 20_000,
+      handoverFuel: 8,
+      returnFuel: 8,
+      pricing: { kmPerDay: 200, days: 3, extraKmRate: 50, deposit: 0, unlimitedKm: true, kmPacks: 5 },
+    });
+    expect(s.includedKm).toBe(0);
+    expect(s.extraKm).toBe(0);
+  });
+
   it("preserva centavos en el cargo por km extra", () => {
     const s = computeSettlement({
       handoverKm: 10_000,

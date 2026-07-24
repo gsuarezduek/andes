@@ -64,6 +64,7 @@ export default async function HandoverPage({
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
   preset("extraHourPercent", conditions?.extraHourPercent);
+  preset("kmPackPrice", conditions?.kmPackPrice ? Number(conditions.kmPackPrice) : null);
   // Accesorios (packs de km de VikRentCar) → importe.
   preset("accessoriesAmount", rental.bookingAccessoriesAmount ? Number(rental.bookingAccessoriesAmount) : null);
   // Franquicia: la reducida si la reserva trae mejora de seguro; si no, la estándar.

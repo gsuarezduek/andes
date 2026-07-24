@@ -118,6 +118,14 @@ export default async function GeneralSettingsPage() {
               decimal
               defaultValue={conditions?.deductibleReduced?.toString()}
             />
+            <ConditionField
+              name="kmPackPrice"
+              label="Precio por pack de KM"
+              prefix="$"
+              hint="200 km c/u, de 1 a 20 packs"
+              decimal
+              defaultValue={conditions?.kmPackPrice?.toString()}
+            />
           </div>
 
           <div>

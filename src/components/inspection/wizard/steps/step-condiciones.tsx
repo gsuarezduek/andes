@@ -1,5 +1,5 @@
 import { TextField, TextareaField } from "@/components/ui/fields";
-import { extraHourAmount, formatArs } from "@/lib/contract";
+import { extraHourAmount, formatArs, kmPackKm, KM_PACK_MAX } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 import type { StepContext } from "../context";
 
@@ -54,10 +54,28 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
       <div>
         <p className="mb-2 text-sm font-medium text-foreground/80">Kilometraje</p>
         {!draft.unlimitedKm && (
-          <div className="grid grid-cols-2 gap-3">
-            <TextField id="pricing_kmPerDay" label="Km por día" type="number" inputMode="numeric" value={priceStr("kmPerDay")} onChange={(e) => setPrice("kmPerDay", e.target.value)} min={0} />
-            <TextField id="pricing_extraKmRate" label="Km extra (c/u)" type="text" inputMode="decimal" prefix="$" value={priceStr("extraKmRate")} onChange={(e) => setPrice("extraKmRate", e.target.value)} />
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <TextField id="pricing_kmPerDay" label="Km por día" type="number" inputMode="numeric" value={priceStr("kmPerDay")} onChange={(e) => setPrice("kmPerDay", e.target.value)} min={0} />
+              <TextField id="pricing_extraKmRate" label="Km extra (c/u)" type="text" inputMode="decimal" prefix="$" value={priceStr("extraKmRate")} onChange={(e) => setPrice("extraKmRate", e.target.value)} />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <TextField id="pricing_kmPacks" label="Packs de KM (200 km c/u)" type="number" inputMode="numeric" value={priceStr("kmPacks")} onChange={(e) => setPrice("kmPacks", e.target.value)} min={0} max={KM_PACK_MAX} />
+              <TextField id="pricing_kmPackPrice" label="Precio por pack" type="text" inputMode="decimal" prefix="$" value={priceStr("kmPackPrice")} onChange={(e) => setPrice("kmPackPrice", e.target.value)} />
+            </div>
+            {(() => {
+              const packs = parseDecimal(draft.pricing.kmPacks as string | undefined) ?? 0;
+              if (packs <= 0) return null;
+              const price = parseDecimal(draft.pricing.kmPackPrice as string | undefined) ?? 0;
+              const km = kmPackKm({ kmPacks: packs });
+              return (
+                <p className="mt-2 text-xs text-foreground/60">
+                  +{km.toLocaleString("es-AR")} km incluidos ·{" "}
+                  <span className="font-medium text-foreground/80">{formatArs(packs * price)}</span> (sumalo al Total).
+                </p>
+              );
+            })()}
+          </>
         )}
         <button
           type="button"
