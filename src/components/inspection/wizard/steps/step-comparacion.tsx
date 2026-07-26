@@ -11,7 +11,11 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
     <div className="flex flex-col gap-3">
       <p className="text-sm text-foreground/60">Comparación contra la entrega:</p>
       <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />
+        <CompareRow
+          label="Km recorridos"
+          value={`${kmDriven.toLocaleString("es-AR")} km`}
+          tone={settlement && settlement.extraKm > 0 ? "warn" : undefined}
+        />
         <CompareRow label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
         <CompareRow label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
       </div>
@@ -27,8 +31,33 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
           </ul>
         )}
       </div>
+
       {fuelDiff < 0 && (
-        <p className="text-xs text-amber-600">Devuelve con menos nafta que a la entrega ({fuelDiff}/{maxFuel}).</p>
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+            ⚠ Devuelve con menos nafta que a la entrega
+          </p>
+          <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
+            {returnContext.handoverFuel}/{maxFuel} → {draft.fuelLevel}/{maxFuel} ({Math.abs(fuelDiff)}/{maxFuel} menos)
+          </p>
+        </div>
+      )}
+
+      {settlement && settlement.extraKm > 0 && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+            ⚠ Superó el kilometraje incluido
+          </p>
+          <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
+            {settlement.extraKm.toLocaleString("es-AR")} km sobre {settlement.includedKm.toLocaleString("es-AR")} incluidos
+            {settlement.extraKmCharge > 0 && (
+              <>
+                {" "}
+                · cargo estimado <span className="font-semibold">{formatArs(settlement.extraKmCharge)}</span>
+              </>
+            )}
+          </p>
+        </div>
       )}
 
       {settlement && (
@@ -39,10 +68,12 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
           </p>
 
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm">
+            <div
+              className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1 ${settlement.extraKm > 0 ? "bg-amber-500/10" : ""}`}
+            >
+              <span className={`text-sm ${settlement.extraKm > 0 ? "font-medium text-amber-700 dark:text-amber-400" : ""}`}>
                 Km extra
-                <span className="text-foreground/50">
+                <span className={settlement.extraKm > 0 ? "text-amber-700/70 dark:text-amber-400/70" : "text-foreground/50"}>
                   {" "}
                   {settlement.includedKm > 0
                     ? `(${settlement.extraKm.toLocaleString("es-AR")} sobre ${settlement.includedKm.toLocaleString("es-AR")} incl.)`
@@ -59,10 +90,15 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm">
+            <div
+              className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1 ${settlement.fuelMissingEighths > 0 ? "bg-amber-500/10" : ""}`}
+            >
+              <span className={`text-sm ${settlement.fuelMissingEighths > 0 ? "font-medium text-amber-700 dark:text-amber-400" : ""}`}>
                 Nafta faltante
-                <span className="text-foreground/50"> ({settlement.fuelMissingEighths}/{maxFuel})</span>
+                <span className={settlement.fuelMissingEighths > 0 ? "text-amber-700/70 dark:text-amber-400/70" : "text-foreground/50"}>
+                  {" "}
+                  ({settlement.fuelMissingEighths}/{maxFuel})
+                </span>
               </span>
               <input
                 className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
