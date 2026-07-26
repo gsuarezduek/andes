@@ -102,6 +102,14 @@ enum CashMovementType {
   expense // pago
 }
 
+/// A quién pertenece la cuenta de un medio de pago: propia (de la empresa) o
+/// ajena (de un proveedor o empleado, usada de paso). Todo medio de pago debe
+/// estar catalogado como uno u otro — no hay estado "indiferente".
+enum PaymentMethodOwnership {
+  own // cuenta propia
+  third_party // cuenta ajena (proveedor o empleado)
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -549,6 +557,13 @@ model PaymentMethod {
   name              String
   adjustmentPercent Decimal? @map("adjustment_percent") @db.Decimal(6, 2)
   reference         String?  @map("reference") @db.Text
+  // Si está activo, al elegir este medio (entrega o Caja) se pide un texto
+  // libre obligatorio ("¿A dónde fue?") — pensado para un medio catch-all
+  // como "Otro", para pagos que no encajan en ningún medio ya configurado.
+  requiresNote      Boolean  @default(false) @map("requires_note")
+  // Cuenta propia (de la empresa) o ajena (proveedor/empleado). Obligatorio:
+  // todo medio de pago tiene que estar catalogado como uno u otro.
+  ownership         PaymentMethodOwnership @default(own) @map("ownership")
   ordering          Int      @default(0)
   active            Boolean  @default(true)
 
@@ -579,6 +594,8 @@ model CashMovement {
   paymentMethodId   String?        @map("payment_method_id")
   paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
   paymentMethodName String         @map("payment_method_name")
+  // Aclaración libre cuando el medio elegido tenía `requiresNote` (ej. "Otro").
+  paymentMethodNote String?        @map("payment_method_note") @db.Text
 
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])

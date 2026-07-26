@@ -53,17 +53,33 @@ export function SettlementSection({ data }: { data: ActaData }) {
           <Text style={styles.value}>{formatArs(s.depositReturn)}</Text>
         </View>
       ) : null}
-      {s.method !== "none" ? (
-        <View style={styles.row}>
-          <Text style={styles.label}>{t.settlement.method}</Text>
-          <Text style={styles.value}>{t.settlement.methods[s.method]}</Text>
-        </View>
-      ) : null}
-      {s.note ? (
-        <Text style={styles.small}>
-          {t.settlement.note}: {s.note}
-        </Text>
-      ) : null}
+      {s.payments && s.payments.length > 0 ? (
+        s.payments.map((p, i) => (
+          <View style={styles.row} key={i}>
+            <Text style={styles.label}>
+              {p.adjustmentPercent
+                ? `${p.methodName} (${p.adjustmentPercent > 0 ? "+" : ""}${p.adjustmentPercent}%)`
+                : p.methodName}
+              {p.note ? ` — ${p.note}` : ""}
+            </Text>
+            <Text style={styles.value}>{formatArs(p.adjustedAmount)}</Text>
+          </View>
+        ))
+      ) : (
+        <>
+          {s.method && s.method !== "none" ? (
+            <View style={styles.row}>
+              <Text style={styles.label}>{t.settlement.method}</Text>
+              <Text style={styles.value}>{t.settlement.methods[s.method]}</Text>
+            </View>
+          ) : null}
+          {s.note ? (
+            <Text style={styles.small}>
+              {t.settlement.note}: {s.note}
+            </Text>
+          ) : null}
+        </>
+      )}
     </View>
   );
 }

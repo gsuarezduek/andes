@@ -70,6 +70,11 @@ describe("computeSettlement", () => {
     expect(s.damageCharges[1].description).toBe("Daño #2");
   });
 
+  it("arranca sin pagos anotados", () => {
+    const s = computeSettlement({ handoverKm: 0, returnKm: 0, handoverFuel: 8, returnFuel: 8, pricing: null });
+    expect(s.payments).toEqual([]);
+  });
+
   it("kmDriven nunca es negativo", () => {
     const s = computeSettlement({ handoverKm: 100, returnKm: 90, handoverFuel: 8, returnFuel: 8, pricing: null });
     expect(s.kmDriven).toBe(0);
@@ -124,6 +129,15 @@ describe("computeSettlement", () => {
     });
     expect(s.extraKm).toBe(2);
     expect(s.extraKmCharge).toBe(66.66);
+  });
+});
+
+describe("rollupSettlement — payments", () => {
+  it("deja pasar las líneas de pago sin tocarlas", () => {
+    const base = computeSettlement({ handoverKm: 0, returnKm: 0, handoverFuel: 8, returnFuel: 8, pricing: null });
+    const payments = [{ methodName: "Efectivo", amount: 1_000, adjustedAmount: 1_000 }];
+    const s = rollupSettlement({ ...base, payments });
+    expect(s.payments).toBe(payments);
   });
 });
 

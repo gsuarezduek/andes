@@ -1,8 +1,6 @@
-import { SelectField, TextareaField } from "@/components/ui/fields";
-import { formatArs } from "@/lib/contract";
-import type { SettlementMethod } from "@/lib/settlement";
+import { formatArs, type RentalPayment } from "@/lib/contract";
 import { CompareRow } from "../compare-row";
-import { SETTLEMENT_METHODS } from "../types";
+import { PaymentsEditor } from "../payments-editor";
 import type { StepContext } from "../context";
 
 /** Solo se monta cuando `props.returnContext` está definido (lo garantiza el llamador). */
@@ -116,12 +114,13 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
             )}
           </div>
 
-          <SelectField id="settlementMethod" label="Cómo se salda" value={draft.settlementMethod} onChange={(e) => patch({ settlementMethod: e.target.value as SettlementMethod })}>
-            {SETTLEMENT_METHODS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </SelectField>
-          <TextareaField id="settlementNote" label="Nota de la liquidación (opcional)" value={draft.settlementNote} onChange={(e) => patch({ settlementNote: e.target.value })} rows={2} />
+          <PaymentsEditor
+            payments={draft.payments}
+            paymentMethods={props.paymentMethods ?? []}
+            onAdd={(payment: RentalPayment) => patch({ payments: [...draft.payments, payment] })}
+            onRemove={(index) => patch({ payments: draft.payments.filter((_, i) => i !== index) })}
+            totalLabel="Cobrado"
+          />
         </div>
       )}
     </div>

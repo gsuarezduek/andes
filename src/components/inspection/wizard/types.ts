@@ -1,4 +1,3 @@
-import type { SettlementMethod } from "@/lib/settlement";
 import type { ContractPricing, RentalPayment } from "@/lib/contract";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
@@ -17,13 +16,6 @@ export type DriverItem = { id: string; name: string };
 // Solo 2 opciones de carga: Licencia y DNI/Pasaporte (el valor `passport` sigue
 // existiendo en el enum por compatibilidad, pero ya no se ofrece).
 export const DOC_KINDS: DocumentKindInput[] = ["license", "dni"];
-
-export const SETTLEMENT_METHODS: { value: SettlementMethod; label: string }[] = [
-  { value: "none", label: "Sin saldo / no aplica" },
-  { value: "efectivo", label: "Efectivo" },
-  { value: "transferencia", label: "Transferencia" },
-  { value: "retencion_deposito", label: "Retención del depósito" },
-];
 
 export type Draft = {
   draftId: string;
@@ -68,8 +60,7 @@ export type Draft = {
   signaturePendingId?: string;
   // Liquidación (solo devolución). Guardamos los overrides editables; el total
   // se recalcula en vivo desde la comparación + condiciones de la entrega.
-  settlementMethod: SettlementMethod;
-  settlementNote: string;
+  // Los pagos para saldarla van en `payments` (mismo campo que la entrega).
   settlementFuelCharge: string;
   settlementExtraKmCharge: string; // vacío = usar el auto-calculado
   settlementDeposit: string; // vacío = usar el depósito del contrato
@@ -96,7 +87,7 @@ export type InspectionWizardProps = {
   deductibleBase?: number;
   deductibleReduced?: number;
   /** Medios de pago activos (Configuración → Medios de pago), para "Agregar pago" en la entrega. */
-  paymentMethods?: { id: string; name: string; adjustmentPercent?: number; reference?: string }[];
+  paymentMethods?: { id: string; name: string; adjustmentPercent?: number; reference?: string; requiresNote?: boolean }[];
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };

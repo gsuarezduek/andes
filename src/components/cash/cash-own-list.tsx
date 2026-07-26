@@ -30,6 +30,7 @@ export function CashOwnList({
               </div>
               <p className="mt-1 text-xs text-foreground/50">
                 {r.paymentMethodName}
+                {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
                 {r.rentalClientName ? ` · ${r.rentalClientName}` : ""} · {formatDateTime(r.createdAt)}
               </p>
             </li>

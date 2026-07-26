@@ -4,19 +4,22 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
+import { RentalPicker } from "@/components/cash/rental-picker";
 import { createCashMovement } from "@/app/(app)/caja/actions";
+import type { RentalPickerOption } from "@/lib/cash";
 
-type PaymentMethodOption = { id: string; name: string };
-type RentalOption = { id: string; label: string };
+type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
 
 export function CashMovementForm({
   paymentMethods,
   rentalOptions,
 }: {
   paymentMethods: PaymentMethodOption[];
-  rentalOptions: RentalOption[];
+  rentalOptions: RentalPickerOption[];
 }) {
   const [mode, setMode] = useState<"income" | "expense" | null>(null);
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
 
   if (mode === null) {
     return (
@@ -50,7 +53,13 @@ export function CashMovementForm({
         placeholder="Ej: seña reserva Juan Pérez"
       />
       <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
-      <SelectField id="paymentMethodId" label="Medio de pago" required defaultValue="">
+      <SelectField
+        id="paymentMethodId"
+        label="Medio de pago"
+        required
+        value={paymentMethodId}
+        onChange={(e) => setPaymentMethodId(e.target.value)}
+      >
         <option value="" disabled>
           Elegí un medio de pago
         </option>
@@ -60,14 +69,15 @@ export function CashMovementForm({
           </option>
         ))}
       </SelectField>
-      <SelectField id="rentalId" label="Reserva (opcional)" defaultValue="">
-        <option value="">Sin vincular a una reserva</option>
-        {rentalOptions.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.label}
-          </option>
-        ))}
-      </SelectField>
+      {selectedMethod?.requiresNote && (
+        <TextField
+          id="paymentMethodNote"
+          label="¿A dónde fue?"
+          hint="Obligatorio para este medio de pago"
+          required
+        />
+      )}
+      {mode === "income" && <RentalPicker options={rentalOptions} />}
       <SubmitButton pendingLabel="Guardando…">
         {mode === "income" ? "Agregar cobro" : "Agregar pago"}
       </SubmitButton>

@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
+import { paymentsToCashMovements } from "@/lib/cash";
+import { paymentSchema } from "@/lib/payment-schema";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const optNum = z.number().nonnegative().optional();
@@ -15,8 +17,12 @@ const pricingSchema = z
     place: z.string().optional(),
     dailyRate: optNum,
     days: optNum,
+    insuranceUpgrade: z.boolean().optional(),
+    deductible: optNum,
     kmPerDay: optNum,
     extraKmRate: optNum,
+    kmPacks: optNum,
+    kmPackPrice: optNum,
     unlimitedKm: z.boolean().optional(),
     extraHourPercent: optNum,
     kmIncluded: optNum, // compat
@@ -29,6 +35,7 @@ const pricingSchema = z
     balance: optNum,
     deposit: optNum,
     guaranteeForm: z.string().optional(),
+    payments: z.array(paymentSchema).optional(),
   })
   .optional();
 
@@ -169,6 +176,18 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       where: { id: vehicle.id },
       data: { status: "rented", currentKm: data.km },
     });
+
+    // Cada pago anotado en "Condiciones" queda también como cobro en Caja,
+    // vinculado a esta reserva — el empleado no lo anota dos veces.
+    if (data.pricing?.payments?.length) {
+      await tx.cashMovement.createMany({
+        data: paymentsToCashMovements(data.pricing.payments, {
+          rentalId: rental.id,
+          createdById: user.id,
+          description: `Cobro de entrega — ${data.clientName}`,
+        }),
+      });
+    }
 
     // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
     if (data.documents?.length) {

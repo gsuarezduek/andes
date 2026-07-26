@@ -122,9 +122,10 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   }
   // Medios de pago usados en la entrega (sin la referencia/alias: es interna).
   for (const pay of pricing.payments ?? []) {
-    const label = pay.adjustmentPercent
-      ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
-      : pay.methodName;
+    const label =
+      (pay.adjustmentPercent
+        ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
+        : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
     termRows.push({ label, value: formatArs(pay.adjustedAmount) });
   }
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
@@ -17,6 +18,12 @@ function percentOrNull(v: FormDataEntryValue | null): number | null {
   return n !== undefined ? n : null;
 }
 
+/** Cuenta propia o ajena: obligatorio, sin estado "indiferente" — el select
+ *  del form siempre manda uno de los dos; si algo raro llega, cae en "own". */
+function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnership {
+  return v === "third_party" ? "third_party" : "own";
+}
+
 export async function createPaymentMethod(formData: FormData) {
   await requireAdmin();
   const name = strOrNull(formData.get("name"));
@@ -27,6 +34,8 @@ export async function createPaymentMethod(formData: FormData) {
       name,
       adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
       reference: strOrNull(formData.get("reference")),
+      requiresNote: formData.get("requiresNote") === "on",
+      ownership: ownershipOrDefault(formData.get("ownership")),
       ordering: (max._max.ordering ?? 0) + 1,
     },
   });
@@ -43,6 +52,8 @@ export async function updatePaymentMethod(id: string, formData: FormData) {
       name,
       adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
       reference: strOrNull(formData.get("reference")),
+      requiresNote: formData.get("requiresNote") === "on",
+      ownership: ownershipOrDefault(formData.get("ownership")),
     },
   });
   revalidatePath("/settings/payment-methods");

@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { generateAndSendActa } from "@/lib/acta";
+import { paymentsToCashMovements } from "@/lib/cash";
+import { paymentSchema } from "@/lib/payment-schema";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const damageSchema = z.object({
@@ -32,7 +34,9 @@ const settlementSchema = z
     depositApplied: z.number(),
     balanceDue: z.number(),
     depositReturn: z.number(),
-    method: z.enum(["efectivo", "transferencia", "retencion_deposito", "none"]),
+    payments: z.array(paymentSchema).optional(),
+    // Compat: devoluciones de versiones anteriores a los pagos con medio real.
+    method: z.enum(["efectivo", "transferencia", "retencion_deposito", "none"]).optional(),
     note: z.string().optional(),
   })
   .optional();
@@ -133,6 +137,18 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
       where: { id: data.vehicleId },
       data: { status: "available", currentKm: data.km },
     });
+
+    // Cada pago anotado en la liquidación queda también como cobro en Caja,
+    // vinculado a esta reserva — el empleado no lo anota dos veces.
+    if (data.settlement?.payments?.length) {
+      await tx.cashMovement.createMany({
+        data: paymentsToCashMovements(data.settlement.payments, {
+          rentalId: rental.id,
+          createdById: user.id,
+          description: `Cobro de devolución — ${rental.clientName}`,
+        }),
+      });
+    }
 
     return insp;
   });

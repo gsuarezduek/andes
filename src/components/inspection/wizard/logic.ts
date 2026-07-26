@@ -34,8 +34,7 @@ export function buildSettlement(
       description: d.description.trim() || `Daño #${i + 1}`,
       amount: parseDecimal(draft.damageAmounts[d.id]) ?? 0,
     })),
-    method: draft.settlementMethod,
-    note: draft.settlementNote.trim() || undefined,
+    payments: draft.payments,
   });
 }
 
@@ -101,9 +100,10 @@ export function summaryConditions(
       conditions.push({ label: "Forma de garantía", value: draft.guaranteeForm.trim() });
     }
     for (const pay of draft.payments) {
-      const label = pay.adjustmentPercent
-        ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
-        : pay.methodName;
+      const label =
+        (pay.adjustmentPercent
+          ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
+          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
       conditions.push({ label, value: formatArs(pay.adjustedAmount) });
     }
     return { conditions };
@@ -134,6 +134,13 @@ export function summaryConditions(
     }
     if (settlement.depositReturn > 0) {
       balanceRows.push({ label: st.depositReturn, value: formatArs(settlement.depositReturn) });
+    }
+    for (const pay of settlement.payments ?? []) {
+      const label =
+        (pay.adjustmentPercent
+          ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
+          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
+      balanceRows.push({ label, value: formatArs(pay.adjustedAmount) });
     }
     return { settlementRows: rows, balanceRows };
   }

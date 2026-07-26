@@ -13,7 +13,7 @@
  * Convenciones: importes en ARS con hasta 2 decimales, km entero, nafta en
  * octavos (0–8).
  */
-import { kmPackKm, type ContractPricing } from "@/lib/contract";
+import { kmPackKm, type ContractPricing, type RentalPayment } from "@/lib/contract";
 
 export type SettlementMethod =
   | "efectivo"
@@ -40,7 +40,11 @@ export type Settlement = {
   // exceden el depósito. Puede coexistir con depositReturn > 0.
   balanceDue: number;
   depositReturn: number; // depósito a devolver (lo no consumido por daños)
-  method: SettlementMethod;
+  // Pagos anotados para saldar (medio de pago real, igual sistema que la
+  // entrega). Reemplaza a `method`/`note`, que quedan opcionales solo para
+  // seguir renderizando devoluciones ya firmadas antes de este cambio.
+  payments?: RentalPayment[];
+  method?: SettlementMethod;
   note?: string;
 };
 
@@ -114,6 +118,6 @@ export function computeSettlement(input: SettlementInput): Settlement {
     depositApplied: 0,
     balanceDue: 0,
     depositReturn: 0,
-    method: "none",
+    payments: [],
   });
 }

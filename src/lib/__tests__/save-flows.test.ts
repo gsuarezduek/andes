@@ -29,6 +29,7 @@ let tx: {
   rental: { update: ReturnType<typeof vi.fn> };
   vehicle: { update: ReturnType<typeof vi.fn> };
   rentalDocument: { createMany: ReturnType<typeof vi.fn> };
+  cashMovement: { createMany: ReturnType<typeof vi.fn> };
 };
 
 function wireTransaction(inspectionId = "insp1") {
@@ -38,6 +39,7 @@ function wireTransaction(inspectionId = "insp1") {
       rental: { update: vi.fn().mockResolvedValue({}) },
       vehicle: { update: vi.fn().mockResolvedValue({}) },
       rentalDocument: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      cashMovement: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     };
     return cb(tx);
   });
@@ -150,6 +152,55 @@ describe("saveHandover", () => {
     expect(rows[0]).toMatchObject({ kind: "license", holderName: "María Gómez" });
   });
 
+  it("persiste el desglose de pagos (con la aclaración de 'Otro') en rental.pricing", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+    await saveHandover({
+      ...baseInput,
+      pricing: {
+        total: 50_000,
+        paid: 10_000,
+        payments: [
+          {
+            methodId: "pm1",
+            methodName: "Otro",
+            amount: 10_000,
+            adjustedAmount: 10_000,
+            note: "Transferencia a cuenta personal del encargado",
+          },
+        ],
+      },
+    });
+
+    const rentalArg = tx.rental.update.mock.calls[0][0].data;
+    expect(rentalArg.pricing.payments).toHaveLength(1);
+    expect(rentalArg.pricing.payments[0]).toMatchObject({
+      methodName: "Otro",
+      note: "Transferencia a cuenta personal del encargado",
+    });
+
+    // El pago queda también anotado como cobro en Caja, vinculado a la reserva.
+    expect(tx.cashMovement.createMany).toHaveBeenCalledOnce();
+    const movements = tx.cashMovement.createMany.mock.calls[0][0].data;
+    expect(movements).toHaveLength(1);
+    expect(movements[0]).toMatchObject({
+      type: "income",
+      amount: 10_000,
+      paymentMethodName: "Otro",
+      paymentMethodNote: "Transferencia a cuenta personal del encargado",
+      rentalId: "r1",
+      createdById: "user1",
+    });
+  });
+
+  it("no crea movimientos de Caja cuando no hay pagos", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+    await saveHandover(baseInput);
+    expect(tx.cashMovement.createMany).not.toHaveBeenCalled();
+  });
+
   it("registra el autor del daño (reportedById) en la inspección", async () => {
     prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
     prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
@@ -187,6 +238,7 @@ describe("saveReturn", () => {
     prismaMock.rental.findUnique.mockResolvedValue({
       id: "r1",
       status: "active",
+      clientName: "Juan Pérez",
       inspections: [{ id: "h1", type: "handover", km: 10_500 }],
     });
     const settlement = {
@@ -198,6 +250,38 @@ describe("saveReturn", () => {
     await saveReturn({ ...returnInput, settlement });
     const inspArg = tx.inspection.create.mock.calls[0][0].data;
     expect(inspArg.settlement).toMatchObject({ subtotal: 5_000, method: "retencion_deposito" });
+    // Liquidación vieja (sin `payments`, compat): no crea nada en Caja.
+    expect(tx.cashMovement.createMany).not.toHaveBeenCalled();
+  });
+
+  it("crea un cobro en Caja por cada pago anotado en la liquidación", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({
+      id: "r1",
+      status: "active",
+      clientName: "Juan Pérez",
+      inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+    });
+    const settlement = {
+      kmDriven: 400, includedKm: 0, extraKm: 0, extraKmRate: 0, extraKmCharge: 0,
+      fuelMissingEighths: 2, fuelCharge: 5_000, damageCharges: [], damagesTotal: 0,
+      subtotal: 5_000, deposit: 0, depositApplied: 0, balanceDue: 5_000,
+      depositReturn: 0,
+      payments: [
+        { methodId: "pm1", methodName: "Efectivo", amount: 5_000, adjustedAmount: 5_000 },
+      ],
+    };
+    await saveReturn({ ...returnInput, settlement });
+
+    expect(tx.cashMovement.createMany).toHaveBeenCalledOnce();
+    const movements = tx.cashMovement.createMany.mock.calls[0][0].data;
+    expect(movements).toHaveLength(1);
+    expect(movements[0]).toMatchObject({
+      type: "income",
+      amount: 5_000,
+      paymentMethodName: "Efectivo",
+      rentalId: "r1",
+      createdById: "user1",
+    });
   });
 
   it("rechaza km de devolución menor al de entrega", async () => {

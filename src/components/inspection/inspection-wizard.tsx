@@ -85,8 +85,6 @@ export function InspectionWizard(props: InspectionWizardProps) {
     photos: [],
     documents: [],
     additionalDrivers: [],
-    settlementMethod: "none",
-    settlementNote: "",
     settlementFuelCharge: "",
     settlementExtraKmCharge: "",
     settlementDeposit: "",

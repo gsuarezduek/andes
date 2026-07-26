@@ -58,6 +58,9 @@ export type RentalPayment = {
   adjustmentPercent?: number; // % al momento de cargar el pago (+ recargo, − descuento)
   amount: number; // importe base cargado por el empleado
   adjustedAmount: number; // amount ajustado por el %; es lo que suma a "Paga"
+  // Aclaración libre, obligatoria cuando el medio elegido tenía `requiresNote`
+  // (ej. "Otro"): indica a dónde fue el pago.
+  note?: string;
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */

@@ -96,6 +96,7 @@ function MovementColumn({
               </div>
               <p className="mt-1 text-xs text-foreground/50">
                 {r.paymentMethodName}
+                {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
                 {r.rentalClientName ? ` · ${r.rentalClientName}` : ""} · {r.createdByName} ·{" "}
                 {formatDateTime(r.createdAt)}
               </p>

@@ -35,7 +35,7 @@ export default async function ReturnPage({
     redirect(`/rentals/${rental.id}`);
   }
 
-  const [checklistItems, existingDamages] = await Promise.all([
+  const [checklistItems, existingDamages, paymentMethods] = await Promise.all([
     prisma.checklistItem.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
@@ -44,6 +44,11 @@ export default async function ReturnPage({
     prisma.damage.findMany({
       where: { vehicleId: rental.vehicle.id, repaired: false, view: "top" },
       select: { posX: true, posY: true, description: true },
+    }),
+    prisma.paymentMethod.findMany({
+      where: { active: true },
+      orderBy: { ordering: "asc" },
+      select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true },
     }),
   ]);
 
@@ -72,6 +77,13 @@ export default async function ReturnPage({
         existingDamages={existingDamages}
         maxFuel={rental.vehicle.fuelLevels}
         language={rental.language}
+        paymentMethods={paymentMethods.map((m) => ({
+          id: m.id,
+          name: m.name,
+          adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
+          reference: m.reference ?? undefined,
+          requiresNote: m.requiresNote,
+        }))}
         createRemoteSignature={createRemoteSignature}
         returnContext={{
           handoverKm: handover.km,

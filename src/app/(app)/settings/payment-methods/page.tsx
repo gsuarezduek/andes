@@ -68,6 +68,22 @@ export default async function PaymentMethodsSettingsPage() {
               className="rounded-lg border border-foreground/15 bg-transparent p-3 text-base outline-none focus:border-foreground/40"
             />
           </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground/80">Cuenta</span>
+            <select
+              name="ownership"
+              required
+              defaultValue="own"
+              className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
+            >
+              <option value="own">Cuenta propia</option>
+              <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground/80">
+            <input type="checkbox" name="requiresNote" className="h-4 w-4" />
+            Requiere aclaración (ej. &quot;Otro&quot;: pide indicar a dónde fue el pago)
+          </label>
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Agregando…">Agregar</SubmitButton>
           </div>
@@ -89,6 +105,10 @@ export default async function PaymentMethodsSettingsPage() {
                   </form>
                 </div>
                 <span className="flex-1 text-sm font-medium">{it.name}</span>
+                <Badge tone={it.ownership === "third_party" ? "blue" : "neutral"}>
+                  {it.ownership === "third_party" ? "Cuenta ajena" : "Cuenta propia"}
+                </Badge>
+                {it.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
                 {!it.active && <Badge tone="neutral">Inactivo</Badge>}
                 <form action={togglePaymentMethod.bind(null, it.id)}>
                   <button className="rounded-md px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5">
@@ -125,6 +145,22 @@ export default async function PaymentMethodsSettingsPage() {
                   placeholder="Referencia (alias/CVU) — interna"
                   className="rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
                 />
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground/80">Cuenta</span>
+                  <select
+                    name="ownership"
+                    required
+                    defaultValue={it.ownership}
+                    className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+                  >
+                    <option value="own">Cuenta propia</option>
+                    <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground/80">
+                  <input type="checkbox" name="requiresNote" defaultChecked={it.requiresNote} className="h-4 w-4" />
+                  Requiere aclaración (a dónde fue el pago)
+                </label>
                 <div className="flex justify-end">
                   <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
                 </div>
