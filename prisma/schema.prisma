@@ -96,6 +96,12 @@ enum SignatureRequestStatus {
   cancelled
 }
 
+/// Tipo de movimiento de Caja: cobro o pago.
+enum CashMovementType {
+  income // cobro
+  expense // pago
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -119,6 +125,7 @@ model User {
   resolvedVehicleNotes VehicleNote[]      @relation("VehicleNoteResolver")
   createdRentalNotes   RentalNote[]       @relation("RentalNoteCreator")
   resolvedRentalNotes  RentalNote[]       @relation("RentalNoteResolver")
+  createdCashMovements CashMovement[]     @relation("CashMovementCreator")
 
   @@map("users")
 }
@@ -321,6 +328,7 @@ model Rental {
   documents         RentalDocument[]
   signatureRequests SignatureRequest[]
   teamNotes         RentalNote[]
+  cashMovements     CashMovement[]
 
   @@index([status])
   @@index([startAt])
@@ -547,7 +555,43 @@ model PaymentMethod {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  cashMovements CashMovement[]
+
   @@map("payment_methods")
+}
+
+// ---------------------------------------------------------------------------
+// Caja (movimientos de cobro/pago) — INMUTABLES, sin edición ni borrado
+// ---------------------------------------------------------------------------
+//
+// Cualquier rol puede cargar cobros y pagos; solo el admin ve el detalle
+// completo por mes. Vínculo opcional a una reserva. El medio de pago se
+// guarda como snapshot (id + nombre): si el medio cambia de nombre o se
+// borra después, el movimiento ya cargado no se ve afectado (mismo criterio
+// que RentalPayment en src/lib/contract.ts).
+model CashMovement {
+  id String @id @default(cuid())
+
+  type        CashMovementType
+  description String            @db.Text
+  amount      Decimal           @db.Decimal(12, 2)
+
+  paymentMethodId   String?        @map("payment_method_id")
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodName String         @map("payment_method_name")
+
+  rentalId String? @map("rental_id")
+  rental   Rental? @relation(fields: [rentalId], references: [id])
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("CashMovementCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([rentalId])
+  @@index([createdById])
+  @@map("cash_movements")
 }
 
 model ChecklistItem {

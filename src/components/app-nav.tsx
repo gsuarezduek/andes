@@ -8,7 +8,7 @@ import type { Item } from "@/components/nav/types";
 /**
  * Navegación de la app.
  *
- * - Menú principal (siempre visible en desktop): Alquileres, Vehículos.
+ * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja.
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
  *   Perfil, Sincronización, [Usuarios, Configuración si es admin] y Salir.
  * - En mobile todo colapsa en un menú hamburguesa.
@@ -30,6 +30,7 @@ export function AppNav({
     { href: "/rentals", label: "Alquileres" },
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
+    { href: "/caja", label: "Caja" },
   ];
 
   const menuItems: Item[] = [
