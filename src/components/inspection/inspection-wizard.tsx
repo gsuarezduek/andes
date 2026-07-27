@@ -75,7 +75,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     insuranceUpgrade: props.pricing?.insuranceUpgrade === "true",
     accessoriesDesc: props.pricing?.accessoriesDesc ?? "",
     guaranteeForm: props.pricing?.guaranteeForm ?? "",
-    payments: [],
+    payments: props.initialPayments ?? [],
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
     // Arranca en 0 (tanque vacío) a propósito: obliga a elegir el nivel real en
     // vez de aceptar un default. Igual criterio en entrega y devolución.

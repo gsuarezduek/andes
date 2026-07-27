@@ -5,6 +5,10 @@ type RentalPaymentsInput = Pick<Rental, "pricing" | "bookingTotal" | "bookingPai
 
 export type RentalPayments = {
   hasContract: boolean;
+  /** true si `paidSoFar` sale de un pago real cargado en Andes (contrato de
+   *  la entrega o el botón "Agregar pago"), no del dato de referencia de
+   *  VikRentCar — independiente de si ya hay un `total` de contrato. */
+  hasRealPaid: boolean;
   totalRef: number | null;
   paidSoFar: number | null;
   balance: number | null;
@@ -14,14 +18,20 @@ export type RentalPayments = {
 /**
  * Pagos: antes de la entrega solo tenemos lo que trae VikRentCar (total de
  * referencia + pagado/anticipo, ej. cuando el cliente paga por privado y se
- * anota en la orden). Una vez hecha la entrega, el contrato cargado en el
- * wizard (rental.pricing) pasa a ser la fuente — puede diferir del de VikRentCar.
+ * anota en la orden), salvo que ya se haya cargado un pago rápido desde esta
+ * pantalla (botón "Agregar pago", antes de la entrega) — ese sí es real y
+ * tiene prioridad sobre `bookingPaid`. Una vez hecha la entrega, el contrato
+ * cargado en el wizard (`rental.pricing.total`) pasa a ser la fuente del
+ * total — puede diferir del de VikRentCar. `hasContract` sólo refleja si ya
+ * hay un total de contrato cargado (no si ya se cargó algún pago), para no
+ * perder la referencia de VikRentCar apenas se anota la primera seña.
  */
 export function computeRentalPayments(rental: RentalPaymentsInput): RentalPayments {
   const pricing = rental.pricing as ContractPricing | null;
-  const hasContract = pricing != null && (pricing.total != null || pricing.sena != null || pricing.paid != null);
-  const totalRef = hasContract ? (pricing!.total ?? null) : rental.bookingTotal ? Number(rental.bookingTotal) : null;
-  const paidSoFar = hasContract
+  const hasContract = pricing?.total != null;
+  const totalRef = pricing?.total ?? (rental.bookingTotal ? Number(rental.bookingTotal) : null);
+  const paidFromContract = pricing != null && (pricing.paid != null || pricing.sena != null);
+  const paidSoFar = paidFromContract
     ? (pricing!.sena ?? 0) + (pricing!.paid ?? 0)
     : rental.bookingPaid
       ? Number(rental.bookingPaid)
@@ -33,5 +43,5 @@ export function computeRentalPayments(rental: RentalPaymentsInput): RentalPaymen
       : null;
   const showPayments = totalRef != null || paidSoFar != null;
 
-  return { hasContract, totalRef, paidSoFar, balance, showPayments };
+  return { hasContract, hasRealPaid: paidFromContract, totalRef, paidSoFar, balance, showPayments };
 }

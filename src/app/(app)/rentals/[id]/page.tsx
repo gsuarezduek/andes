@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { SectionTitle } from "@/components/ui/section-title";
 import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatDateInput } from "@/lib/datetime";
@@ -11,6 +13,9 @@ import { TeamNotesSection } from "@/components/rentals/team-notes-section";
 import { ClientInfoSection } from "@/components/rentals/client-info-section";
 import { DateInfoSection } from "@/components/rentals/date-info-section";
 import { PaymentsSection } from "@/components/rentals/payments-section";
+import { PaymentHistorySection } from "@/components/rentals/payment-history-section";
+import { AddPaymentButton } from "@/components/rentals/add-payment-button";
+import { AddServiceButton } from "@/components/rentals/add-service-button";
 import { ReturnEditSection } from "@/components/rentals/return-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
@@ -54,7 +59,24 @@ export default async function RentalDetailPage({
 
   const today = formatDateInput(new Date());
 
-  const { hasContract, totalRef, paidSoFar, balance, showPayments } = computeRentalPayments(rental);
+  const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = computeRentalPayments(rental);
+
+  // Pago suelto (botón del header): solo tiene sentido antes de cerrar la
+  // reserva. El acceso rápido a Service no depende del estado, solo de que
+  // haya un vehículo asignado (es un costo del auto, no de la reserva).
+  const canAddPayment = rental.status === "reserved" || rental.status === "active";
+  const rawPaymentMethods = await prisma.paymentMethod.findMany({
+    where: { active: true },
+    orderBy: { ordering: "asc" },
+    select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true },
+  });
+  const paymentMethods = rawPaymentMethods.map((m) => ({
+    id: m.id,
+    name: m.name,
+    adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
+    reference: m.reference ?? undefined,
+    requiresNote: m.requiresNote,
+  }));
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -68,7 +90,11 @@ export default async function RentalDetailPage({
             {rental.wpBookingId ? ` · orden #${rental.wpBookingId}` : ""}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex shrink-0 items-center gap-1">
+          {rental.vehicleId && (
+            <AddServiceButton vehicleId={rental.vehicleId} currentKm={rental.vehicle?.currentKm ?? null} paymentMethods={paymentMethods} />
+          )}
+          {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
           {(() => {
             const { label, tone } = rentalStatusDisplay(rental.status, rental.bookingConfirmed);
             return <Badge tone={tone}>{label}</Badge>;
@@ -97,11 +123,24 @@ export default async function RentalDetailPage({
 
       <ClientInfoSection rental={rental} canStartHandover={canStartHandover} editableVehicles={editableVehicles} />
 
-      <DateInfoSection rental={rental} />
-
-      {showPayments && (
-        <PaymentsSection hasContract={hasContract} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
-      )}
+      <div className="flex flex-col gap-3">
+        <SectionTitle>Datos de pago y retiro</SectionTitle>
+        <DateInfoSection rental={rental} />
+        {showPayments && (
+          <PaymentsSection hasContract={hasContract} hasRealPaid={hasRealPaid} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
+        )}
+        <PaymentHistorySection
+          movements={rental.cashMovements.map((m) => ({
+            id: m.id,
+            description: m.description,
+            amount: Number(m.amount),
+            paymentMethodName: m.paymentMethodName,
+            paymentMethodNote: m.paymentMethodNote,
+            createdByName: m.createdBy?.name ?? null,
+            createdAt: m.createdAt,
+          }))}
+        />
+      </div>
 
       <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
 

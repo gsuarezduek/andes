@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
+import type { RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { saveHandover } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
@@ -53,6 +54,9 @@ export default async function HandoverPage({
   // prioridad; se completa con el precio/días de la reserva (VikRentCar) y con
   // la plantilla global de Configuración. Todo editable en el wizard.
   const saved = (rental.pricing ?? {}) as Record<string, unknown>;
+  // Pagos ya cargados antes de la entrega (botón "Agregar pago" del detalle
+  // de la reserva): se precargan en "Paga" — ver InspectionWizardProps.
+  const initialPayments = (saved.payments as RentalPayment[] | undefined) ?? [];
   const initialPricing: Record<string, string> = {};
   const preset = (key: string, value: number | null | undefined) => {
     if (saved[key] !== undefined && saved[key] !== null) initialPricing[key] = String(saved[key]);
@@ -122,6 +126,7 @@ export default async function HandoverPage({
         }}
         licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
         pricing={initialPricing}
+        initialPayments={initialPayments}
         deductibleBase={conditions?.deductible ? Number(conditions.deductible) : undefined}
         deductibleReduced={conditions?.deductibleReduced ? Number(conditions.deductibleReduced) : undefined}
         paymentMethods={paymentMethods.map((m) => ({

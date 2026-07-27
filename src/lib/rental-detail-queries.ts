@@ -17,6 +17,14 @@ export async function getRentalDetail(id: string) {
           resolvedBy: { select: { name: true } },
         },
       },
+      // Historial de pagos de esta reserva: entrada única de verdad, ya sea
+      // el pago rápido de esta pantalla, el de la entrega o el de la
+      // liquidación de la devolución (todos crean un CashMovement acá).
+      cashMovements: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { createdBy: { select: { name: true } } },
+      },
     },
   });
 }

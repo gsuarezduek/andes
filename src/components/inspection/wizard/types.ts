@@ -82,6 +82,11 @@ export type InspectionWizardProps = {
   language: Lang;
   licenseExpiry?: string;
   pricing?: Record<string, string>;
+  /** Pagos ya cargados antes de la entrega (botón "Agregar pago" en el
+   *  detalle de la reserva) — se precargan en "Paga" para no volver a
+   *  cobrarlos ni perderlos al guardar (saveHandover reemplaza `pricing`
+   *  entero, no lo mergea). */
+  initialPayments?: RentalPayment[];
   /** Franquicia estándar y reducida (con mejora de seguro), de Configuración →
    *  Condiciones. Al activar la mejora se cambia la franquicia por la reducida. */
   deductibleBase?: number;

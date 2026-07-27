@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SectionTitle } from "@/components/ui/section-title";
 import { KmChart } from "@/components/vehicle/km-chart";
@@ -30,6 +31,12 @@ export default async function VehicleDetailPage({
 
   const vehicle = await getVehicleDetail(id);
   if (!vehicle) notFound();
+
+  const paymentMethods = await prisma.paymentMethod.findMany({
+    where: { active: true },
+    orderBy: { ordering: "asc" },
+    select: { id: true, name: true, requiresNote: true },
+  });
 
   const activeDamages = vehicle.damages.filter((d) => !d.repaired);
   const activeNotes = vehicle.teamNotes.filter((n) => !n.resolvedAt);
@@ -88,6 +95,7 @@ export default async function VehicleDetailPage({
         isAdmin={isAdmin}
         currentKm={vehicle.currentKm}
         logs={vehicle.maintenanceLogs}
+        paymentMethods={paymentMethods}
       />
     </div>
   );
