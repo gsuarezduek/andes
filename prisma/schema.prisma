@@ -134,6 +134,8 @@ model User {
   createdRentalNotes   RentalNote[]       @relation("RentalNoteCreator")
   resolvedRentalNotes  RentalNote[]       @relation("RentalNoteResolver")
   createdCashMovements CashMovement[]     @relation("CashMovementCreator")
+  deletedCashMovements CashMovement[]     @relation("CashMovementDeleter")
+  cashMovementEdits    CashMovementEdit[] @relation("CashMovementEditor")
 
   @@map("users")
 }
@@ -576,7 +578,7 @@ model PaymentMethod {
 }
 
 // ---------------------------------------------------------------------------
-// Caja (movimientos de cobro/pago) — INMUTABLES, sin edición ni borrado
+// Caja (movimientos de cobro/pago)
 // ---------------------------------------------------------------------------
 //
 // Cualquier rol puede cargar cobros y pagos; solo el admin ve el detalle
@@ -584,6 +586,10 @@ model PaymentMethod {
 // guarda como snapshot (id + nombre): si el medio cambia de nombre o se
 // borra después, el movimiento ya cargado no se ve afectado (mismo criterio
 // que RentalPayment en src/lib/contract.ts).
+//
+// Editable/eliminable SOLO por admin (para corregir errores de carga) — el
+// borrado es soft-delete (`deletedAt`), nunca se borra la fila realmente.
+// Cada edición/borrado queda registrado en CashMovementEdit.
 model CashMovement {
   id String @id @default(cuid())
 
@@ -603,12 +609,49 @@ model CashMovement {
   createdById String? @map("created_by_id")
   createdBy   User?   @relation("CashMovementCreator", fields: [createdById], references: [id])
 
+  // Soft delete: nunca se borra la fila, para que CashMovementEdit pueda
+  // seguir mostrando qué era el movimiento eliminado.
+  deletedAt   DateTime? @map("deleted_at")
+  deletedById String?   @map("deleted_by_id")
+  deletedBy   User?     @relation("CashMovementDeleter", fields: [deletedById], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
+
+  edits CashMovementEdit[]
 
   @@index([createdAt])
   @@index([rentalId])
   @@index([createdById])
   @@map("cash_movements")
+}
+
+/// Acción registrada en el historial de ediciones de un CashMovement.
+enum CashMovementEditAction {
+  updated
+  deleted
+}
+
+/// Auditoría de ediciones/borrados de movimientos de Caja (solo admin puede
+/// generar estas filas). `changes` solo se usa en `updated` — un array
+/// [{ field, from, to }]; en `deleted` no hace falta: el propio CashMovement,
+/// soft-deleted, ya conserva los datos.
+model CashMovementEdit {
+  id String @id @default(cuid())
+
+  cashMovementId String       @map("cash_movement_id")
+  cashMovement   CashMovement @relation(fields: [cashMovementId], references: [id])
+
+  action  CashMovementEditAction
+  changes Json?
+
+  editedById String? @map("edited_by_id")
+  editedBy   User?   @relation("CashMovementEditor", fields: [editedById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([cashMovementId])
+  @@index([createdAt])
+  @@map("cash_movement_edits")
 }
 
 model ChecklistItem {

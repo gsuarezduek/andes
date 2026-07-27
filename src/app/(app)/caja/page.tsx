@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { currentMonth, getCashMonthDetail, getOwnCashMovements, getRentalPickerOptions } from "@/lib/cash";
+import {
+  currentMonth,
+  getCashMonthDetail,
+  getCashMonthEdits,
+  getOwnCashMovements,
+  getRentalPickerOptions,
+} from "@/lib/cash";
 import { CashMovementForm } from "@/components/cash/cash-movement-form";
 import { CashMonthDetail } from "@/components/cash/cash-month-detail";
 import { CashOwnList } from "@/components/cash/cash-own-list";
@@ -37,7 +43,12 @@ export default async function CajaPage({
       <CashMovementForm paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
 
       {user.role === "admin" ? (
-        <CashMonthDetail data={await getCashMonthDetail(month)} todayMonth={today} />
+        <CashMonthDetail
+          data={await getCashMonthDetail(month)}
+          edits={await getCashMonthEdits(month)}
+          paymentMethods={paymentMethods}
+          todayMonth={today}
+        />
       ) : (
         <CashOwnList items={await getOwnCashMovements(user.id, today)} />
       )}

@@ -35,6 +35,7 @@ export type CashMovementRow = {
   id: string;
   description: string;
   amount: number;
+  paymentMethodId: string | null;
   paymentMethodName: string;
   paymentMethodNote: string | null;
   rentalClientName: string | null;
@@ -55,7 +56,7 @@ export type CashMonthDetail = {
 
 async function findMovements(where: Prisma.CashMovementWhereInput) {
   const rows = await prisma.cashMovement.findMany({
-    where,
+    where: { ...where, deletedAt: null },
     include: { createdBy: { select: { name: true } }, rental: { select: { clientName: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -65,6 +66,7 @@ async function findMovements(where: Prisma.CashMovementWhereInput) {
       type: r.type,
       description: r.description,
       amount: Number(r.amount),
+      paymentMethodId: r.paymentMethodId,
       paymentMethodName: r.paymentMethodName,
       paymentMethodNote: r.paymentMethodNote,
       rentalClientName: r.rental?.clientName ?? null,
@@ -175,5 +177,41 @@ export function paymentsToCashMovements(
     paymentMethodNote: p.note ?? null,
     rentalId: opts.rentalId,
     createdById: opts.createdById,
+  }));
+}
+
+export type CashMovementFieldChange = { field: string; from: string; to: string };
+
+export type CashMovementEditRow = {
+  id: string;
+  action: "updated" | "deleted";
+  changes: CashMovementFieldChange[] | null;
+  editedByName: string;
+  movementDescription: string;
+  movementAmount: number;
+  movementType: "income" | "expense";
+  createdAt: Date;
+};
+
+/** Historial de ediciones/borrados de movimientos de Caja, del mes visible (por fecha de la edición). */
+export async function getCashMonthEdits(month: string): Promise<CashMovementEditRow[]> {
+  const { start, end } = monthRangeUtc(month);
+  const rows = await prisma.cashMovementEdit.findMany({
+    where: { createdAt: { gte: start, lt: end } },
+    include: {
+      editedBy: { select: { name: true } },
+      cashMovement: { select: { description: true, amount: true, type: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    action: r.action,
+    changes: (r.changes as CashMovementFieldChange[] | null) ?? null,
+    editedByName: r.editedBy?.name ?? "—",
+    movementDescription: r.cashMovement.description,
+    movementAmount: Number(r.cashMovement.amount),
+    movementType: r.cashMovement.type,
+    createdAt: r.createdAt,
   }));
 }
