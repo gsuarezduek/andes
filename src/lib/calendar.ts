@@ -41,6 +41,9 @@ export type CalendarBar = {
   bookingModel: string | null;
   /** Notas del equipo sin resolver → notificación roja sobre la barra. */
   activeNotes: CalendarNote[];
+  /** Carril vertical dentro de la fila (0 = arriba). Solo > 0 cuando esta
+   *  barra se solapa en fechas con otra del mismo auto — ver `assignLanes`. */
+  lane: number;
 };
 
 /** Nota interna del equipo sobre el auto, aún sin resolver. */
@@ -58,6 +61,10 @@ export type CalendarRow = {
   /** Auto en service / fuera de servicio → fila resaltada en rosa claro. */
   outOfService: boolean;
   bars: CalendarBar[];
+  /** Cantidad de carriles que necesita esta fila (>1 = tiene alquileres
+   *  solapados en fechas, casi siempre para revisar). La fila se dibuja
+   *  `laneCount` veces más alta para que ninguna barra tape a otra. */
+  laneCount: number;
   /** Notas del equipo sin resolver → notificación roja sobre la patente. */
   activeNotes: CalendarNote[];
 };
@@ -165,7 +172,28 @@ function toBar(
       authorName: n.createdBy?.name ?? null,
       createdAt: n.createdAt,
     })),
+    lane: 0,
   };
+}
+
+/**
+ * Asigna un carril a cada barra de un mismo auto: si dos se solapan en
+ * columnas (mismo día ocupado por ambas), la segunda pasa al siguiente
+ * carril libre en vez de dibujarse encima de la primera. Sin solapamientos,
+ * todas quedan en el carril 0 (el caso normal, fila de altura simple).
+ * Algoritmo greedy de partición de intervalos, por orden de inicio.
+ */
+export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCount: number } {
+  const sorted = [...bars].sort((a, b) => a.startIndex - b.startIndex || b.span - a.span);
+  const laneLastEnd: number[] = []; // último endIndex ocupado por carril
+  const withLanes = sorted.map((bar) => {
+    const endIndex = bar.startIndex + bar.span - 1;
+    let lane = laneLastEnd.findIndex((end) => end < bar.startIndex);
+    if (lane === -1) lane = laneLastEnd.length;
+    laneLastEnd[lane] = endIndex;
+    return { ...bar, lane };
+  });
+  return { bars: withLanes, laneCount: Math.max(1, laneLastEnd.length) };
 }
 
 /**
@@ -276,19 +304,24 @@ export async function getCalendarData(opts?: {
         label: bar.bookingModel ? `${bar.bookingModel} · sin unidad` : "Sin unidad asignada",
         outOfService: false,
         bars: [bar],
+        laneCount: 1,
         activeNotes: [],
       });
     }
   }
 
-  const rows: CalendarRow[] = vehicles.map((v) => ({
-    id: v.id,
-    plate: v.plate,
-    label: `${v.brand} ${v.model}`,
-    outOfService: v.status === "out_of_service",
-    bars: barsByVehicle.get(v.id) ?? [],
-    activeNotes: notesByVehicle.get(v.id) ?? [],
-  }));
+  const rows: CalendarRow[] = vehicles.map((v) => {
+    const { bars, laneCount } = assignLanes(barsByVehicle.get(v.id) ?? []);
+    return {
+      id: v.id,
+      plate: v.plate,
+      label: `${v.brand} ${v.model}`,
+      outOfService: v.status === "out_of_service",
+      bars,
+      laneCount,
+      activeNotes: notesByVehicle.get(v.id) ?? [],
+    };
+  });
 
   return {
     columns,

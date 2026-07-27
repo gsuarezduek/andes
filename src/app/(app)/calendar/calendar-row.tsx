@@ -28,6 +28,10 @@ export function Row({
   onLeave: () => void;
 }) {
   const hasNotes = row.activeNotes.length > 0;
+  // Cuando hay alquileres solapados para este auto, la fila se hace
+  // `laneCount` veces más alta (un carril por cada barra que se superpone en
+  // fechas) para que ninguna tape a otra — ver assignLanes en src/lib/calendar.ts.
+  const totalH = rowH * row.laneCount;
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
       {/* Etiqueta del auto (fija a la izquierda). En filas de vehículo la
@@ -37,7 +41,7 @@ export function Row({
         <Link
           href={`/vehicles/${row.id}`}
           className={`sticky left-0 z-10 relative flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
-          style={{ height: rowH }}
+          style={{ height: totalH }}
         >
           {hasNotes && (
             <span
@@ -63,7 +67,7 @@ export function Row({
       ) : (
         <div
           className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 ${LABEL_W_CLASS}`}
-          style={{ height: rowH }}
+          style={{ height: totalH }}
         >
           <span className="truncate text-sm font-medium leading-tight">{row.label}</span>
         </div>
@@ -72,7 +76,7 @@ export function Row({
       {/* Track de días (rosa claro si el auto está fuera de servicio) */}
       <div
         className={`relative ${row.outOfService ? "bg-rose-500/10" : ""}`}
-        style={{ width: trackW, height: rowH }}
+        style={{ width: trackW, height: totalH }}
       >
         {/* Líneas de grilla / resaltados por columna */}
         {columns.map((c, i) => (
@@ -99,7 +103,7 @@ export function Row({
             style={{
               left: bar.startIndex * colW + 2,
               width: bar.span * colW - 4,
-              top: 6,
+              top: bar.lane * rowH + 6,
               height: rowH - 12,
             }}
           >
