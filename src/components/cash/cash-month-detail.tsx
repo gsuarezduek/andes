@@ -2,8 +2,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { MovementRow } from "./movement-row";
-import type { CashMonthDetail as CashMonthDetailData, CashMovementRow, CashMovementEditRow } from "@/lib/cash";
+import { CashMovementsBoard } from "./cash-movements-board";
+import type { CashMonthDetail as CashMonthDetailData, CashMovementEditRow } from "@/lib/cash";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
@@ -64,61 +64,10 @@ export function CashMonthDetail({
         </div>
       </div>
 
-      {/* Pagos a la izquierda, Cobros a la derecha. */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <MovementColumn
-          title={`Pagos (${data.expenses.length})`}
-          rows={data.expenses}
-          tone="red"
-          paymentMethods={paymentMethods}
-        />
-        <MovementColumn
-          title={`Cobros (${data.incomes.length})`}
-          rows={data.incomes}
-          tone="emerald"
-          paymentMethods={paymentMethods}
-        />
-      </div>
+      <CashMovementsBoard incomes={data.incomes} expenses={data.expenses} paymentMethods={paymentMethods} />
 
       <EditHistorySection edits={edits} />
     </div>
-  );
-}
-
-function MovementColumn({
-  title,
-  rows,
-  tone,
-  paymentMethods,
-}: {
-  title: string;
-  rows: CashMovementRow[];
-  tone: "emerald" | "red";
-  paymentMethods: PaymentMethodOption[];
-}) {
-  return (
-    <section className="flex flex-col gap-2">
-      <SectionTitle>{title}</SectionTitle>
-      {rows.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin movimientos.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((r) => (
-            // La key incluye los campos editables: tras guardar una edición,
-            // cambia y el componente se remonta con los valores nuevos (evita
-            // quedar con el form de edición pegado a los datos viejos).
-            <MovementRow
-              key={`${r.id}:${r.description}:${r.amount}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}`}
-              movement={r}
-              tone={tone}
-              paymentMethods={paymentMethods}
-            />
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 

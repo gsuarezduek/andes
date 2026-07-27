@@ -11,11 +11,13 @@ import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 /**
- * Fila de un movimiento con "Editar"/"Eliminar" (solo se usa en la vista
- * admin). El caller debe pasar una `key` que cambie cuando cambien los datos
- * del movimiento (ver `cash-month-detail.tsx`) para que, tras guardar una
- * edición, el componente se remonte con los valores nuevos en vez de quedar
- * pegado al `defaultValue` con el que se abrió.
+ * Fila de un movimiento (solo se usa en la vista admin). En reposo solo
+ * muestra el ícono de editar; "Eliminar" vive adentro del formulario de
+ * edición (a propósito, para que no esté tan a mano). El caller debe pasar
+ * una `key` que cambie cuando cambien los datos del movimiento (ver
+ * `cash-month-detail.tsx`) para que, tras guardar una edición, el componente
+ * se remonte con los valores nuevos en vez de quedar pegado al `defaultValue`
+ * con el que se abrió.
  */
 export function MovementRow({
   movement,
@@ -29,6 +31,25 @@ export function MovementRow({
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+
+  if (mode === "confirmDelete") {
+    return (
+      <li className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
+        <p className="text-red-600">
+          ¿Eliminar &quot;{movement.description}&quot; ({formatArs(movement.amount)})? No va a aparecer más en los
+          totales.
+        </p>
+        <form action={deleteCashMovement.bind(null, movement.id)} className="mt-2 flex items-center gap-3">
+          <button type="button" onClick={() => setMode("edit")} className="text-xs text-foreground/50">
+            Volver
+          </button>
+          <SubmitButton pendingLabel="Eliminando…" variant="danger" className="ml-auto h-auto px-2.5 py-1 text-xs">
+            Sí, eliminar
+          </SubmitButton>
+        </form>
+      </li>
+    );
+  }
 
   if (mode === "edit") {
     return (
@@ -74,6 +95,13 @@ export function MovementRow({
             <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">
               Cancelar
             </button>
+            <button
+              type="button"
+              onClick={() => setMode("confirmDelete")}
+              className="text-xs font-medium text-red-600 underline"
+            >
+              Eliminar
+            </button>
             <SubmitButton pendingLabel="Guardando…" className="ml-auto">
               Guardar
             </SubmitButton>
@@ -97,33 +125,18 @@ export function MovementRow({
         {movement.rentalClientName ? ` · ${movement.rentalClientName}` : ""} · {movement.createdByName} ·{" "}
         {formatDateTime(movement.createdAt)}
       </p>
-      <div className="mt-1.5 flex items-center gap-3">
+      <div className="mt-1.5 flex items-center">
         <button
           type="button"
           onClick={() => setMode("edit")}
-          className="text-xs font-medium text-foreground/60 underline"
+          title="Editar"
+          aria-label="Editar"
+          className="text-foreground/50 hover:text-foreground/80"
         >
-          Editar
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+            <path d="M13.586 2.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 4.793 3 13.172V17h3.828l8.379-8.379-3.828-3.828Z" />
+          </svg>
         </button>
-        {mode === "confirmDelete" ? (
-          <form action={deleteCashMovement.bind(null, movement.id)} className="flex items-center gap-2">
-            <span className="text-xs text-red-600">¿Eliminar?</span>
-            <SubmitButton pendingLabel="Eliminando…" variant="danger" className="h-auto px-2 py-0.5 text-xs">
-              Sí, eliminar
-            </SubmitButton>
-            <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">
-              No
-            </button>
-          </form>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setMode("confirmDelete")}
-            className="text-xs font-medium text-red-600 underline"
-          >
-            Eliminar
-          </button>
-        )}
       </div>
     </li>
   );
