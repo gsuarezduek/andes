@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ServiceIcon } from "@/components/ui/icons";
 import { maintenanceTypeLabels } from "@/lib/labels";
@@ -16,6 +16,11 @@ type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
  * estado (a diferencia de ServiceFormSection, que sí lo hace). Mismo form y
  * misma acción (`createMaintenance`) que la ficha del vehículo — si hay
  * costo, pide de dónde sale y queda en Caja como gasto general del negocio.
+ *
+ * El envío se maneja a mano (en vez de `<form action>` nativo): así el modal
+ * se queda abierto mientras la acción corre y sólo se cierra si termina bien
+ * — antes se cerraba apenas se apretaba "Agregar registro", sin esperar el
+ * resultado, y un error (ej. "falta elegir de dónde sale") quedaba invisible.
  */
 export function AddServiceButton({
   vehicleId,
@@ -29,14 +34,39 @@ export function AddServiceButton({
   const [open, setOpen] = useState(false);
   const [cost, setCost] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+  const router = useRouter();
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const hasCost = cost.trim() !== "" && Number(cost) > 0;
+
+  function openModal() {
+    setCost("");
+    setPaymentMethodId("");
+    setError(undefined);
+    setOpen(true);
+  }
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(undefined);
+    start(async () => {
+      try {
+        await createMaintenance(vehicleId, formData);
+        setOpen(false);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo guardar el registro.");
+      }
+    });
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openModal}
         title="Cargar service / arreglo"
         aria-label="Cargar service / arreglo"
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
@@ -48,11 +78,7 @@ export function AddServiceButton({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-sm rounded-xl border border-foreground/10 bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <p className="mb-4 text-sm font-semibold text-foreground/90">Service / arreglo</p>
-            <form
-              action={createMaintenance.bind(null, vehicleId)}
-              onSubmit={() => setOpen(false)}
-              className="flex flex-col gap-3"
-            >
+            <form onSubmit={submit} className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="text-foreground/70">Tipo</span>
@@ -114,11 +140,14 @@ export function AddServiceButton({
               <p className="text-xs text-foreground/50">
                 Esto solo registra el service/arreglo — no cancela ni modifica esta reserva.
               </p>
+              {error && <p className="text-sm text-red-600">{error}</p>}
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <SubmitButton className="flex-1" pendingLabel="Guardando…">Agregar registro</SubmitButton>
+                <Button type="submit" className="flex-1" disabled={pending}>
+                  {pending ? "Guardando…" : "Agregar registro"}
+                </Button>
               </div>
             </form>
           </div>

@@ -43,7 +43,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
     paymentMethodId: formData.get("paymentMethodId") || undefined,
     paymentMethodNote: formData.get("paymentMethodNote") || undefined,
   });
-  if (!parsed.success) return;
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Datos inválidos.");
   const { cost, paymentMethodId, paymentMethodNote } = parsed.data;
 
   let method: { id: string; name: string; requiresNote: boolean } | null = null;
