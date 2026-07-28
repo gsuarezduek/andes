@@ -13,9 +13,11 @@ export default async function EditVehiclePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireUser();
+  const user = await requireUser();
 
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  // omit: dailyRate es un Decimal — un Server Component no puede pasárselo
+  // tal cual a VehicleForm (Client Component); tampoco se usa en el form.
+  const vehicle = await prisma.vehicle.findUnique({ where: { id }, omit: { dailyRate: true } });
   if (!vehicle) notFound();
 
   return (
@@ -25,6 +27,7 @@ export default async function EditVehiclePage({
         action={updateVehicle.bind(null, id)}
         vehicle={vehicle}
         cancelHref={`/vehicles/${id}`}
+        isAdmin={user.role === "admin"}
       />
     </div>
   );

@@ -95,6 +95,10 @@ export type InspectionWizardProps = {
   paymentMethods?: { id: string; name: string; adjustmentPercent?: number; reference?: string; requiresNote?: boolean }[];
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
+  /** order_total de VikRentCar (Rental.bookingTotal), para avisar en el paso
+   *  Condiciones si el total cargado a mano se aleja mucho del de la reserva
+   *  original — no bloquea, es solo una alerta contra errores de tipeo. */
+  bookingTotal?: number;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
   /** Server action para firma remota (el cliente firma en su propio teléfono). */
   createRemoteSignature?: (input: {

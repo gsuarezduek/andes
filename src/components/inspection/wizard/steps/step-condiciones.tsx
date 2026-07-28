@@ -39,6 +39,19 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
     setPackModalOpen(false);
   }
 
+  // Alerta (no bloqueante) si el total cargado a mano se aleja mucho del
+  // total de la reserva original sincronizado desde VikRentCar — para
+  // atajar errores de tipeo (ej. un cero de más), sin impedir cobrar un
+  // precio distinto cuando hay una razón real (descuento, recargo, etc.).
+  const currentTotal = parseDecimal(draft.pricing.total as string | undefined);
+  const bookingTotal = props.bookingTotal;
+  const totalDiffWarning =
+    currentTotal != null && bookingTotal != null && bookingTotal > 0
+      ? Math.abs(currentTotal - bookingTotal) / bookingTotal >= 0.3
+        ? { currentTotal, bookingTotal }
+        : null
+      : null;
+
   // El recargo/descuento de cada línea de pago (adjustedAmount − amount)
   // también se suma/resta del "Total a pagar", para que el Saldo cierre en
   // $0 en vez de quedar negativo cuando se cobra con un medio con recargo.
@@ -178,6 +191,12 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
         {Math.abs(paymentsSurcharge) > 0.001 && (
           <p className="mt-1 text-xs text-foreground/50">
             Incluye {formatArs(paymentsSurcharge)} de {paymentsSurcharge > 0 ? "recargo" : "descuento"} por medios de pago.
+          </p>
+        )}
+        {totalDiffWarning && (
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+            ⚠ El total cargado ({formatArs(totalDiffWarning.currentTotal)}) difiere bastante del total de la
+            reserva original ({formatArs(totalDiffWarning.bookingTotal)}). Revisá que no haya un error de tipeo.
           </p>
         )}
 

@@ -10,6 +10,9 @@ export function StepFotos({ ctx }: { ctx: StepContext }) {
         + Agregar fotos (frente, atrás, laterales)
         <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files, "main")} />
       </label>
+      {draft.photos.length === 0 && (
+        <p className="text-xs font-medium text-amber-600">Obligatorio: agregá al menos una foto para continuar.</p>
+      )}
       {draft.photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {draft.photos.map((p) => (
@@ -21,7 +24,7 @@ export function StepFotos({ ctx }: { ctx: StepContext }) {
                   {p.status === "uploading" ? "Subiendo…" : "Pendiente de señal"}
                 </span>
               )}
-              <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+              <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} aria-label="Quitar foto" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>
             </div>
           ))}
         </div>

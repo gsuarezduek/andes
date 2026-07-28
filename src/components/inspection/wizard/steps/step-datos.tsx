@@ -40,11 +40,11 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                 <div key={kind} className="flex flex-col gap-1.5">
                   <p className="text-center text-xs font-medium text-foreground/70">{documentKindLabels[kind]}</p>
                   <div className="flex gap-1.5">
-                    <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Sacar foto">
+                    <label className="flex h-11 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-xs font-medium" title="Sacar foto">
                       📷
                       <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
                     </label>
-                    <label className="flex h-9 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-[11px] font-medium" title="Elegir de la galería">
+                    <label className="flex h-11 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-xs font-medium" title="Elegir de la galería">
                       🖼️
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
                     </label>
@@ -58,7 +58,7 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                           {doc.status === "uploading" ? "Subiendo…" : "Pendiente"}
                         </span>
                       )}
-                      <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+                      <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar documento" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>
                     </div>
                   ))}
                 </div>
@@ -92,28 +92,28 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                     value={dr.name}
                     onChange={(e) => patch({ additionalDrivers: draft.additionalDrivers.map((x) => (x.id === dr.id ? { ...x, name: e.target.value } : x)) })}
                   />
-                  <button type="button" className="text-xs text-red-600" onClick={() => patch({ additionalDrivers: draft.additionalDrivers.filter((x) => x.id !== dr.id) })}>
+                  <button type="button" className="px-2 py-2 text-xs text-red-600" onClick={() => patch({ additionalDrivers: draft.additionalDrivers.filter((x) => x.id !== dr.id) })}>
                     Quitar
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto">
+                  <label className="flex h-11 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto">
                     📷 Licencia
                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                   </label>
-                  <label className="flex h-9 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir de la galería">
+                  <label className="flex h-11 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir de la galería">
                     🖼️
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                   </label>
                   <div className="flex gap-1">
                     {drDocs.map((doc) => (
-                      <div key={doc.id} className="relative h-9 w-9">
+                      <div key={doc.id} className="relative h-14 w-14">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={doc.preview} alt="" className="h-9 w-9 rounded object-cover" />
+                        <img src={doc.preview} alt="" className="h-14 w-14 rounded object-cover" />
                         {doc.status !== "done" && (
                           <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-[8px] text-white">…</span>
                         )}
-                        <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[9px] text-white">✕</button>
+                        <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar foto de licencia" className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
                       </div>
                     ))}
                   </div>

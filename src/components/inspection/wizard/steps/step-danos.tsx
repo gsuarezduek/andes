@@ -24,13 +24,18 @@ export function StepDanos({ ctx }: { ctx: StepContext }) {
           </ul>
         </div>
       )}
-      {draft.damages.map((dm, i) => (
-        <div key={dm.id} className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
+      {draft.damages.map((dm, i) => {
+        const missingDescription = !dm.description.trim();
+        return (
+        <div key={dm.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${missingDescription ? "border-amber-500/40 bg-amber-500/5" : "border-foreground/10"}`}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Daño nuevo #{i + 1}</span>
             <button type="button" className="text-xs text-red-600" onClick={() => setDraft((d) => ({ ...d, damages: d.damages.filter((x) => x.id !== dm.id) }))}>Quitar</button>
           </div>
-          <input className="h-10 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40" placeholder="Descripción (ej. rayón puerta delantera)" value={dm.description} onChange={(e) => setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, description: e.target.value } : x)) }))} />
+          <input className="h-10 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40" placeholder="Descripción obligatoria — ej. rayón puerta delantera" value={dm.description} onChange={(e) => setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, description: e.target.value } : x)) }))} />
+          {missingDescription && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Agregá una descripción para poder continuar.</p>
+          )}
           {dm.photo ? (
             <div className="relative h-20 w-20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -48,7 +53,8 @@ export function StepDanos({ ctx }: { ctx: StepContext }) {
             </label>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -137,6 +137,7 @@ export default async function HandoverPage({
           requiresNote: m.requiresNote,
         }))}
         bookingNote={rental.bookingNote ?? undefined}
+        bookingTotal={rental.bookingTotal ? Number(rental.bookingTotal) : undefined}
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={
           rental.vehicle

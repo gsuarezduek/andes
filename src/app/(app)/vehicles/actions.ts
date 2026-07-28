@@ -23,18 +23,8 @@ const optionalStr = z.preprocess(
   z.string().nullable(),
 );
 
-const vehicleSchema = z.object({
-  plate: z.string().trim().min(1, "La patente es obligatoria").max(16),
-  brand: z.string().trim().min(1, "La marca es obligatoria"),
-  model: z.string().trim().min(1, "El modelo es obligatorio"),
-  year: z.preprocess(
-    (v) => (v === "" || v == null ? null : Number(v)),
-    z.number().int().min(1950).max(2100).nullable(),
-  ),
-  color: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
-    z.string().nullable(),
-  ),
+// Datos operativos del día a día: cualquier empleado los puede editar.
+const operationalSchema = z.object({
   currentKm: z.preprocess(
     (v) => (v === "" || v == null ? 0 : Number(v)),
     z.number().int().nonnegative(),
@@ -47,25 +37,55 @@ const vehicleSchema = z.object({
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
   notes: optionalStr,
+});
+
+// Identidad y datos legales del vehículo: sensibles y difíciles de auditar
+// (patente, chasis, seguro), solo los toca un admin. Ver operationalSchema
+// para lo que sí puede tocar cualquier empleado.
+const adminOnlySchema = z.object({
+  plate: z.string().trim().min(1, "La patente es obligatoria").max(16),
+  brand: z.string().trim().min(1, "La marca es obligatoria"),
+  model: z.string().trim().min(1, "El modelo es obligatorio"),
+  year: z.preprocess(
+    (v) => (v === "" || v == null ? null : Number(v)),
+    z.number().int().min(1950).max(2100).nullable(),
+  ),
+  color: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
+    z.string().nullable(),
+  ),
   engineNumber: optionalStr,
   chassisNumber: optionalStr,
   insurancePolicyNumber: optionalStr,
   insuranceCompany: optionalStr,
 });
 
-function parse(formData: FormData) {
-  return vehicleSchema.safeParse({
-    plate: formData.get("plate"),
-    brand: formData.get("brand"),
-    model: formData.get("model"),
-    year: formData.get("year"),
-    color: formData.get("color"),
+const vehicleSchema = operationalSchema.merge(adminOnlySchema);
+
+function parseOperational(formData: FormData) {
+  return operationalSchema.safeParse({
     currentKm: formData.get("currentKm"),
     status: formData.get("status"),
     fuelLevels: formData.get("fuelLevels"),
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),
+  });
+}
+
+function parse(formData: FormData) {
+  return vehicleSchema.safeParse({
+    currentKm: formData.get("currentKm"),
+    status: formData.get("status"),
+    fuelLevels: formData.get("fuelLevels"),
+    nextServiceKm: formData.get("nextServiceKm"),
+    serviceIntervalKm: formData.get("serviceIntervalKm"),
+    notes: formData.get("notes"),
+    plate: formData.get("plate"),
+    brand: formData.get("brand"),
+    model: formData.get("model"),
+    year: formData.get("year"),
+    color: formData.get("color"),
     engineNumber: formData.get("engineNumber"),
     chassisNumber: formData.get("chassisNumber"),
     insurancePolicyNumber: formData.get("insurancePolicyNumber"),
@@ -101,7 +121,22 @@ export async function updateVehicle(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
+
+  // Un empleado no-admin solo puede tocar lo operativo (estado, km, notas).
+  // Esto no es solo un chequeo de UI: aunque alguien manipule el formulario a
+  // mano y mande patente/chasis/seguro igual, acá se ignoran por completo —
+  // ni siquiera se parsean — para un usuario que no sea admin.
+  if (user.role !== "admin") {
+    const parsed = parseOperational(formData);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+    await prisma.vehicle.update({ where: { id }, data: parsed.data });
+    revalidatePath("/vehicles");
+    redirect(`/vehicles/${id}`);
+  }
+
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };

@@ -209,7 +209,9 @@ export default async function RentalDetailPage({
 
       {/* Eliminar reserva (admin, solo si no tiene entrega/acta). Para reservas
           huérfanas: órdenes borradas en VikRentCar o cargas manuales erróneas. */}
-      {isAdmin && rental.inspections.length === 0 && <DangerZoneSection rentalId={rental.id} />}
+      {isAdmin && rental.inspections.length === 0 && (
+        <DangerZoneSection rentalId={rental.id} clientName={rental.clientName} />
+      )}
     </div>
   );
 }

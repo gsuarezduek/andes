@@ -26,7 +26,7 @@ export function StepEstado({ ctx }: { ctx: StepContext }) {
                 <span className="text-sm">{it.label}</span>
                 <div className="flex overflow-hidden rounded-lg border border-foreground/15 text-xs">
                   {(["ok", "fail"] as const).map((opt) => (
-                    <button key={opt} type="button" onClick={() => patch({ checklist: { ...draft.checklist, [it.id]: opt } })} className={`px-3 py-1.5 font-medium ${val === opt ? (opt === "ok" ? "bg-green-600 text-white" : "bg-red-600 text-white") : "text-foreground/60"}`}>
+                    <button key={opt} type="button" onClick={() => patch({ checklist: { ...draft.checklist, [it.id]: opt } })} className={`flex h-11 items-center justify-center px-4 font-medium ${val === opt ? (opt === "ok" ? "bg-green-600 text-white" : "bg-red-600 text-white") : "text-foreground/60"}`}>
                       {opt === "ok" ? "OK" : "Falla"}
                     </button>
                   ))}

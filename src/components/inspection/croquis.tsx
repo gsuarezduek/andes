@@ -75,16 +75,26 @@ export function Croquis({
       ))}
 
       {markers.map((m) => (
+        // Botón con zona táctil de 44x44 (mínimo recomendado) pero manteniendo
+        // el punto visual chico (igual que antes) — el marcador rojo real es
+        // el <span> interno; el botón es una zona de toque invisible más
+        // grande centrada en el mismo punto, para no tapar el croquis.
         <button
           key={m.id}
           type="button"
           data-marker="1"
           onClick={() => onRemove?.(m.id)}
-          className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-red-600 text-[10px] font-bold text-white shadow"
+          className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
           style={{ left: `${m.posX * 100}%`, top: `${m.posY * 100}%` }}
           title="Tocar para quitar"
+          aria-label="Quitar marca de daño"
         >
-          ✕
+          <span
+            data-marker="1"
+            className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-red-600 text-[10px] font-bold text-white shadow"
+          >
+            ✕
+          </span>
         </button>
       ))}
     </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import { updateSchema, type FormState } from "./schemas";
 
 /**
@@ -48,6 +49,16 @@ export async function updateRentalDetails(
     });
     if (!vehicle) return { error: "El vehículo seleccionado no existe." };
     if (vehicle.archivedAt) return { error: "El vehículo seleccionado está archivado." };
+
+    // No permitir reasignar un auto que ya tiene otra reserva/alquiler
+    // vigente en fechas que se pisan con esta.
+    const clash = await findOverlappingRental(
+      parsed.data.vehicleId,
+      rental.startAt,
+      rental.endAt,
+      rental.id,
+    );
+    if (clash) return { error: overlapErrorMessage(clash) };
   }
 
   await prisma.rental.update({

@@ -11,7 +11,7 @@ export default async function NewVehiclePage() {
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight">Nuevo vehículo</h1>
-      <VehicleForm action={createVehicle} cancelHref="/vehicles" />
+      <VehicleForm action={createVehicle} cancelHref="/vehicles" isAdmin />
     </div>
   );
 }

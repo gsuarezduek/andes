@@ -168,5 +168,18 @@ export function validateStep(
       return `Decidí funcional o falla en todos los ítems del checklist (faltan ${pending.length}).`;
     }
   }
+  // Evidencia mínima: sin esto, un acta puede terminar siendo puramente
+  // declarativa justo en el escenario donde más se necesita (una disputa).
+  if (current === "Fotos") {
+    if (draft.photos.length === 0) return "Agregá al menos una foto del vehículo para continuar.";
+  }
+  if (current === "Daños") {
+    const missingDescription = draft.damages.filter((d) => !d.description.trim());
+    if (missingDescription.length > 0) {
+      return draft.damages.length === 1
+        ? "Describí el daño marcado en el croquis para continuar."
+        : `Describí cada daño marcado en el croquis para continuar (faltan ${missingDescription.length}).`;
+    }
+  }
   return undefined;
 }
