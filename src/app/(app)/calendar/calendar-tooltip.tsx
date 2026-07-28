@@ -1,5 +1,6 @@
 import type { CalendarBar, CalendarNote } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
+import { formatArs } from "@/lib/contract";
 import { chipClasses, statusLabel } from "./bar-style";
 
 export type HoverContent =
@@ -35,6 +36,13 @@ function BarTooltipBody({ bar }: { bar: CalendarBar }) {
         {formatDateTime(bar.startAt)} → {formatDateTime(bar.endAt)}
         {bar.bookingModel ? ` · ${bar.bookingModel}` : ""}
       </p>
+      {bar.paymentAccent === "complete" ? (
+        <p className="mt-1 font-medium text-emerald-600 dark:text-emerald-400">Pagado completo</p>
+      ) : bar.paymentAccent === "pending" ? (
+        <p className="mt-1 font-medium text-red-600 dark:text-red-400">
+          Falta pagar {formatArs(bar.balance)}
+        </p>
+      ) : null}
       {bar.extraDrivers.length > 0 ? (
         <p className="mt-1.5">
           <span className="text-foreground/45">Conductores adicionales: </span>

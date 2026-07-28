@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeRentalPayments } from "@/lib/rental-payments";
+import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 
 describe("computeRentalPayments", () => {
   it("antes de la entrega, sin nada cargado: no muestra nada", () => {
@@ -40,5 +40,44 @@ describe("computeRentalPayments", () => {
     expect(r.totalRef).toBe(90_000);
     expect(r.paidSoFar).toBe(30_000);
     expect(r.balance).toBe(60_000);
+  });
+});
+
+describe("paymentAccent", () => {
+  it("activo con saldo en cero: completo", () => {
+    expect(paymentAccent("active", true, { balance: 0 })).toBe("complete");
+  });
+
+  it("activo con saldo negativo (sobrepago): completo", () => {
+    expect(paymentAccent("active", true, { balance: -500 })).toBe("complete");
+  });
+
+  it("activo con saldo positivo: falta pagar", () => {
+    expect(paymentAccent("active", true, { balance: 15_000 })).toBe("pending");
+  });
+
+  it("reservado y confirmado, sin saldo pendiente: completo", () => {
+    expect(paymentAccent("reserved", true, { balance: 0 })).toBe("complete");
+  });
+
+  it("reservado y confirmado, con saldo: falta pagar", () => {
+    expect(paymentAccent("reserved", true, { balance: 10_000 })).toBe("pending");
+  });
+
+  it("reservado sin confirmar: no aplica, aunque haya saldo", () => {
+    expect(paymentAccent("reserved", false, { balance: 10_000 })).toBeNull();
+  });
+
+  it("cancelado: no aplica", () => {
+    expect(paymentAccent("cancelled", true, { balance: 10_000 })).toBeNull();
+  });
+
+  it("finalizado: no aplica (fuera de alcance a propósito)", () => {
+    expect(paymentAccent("finished", true, { balance: 10_000 })).toBeNull();
+  });
+
+  it("sin datos de saldo: no aplica", () => {
+    expect(paymentAccent("active", true, { balance: null })).toBeNull();
+    expect(paymentAccent("reserved", true, { balance: null })).toBeNull();
   });
 });

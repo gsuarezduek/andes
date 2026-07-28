@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import { formatTime } from "@/lib/datetime";
-import { barClasses } from "./bar-style";
+import { barClasses, paymentBorderClasses } from "./bar-style";
 import { LABEL_W_CLASS } from "./calendar-constants";
 
 export function Row({
@@ -99,7 +99,7 @@ export function Row({
             onMouseLeave={onLeave}
             className={`absolute overflow-hidden rounded-md px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
               dense ? "flex flex-col justify-center gap-0.5 py-1 text-xs" : "flex items-center text-[11px]"
-            } ${barClasses(bar)}`}
+            } ${barClasses(bar)} ${paymentBorderClasses(bar)}`}
             style={{
               left: bar.startIndex * colW + 2,
               width: bar.span * colW - 4,

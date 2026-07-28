@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth-helpers";
 import { getDashboardData, type MovementState } from "@/lib/dashboard";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/datetime";
+import { paymentBorderClass } from "@/lib/rental-ui";
+import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 
 const stateTone: Record<MovementState, "amber" | "green" | "red"> = {
   pendiente: "amber",
@@ -34,6 +36,7 @@ function MovementRow({
   time,
   state,
   unconfirmed,
+  accent,
 }: {
   href: string;
   title: string;
@@ -41,9 +44,13 @@ function MovementRow({
   time: string;
   state: MovementState;
   unconfirmed?: boolean;
+  accent?: PaymentAccent;
 }) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]">
+    <Link
+      href={href}
+      className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03] ${paymentBorderClass(accent ?? null)}`}
+    >
       <div className="flex-1">
         <p className="flex items-center gap-2 font-medium">
           {title}
@@ -84,6 +91,7 @@ export default async function HomePage() {
                   time={`Retiro ${formatDateTime(rental.startAt)}`}
                   state={state}
                   unconfirmed={!rental.bookingConfirmed}
+                  accent={paymentAccent(rental.status, rental.bookingConfirmed, computeRentalPayments(rental))}
                 />
               ))}
             </div>
@@ -104,6 +112,7 @@ export default async function HomePage() {
                   time={`Devolución ${formatDateTime(rental.endAt)}`}
                   state={state}
                   unconfirmed={!rental.bookingConfirmed}
+                  accent={paymentAccent(rental.status, rental.bookingConfirmed, computeRentalPayments(rental))}
                 />
               ))}
             </div>
@@ -130,7 +139,11 @@ export default async function HomePage() {
             {fleet.rented.length > 0 && (
               <div className="mt-2 divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
                 {fleet.rented.map((r) => (
-                  <Link key={r.id} href={r.vehicle ? `/vehicles/${r.vehicle.id}` : `/rentals/${r.id}`} className="flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-foreground/[0.03]">
+                  <Link
+                    key={r.id}
+                    href={r.vehicle ? `/vehicles/${r.vehicle.id}` : `/rentals/${r.id}`}
+                    className={`flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-foreground/[0.03] ${paymentBorderClass(paymentAccent(r.status, r.bookingConfirmed, computeRentalPayments(r)))}`}
+                  >
                     <span className="font-medium">
                       {r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model} · ${r.vehicle.plate}` : "—"}
                     </span>

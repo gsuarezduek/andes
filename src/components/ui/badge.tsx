@@ -11,16 +11,26 @@ const tones: Record<Tone, string> = {
   orange: "bg-orange-500/20 text-orange-700 dark:text-orange-400",
 };
 
+type RingTone = "complete" | "pending";
+
+const ringTones: Record<RingTone, string> = {
+  complete: "ring-2 ring-emerald-500",
+  pending: "ring-2 ring-red-500",
+};
+
 export function Badge({
   children,
   tone = "neutral",
+  ring,
 }: {
   children: ReactNode;
   tone?: Tone;
+  /** Marca de pago (ver `paymentAccent` en src/lib/rental-payments.ts), superpuesta al tono del estado. */
+  ring?: RingTone | null;
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tones[tone]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tones[tone]} ${ring ? ringTones[ring] : ""}`}
     >
       {children}
     </span>

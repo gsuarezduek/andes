@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { rentalStatusDisplay } from "@/lib/rental-ui";
+import { rentalStatusDisplay, paymentBorderClass } from "@/lib/rental-ui";
+import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { formatDateTime } from "@/lib/datetime";
+import { formatArs } from "@/lib/contract";
 import type { RentalRow } from "@/lib/rental-list-queries";
 
 // Fila del listado: patente (o modelo) primero, luego el nombre del cliente.
@@ -17,11 +19,13 @@ export function RentalList({ rentals }: { rentals: RentalRow[] }) {
       {rentals.map((r) => {
         const { label, tone } = rentalStatusDisplay(r.status, r.bookingConfirmed);
         const noteCount = r._count.teamNotes;
+        const payments = computeRentalPayments(r);
+        const accent = paymentAccent(r.status, r.bookingConfirmed, payments);
         return (
           <li key={r.id}>
             <Link
               href={`/rentals/${r.id}`}
-              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]"
+              className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03] ${paymentBorderClass(accent)}`}
             >
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 truncate font-medium">
@@ -46,7 +50,14 @@ export function RentalList({ rentals }: { rentals: RentalRow[] }) {
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge tone={tone}>{label}</Badge>
+                <Badge tone={tone} ring={accent}>
+                  {label}
+                </Badge>
+                {accent === "pending" && (
+                  <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
+                    Falta {formatArs(payments.balance)}
+                  </span>
+                )}
               </div>
             </Link>
           </li>

@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
+import { formatArs } from "@/lib/contract";
 import { formatDateInput } from "@/lib/datetime";
 import { StatusBanners } from "@/components/rentals/status-banners";
 import { TeamNotesSection } from "@/components/rentals/team-notes-section";
@@ -23,7 +24,7 @@ import { ServiceFormSection } from "@/components/rentals/service-form-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
 import { getRentalDetail, getEditableVehicles } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
-import { computeRentalPayments } from "@/lib/rental-payments";
+import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
 
@@ -59,7 +60,9 @@ export default async function RentalDetailPage({
 
   const today = formatDateInput(new Date());
 
-  const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = computeRentalPayments(rental);
+  const payments = computeRentalPayments(rental);
+  const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = payments;
+  const accent = paymentAccent(rental.status, rental.bookingConfirmed, payments);
 
   // Pago suelto (botón del header): solo tiene sentido antes de cerrar la
   // reserva. El acceso rápido a Service no depende del estado, solo de que
@@ -97,7 +100,11 @@ export default async function RentalDetailPage({
           {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
           {(() => {
             const { label, tone } = rentalStatusDisplay(rental.status, rental.bookingConfirmed);
-            return <Badge tone={tone}>{label}</Badge>;
+            return (
+              <Badge tone={tone} ring={accent}>
+                {label}
+              </Badge>
+            );
           })()}
         </div>
       </div>
@@ -105,6 +112,21 @@ export default async function RentalDetailPage({
       {!rental.bookingConfirmed && (
         <p className="rounded-lg bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-700 dark:text-orange-400">
           Reserva sin confirmar en VikRentCar. Verificá con el cliente antes de entregar.
+        </p>
+      )}
+
+      {rental.bookingConfirmed &&
+        rental.status === "reserved" &&
+        accent !== "pending" &&
+        (paidSoFar == null || paidSoFar === 0) && (
+          <p className="rounded-lg bg-red-500/10 px-4 py-2 text-xs font-medium text-red-700 dark:text-red-400">
+            Reserva confirmada sin seña registrada en Andes. Cargá el pago con el botón de arriba.
+          </p>
+        )}
+
+      {accent === "pending" && (
+        <p className="rounded-lg bg-red-500/10 px-4 py-2 text-xs font-medium text-red-700 dark:text-red-400">
+          Falta pagar {formatArs(balance)}.
         </p>
       )}
 

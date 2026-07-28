@@ -1,4 +1,4 @@
-import type { Rental } from "@prisma/client";
+import type { Rental, RentalStatus } from "@prisma/client";
 import { computeBalance, type ContractPricing } from "@/lib/contract";
 
 type RentalPaymentsInput = Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid">;
@@ -44,4 +44,23 @@ export function computeRentalPayments(rental: RentalPaymentsInput): RentalPaymen
   const showPayments = totalRef != null || paidSoFar != null;
 
   return { hasContract, hasRealPaid: paidFromContract, totalRef, paidSoFar, balance, showPayments };
+}
+
+export type PaymentAccent = "complete" | "pending" | null;
+
+/**
+ * Marca visual de pago para Calendario/Alquileres/Home: solo tiene sentido en
+ * `active` o `reserved` ya confirmada (verde/ámbar) — una reserva pendiente o
+ * cancelada todavía no tiene por qué tener seña. `null` cubre tanto "no
+ * aplica" como "no hay datos suficientes para saber" (mismo tratamiento
+ * visual: no se resalta nada porque no hay una alerta real que mostrar).
+ */
+export function paymentAccent(
+  status: RentalStatus,
+  bookingConfirmed: boolean,
+  payments: Pick<RentalPayments, "balance">,
+): PaymentAccent {
+  const applies = status === "active" || (status === "reserved" && bookingConfirmed);
+  if (!applies || payments.balance == null) return null;
+  return payments.balance <= 0 ? "complete" : "pending";
 }

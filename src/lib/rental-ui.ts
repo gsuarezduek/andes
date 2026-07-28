@@ -1,4 +1,5 @@
 import type { RentalStatus } from "@prisma/client";
+import type { PaymentAccent } from "@/lib/rental-payments";
 
 export type BadgeTone = "neutral" | "green" | "amber" | "red" | "blue" | "orange";
 
@@ -26,4 +27,23 @@ export function rentalStatusDisplay(
         ? { label: "Confirmado", tone: "amber" }
         : { label: "Pendiente", tone: "orange" };
   }
+}
+
+/**
+ * Borde izquierdo para filas/barras (Calendario, listado de Alquileres,
+ * Home): marca si una reserva Activa/Confirmada está pagada o no, sin pisar
+ * el color de fondo que ya indica el estado. `border-l-transparent` reserva
+ * el espacio para que las filas no salten de ancho entre sí.
+ */
+export function paymentBorderClass(accent: PaymentAccent): string {
+  if (accent === "complete") return "border-l-4 border-l-emerald-500";
+  if (accent === "pending") return "border-l-4 border-l-red-500";
+  return "border-l-4 border-l-transparent";
+}
+
+/** Ring para el Badge de estado (pill): mismo criterio de color que `paymentBorderClass`. */
+export function paymentRingClass(accent: PaymentAccent): string {
+  if (accent === "complete") return "ring-2 ring-emerald-500";
+  if (accent === "pending") return "ring-2 ring-red-500";
+  return "";
 }

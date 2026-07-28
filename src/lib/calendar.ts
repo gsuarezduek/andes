@@ -1,7 +1,9 @@
 import "server-only";
 
+import type { Rental, RentalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -44,6 +46,11 @@ export type CalendarBar = {
   /** Carril vertical dentro de la fila (0 = arriba). Solo > 0 cuando esta
    *  barra se solapa en fechas con otra del mismo auto — ver `assignLanes`. */
   lane: number;
+  /** Marca de pago (ver `paymentAccent` en src/lib/rental-payments.ts): solo
+   *  se calcula para Activo/Confirmado, `null` en el resto. */
+  paymentAccent: PaymentAccent;
+  /** Saldo pendiente, solo cuando `paymentAccent === "pending"` (para el tooltip). */
+  balance: number | null;
 };
 
 /** Nota interna del equipo sobre el auto, aún sin resolver. */
@@ -122,7 +129,7 @@ type RentalRow = {
   id: string;
   vehicleId: string | null;
   clientName: string;
-  status: string;
+  status: RentalStatus;
   bookingConfirmed: boolean;
   startAt: Date;
   endAt: Date;
@@ -130,7 +137,7 @@ type RentalRow = {
   bookingModel: string | null;
   additionalDrivers: unknown;
   teamNotes: { id: string; text: string; createdAt: Date; createdBy: { name: string } | null }[];
-};
+} & Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid">;
 
 function extraDriverNames(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -154,6 +161,8 @@ function toBar(
   const startIndex = Math.max(0, Math.floor(relStart));
   const endIndex = Math.min(days - 1, Math.ceil(relEnd) - 1);
   if (endIndex < startIndex) return null;
+  const payments = computeRentalPayments(r);
+  const accent = paymentAccent(r.status, r.bookingConfirmed, payments);
   return {
     rentalId: r.id,
     startIndex,
@@ -173,6 +182,8 @@ function toBar(
       createdAt: n.createdAt,
     })),
     lane: 0,
+    paymentAccent: accent,
+    balance: accent === "pending" ? payments.balance : null,
   };
 }
 
@@ -247,6 +258,9 @@ export async function getCalendarData(opts?: {
         bookingNote: true,
         bookingModel: true,
         additionalDrivers: true,
+        pricing: true,
+        bookingTotal: true,
+        bookingPaid: true,
         teamNotes: {
           where: { resolvedAt: null },
           orderBy: { createdAt: "asc" },

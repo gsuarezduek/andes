@@ -1,6 +1,6 @@
 import type { RentalStatus } from "@prisma/client";
 import type { CalendarBar } from "@/lib/calendar";
-import { rentalStatusDisplay } from "@/lib/rental-ui";
+import { rentalStatusDisplay, paymentBorderClass } from "@/lib/rental-ui";
 
 /** Etiqueta de estado para el tooltip: la "oficial" (src/lib/rental-ui), la
  *  misma que se usa en el listado de Alquileres y el detalle del alquiler. */
@@ -22,6 +22,11 @@ export function barClasses(bar: CalendarBar): string {
         ? "bg-amber-400 text-amber-950 hover:bg-amber-400/90 hover:ring-amber-300" // Confirmado (pagado)
         : "bg-orange-500/90 text-white hover:bg-orange-500 hover:ring-orange-300"; // Pendiente
   }
+}
+
+/** Borde izquierdo según el pago (ver `paymentAccent` en src/lib/rental-payments.ts). */
+export function paymentBorderClasses(bar: CalendarBar): string {
+  return paymentBorderClass(bar.paymentAccent);
 }
 
 /** Clases del chip de estado en el tooltip (fondo suave + texto). */
