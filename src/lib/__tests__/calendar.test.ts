@@ -16,6 +16,8 @@ function bar(rentalId: string, startIndex: number, span: number): CalendarBar {
     bookingModel: null,
     activeNotes: [],
     lane: 0,
+    paymentAccent: null,
+    balance: 0,
   };
 }
 

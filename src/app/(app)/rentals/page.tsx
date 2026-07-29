@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { RentalList } from "@/components/rentals/rental-list";
@@ -17,14 +18,38 @@ export default async function RentalsPage({
     confirm?: string;
     desde?: string;
     hasta?: string;
+    sort?: string;
+    cp?: string;
+    pp?: string;
   }>;
 }) {
   await requireUser();
   const sp = await searchParams;
   const filters = parseRentalListFilters(sp);
   const { currentWhere, pastWhere } = buildRentalWhereClauses(filters);
-  const { current, currentTotal, past, pastTotal, currentMore, pastMore } =
-    await getRentalListData(currentWhere, pastWhere);
+  const { current, currentTotal, currentPage, currentTotalPages, past, pastTotal, pastPage, pastTotalPages } =
+    await getRentalListData(currentWhere, pastWhere, {
+      sort: filters.sort,
+      currentPage: filters.currentPage,
+      pastPage: filters.pastPage,
+    });
+
+  // Preserva filtros/orden vigentes al cambiar de página en una sección sin tocar la otra.
+  const pageHref = (section: "cp" | "pp", page: number) => {
+    const params = new URLSearchParams();
+    if (filters.query) params.set("q", filters.query);
+    if (filters.statusFilter) params.set("status", filters.statusFilter);
+    if (filters.confirm !== "all") params.set("confirm", filters.confirm);
+    if (filters.desde) params.set("desde", filters.desde);
+    if (filters.hasta) params.set("hasta", filters.hasta);
+    if (filters.sort !== "fecha") params.set("sort", filters.sort);
+    if (section === "cp" && page > 1) params.set("cp", String(page));
+    if (section === "cp" && filters.pastPage > 1) params.set("pp", String(filters.pastPage));
+    if (section === "pp" && page > 1) params.set("pp", String(page));
+    if (section === "pp" && filters.currentPage > 1) params.set("cp", String(filters.currentPage));
+    const qs = params.toString();
+    return qs ? `/rentals?${qs}#${section}` : `/rentals#${section}`;
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -48,7 +73,7 @@ export default async function RentalsPage({
         </p>
       ) : (
         <>
-          <section className="flex flex-col gap-2">
+          <section id="cp" className="flex scroll-mt-4 flex-col gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
               Actuales{currentTotal > 0 ? ` (${currentTotal})` : ""}
             </h2>
@@ -59,14 +84,12 @@ export default async function RentalsPage({
             ) : (
               <RentalList rentals={current} />
             )}
-            {currentMore && (
-              <p className="text-center text-xs text-foreground/50">
-                Hay más. Buscá por cliente, patente, orden o filtrá por fecha/estado.
-              </p>
+            {currentTotalPages > 1 && (
+              <PageNav section="cp" page={currentPage} totalPages={currentTotalPages} pageHref={pageHref} />
             )}
           </section>
 
-          <section className="flex flex-col gap-2">
+          <section id="pp" className="flex scroll-mt-4 flex-col gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
               Pasados{pastTotal > 0 ? ` (${pastTotal})` : ""}
             </h2>
@@ -77,13 +100,45 @@ export default async function RentalsPage({
             ) : (
               <RentalList rentals={past} />
             )}
-            {pastMore && (
-              <p className="text-center text-xs text-foreground/50">
-                Mostrando los {past.length} más recientes. Buscá por cliente, patente, orden o filtrá por fecha/estado.
-              </p>
+            {pastTotalPages > 1 && (
+              <PageNav section="pp" page={pastPage} totalPages={pastTotalPages} pageHref={pageHref} />
             )}
           </section>
         </>
+      )}
+    </div>
+  );
+}
+
+function PageNav({
+  section,
+  page,
+  totalPages,
+  pageHref,
+}: {
+  section: "cp" | "pp";
+  page: number;
+  totalPages: number;
+  pageHref: (section: "cp" | "pp", page: number) => string;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-3 py-1 text-sm">
+      {page > 1 ? (
+        <Link href={pageHref(section, page - 1)} className="font-medium text-foreground/70 underline">
+          ← Anterior
+        </Link>
+      ) : (
+        <span className="text-foreground/30">← Anterior</span>
+      )}
+      <span className="text-xs text-foreground/50">
+        Página {page} de {totalPages}
+      </span>
+      {page < totalPages ? (
+        <Link href={pageHref(section, page + 1)} className="font-medium text-foreground/70 underline">
+          Siguiente →
+        </Link>
+      ) : (
+        <span className="text-foreground/30">Siguiente →</span>
       )}
     </div>
   );

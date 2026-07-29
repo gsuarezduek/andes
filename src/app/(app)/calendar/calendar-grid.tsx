@@ -36,13 +36,17 @@ export function CalendarGrid({
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
+  // En touch no hay hover: la barra se identifica primero (muestra el tooltip)
+  // y recién un segundo toque sobre la misma barra navega. Ver activeKey en Row.
+  const activeKey =
+    hover?.type === "bar" ? `bar:${hover.bar.rentalId}` : hover?.type === "notes" ? `notes:${hover.title}` : null;
 
   return (
-    <div className="relative rounded-xl border border-foreground/10">
+    <div className="relative rounded-xl border border-foreground/10" onClick={hide}>
       <div className="overflow-x-auto">
         <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
           {/* Encabezado de días */}
-          <div className="flex border-b border-foreground/10">
+          <div className="sticky top-0 z-30 flex border-b border-foreground/10 bg-background">
             <div
               className={`sticky left-0 z-20 shrink-0 truncate border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50 ${LABEL_W_CLASS}`}
             >
@@ -81,6 +85,7 @@ export function CalendarGrid({
               colW={colW}
               rowH={rowH}
               dense={dense}
+              activeKey={activeKey}
               onEnter={show}
               onEnterNote={showNotes}
               onMove={move}
@@ -115,6 +120,7 @@ export function CalendarGrid({
                   colW={colW}
                   rowH={rowH}
                   dense={dense}
+                  activeKey={activeKey}
                   onEnter={show}
                   onEnterNote={showNotes}
                   onMove={move}

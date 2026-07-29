@@ -11,6 +11,7 @@ export function Row({
   colW,
   rowH,
   dense,
+  activeKey,
   onEnter,
   onEnterNote,
   onMove,
@@ -22,6 +23,7 @@ export function Row({
   colW: number;
   rowH: number;
   dense: boolean;
+  activeKey: string | null;
   onEnter: (bar: CalendarBar, e: React.MouseEvent) => void;
   onEnterNote: (title: string, notes: CalendarNote[], e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
@@ -48,7 +50,12 @@ export function Row({
               onMouseEnter={(e) => onEnterNote(row.plate!, row.activeNotes, e)}
               onMouseMove={onMove}
               onMouseLeave={onLeave}
-              className="absolute right-2 top-1.5 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEnterNote(row.plate!, row.activeNotes, e);
+              }}
+              className="absolute -right-1.5 -top-1.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold leading-none text-white shadow-sm"
               title={`${row.activeNotes.length} nota(s) sin resolver`}
             >
               {row.activeNotes.length}
@@ -90,13 +97,23 @@ export function Row({
         ))}
         {/* Barras de alquiler. En vista Semana (dense) hay lugar de sobra:
             se suma el horario de retiro/devolución debajo del cliente. */}
-        {row.bars.map((bar) => (
+        {row.bars.map((bar) => {
+          const isActive = activeKey === `bar:${bar.rentalId}`;
+          return (
           <Link
             key={bar.rentalId}
             href={`/rentals/${bar.rentalId}`}
             onMouseEnter={(e) => onEnter(bar, e)}
             onMouseMove={onMove}
             onMouseLeave={onLeave}
+            onClick={(e) => {
+              // Touch: el primer toque muestra el tooltip en vez de navegar;
+              // recién un segundo toque sobre la misma barra (ya activa) navega.
+              if (isActive) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onEnter(bar, e);
+            }}
             className={`absolute overflow-hidden rounded-md px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
               dense ? "flex flex-col justify-center gap-0.5 py-1 text-xs" : "flex items-center text-[11px]"
             } ${barClasses(bar)} ${paymentBorderClasses(bar)}`}
@@ -121,7 +138,12 @@ export function Row({
                   e.stopPropagation();
                   onEnter(bar, e);
                 }}
-                className="absolute right-0 top-0 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white shadow-sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEnterNote(bar.clientName, bar.activeNotes, e);
+                }}
+                className="absolute -right-1 -top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold leading-none text-white shadow-sm"
                 title={`${bar.activeNotes.length} nota(s) sin resolver`}
               >
                 {bar.activeNotes.length}
@@ -134,7 +156,8 @@ export function Row({
               </span>
             ) : null}
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
