@@ -61,6 +61,9 @@ body {
     stroke-dasharray: none;
     opacity: 0.9;
   }
+  .animate-pulse {
+    animation: none;
+  }
 }
 
 /* Impresión de QRs: ocultar la app (nav, botones) y forzar tinta negra. */

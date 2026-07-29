@@ -19,18 +19,19 @@ export function RentalForm({
   vehicles: VehicleOption[];
 }) {
   const [state, formAction] = useActionState(action, {});
+  const fieldErrors = state.fieldErrors ?? {};
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <TextField id="clientName" label="Nombre del cliente" required />
+      <TextField id="clientName" label="Nombre del cliente" required error={fieldErrors.clientName} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="clientEmail" label="Email" type="email" hint="Opcional — para enviar el acta" />
-        <TextField id="clientPhone" label="Teléfono" hint="Opcional" />
+        <TextField id="clientEmail" label="Email" type="email" hint="Opcional — para enviar el acta" error={fieldErrors.clientEmail} />
+        <TextField id="clientPhone" label="Teléfono" hint="Opcional" error={fieldErrors.clientPhone} />
       </div>
-      <TextField id="clientDocNumber" label="Nro. de documento" hint="Opcional" />
-      <TextField id="clientAddress" label="Domicilio en Mendoza" hint="Opcional" />
+      <TextField id="clientDocNumber" label="Nro. de documento" hint="Opcional" error={fieldErrors.clientDocNumber} />
+      <TextField id="clientAddress" label="Domicilio en Mendoza" hint="Opcional" error={fieldErrors.clientAddress} />
 
-      <SelectField id="vehicleId" label="Vehículo" hint="Se puede asignar más tarde">
+      <SelectField id="vehicleId" label="Vehículo" hint="Se puede asignar más tarde" error={fieldErrors.vehicleId}>
         <option value="">Sin asignar</option>
         {vehicles.map((v) => (
           <option key={v.id} value={v.id}>
@@ -40,8 +41,8 @@ export function RentalForm({
       </SelectField>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="startAt" label="Retiro" type="datetime-local" required />
-        <TextField id="endAt" label="Devolución" type="datetime-local" required />
+        <TextField id="startAt" label="Retiro" type="datetime-local" required error={fieldErrors.startAt} />
+        <TextField id="endAt" label="Devolución" type="datetime-local" required error={fieldErrors.endAt} />
       </div>
 
       <SelectField id="language" label="Idioma del cliente" defaultValue="es" hint="Para el acta y los emails">

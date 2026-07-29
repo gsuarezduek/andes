@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { logout } from "@/app/(app)/actions";
 
 const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
@@ -66,19 +67,15 @@ export function InactivityLogout() {
     };
   }, [signOutNow]);
 
-  if (secondsLeft === null) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-xl border border-foreground/10 bg-background p-5 text-center shadow-lg">
-        <p className="text-base font-semibold">¿Seguís ahí?</p>
-        <p className="mt-2 text-sm text-foreground/70">
-          Por inactividad, la sesión se cierra en {secondsLeft}s.
-        </p>
-        <Button className="mt-4 w-full" onClick={registerActivity}>
-          Seguir conectado
-        </Button>
-      </div>
-    </div>
+    <Modal open={secondsLeft !== null} className="max-w-sm text-center">
+      <p className="text-base font-semibold">¿Seguís ahí?</p>
+      <p className="mt-2 text-sm text-foreground/70">
+        Por inactividad, la sesión se cierra en {secondsLeft}s.
+      </p>
+      <Button className="mt-4 w-full" onClick={registerActivity}>
+        Seguir conectado
+      </Button>
+    </Modal>
   );
 }

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
-import { updateSchema, type FormState } from "./schemas";
+import { updateSchema, zodFieldErrors, type FormState } from "./schemas";
 
 /**
  * Edita los datos de contacto del cliente y el vehículo asignado desde el
@@ -29,7 +29,10 @@ export async function updateRentalDetails(
     vehicleId: formData.get("vehicleId"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      fieldErrors: zodFieldErrors(parsed.error),
+    };
   }
 
   const rental = await prisma.rental.findUnique({
@@ -83,7 +86,10 @@ export async function updateRentalDetails(
   // "Guardar datos" antes de ir al wizard.
   if (formData.get("intent") === "startHandover") {
     if (!parsed.data.vehicleId) {
-      return { error: "Asigná un vehículo para poder iniciar la entrega." };
+      return {
+        error: "Asigná un vehículo para poder iniciar la entrega.",
+        fieldErrors: { vehicleId: "Asigná un vehículo para continuar." },
+      };
     }
     redirect(`/rentals/${rental.id}/handover`);
   }

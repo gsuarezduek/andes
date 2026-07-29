@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
-import { rentalSchema, type FormState } from "./schemas";
+import { rentalSchema, zodFieldErrors, type FormState } from "./schemas";
 
 export async function createRental(
   _prev: FormState,
@@ -26,7 +26,10 @@ export async function createRental(
     language: formData.get("language"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    return {
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      fieldErrors: zodFieldErrors(parsed.error),
+    };
   }
 
   const startAt = mendozaWallTimeToUtc(parsed.data.startAt);

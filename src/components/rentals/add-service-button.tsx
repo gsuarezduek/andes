@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { ServiceIcon } from "@/components/ui/icons";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { formatDateInput } from "@/lib/datetime";
@@ -74,85 +75,80 @@ export function AddServiceButton({
         <ServiceIcon />
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl border border-foreground/10 bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <p className="mb-4 text-sm font-semibold text-foreground/90">Service / arreglo</p>
-            <form onSubmit={submit} className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-foreground/70">Tipo</span>
-                  <select name="type" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" defaultValue="service">
-                    {Object.entries(maintenanceTypeLabels).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-foreground/70">Fecha</span>
-                  <input type="date" name="date" required defaultValue={formatDateInput(new Date())} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-foreground/70">Km</span>
-                  <input type="number" name="km" inputMode="numeric" defaultValue={currentKm ?? ""} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-foreground/70">Costo</span>
-                  <input
-                    type="text"
-                    name="cost"
-                    inputMode="decimal"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
-                  />
-                </label>
-              </div>
-              <input name="place" placeholder="Lugar / taller (opcional)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-              <input name="description" required placeholder="Descripción (ej. cambio de aceite y filtros)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-              {hasCost && (
-                <>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-foreground/70">De dónde sale</span>
-                    <select
-                      name="paymentMethodId"
-                      required
-                      value={paymentMethodId}
-                      onChange={(e) => setPaymentMethodId(e.target.value)}
-                      className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
-                    >
-                      <option value="" disabled>Elegí un medio de pago</option>
-                      {paymentMethods.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  {selectedMethod?.requiresNote && (
-                    <input
-                      name="paymentMethodNote"
-                      required
-                      placeholder="¿A dónde fue?"
-                      className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm"
-                    />
-                  )}
-                </>
-              )}
-              <p className="text-xs text-foreground/50">
-                Esto solo registra el service/arreglo — no cancela ni modifica esta reserva.
-              </p>
-              {error && <p className="text-sm text-red-600">{error}</p>}
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" className="flex-1" disabled={pending}>
-                  {pending ? "Guardando…" : "Agregar registro"}
-                </Button>
-              </div>
-            </form>
+      <Modal open={open} onClose={() => setOpen(false)} title="Service / arreglo">
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-foreground/70">Tipo</span>
+              <select name="type" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" defaultValue="service">
+                {Object.entries(maintenanceTypeLabels).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-foreground/70">Fecha</span>
+              <input type="date" name="date" required defaultValue={formatDateInput(new Date())} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-foreground/70">Km</span>
+              <input type="number" name="km" inputMode="numeric" defaultValue={currentKm ?? ""} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-foreground/70">Costo</span>
+              <input
+                type="text"
+                name="cost"
+                inputMode="decimal"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
+              />
+            </label>
           </div>
-        </div>
-      )}
+          <input name="place" placeholder="Lugar / taller (opcional)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
+          <input name="description" required placeholder="Descripción (ej. cambio de aceite y filtros)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
+          {hasCost && (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-foreground/70">De dónde sale</span>
+                <select
+                  name="paymentMethodId"
+                  required
+                  value={paymentMethodId}
+                  onChange={(e) => setPaymentMethodId(e.target.value)}
+                  className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
+                >
+                  <option value="" disabled>Elegí un medio de pago</option>
+                  {paymentMethods.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </label>
+              {selectedMethod?.requiresNote && (
+                <input
+                  name="paymentMethodNote"
+                  required
+                  placeholder="¿A dónde fue?"
+                  className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm"
+                />
+              )}
+            </>
+          )}
+          <p className="text-xs text-foreground/50">
+            Esto solo registra el service/arreglo — no cancela ni modifica esta reserva.
+          </p>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1" disabled={pending}>
+              {pending ? "Guardando…" : "Agregar registro"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }

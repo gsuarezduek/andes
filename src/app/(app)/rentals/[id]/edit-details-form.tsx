@@ -33,15 +33,16 @@ export function EditDetailsForm({
   vehicles: VehicleOption[];
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(updateRentalDetails, {});
+  const fieldErrors = state.fieldErrors ?? {};
 
   return (
     <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-foreground/10 p-4">
       <p className="text-sm font-medium text-foreground/80">Datos del cliente y vehículo</p>
       <input type="hidden" name="rentalId" value={rentalId} />
-      <TextField id="clientName" label="Nombre y apellido" defaultValue={clientName} required />
+      <TextField id="clientName" label="Nombre y apellido" defaultValue={clientName} required error={fieldErrors.clientName} />
       <div className="grid grid-cols-2 gap-3">
-        <TextField id="clientDocNumber" label="Documento" defaultValue={clientDocNumber} />
-        <TextField id="clientPhone" label="Teléfono" type="tel" defaultValue={clientPhone} />
+        <TextField id="clientDocNumber" label="Documento" defaultValue={clientDocNumber} error={fieldErrors.clientDocNumber} />
+        <TextField id="clientPhone" label="Teléfono" type="tel" defaultValue={clientPhone} error={fieldErrors.clientPhone} />
       </div>
       <TextField
         id="clientEmail"
@@ -49,13 +50,15 @@ export function EditDetailsForm({
         type="email"
         defaultValue={clientEmail}
         hint="Ahí llega el acta firmada."
+        error={fieldErrors.clientEmail}
       />
-      <TextField id="clientAddress" label="Domicilio en Mendoza" defaultValue={clientAddress} />
+      <TextField id="clientAddress" label="Domicilio en Mendoza" defaultValue={clientAddress} error={fieldErrors.clientAddress} />
       <SelectField
         id="vehicleId"
         label="Vehículo"
         defaultValue={vehicleId}
         hint="Se puede asignar o cambiar antes de la entrega."
+        error={fieldErrors.vehicleId}
       >
         <option value="">Sin asignar</option>
         {vehicles.map((v) => (

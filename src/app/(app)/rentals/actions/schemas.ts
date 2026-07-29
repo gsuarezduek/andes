@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export type FormState = { error?: string; ok?: boolean };
+export type FormState = { error?: string; ok?: boolean; fieldErrors?: Partial<Record<string, string>> };
+
+/** El primer mensaje de Zod por campo, para resaltar el input puntual que falló. */
+export function zodFieldErrors(error: z.ZodError): Partial<Record<string, string>> {
+  const out: Partial<Record<string, string>> = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+    if (typeof field === "string" && !out[field]) out[field] = issue.message;
+  }
+  return out;
+}
 
 export const optionalStr = z.preprocess(
   (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
