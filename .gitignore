@@ -53,3 +53,7 @@ yarn-error.log*
 
 # testing
 /coverage
+
+# Claude Code: settings.json es config compartida del proyecto; settings.local.json
+# es override personal de cada dev, no se versiona.
+.claude/settings.local.json
