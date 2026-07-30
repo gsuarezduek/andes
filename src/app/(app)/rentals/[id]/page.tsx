@@ -22,7 +22,8 @@ import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
 import { ServiceFormSection } from "@/components/rentals/service-form-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
-import { getRentalDetail, getEditableVehicles } from "@/lib/rental-detail-queries";
+import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-section";
+import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 
@@ -33,10 +34,10 @@ export default async function RentalDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ entrega?: string; devolucion?: string }>;
+  searchParams: Promise<{ entrega?: string; devolucion?: string; fusion?: string }>;
 }) {
   const { id } = await params;
-  const { entrega, devolucion } = await searchParams;
+  const { entrega, devolucion, fusion } = await searchParams;
   const user = await requireUser();
   const isAdmin = user.role === "admin";
 
@@ -57,6 +58,14 @@ export default async function RentalDetailPage({
 
   // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
   const editableVehicles = canStartHandover ? await getEditableVehicles() : [];
+
+  // "¿Es un duplicado?": reserva importada de VikRentCar (tiene wpBookingId),
+  // todavía sin entregar y sin inspección → candidata a ser la orden que se
+  // cargó solo para bloquear el auto, mientras el alquiler real ya se
+  // entregó con otra carga en Andes. Solo admin.
+  const canMergeDuplicate =
+    isAdmin && rental.status === "reserved" && rental.wpBookingId != null && rental.inspections.length === 0;
+  const mergeCandidates = canMergeDuplicate ? await getMergeCandidates(rental.id) : [];
 
   const today = formatDateInput(new Date());
 
@@ -83,7 +92,7 @@ export default async function RentalDetailPage({
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
-      <StatusBanners entrega={entrega} devolucion={devolucion} />
+      <StatusBanners entrega={entrega} devolucion={devolucion} fusion={fusion} />
 
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -206,6 +215,13 @@ export default async function RentalDetailPage({
           Volver
         </ButtonLink>
       </div>
+
+      {/* ¿Es un duplicado? (admin): la reserva que se cargó en VikRentCar solo
+          para bloquear el auto, mientras el alquiler real se entregó con otra
+          carga en Andes. */}
+      {canMergeDuplicate && (
+        <MergeDuplicateSection duplicateId={rental.id} candidates={mergeCandidates} />
+      )}
 
       {/* Eliminar reserva (admin, solo si no tiene entrega/acta). Para reservas
           huérfanas: órdenes borradas en VikRentCar o cargas manuales erróneas. */}

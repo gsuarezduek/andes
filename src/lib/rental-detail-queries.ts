@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatDate } from "@/lib/datetime";
 
 export async function getRentalDetail(id: string) {
   return prisma.rental.findUnique({
@@ -38,4 +39,45 @@ export async function getEditableVehicles() {
     orderBy: [{ brand: "asc" }, { model: "asc" }],
     select: { id: true, plate: true, brand: true, model: true },
   });
+}
+
+export type MergeCandidate = {
+  id: string;
+  clientName: string;
+  startAt: Date;
+  vehiclePlate: string | null;
+  label: string;
+};
+
+/**
+ * Reservas candidatas para "fusionar" un duplicado (una reserva importada de
+ * VikRentCar creada solo para bloquear el auto en la web, sin entrega real)
+ * con la reserva que sí se entregó. Solo tiene sentido vincular a reservas
+ * que todavía NO tienen `wpBookingId` propio (si ya lo tuvieran, fusionar acá
+ * las dejaría huérfanas de su propia orden).
+ */
+export async function getMergeCandidates(excludeId: string): Promise<MergeCandidate[]> {
+  const rentals = await prisma.rental.findMany({
+    where: {
+      id: { not: excludeId },
+      wpBookingId: null,
+      status: { not: "cancelled" },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 150,
+    select: {
+      id: true,
+      clientName: true,
+      startAt: true,
+      vehicle: { select: { plate: true } },
+    },
+  });
+
+  return rentals.map((r) => ({
+    id: r.id,
+    clientName: r.clientName,
+    startAt: r.startAt,
+    vehiclePlate: r.vehicle?.plate ?? null,
+    label: `${r.clientName} · ${formatDate(r.startAt)}${r.vehicle ? ` · ${r.vehicle.plate}` : ""}`,
+  }));
 }
