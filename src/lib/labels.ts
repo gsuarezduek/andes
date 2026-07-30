@@ -6,6 +6,7 @@ import type {
   UserRole,
   MaintenanceType,
   DocumentKind,
+  LoginDevice,
 } from "@prisma/client";
 
 export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
@@ -49,4 +50,9 @@ export const documentKindLabels: Record<DocumentKind, string> = {
   license: "Licencia de conducir",
   dni: "DNI / Pasaporte",
   passport: "Pasaporte", // legacy: ya no se ofrece en la carga (se usa "dni" = DNI/Pasaporte)
+};
+
+export const loginDeviceLabels: Record<LoginDevice, string> = {
+  pc: "PC",
+  mobile: "Celular",
 };

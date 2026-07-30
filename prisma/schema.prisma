@@ -110,6 +110,12 @@ enum PaymentMethodOwnership {
   third_party // cuenta ajena (proveedor o empleado)
 }
 
+/// Dispositivo detectado por User-Agent al iniciar sesión.
+enum LoginDevice {
+  pc
+  mobile
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -136,8 +142,28 @@ model User {
   createdCashMovements CashMovement[]     @relation("CashMovementCreator")
   deletedCashMovements CashMovement[]     @relation("CashMovementDeleter")
   cashMovementEdits    CashMovementEdit[] @relation("CashMovementEditor")
+  loginEvents          LoginEvent[]
 
   @@map("users")
+}
+
+/// Auditoría de inicios de sesión: fecha/hora y dispositivo (pc/celular)
+/// detectado por User-Agent. Solo logins: con sesión JWT de 30 min rolling,
+/// un logout pasivo no dispara ningún evento confiable.
+model LoginEvent {
+  id String @id @default(cuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  device    LoginDevice
+  userAgent String?     @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_events")
 }
 
 // ---------------------------------------------------------------------------

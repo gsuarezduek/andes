@@ -242,6 +242,15 @@ Marca visual para saber, sin entrar a cada reserva, si una reserva **Activa** (v
 - **Detalle de la reserva**: `ring` en el Badge de estado + cartel rojo con el saldo cuando falta pagar. Nuevo aviso (mismo estilo que el de "sin confirmar" que ya existía) cuando la reserva está **confirmada pero sin ningún pago cargado**: *"Reserva confirmada sin seña registrada en Andes — cargá el pago con el botón de arriba"* — operacionaliza la regla del dueño (en VikRentCar no se confirma sin seña; la idea es que esa seña quede cargada también en Andes vía "Agregar pago").
 - Sin cambios en `bookingConfirmed` ni en el sync — sigue siendo una convención operativa de VikRentCar, no una validación de Andes. Sin el indicador en `Finalizado` (fuera de alcance a propósito; extensión chica sobre `paymentAccent` si en algún momento interesa para cobranza).
 
+## v10 — Historial de logins (sección Usuarios)
+
+Auditoría de inicios de sesión: fecha, hora y dispositivo (PC/celular), con filtro por usuario. Solo **logins** (no logout): con sesión JWT rolling de 30 min (`src/auth.config.ts`), un cierre por inactividad no dispara ningún evento confiable de Auth.js — decisión tomada con el dueño al arrancar la tarea. Construida y probada en local (build/lint/tests en verde; verificado por navegador con Playwright en viewport móvil 375px, login real + filtro).
+
+- **Modelo `LoginEvent`** (migración `add_login_events`): `userId`, `device` (enum `LoginDevice` pc/mobile), `userAgent` (crudo, referencia), `createdAt`. Índices por `userId` y `createdAt`.
+- **Detección de dispositivo** `detectLoginDevice()` (`src/lib/user-agent.ts`, testeada): heurística simple por regex sobre el User-Agent (`Mobi|Android|iPhone|iPad|iPod` → mobile; si no matchea o no hay UA → pc). Sin dependencias nuevas.
+- **Registro** vía `events.signIn` en `src/auth.ts` (dispara para credentials y Google): resuelve el `userId` por email (el `user.id` que entrega Google es el del profile OAuth, no el nuestro) y lee el header `user-agent` con `headers()` de `next/headers` (funciona dentro del callback porque corre en el mismo request del route handler de Auth.js). Envuelto en try/catch — es auditoría best-effort, nunca debe romper el login.
+- **UI**: sección "Historial de logins" debajo de la lista en `/users` (admin), con `<select>` de usuario + "Filtrar" (GET `?loginUser=`) + "Limpiar", listando los últimos 200 eventos (más recientes primero) con nombre, fecha+hora (`formatDateTime`, hora Mendoza) y badge PC/Celular.
+
 ## Add-on — Andes Pay Stripe (pasarela de pago para VikRentCar)
 
 Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/andes-pay-stripe/`. Agrega **"Andes Pay Stripe"** como método de pago de **VikRentCar Pro (v1.4.6)**: cobra el **total** de la reserva con tarjeta vía **Stripe Checkout** (redirección alojada por Stripe, PCI mínimo). **Probado y funcionando en producción (Live):** cobro → retorno → reserva marcada pagada por VikRentCar.

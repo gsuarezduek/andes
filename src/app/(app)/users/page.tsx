@@ -4,14 +4,30 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { userRoleLabels } from "@/lib/labels";
+import { userRoleLabels, loginDeviceLabels } from "@/lib/labels";
+import { formatDateTime } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Usuarios — Andes" };
 
-export default async function UsersPage() {
-  await requireAdmin();
+const LOGIN_EVENTS_LIMIT = 200;
 
-  const users = await prisma.user.findMany({ orderBy: { name: "asc" } });
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ loginUser?: string }>;
+}) {
+  await requireAdmin();
+  const { loginUser } = await searchParams;
+
+  const [users, loginEvents] = await Promise.all([
+    prisma.user.findMany({ orderBy: { name: "asc" } }),
+    prisma.loginEvent.findMany({
+      where: loginUser ? { userId: loginUser } : undefined,
+      orderBy: { createdAt: "desc" },
+      take: LOGIN_EVENTS_LIMIT,
+      include: { user: { select: { name: true } } },
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,6 +58,52 @@ export default async function UsersPage() {
           </li>
         ))}
       </ul>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Historial de logins</h2>
+          <form className="flex items-center gap-2">
+            <select
+              name="loginUser"
+              defaultValue={loginUser ?? ""}
+              className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            >
+              <option value="">Todos los usuarios</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <button className="h-10 rounded-lg border border-foreground/15 px-4 text-sm font-medium">
+              Filtrar
+            </button>
+            {loginUser ? (
+              <Link href="/users" className="text-xs font-medium text-foreground/60 underline">
+                Limpiar
+              </Link>
+            ) : null}
+          </form>
+        </div>
+
+        {loginEvents.length === 0 ? (
+          <p className="text-sm text-foreground/60">Sin logins registrados.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
+            {loginEvents.map((ev) => (
+              <li key={ev.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1">
+                  <p className="font-medium">{ev.user.name}</p>
+                  <p className="text-sm text-foreground/60">{formatDateTime(ev.createdAt)}</p>
+                </div>
+                <Badge tone={ev.device === "mobile" ? "blue" : "neutral"}>
+                  {loginDeviceLabels[ev.device]}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

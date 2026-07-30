@@ -3,8 +3,10 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
+import { detectLoginDevice } from "@/lib/user-agent";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -78,6 +80,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
       }
       return token;
+    },
+  },
+  events: {
+    // Auditoría de logins (pantalla Usuarios). Best-effort: nunca debe
+    // romper el inicio de sesión si falla. El id de `user` no es confiable
+    // para Google (viene del profile de OAuth, no de nuestra tabla), así que
+    // resolvemos por email en los dos providers.
+    async signIn({ user }) {
+      try {
+        const email = user.email?.toLowerCase();
+        if (!email) return;
+        const dbUser = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+        if (!dbUser) return;
+        const userAgent = (await headers()).get("user-agent");
+        await prisma.loginEvent.create({
+          data: {
+            userId: dbUser.id,
+            device: detectLoginDevice(userAgent),
+            userAgent,
+          },
+        });
+      } catch {
+        // no-op: la auditoría de logins no debe bloquear el login.
+      }
     },
   },
 });
