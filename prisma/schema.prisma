@@ -143,6 +143,7 @@ model User {
   deletedCashMovements CashMovement[]     @relation("CashMovementDeleter")
   cashMovementEdits    CashMovementEdit[] @relation("CashMovementEditor")
   loginEvents          LoginEvent[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@map("users")
 }
@@ -164,6 +165,25 @@ model LoginEvent {
   @@index([userId])
   @@index([createdAt])
   @@map("login_events")
+}
+
+// Recuperar contraseña: token de un solo uso enviado por email. Se guarda
+// hasheado (sha256) — el token en texto plano solo existe en el link del
+// email, nunca en la base.
+model PasswordResetToken {
+  id String @id @default(cuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ---------------------------------------------------------------------------

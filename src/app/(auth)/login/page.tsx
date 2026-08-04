@@ -19,9 +19,9 @@ function errorMessage(code: string | undefined): string | undefined {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-sm flex-1 flex-col justify-center gap-8 px-6 py-12">
@@ -32,7 +32,11 @@ export default async function LoginPage({
           <p className="text-sm text-foreground/60">MDZ Rent a Car</p>
         </div>
       </header>
-      <LoginForm error={errorMessage(error)} googleEnabled={env.hasGoogleAuth} />
+      <LoginForm
+        error={errorMessage(error)}
+        info={reset === "1" ? "Contraseña actualizada. Ingresá con la nueva." : undefined}
+        googleEnabled={env.hasGoogleAuth}
+      />
     </main>
   );
 }

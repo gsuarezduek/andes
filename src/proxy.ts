@@ -12,6 +12,9 @@ export const config = {
     // `sign` / `api/sign` también se excluyen: el cliente firma en su propio
     // teléfono, sin sesión; se validan por el id no adivinable + expiración +
     // un solo uso dentro de cada handler (firma remota, Fase 10).
-    "/((?!api/auth|api/sync|sign|api/sign|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
+    // `forgot-password` / `reset-password` también son públicas por
+    // definición (recuperar contraseña sin sesión); se validan por token
+    // no adivinable + expiración + un solo uso (mismo criterio que la firma).
+    "/((?!api/auth|api/sync|sign|api/sign|forgot-password|reset-password|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
   ],
 };
