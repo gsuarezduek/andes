@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
@@ -10,29 +9,21 @@ import type { RentalPickerOption } from "@/lib/cash";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
 
+/** Formulario de alta de un cobro o un pago. `mode` lo fija el botón que lo
+ *  abrió (ver MovementLauncher) — este componente ya no maneja ese estado. */
 export function CashMovementForm({
+  mode,
+  onCancel,
   paymentMethods,
   rentalOptions,
 }: {
+  mode: "income" | "expense";
+  onCancel: () => void;
   paymentMethods: PaymentMethodOption[];
   rentalOptions: RentalPickerOption[];
 }) {
-  const [mode, setMode] = useState<"income" | "expense" | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
-
-  if (mode === null) {
-    return (
-      <div className="flex gap-3">
-        <Button type="button" className="flex-1" onClick={() => setMode("income")}>
-          + Cobro
-        </Button>
-        <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("expense")}>
-          + Pago
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <form
@@ -41,7 +32,7 @@ export function CashMovementForm({
     >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">{mode === "income" ? "Nuevo cobro" : "Nuevo pago"}</h2>
-        <button type="button" onClick={() => setMode(null)} className="text-xs text-foreground/50">
+        <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
           Cancelar
         </button>
       </div>

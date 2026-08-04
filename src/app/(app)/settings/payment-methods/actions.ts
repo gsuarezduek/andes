@@ -42,20 +42,36 @@ export async function createPaymentMethod(formData: FormData) {
   revalidatePath("/settings/payment-methods");
 }
 
-export async function updatePaymentMethod(id: string, formData: FormData) {
+export type PaymentMethodUpdateInput = {
+  id: string;
+  name: string;
+  adjustmentPercent: string;
+  reference: string;
+  requiresNote: boolean;
+  ownership: PaymentMethodOwnership;
+};
+
+/** Guarda de una sola vez los cambios pendientes de varios medios de pago
+ *  (un solo botón "Guardar cambios" en vez de uno por fila). Ignora las
+ *  entradas con nombre vacío (no debería pasar: el botón se deshabilita antes). */
+export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) {
   await requireAdmin();
-  const name = strOrNull(formData.get("name"));
-  if (!name) return;
-  await prisma.paymentMethod.update({
-    where: { id },
-    data: {
-      name,
-      adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
-      reference: strOrNull(formData.get("reference")),
-      requiresNote: formData.get("requiresNote") === "on",
-      ownership: ownershipOrDefault(formData.get("ownership")),
-    },
-  });
+  const valid = updates.filter((u) => u.name.trim() !== "");
+  if (valid.length === 0) return;
+  await prisma.$transaction(
+    valid.map((u) =>
+      prisma.paymentMethod.update({
+        where: { id: u.id },
+        data: {
+          name: u.name.trim(),
+          adjustmentPercent: percentOrNull(u.adjustmentPercent),
+          reference: strOrNull(u.reference),
+          requiresNote: u.requiresNote,
+          ownership: u.ownership,
+        },
+      }),
+    ),
+  );
   revalidatePath("/settings/payment-methods");
 }
 

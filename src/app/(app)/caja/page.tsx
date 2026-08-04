@@ -8,9 +8,11 @@ import {
   getOwnCashMovements,
   getRentalPickerOptions,
 } from "@/lib/cash";
-import { CashMovementForm } from "@/components/cash/cash-movement-form";
+import { getAllSafeMovements, getOwnSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
+import { MovementLauncher } from "@/components/cash/movement-launcher";
 import { CashMonthDetail } from "@/components/cash/cash-month-detail";
 import { CashOwnList } from "@/components/cash/cash-own-list";
+import { SafeSection } from "@/components/cash/safe-section";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
 
@@ -40,17 +42,27 @@ export default async function CajaPage({
         <p className="text-sm text-foreground/60">Registrá cobros y pagos.</p>
       </div>
 
-      <CashMovementForm paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
+      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
 
       {user.role === "admin" ? (
-        <CashMonthDetail
-          data={await getCashMonthDetail(month)}
-          edits={await getCashMonthEdits(month)}
-          paymentMethods={paymentMethods}
-          todayMonth={today}
-        />
+        <>
+          <CashMonthDetail
+            data={await getCashMonthDetail(month)}
+            edits={await getCashMonthEdits(month)}
+            paymentMethods={paymentMethods}
+            todayMonth={today}
+          />
+          <SafeSection
+            movements={await getAllSafeMovements()}
+            balance={await getSafeBalance()}
+            edits={await getSafeMovementEdits()}
+          />
+        </>
       ) : (
-        <CashOwnList items={await getOwnCashMovements(user.id, today)} />
+        <>
+          <CashOwnList items={await getOwnCashMovements(user.id, today)} />
+          <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} />
+        </>
       )}
     </div>
   );

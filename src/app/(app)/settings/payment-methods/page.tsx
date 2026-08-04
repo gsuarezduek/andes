@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import type { PaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
-import {
-  createPaymentMethod,
-  updatePaymentMethod,
-  togglePaymentMethod,
-  deletePaymentMethod,
-  movePaymentMethod,
-} from "./actions";
+import { createPaymentMethod } from "./actions";
+import { PaymentMethodsEditor } from "./payment-methods-editor";
 
 export const metadata: Metadata = { title: "Medios de pago — Andes" };
 
@@ -93,99 +86,8 @@ export default async function PaymentMethodsSettingsPage() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-foreground/80">{items.length} medios de pago</h2>
-        <PaymentMethodGroup title="Propias" items={items.filter((it) => it.ownership === "own")} />
-        <PaymentMethodGroup
-          title="Ajenas (Proveedores/Equipo)"
-          items={items.filter((it) => it.ownership === "third_party")}
-        />
+        <PaymentMethodsEditor items={items} />
       </section>
-    </div>
-  );
-}
-
-function PaymentMethodGroup({ title, items }: { title: string; items: PaymentMethod[] }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">{title}</h3>
-      {items.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin medios de pago en este grupo.
-        </p>
-      ) : (
-        <ul className="mt-1 flex flex-col gap-3">
-          {items.map((it, i) => (
-            <li key={it.id} className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col">
-                  <form action={movePaymentMethod.bind(null, it.id, "up")}>
-                    <button disabled={i === 0} className="px-1 text-xs text-foreground/50 disabled:opacity-30" aria-label="Subir">▲</button>
-                  </form>
-                  <form action={movePaymentMethod.bind(null, it.id, "down")}>
-                    <button disabled={i === items.length - 1} className="px-1 text-xs text-foreground/50 disabled:opacity-30" aria-label="Bajar">▼</button>
-                  </form>
-                </div>
-                <span className="flex-1 text-sm font-medium">{it.name}</span>
-                {it.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
-                {!it.active && <Badge tone="neutral">Inactivo</Badge>}
-                <form action={togglePaymentMethod.bind(null, it.id)}>
-                  <button className="rounded-md px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5">
-                    {it.active ? "Desactivar" : "Activar"}
-                  </button>
-                </form>
-                <form action={deletePaymentMethod.bind(null, it.id)}>
-                  <button className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10">
-                    Borrar
-                  </button>
-                </form>
-              </div>
-              <form action={updatePaymentMethod.bind(null, it.id)} className="flex flex-col gap-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    name="name"
-                    defaultValue={it.name}
-                    required
-                    className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                  />
-                  <input
-                    name="adjustmentPercent"
-                    type="text"
-                    inputMode="decimal"
-                    defaultValue={it.adjustmentPercent?.toString() ?? ""}
-                    placeholder="% recargo/descuento"
-                    className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                  />
-                </div>
-                <textarea
-                  name="reference"
-                  rows={2}
-                  defaultValue={it.reference ?? ""}
-                  placeholder="Referencia (alias/CVU) — interna"
-                  className="rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
-                />
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-foreground/80">Cuenta</span>
-                  <select
-                    name="ownership"
-                    required
-                    defaultValue={it.ownership}
-                    className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                  >
-                    <option value="own">Cuenta propia</option>
-                    <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 text-sm text-foreground/80">
-                  <input type="checkbox" name="requiresNote" defaultChecked={it.requiresNote} className="h-4 w-4" />
-                  Requiere aclaración (a dónde fue el pago)
-                </label>
-                <div className="flex justify-end">
-                  <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
-                </div>
-              </form>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
