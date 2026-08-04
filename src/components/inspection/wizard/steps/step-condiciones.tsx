@@ -57,6 +57,20 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
   // $0 en vez de quedar negativo cuando se cobra con un medio con recargo.
   const paymentsSurcharge = draft.payments.reduce((a, p) => a + (p.adjustedAmount - p.amount), 0);
 
+  // Alerta si el Saldo tipeado a mano quedó desalineado de Total − Seña −
+  // Paga (el campo se autocompleta al agregar/quitar un pago, pero sigue
+  // siendo editable — un valor viejo puede quedar pisado por error).
+  const computedBalance = computeBalance({
+    total: currentTotal,
+    sena: parseDecimal(draft.pricing.sena as string | undefined),
+    paid: parseDecimal(draft.pricing.paid as string | undefined),
+  });
+  const currentBalance = parseDecimal(draft.pricing.balance as string | undefined);
+  const balanceMismatch =
+    computedBalance != null && currentBalance != null && Math.abs(currentBalance - computedBalance) > 0.01
+      ? { currentBalance, computedBalance }
+      : null;
+
   // Aplica en un solo `patch` el nuevo array de pagos + el ajuste de Total y
   // Paga (y recalcula Saldo) — dos `setPay` seguidos pisarían el pricing del
   // otro porque ambos parten del mismo snapshot de `draft.pricing`.
@@ -213,6 +227,12 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
         <div className="mt-3">
           <TextField id="pricing_balance" label="Saldo" hint="Total − Seña − Paga (editable)" type="text" inputMode="decimal" prefix="$" value={priceStr("balance")} onChange={(e) => setPay("balance", e.target.value)} />
         </div>
+        {balanceMismatch && (
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+            ⚠ El saldo cargado ({formatArs(balanceMismatch.currentBalance)}) no coincide con Total − Seña − Paga (
+            {formatArs(balanceMismatch.computedBalance)}). Revisá que no haya un error de tipeo.
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>

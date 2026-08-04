@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { PaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
@@ -90,9 +91,28 @@ export default async function PaymentMethodsSettingsPage() {
         </form>
       </section>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-foreground/80">{items.length} medios de pago</h2>
-        <ul className="flex flex-col gap-3">
+        <PaymentMethodGroup title="Propias" items={items.filter((it) => it.ownership === "own")} />
+        <PaymentMethodGroup
+          title="Ajenas (Proveedores/Equipo)"
+          items={items.filter((it) => it.ownership === "third_party")}
+        />
+      </section>
+    </div>
+  );
+}
+
+function PaymentMethodGroup({ title, items }: { title: string; items: PaymentMethod[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">{title}</h3>
+      {items.length === 0 ? (
+        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
+          Sin medios de pago en este grupo.
+        </p>
+      ) : (
+        <ul className="mt-1 flex flex-col gap-3">
           {items.map((it, i) => (
             <li key={it.id} className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
               <div className="flex items-center gap-2">
@@ -105,9 +125,6 @@ export default async function PaymentMethodsSettingsPage() {
                   </form>
                 </div>
                 <span className="flex-1 text-sm font-medium">{it.name}</span>
-                <Badge tone={it.ownership === "third_party" ? "blue" : "neutral"}>
-                  {it.ownership === "third_party" ? "Cuenta ajena" : "Cuenta propia"}
-                </Badge>
                 {it.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
                 {!it.active && <Badge tone="neutral">Inactivo</Badge>}
                 <form action={togglePaymentMethod.bind(null, it.id)}>
@@ -168,7 +185,7 @@ export default async function PaymentMethodsSettingsPage() {
             </li>
           ))}
         </ul>
-      </section>
+      )}
     </div>
   );
 }

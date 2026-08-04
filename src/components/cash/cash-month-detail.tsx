@@ -2,10 +2,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { CashMovementsBoard } from "./cash-movements-board";
+import { CashMovementsBoard, type PaymentMethodOption } from "./cash-movements-board";
 import type { CashMonthDetail as CashMonthDetailData, CashMovementEditRow } from "@/lib/cash";
-
-type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);

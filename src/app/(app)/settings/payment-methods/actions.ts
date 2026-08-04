@@ -74,14 +74,19 @@ export async function deletePaymentMethod(id: string) {
   revalidatePath("/settings/payment-methods");
 }
 
+/** Reordena solo dentro del mismo grupo (propia/ajena) — la lista se muestra
+ *  separada por `ownership`, así que "subir"/"bajar" no debe saltar de grupo. */
 export async function movePaymentMethod(id: string, dir: "up" | "down") {
   await requireAdmin();
-  const items = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
-  const idx = items.findIndex((i) => i.id === id);
+  const all = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const current = all.find((i) => i.id === id);
+  if (!current) return;
+  const group = all.filter((i) => i.ownership === current.ownership);
+  const idx = group.findIndex((i) => i.id === id);
   const swap = dir === "up" ? idx - 1 : idx + 1;
-  if (idx < 0 || swap < 0 || swap >= items.length) return;
-  const a = items[idx];
-  const b = items[swap];
+  if (idx < 0 || swap < 0 || swap >= group.length) return;
+  const a = group[idx];
+  const b = group[swap];
   await prisma.$transaction([
     prisma.paymentMethod.update({ where: { id: a.id }, data: { ordering: b.ordering } }),
     prisma.paymentMethod.update({ where: { id: b.id }, data: { ordering: a.ordering } }),
