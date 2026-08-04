@@ -42,8 +42,13 @@ export function CalendarGrid({
     hover?.type === "bar" ? `bar:${hover.bar.rentalId}` : hover?.type === "notes" ? `notes:${hover.title}` : null;
 
   return (
-    <div className="relative rounded-xl border border-foreground/10" onClick={hide}>
-      <div className="overflow-x-auto">
+    <div className="relative overflow-hidden rounded-xl border border-foreground/10" onClick={hide}>
+      {/* max-h + overflow-auto (no solo overflow-x): el header de fechas es
+          sticky top-0 y necesita que el scroll vertical ocurra DENTRO de este
+          contenedor para engancharse — si solo hubiera overflow-x, el div
+          nunca desarrolla scroll propio en Y (crece libre) y el sticky nunca
+          se activa, aunque la clase esté puesta. */}
+      <div className="max-h-[70vh] overflow-auto">
         <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
           {/* Encabezado de días */}
           <div className="sticky top-0 z-30 flex border-b border-foreground/10 bg-background">
