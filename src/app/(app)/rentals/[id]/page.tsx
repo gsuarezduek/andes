@@ -8,7 +8,6 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatArs } from "@/lib/contract";
-import { formatDateInput } from "@/lib/datetime";
 import { StatusBanners } from "@/components/rentals/status-banners";
 import { TeamNotesSection } from "@/components/rentals/team-notes-section";
 import { ClientInfoSection } from "@/components/rentals/client-info-section";
@@ -20,7 +19,6 @@ import { AddServiceButton } from "@/components/rentals/add-service-button";
 import { ReturnEditSection } from "@/components/rentals/return-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
-import { ServiceFormSection } from "@/components/rentals/service-form-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
 import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-section";
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
@@ -67,15 +65,11 @@ export default async function RentalDetailPage({
     isAdmin && rental.status === "reserved" && rental.wpBookingId != null && rental.inspections.length === 0;
   const mergeCandidates = canMergeDuplicate ? await getMergeCandidates(rental.id) : [];
 
-  const today = formatDateInput(new Date());
-
   const payments = computeRentalPayments(rental);
   const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = payments;
   const accent = paymentAccent(rental.status, rental.bookingConfirmed, payments);
 
-  // Pago suelto (botón del header): solo tiene sentido antes de cerrar la
-  // reserva. El acceso rápido a Service no depende del estado, solo de que
-  // haya un vehículo asignado (es un costo del auto, no de la reserva).
+  // Pago suelto (botón del header): solo tiene sentido antes de cerrar la reserva.
   const canAddPayment = rental.status === "reserved" || rental.status === "active";
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
@@ -103,8 +97,13 @@ export default async function RentalDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {rental.vehicleId && (
-            <AddServiceButton vehicleId={rental.vehicleId} currentKm={rental.vehicle?.currentKm ?? null} paymentMethods={paymentMethods} />
+          {canMarkService && (
+            <AddServiceButton
+              rentalId={rental.id}
+              vehicleId={rental.vehicleId!}
+              currentKm={rental.vehicle?.currentKm ?? null}
+              paymentMethods={paymentMethods}
+            />
           )}
           {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
           {(() => {
@@ -189,17 +188,6 @@ export default async function RentalDetailPage({
 
       {/* El botón para iniciar la entrega vive dentro de EditDetailsForm
           ("Guardar e iniciar entrega") para no perder ediciones sin guardar. */}
-
-      {/* Service / arreglo: para autos cargados como alquiler solo para
-          bloquearlos. Registra el arreglo y deja el auto fuera de servicio. */}
-      {canMarkService && (
-        <ServiceFormSection
-          rentalId={rental.id}
-          vehicleId={rental.vehicleId!}
-          currentKm={rental.vehicle?.currentKm ?? null}
-          today={today}
-        />
-      )}
 
       <div className="flex gap-3">
         {canStartReturn && (

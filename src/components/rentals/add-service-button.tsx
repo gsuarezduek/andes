@@ -1,33 +1,35 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, unstable_rethrow } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { ServiceIcon } from "@/components/ui/icons";
-import { maintenanceTypeLabels } from "@/lib/labels";
 import { formatDateInput } from "@/lib/datetime";
-import { createMaintenance } from "@/app/(app)/vehicles/[id]/maintenance-actions";
+import { markVehicleService } from "@/app/(app)/rentals/[id]/service-actions";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
 
 /**
- * Acceso rápido a "Service / arreglo" desde el detalle de la reserva: registra
- * un ítem de mantenimiento del auto sin cancelar el alquiler ni tocar su
- * estado (a diferencia de ServiceFormSection, que sí lo hace). Mismo form y
- * misma acción (`createMaintenance`) que la ficha del vehículo — si hay
- * costo, pide de dónde sale y queda en Caja como gasto general del negocio.
+ * Única acción de "Service / arreglo" desde el detalle de la reserva: para
+ * alquileres cargados solo para bloquear el auto (reservado, sin entrega
+ * hecha), registra el service/arreglo, cancela esta reserva placeholder y
+ * deja el auto fuera de servicio. Antes había dos botones con el mismo
+ * nombre y consecuencias opuestas (este solo registraba, el de más abajo
+ * bloqueaba); se unificaron en esta única acción.
  *
  * El envío se maneja a mano (en vez de `<form action>` nativo): así el modal
  * se queda abierto mientras la acción corre y sólo se cierra si termina bien
- * — antes se cerraba apenas se apretaba "Agregar registro", sin esperar el
- * resultado, y un error (ej. "falta elegir de dónde sale") quedaba invisible.
+ * — antes se cerraba apenas se apretaba el botón, sin esperar el resultado,
+ * y un error (ej. "falta elegir de dónde sale") quedaba invisible.
  */
 export function AddServiceButton({
+  rentalId,
   vehicleId,
   currentKm,
   paymentMethods,
 }: {
+  rentalId: string;
   vehicleId: string;
   currentKm: number | null;
   paymentMethods: PaymentMethodOption[];
@@ -54,10 +56,13 @@ export function AddServiceButton({
     setError(undefined);
     start(async () => {
       try {
-        await createMaintenance(vehicleId, formData);
+        await markVehicleService(rentalId, vehicleId, formData);
         setOpen(false);
         router.refresh();
       } catch (err) {
+        // markVehicleService redirige al terminar bien: ese error interno de
+        // Next tiene que propagarse, no mostrarse como un fallo real.
+        unstable_rethrow(err);
         setError(err instanceof Error ? err.message : "No se pudo guardar el registro.");
       }
     });
@@ -68,8 +73,8 @@ export function AddServiceButton({
       <button
         type="button"
         onClick={openModal}
-        title="Cargar service / arreglo"
-        aria-label="Cargar service / arreglo"
+        title="Marcar service / arreglo (cancela esta reserva y bloquea el auto)"
+        aria-label="Marcar service / arreglo (cancela esta reserva y bloquea el auto)"
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
       >
         <ServiceIcon />
@@ -81,9 +86,8 @@ export function AddServiceButton({
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-foreground/70">Tipo</span>
               <select name="type" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" defaultValue="service">
-                {Object.entries(maintenanceTypeLabels).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
+                <option value="service">Service</option>
+                <option value="repair">Arreglo</option>
               </select>
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -135,8 +139,9 @@ export function AddServiceButton({
               )}
             </>
           )}
-          <p className="text-xs text-foreground/50">
-            Esto solo registra el service/arreglo — no cancela ni modifica esta reserva.
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Esto cancela esta reserva y deja el auto <strong>fuera de servicio</strong>. Cuando
+            vuelva, reactivalo desde su ficha.
           </p>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
@@ -144,7 +149,7 @@ export function AddServiceButton({
               Cancelar
             </Button>
             <Button type="submit" className="flex-1" disabled={pending}>
-              {pending ? "Guardando…" : "Agregar registro"}
+              {pending ? "Guardando…" : "Marcar fuera de servicio"}
             </Button>
           </div>
         </form>
