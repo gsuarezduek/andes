@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { saveConditions } from "../actions";
-import {
-  createChecklistItem,
-  toggleChecklistItem,
-  deleteChecklistItem,
-  moveChecklistItem,
-} from "../../checklist/actions";
+import { createChecklistItem } from "../../checklist/actions";
+import { ChecklistItemRow } from "./checklist-item-row";
 
 export const metadata: Metadata = { title: "Condiciones y checklist — Andes" };
 
@@ -176,30 +171,7 @@ export default async function GeneralSettingsPage() {
 
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
           {items.map((it, i) => (
-            <li key={it.id} className="flex items-center gap-2 px-3 py-2">
-              <div className="flex flex-col">
-                <form action={moveChecklistItem.bind(null, it.id, "up")}>
-                  <button disabled={i === 0} className="px-1 text-xs text-foreground/50 disabled:opacity-30" aria-label="Subir">▲</button>
-                </form>
-                <form action={moveChecklistItem.bind(null, it.id, "down")}>
-                  <button disabled={i === items.length - 1} className="px-1 text-xs text-foreground/50 disabled:opacity-30" aria-label="Bajar">▼</button>
-                </form>
-              </div>
-              <span className={`flex-1 text-sm ${it.active ? "" : "text-foreground/40 line-through"}`}>
-                {it.label}
-              </span>
-              {!it.active && <Badge tone="neutral">Inactivo</Badge>}
-              <form action={toggleChecklistItem.bind(null, it.id)}>
-                <button className="rounded-md px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5">
-                  {it.active ? "Desactivar" : "Activar"}
-                </button>
-              </form>
-              <form action={deleteChecklistItem.bind(null, it.id)}>
-                <button className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10">
-                  Borrar
-                </button>
-              </form>
-            </li>
+            <ChecklistItemRow key={it.id} item={it} isFirst={i === 0} isLast={i === items.length - 1} />
           ))}
         </ul>
       </section>

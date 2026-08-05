@@ -84,10 +84,20 @@ export async function togglePaymentMethod(id: string) {
   revalidatePath("/settings/payment-methods");
 }
 
-export async function deletePaymentMethod(id: string) {
+/**
+ * Borrar es un delete real, a diferencia de Caja/Caja Fuerte (soft-delete).
+ * No rompe nada aunque ya se haya usado: `CashMovement.paymentMethodId` es una
+ * FK opcional sin `onDelete: Restrict`, así que Postgres la deja en null y
+ * `paymentMethodName` (el snapshot ya guardado) sigue mostrando el nombre —
+ * mismo criterio documentado del proyecto ("el movimiento ya cargado no se ve
+ * afectado"). El único costo es que ese movimiento deja de aparecer en el
+ * filtro "por cuenta" de Caja (que sí filtra por el id vivo).
+ */
+export async function deletePaymentMethod(id: string): Promise<void> {
   await requireAdmin();
   await prisma.paymentMethod.delete({ where: { id } });
   revalidatePath("/settings/payment-methods");
+  revalidatePath("/caja");
 }
 
 /** Reordena solo dentro del mismo grupo (propia/ajena) — la lista se muestra

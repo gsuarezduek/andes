@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,8 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
     startTransition(async () => {
       try {
         await updatePaymentMethods(updates);
-      } catch {
+      } catch (err) {
+        unstable_rethrow(err);
         setError("No se pudieron guardar los cambios. Probá de nuevo.");
       }
     });
@@ -158,91 +160,159 @@ function PaymentMethodGroup({
             const draft = drafts[it.id];
             if (!draft) return null;
             return (
-              <li key={it.id} className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col">
-                    <form action={movePaymentMethod.bind(null, it.id, "up")}>
-                      <button
-                        disabled={i === 0}
-                        className="px-1 text-xs text-foreground/50 disabled:opacity-30"
-                        aria-label="Subir"
-                      >
-                        ▲
-                      </button>
-                    </form>
-                    <form action={movePaymentMethod.bind(null, it.id, "down")}>
-                      <button
-                        disabled={i === items.length - 1}
-                        className="px-1 text-xs text-foreground/50 disabled:opacity-30"
-                        aria-label="Bajar"
-                      >
-                        ▼
-                      </button>
-                    </form>
-                  </div>
-                  <span className="flex-1 text-sm font-medium">{it.name}</span>
-                  {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
-                  {!it.active && <Badge tone="neutral">Inactivo</Badge>}
-                  <form action={togglePaymentMethod.bind(null, it.id)}>
-                    <button className="rounded-md px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5">
-                      {it.active ? "Desactivar" : "Activar"}
-                    </button>
-                  </form>
-                  <form action={deletePaymentMethod.bind(null, it.id)}>
-                    <button className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10">
-                      Borrar
-                    </button>
-                  </form>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      value={draft.name}
-                      onChange={(e) => setField(it.id, "name", e.target.value)}
-                      className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                    />
-                    <input
-                      value={draft.adjustmentPercent}
-                      onChange={(e) => setField(it.id, "adjustmentPercent", e.target.value)}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="% recargo/descuento"
-                      className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                    />
-                  </div>
-                  <textarea
-                    value={draft.reference}
-                    onChange={(e) => setField(it.id, "reference", e.target.value)}
-                    rows={2}
-                    placeholder="Referencia (alias/CVU) — interna"
-                    className="rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
-                  />
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-foreground/80">Cuenta</span>
-                    <select
-                      value={draft.ownership}
-                      onChange={(e) => setField(it.id, "ownership", e.target.value as PaymentMethodOwnership)}
-                      className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-                    >
-                      <option value="own">Cuenta propia</option>
-                      <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-foreground/80">
-                    <input
-                      type="checkbox"
-                      checked={draft.requiresNote}
-                      onChange={(e) => setField(it.id, "requiresNote", e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    Requiere aclaración (a dónde fue el pago)
-                  </label>
-                </div>
-              </li>
+              <PaymentMethodRow
+                key={it.id}
+                item={it}
+                draft={draft}
+                setField={setField}
+                isFirst={i === 0}
+                isLast={i === items.length - 1}
+              />
             );
           })}
         </ul>
       )}
     </div>
+  );
+}
+
+function PaymentMethodRow({
+  item,
+  draft,
+  setField,
+  isFirst,
+  isLast,
+}: {
+  item: PaymentMethod;
+  draft: Draft;
+  setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, startDelete] = useTransition();
+
+  function handleDelete() {
+    setDeleteError(null);
+    startDelete(async () => {
+      try {
+        await deletePaymentMethod(item.id);
+      } catch (err) {
+        unstable_rethrow(err);
+        setConfirmDelete(false);
+        setDeleteError(err instanceof Error ? err.message : "No se pudo borrar.");
+      }
+    });
+  }
+
+  if (confirmDelete) {
+    return (
+      <li className="flex flex-col gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+        <p className="text-sm text-red-700 dark:text-red-400">
+          ¿Borrar &quot;{item.name}&quot;? No se puede deshacer.
+        </p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setConfirmDelete(false)} className="text-xs text-foreground/50" disabled={deleting}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+          >
+            {deleting ? "Borrando…" : "Sí, borrar"}
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex flex-col">
+          <form action={movePaymentMethod.bind(null, item.id, "up")}>
+            <button
+              disabled={isFirst}
+              className="px-1 text-xs text-foreground/50 disabled:opacity-30"
+              aria-label="Subir"
+            >
+              ▲
+            </button>
+          </form>
+          <form action={movePaymentMethod.bind(null, item.id, "down")}>
+            <button
+              disabled={isLast}
+              className="px-1 text-xs text-foreground/50 disabled:opacity-30"
+              aria-label="Bajar"
+            >
+              ▼
+            </button>
+          </form>
+        </div>
+        <span className="flex-1 text-sm font-medium">{item.name}</span>
+        {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
+        {!item.active && <Badge tone="neutral">Inactivo</Badge>}
+        <form action={togglePaymentMethod.bind(null, item.id)}>
+          <button className="rounded-md px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5">
+            {item.active ? "Desactivar" : "Activar"}
+          </button>
+        </form>
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10"
+        >
+          Borrar
+        </button>
+      </div>
+      {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            value={draft.name}
+            onChange={(e) => setField(item.id, "name", e.target.value)}
+            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+          />
+          <input
+            value={draft.adjustmentPercent}
+            onChange={(e) => setField(item.id, "adjustmentPercent", e.target.value)}
+            type="text"
+            inputMode="decimal"
+            placeholder="% recargo/descuento"
+            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+          />
+        </div>
+        <textarea
+          value={draft.reference}
+          onChange={(e) => setField(item.id, "reference", e.target.value)}
+          rows={2}
+          placeholder="Referencia (alias/CVU) — interna"
+          className="rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
+        />
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-foreground/80">Cuenta</span>
+          <select
+            value={draft.ownership}
+            onChange={(e) => setField(item.id, "ownership", e.target.value as PaymentMethodOwnership)}
+            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+          >
+            <option value="own">Cuenta propia</option>
+            <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/80">
+          <input
+            type="checkbox"
+            checked={draft.requiresNote}
+            onChange={(e) => setField(item.id, "requiresNote", e.target.checked)}
+            className="h-4 w-4"
+          />
+          Requiere aclaración (a dónde fue el pago)
+        </label>
+      </div>
+    </li>
   );
 }
