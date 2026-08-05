@@ -28,6 +28,11 @@ export type QueueRecord = {
 export type QueueEvent =
   | { id: string; status: "uploading" }
   | { id: string; status: "done"; key: string }
+  // Falló pero se va a reintentar (sin red, error transitorio del servidor).
+  | { id: string; status: "queued" }
+  // Se agotaron los reintentos automáticos: no se va a volver a intentar solo.
+  // El usuario tiene que sacar el archivo y volver a cargarlo (o resolver lo
+  // que esté pasando, ej. reloguearse) para que se reintente.
   | { id: string; status: "error" };
 
 const DB_NAME = "andes-uploads";
@@ -85,13 +90,33 @@ function emit(e: QueueEvent) {
 
 let processing = false;
 
-/** Intenta subir todos los pendientes. Seguro de llamar en cualquier momento. */
+// Reintentos automáticos por ítem antes de dejar de insistir solo. En memoria
+// (se resetea al recargar la página, lo cual está bien: una recarga es una
+// oportunidad genuina distinta — puede que ya haya vuelto la señal o se haya
+// renovado la sesión).
+const MAX_ATTEMPTS = 5;
+const failCounts = new Map<string, number>();
+
+/**
+ * Intenta subir todos los pendientes. Seguro de llamar en cualquier momento.
+ *
+ * Importante: un ítem que falla NO frena a los demás. Antes, cualquier error
+ * (no solo "sin red" — también una sesión vencida, un 413, un 500) cortaba el
+ * resto de la cola con un `break`, y como `processQueue` recorre TODOS los
+ * pendientes (de cualquier borrador, no solo el actual — a propósito, para
+ * drenar en segundo plano lo que quedó de una sesión anterior), un solo
+ * archivo con un error permanente trababa para siempre la subida de
+ * cualquier foto nueva de cualquier alquiler futuro.
+ */
 export async function processQueue(): Promise<void> {
   if (processing || !idbAvailable()) return;
   processing = true;
   try {
     const records = await allRecords();
     for (const rec of records) {
+      // Ya se agotaron los reintentos automáticos para este ítem puntual:
+      // no lo vuelve a intentar solo, pero tampoco bloquea a los demás.
+      if ((failCounts.get(rec.id) ?? 0) >= MAX_ATTEMPTS) continue;
       emit({ id: rec.id, status: "uploading" });
       try {
         const key = await uploadMedia({
@@ -101,11 +126,12 @@ export async function processQueue(): Promise<void> {
           id: rec.id,
         });
         await deleteRecord(rec.id);
+        failCounts.delete(rec.id);
         emit({ id: rec.id, status: "done", key });
       } catch {
-        // Falla (probablemente sin red): se queda en la cola para reintentar.
-        emit({ id: rec.id, status: "error" });
-        break; // no seguir martillando si no hay red
+        const attempts = (failCounts.get(rec.id) ?? 0) + 1;
+        failCounts.set(rec.id, attempts);
+        emit({ id: rec.id, status: attempts >= MAX_ATTEMPTS ? "error" : "queued" });
       }
     }
   } finally {
@@ -143,6 +169,7 @@ export async function pendingForDraft(draftId: string): Promise<QueueRecord[]> {
 
 /** Descarta un pendiente (p. ej. si el usuario borra la foto antes de que suba). */
 export async function dropUpload(id: string): Promise<void> {
+  failCounts.delete(id);
   if (!idbAvailable()) return;
   await deleteRecord(id);
 }

@@ -20,8 +20,8 @@ export function StepFotos({ ctx }: { ctx: StepContext }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
               {p.status !== "done" && (
-                <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[10px] leading-tight text-white">
-                  {p.status === "uploading" ? "Subiendo…" : "Pendiente de señal"}
+                <span className={`absolute inset-0 flex items-center justify-center rounded-lg px-1 text-center text-[10px] leading-tight text-white ${p.status === "error" ? "bg-red-600/80" : "bg-black/40"}`}>
+                  {p.status === "uploading" ? "Subiendo…" : p.status === "error" ? "No se pudo subir" : "Pendiente de señal"}
                 </span>
               )}
               <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} aria-label="Quitar foto" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>

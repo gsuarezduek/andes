@@ -1,4 +1,5 @@
 import { Croquis, type Marker } from "@/components/inspection/croquis";
+import { dropUpload } from "@/lib/client/upload-queue";
 import { newId } from "../new-id";
 import type { StepContext } from "../context";
 
@@ -41,9 +42,22 @@ export function StepDanos({ ctx }: { ctx: StepContext }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={dm.photo.preview} alt="" className="h-20 w-20 rounded object-cover" />
               {dm.photo.status !== "done" && (
-                <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
-                  {dm.photo.status === "uploading" ? "Subiendo…" : "Pendiente"}
+                <span className={`absolute inset-0 flex items-center justify-center rounded px-1 text-center text-[9px] leading-tight text-white ${dm.photo.status === "error" ? "bg-red-600/80" : "bg-black/40"}`}>
+                  {dm.photo.status === "uploading" ? "Subiendo…" : dm.photo.status === "error" ? "No subió" : "Pendiente"}
                 </span>
+              )}
+              {dm.photo.status === "error" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dropUpload(dm.photo!.id);
+                    setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, photo: undefined } : x)) }));
+                  }}
+                  aria-label="Sacar de nuevo"
+                  className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                >
+                  ✕
+                </button>
               )}
             </div>
           ) : (

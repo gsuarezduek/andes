@@ -170,9 +170,16 @@ export function InspectionWizard(props: InspectionWizardProps) {
     const stopRetry = startAutoRetry();
     const off = onQueueEvent((e) => {
       setDraft((d) => {
-        // La firma se sube por la misma cola: al terminar, fija la clave.
+        // La firma se sube por la misma cola: al terminar, fija la clave. Si
+        // se agotaron los reintentos, no se va a resolver sola — hay que
+        // volver a firmar (signatureUploadFailed lo habilita en el paso Firma).
         if (d.signaturePendingId === e.id) {
-          if (e.status === "done") return { ...d, signatureKey: e.key, signaturePendingId: undefined };
+          if (e.status === "done") {
+            return { ...d, signatureKey: e.key, signaturePendingId: undefined, signatureUploadFailed: false };
+          }
+          if (e.status === "error") {
+            return { ...d, signaturePendingId: undefined, signatureUploadFailed: true };
+          }
           return d;
         }
         const up: Partial<PhotoItem> =
@@ -180,7 +187,9 @@ export function InspectionWizard(props: InspectionWizardProps) {
             ? { status: "done", key: e.key, preview: mediaUrl(e.key) }
             : e.status === "uploading"
               ? { status: "uploading" }
-              : { status: "queued" };
+              : e.status === "error"
+                ? { status: "error" }
+                : { status: "queued" };
         return {
           ...d,
           photos: d.photos.map((p) => (p.id === e.id ? { ...p, ...up } : p)),
@@ -283,9 +292,17 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }
 
   // Hay fotos que todavía no terminaron de subir (subiendo o en cola por señal).
+  // No cuenta las que ya se dieron por vencidas (status "error"): esas no se
+  // van a resolver solas, así que no tiene sentido esperarlas indefinidamente.
   const photosPending =
-    draft.photos.some((p) => p.status !== "done") ||
-    draft.damages.some((d) => d.photo && d.photo.status !== "done");
+    draft.photos.some((p) => p.status === "uploading" || p.status === "queued") ||
+    draft.damages.some((d) => d.photo && (d.photo.status === "uploading" || d.photo.status === "queued"));
+  // Hay al menos una foto que agotó los reintentos automáticos: hace falta
+  // que el empleado la saque y la vuelva a cargar (o resuelva lo que esté
+  // pasando, ej. reloguearse) — seguir esperando no la va a subir sola.
+  const photosFailed =
+    draft.photos.some((p) => p.status === "error") ||
+    draft.damages.some((d) => d.photo?.status === "error");
 
   const current = STEPS[step];
   const comparison = props.returnContext
@@ -334,7 +351,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       const dataUrl = pad.toDataURL();
       const blob = await (await fetch(dataUrl)).blob();
       const id = newId();
-      patch({ signatureKey: undefined, signaturePendingId: id });
+      patch({ signatureKey: undefined, signaturePendingId: id, signatureUploadFailed: false });
       void enqueueUpload({ id, draftId: draft.draftId, kind: "signature", slot: "signature", blob });
       return true;
     }
@@ -393,12 +410,21 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }
 
   // Reintenta el guardado cuando hay conexión y toda la evidencia ya subió.
+  // También dispara si algo se dio por vencido (foto o firma agotaron los
+  // reintentos automáticos) mientras esperábamos: submit() ya sabe mostrar el
+  // error correspondiente en vez de guardar, así que no se queda esperando en
+  // silencio para siempre.
   useEffect(() => {
-    if (queuedSubmit && online && !photosPending && draft.signatureKey && !saving) {
+    if (!queuedSubmit || saving) return;
+    if (photosFailed || draft.signatureUploadFailed) {
+      void submit();
+      return;
+    }
+    if (online && !photosPending && draft.signatureKey) {
       void submit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queuedSubmit, online, photosPending, draft.signatureKey, saving]);
+  }, [queuedSubmit, online, photosPending, draft.signatureKey, saving, photosFailed, draft.signatureUploadFailed]);
 
   // Poolea el pedido de firma remota hasta que el cliente firme en su teléfono.
   useEffect(() => {
@@ -439,6 +465,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
     if (!(await captureSignature())) return setError("Falta la firma del cliente.");
 
+    // Si alguna foto o la firma ya agotaron los reintentos automáticos, no
+    // sirve encolar y esperar — no se van a subir solas.
+    if (photosFailed) {
+      return setError("Una foto no se pudo subir. Borrala (✕) y volvé a sacarla, o revisá la conexión.");
+    }
+    if (draft.signatureUploadFailed) {
+      return setError("La firma no se pudo subir. Volvé a firmar.");
+    }
     // Necesitamos que fotos y firma estén subidas antes de guardar. Si algo
     // sigue pendiente (típicamente sin señal), encolamos: el efecto reintenta
     // solo cuando todo subió y hay conexión.

@@ -54,8 +54,8 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={doc.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
                       {doc.status !== "done" && (
-                        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 px-1 text-center text-[9px] leading-tight text-white">
-                          {doc.status === "uploading" ? "Subiendo…" : "Pendiente"}
+                        <span className={`absolute inset-0 flex items-center justify-center rounded-lg px-1 text-center text-[9px] leading-tight text-white ${doc.status === "error" ? "bg-red-600/80" : "bg-black/40"}`}>
+                          {doc.status === "uploading" ? "Subiendo…" : doc.status === "error" ? "No subió" : "Pendiente"}
                         </span>
                       )}
                       <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar documento" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>
@@ -111,7 +111,9 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={doc.preview} alt="" className="h-14 w-14 rounded object-cover" />
                         {doc.status !== "done" && (
-                          <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-[8px] text-white">…</span>
+                          <span className={`absolute inset-0 flex items-center justify-center rounded text-[8px] text-white ${doc.status === "error" ? "bg-red-600/80" : "bg-black/40"}`}>
+                            {doc.status === "error" ? "✕" : "…"}
+                          </span>
                         )}
                         <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar foto de licencia" className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
                       </div>

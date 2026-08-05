@@ -58,6 +58,9 @@ export type Draft = {
   signatureKey?: string;
   // Id de la firma en la cola de subida mientras no hay señal.
   signaturePendingId?: string;
+  // Se agotaron los reintentos automáticos de subida de la firma: hay que
+  // volver a firmar (no se va a resolver solo). Se limpia al recapturar.
+  signatureUploadFailed?: boolean;
   // Liquidación (solo devolución). Guardamos los overrides editables; el total
   // se recalcula en vivo desde la comparación + condiciones de la entrega.
   // Los pagos para saldarla van en `payments` (mismo campo que la entrega).
