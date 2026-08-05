@@ -21,6 +21,10 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "private, max-age=3600",
+        // Defensa en profundidad: aunque el Content-Type ya se calcula
+        // server-side (nunca del cliente), esto evita que el navegador
+        // "adivine" un tipo distinto a partir del contenido.
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {
