@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { useMemo, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { mergeDuplicateRental } from "@/app/(app)/rentals/[id]/merge-actions";
 import type { MergeCandidate } from "@/lib/rental-detail-queries";
 
@@ -17,6 +18,23 @@ export function MergeDuplicateSection({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<MergeCandidate | null>(null);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+
+  function handleMerge() {
+    if (!selected) return;
+    setError(undefined);
+    start(async () => {
+      try {
+        await mergeDuplicateRental(duplicateId, selected.id);
+      } catch (err) {
+        unstable_rethrow(err);
+        setConfirming(false);
+        setError(err instanceof Error ? err.message : "No se pudo fusionar la reserva.");
+      }
+    });
+  }
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -94,12 +112,33 @@ export function MergeDuplicateSection({
           </div>
         )}
 
-        {selected && (
-          <form action={mergeDuplicateRental.bind(null, duplicateId, selected.id)}>
-            <SubmitButton pendingLabel="Fusionando…" className="w-full">
-              Fusionar con esta reserva
-            </SubmitButton>
-          </form>
+        {selected && !confirming && (
+          <Button type="button" className="w-full" onClick={() => setConfirming(true)}>
+            Fusionar con esta reserva
+          </Button>
+        )}
+
+        {selected && confirming && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              ¿Fusionar esta reserva con <strong>{selected.label}</strong>? Esta cancela la
+              actual y no se puede deshacer.
+            </p>
+            {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="text-xs text-foreground/50"
+                disabled={pending}
+              >
+                Cancelar
+              </button>
+              <Button type="button" onClick={handleMerge} disabled={pending} className="ml-auto">
+                {pending ? "Fusionando…" : "Sí, fusionar"}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     </details>

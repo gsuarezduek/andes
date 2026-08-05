@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { deleteRental } from "@/app/(app)/rentals/actions/delete";
 
 export function DangerZoneSection({
@@ -13,6 +13,20 @@ export function DangerZoneSection({
   clientName: string;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+
+  function handleDelete() {
+    setError(undefined);
+    start(async () => {
+      try {
+        await deleteRental(rentalId);
+      } catch (err) {
+        unstable_rethrow(err);
+        setError(err instanceof Error ? err.message : "No se pudo eliminar la reserva.");
+      }
+    });
+  }
 
   return (
     <details className="rounded-xl border border-red-500/20">
@@ -31,21 +45,26 @@ export function DangerZoneSection({
               ¿Eliminar definitivamente la reserva de <strong>{clientName}</strong>? Esta acción
               no se puede deshacer.
             </p>
-            <form
-              action={deleteRental.bind(null, rentalId)}
-              className="mt-3 flex items-center gap-3"
-            >
+            {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+            <div className="mt-3 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
                 className="text-xs text-foreground/50"
+                disabled={pending}
               >
                 Cancelar
               </button>
-              <SubmitButton variant="danger" pendingLabel="Eliminando…" className="ml-auto">
-                Sí, eliminar definitivamente
-              </SubmitButton>
-            </form>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={handleDelete}
+                disabled={pending}
+                className="ml-auto"
+              >
+                {pending ? "Eliminando…" : "Sí, eliminar definitivamente"}
+              </Button>
+            </div>
           </div>
         ) : (
           <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
