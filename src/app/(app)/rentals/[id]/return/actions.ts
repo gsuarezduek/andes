@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { generateAndSendActa } from "@/lib/acta";
@@ -87,71 +88,82 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
     return { ok: false, error: `El kilometraje no puede ser menor al de entrega (${handover.km.toLocaleString("es-AR")} km).` };
   }
 
-  const inspection = await prisma.$transaction(async (tx) => {
-    const insp = await tx.inspection.create({
-      data: {
-        type: "return_",
-        rentalId: rental.id,
-        vehicleId: data.vehicleId,
-        userId: user.id,
-        km: data.km,
-        fuelLevel: data.fuelLevel,
-        checklistResponses: data.checklist,
-        observations: data.observations ?? null,
-        signatureUrl: data.signatureKey,
-        signerName: data.signerName,
-        settlement: data.settlement ?? undefined,
-        latitude: data.latitude ?? null,
-        longitude: data.longitude ?? null,
-        media: {
-          create: [
-            ...data.photoKeys.map((key) => ({
-              type: "photo" as const,
-              url: key,
-              capturedAt: new Date(),
-            })),
-            ...(data.videoKey
-              ? [{ type: "video" as const, url: data.videoKey, capturedAt: new Date() }]
-              : []),
-          ],
-        },
-        damages: {
-          create: data.newDamages.map((d) => ({
-            vehicleId: data.vehicleId,
-            view: d.view,
-            posX: d.posX,
-            posY: d.posY,
-            description: d.description ?? null,
-            photoUrl: d.photoKey ?? null,
-            reportedById: user.id,
-          })),
-        },
-      },
-    });
-
-    await tx.rental.update({
-      where: { id: rental.id },
-      data: { status: "finished", language: data.language },
-    });
-    await tx.vehicle.update({
-      where: { id: data.vehicleId },
-      data: { status: "available", currentKm: data.km },
-    });
-
-    // Cada pago anotado en la liquidación queda también como cobro en Caja,
-    // vinculado a esta reserva — el empleado no lo anota dos veces.
-    if (data.settlement?.payments?.length) {
-      await tx.cashMovement.createMany({
-        data: paymentsToCashMovements(data.settlement.payments, {
+  let inspection;
+  try {
+    inspection = await prisma.$transaction(async (tx) => {
+      const insp = await tx.inspection.create({
+        data: {
+          type: "return_",
           rentalId: rental.id,
-          createdById: user.id,
-          description: `Cobro de devolución — ${rental.clientName}`,
-        }),
+          vehicleId: data.vehicleId,
+          userId: user.id,
+          km: data.km,
+          fuelLevel: data.fuelLevel,
+          checklistResponses: data.checklist,
+          observations: data.observations ?? null,
+          signatureUrl: data.signatureKey,
+          signerName: data.signerName,
+          settlement: data.settlement ?? undefined,
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+          media: {
+            create: [
+              ...data.photoKeys.map((key) => ({
+                type: "photo" as const,
+                url: key,
+                capturedAt: new Date(),
+              })),
+              ...(data.videoKey
+                ? [{ type: "video" as const, url: data.videoKey, capturedAt: new Date() }]
+                : []),
+            ],
+          },
+          damages: {
+            create: data.newDamages.map((d) => ({
+              vehicleId: data.vehicleId,
+              view: d.view,
+              posX: d.posX,
+              posY: d.posY,
+              description: d.description ?? null,
+              photoUrl: d.photoKey ?? null,
+              reportedById: user.id,
+            })),
+          },
+        },
       });
-    }
 
-    return insp;
-  });
+      await tx.rental.update({
+        where: { id: rental.id },
+        data: { status: "finished", language: data.language },
+      });
+      await tx.vehicle.update({
+        where: { id: data.vehicleId },
+        data: { status: "available", currentKm: data.km },
+      });
+
+      // Cada pago anotado en la liquidación queda también como cobro en Caja,
+      // vinculado a esta reserva — el empleado no lo anota dos veces.
+      if (data.settlement?.payments?.length) {
+        await tx.cashMovement.createMany({
+          data: paymentsToCashMovements(data.settlement.payments, {
+            rentalId: rental.id,
+            createdById: user.id,
+            description: `Cobro de devolución — ${rental.clientName}`,
+          }),
+        });
+      }
+
+      return insp;
+    });
+  } catch (e) {
+    // Dos guardados concurrentes para la misma reserva: el
+    // `@@unique([rentalId, type])` de Inspection choca acá y aborta toda la
+    // transacción (nada de acta/cobro/cambio de estado duplicado).
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, error: "Ya se guardó una devolución para este alquiler (recargá la página)." };
+    }
+    throw e;
+  }
 
   after(async () => {
     try {

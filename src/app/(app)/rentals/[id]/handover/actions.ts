@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
@@ -107,103 +108,115 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
   const vehicle = await prisma.vehicle.findUnique({ where: { id: data.vehicleId } });
   if (!vehicle) return { ok: false, error: "El vehículo no existe." };
 
-  const inspection = await prisma.$transaction(async (tx) => {
-    const insp = await tx.inspection.create({
-      data: {
-        type: "handover",
-        rentalId: rental.id,
-        vehicleId: vehicle.id,
-        userId: user.id,
-        km: data.km,
-        fuelLevel: data.fuelLevel,
-        checklistResponses: data.checklist,
-        observations: data.observations ?? null,
-        signatureUrl: data.signatureKey,
-        signerName: data.signerName,
-        latitude: data.latitude ?? null,
-        longitude: data.longitude ?? null,
-        media: {
-          create: [
-            ...data.photoKeys.map((key) => ({
-              type: "photo" as const,
-              url: key,
-              capturedAt: new Date(),
+  let inspection;
+  try {
+    inspection = await prisma.$transaction(async (tx) => {
+      const insp = await tx.inspection.create({
+        data: {
+          type: "handover",
+          rentalId: rental.id,
+          vehicleId: vehicle.id,
+          userId: user.id,
+          km: data.km,
+          fuelLevel: data.fuelLevel,
+          checklistResponses: data.checklist,
+          observations: data.observations ?? null,
+          signatureUrl: data.signatureKey,
+          signerName: data.signerName,
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+          media: {
+            create: [
+              ...data.photoKeys.map((key) => ({
+                type: "photo" as const,
+                url: key,
+                capturedAt: new Date(),
+              })),
+              ...(data.videoKey
+                ? [{ type: "video" as const, url: data.videoKey, capturedAt: new Date() }]
+                : []),
+            ],
+          },
+          damages: {
+            create: data.newDamages.map((d) => ({
+              vehicleId: vehicle.id,
+              view: d.view,
+              posX: d.posX,
+              posY: d.posY,
+              description: d.description ?? null,
+              photoUrl: d.photoKey ?? null,
+              reportedById: user.id,
             })),
-            ...(data.videoKey
-              ? [{ type: "video" as const, url: data.videoKey, capturedAt: new Date() }]
-              : []),
-          ],
+          },
         },
-        damages: {
-          create: data.newDamages.map((d) => ({
-            vehicleId: vehicle.id,
-            view: d.view,
-            posX: d.posX,
-            posY: d.posY,
-            description: d.description ?? null,
-            photoUrl: d.photoKey ?? null,
-            reportedById: user.id,
+      });
+
+      const licenseExpiry = data.licenseExpiry
+        ? mendozaWallTimeToUtc(`${data.licenseExpiry}T12:00`)
+        : undefined;
+      const hasPricing =
+        data.pricing && Object.values(data.pricing).some((v) => v !== undefined && v !== "");
+
+      await tx.rental.update({
+        where: { id: rental.id },
+        data: {
+          status: "active",
+          vehicleId: vehicle.id,
+          language: data.language,
+          clientName: data.clientName,
+          clientEmail: data.clientEmail || null,
+          clientPhone: data.clientPhone || null,
+          clientDocNumber: data.clientDocNumber || null,
+          clientAddress: data.clientAddress || null,
+          ...(licenseExpiry ? { licenseExpiry } : {}),
+          ...(hasPricing ? { pricing: data.pricing } : {}),
+          ...(data.additionalDrivers?.length
+            ? { additionalDrivers: data.additionalDrivers }
+            : {}),
+        },
+      });
+      await tx.vehicle.update({
+        where: { id: vehicle.id },
+        data: { status: "rented", currentKm: data.km },
+      });
+
+      // Cada pago anotado en "Condiciones" queda también como cobro en Caja,
+      // vinculado a esta reserva — el empleado no lo anota dos veces.
+      if (data.pricing?.payments?.length) {
+        await tx.cashMovement.createMany({
+          data: paymentsToCashMovements(data.pricing.payments, {
+            rentalId: rental.id,
+            createdById: user.id,
+            description: `Cobro de entrega — ${data.clientName}`,
+          }),
+        });
+      }
+
+      // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
+      if (data.documents?.length) {
+        await tx.rentalDocument.createMany({
+          data: data.documents.map((doc) => ({
+            rentalId: rental.id,
+            kind: doc.kind,
+            url: doc.key,
+            holderName: doc.holderName || null,
+            uploadedById: user.id,
           })),
-        },
-      },
-    });
+        });
+      }
 
-    const licenseExpiry = data.licenseExpiry
-      ? mendozaWallTimeToUtc(`${data.licenseExpiry}T12:00`)
-      : undefined;
-    const hasPricing =
-      data.pricing && Object.values(data.pricing).some((v) => v !== undefined && v !== "");
-
-    await tx.rental.update({
-      where: { id: rental.id },
-      data: {
-        status: "active",
-        vehicleId: vehicle.id,
-        language: data.language,
-        clientName: data.clientName,
-        clientEmail: data.clientEmail || null,
-        clientPhone: data.clientPhone || null,
-        clientDocNumber: data.clientDocNumber || null,
-        clientAddress: data.clientAddress || null,
-        ...(licenseExpiry ? { licenseExpiry } : {}),
-        ...(hasPricing ? { pricing: data.pricing } : {}),
-        ...(data.additionalDrivers?.length
-          ? { additionalDrivers: data.additionalDrivers }
-          : {}),
-      },
+      return insp;
     });
-    await tx.vehicle.update({
-      where: { id: vehicle.id },
-      data: { status: "rented", currentKm: data.km },
-    });
-
-    // Cada pago anotado en "Condiciones" queda también como cobro en Caja,
-    // vinculado a esta reserva — el empleado no lo anota dos veces.
-    if (data.pricing?.payments?.length) {
-      await tx.cashMovement.createMany({
-        data: paymentsToCashMovements(data.pricing.payments, {
-          rentalId: rental.id,
-          createdById: user.id,
-          description: `Cobro de entrega — ${data.clientName}`,
-        }),
-      });
+  } catch (e) {
+    // Dos guardados concurrentes para la misma reserva (dos empleados, o un
+    // doble-tap): el `@@unique([rentalId, type])` de Inspection choca acá y
+    // aborta toda la transacción (nada de acta/cobro/cambio de estado
+    // duplicado) — se lo comunicamos como un resultado normal, no un crash.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { ok: false, error: "Ya se guardó una entrega para este alquiler (recargá la página)." };
     }
-
-    // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
-    if (data.documents?.length) {
-      await tx.rentalDocument.createMany({
-        data: data.documents.map((doc) => ({
-          rentalId: rental.id,
-          kind: doc.kind,
-          url: doc.key,
-          holderName: doc.holderName || null,
-          uploadedById: user.id,
-        })),
-      });
-    }
-
-    return insp;
-  });
+    throw e;
+  }
 
   // Post-guardado asíncrono: PDF + emails, sin bloquear la confirmación.
   after(async () => {

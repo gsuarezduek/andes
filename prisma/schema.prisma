@@ -516,6 +516,13 @@ model Inspection {
   media   InspectionMedia[]
   damages Damage[]
 
+  // A lo sumo una entrega y una devolución por alquiler. Es la defensa real
+  // contra la carrera de guardar dos veces (dos empleados, doble-tap, reintento
+  // automático de la cola offline): como `saveHandover`/`saveReturn` crean la
+  // inspección como primer paso de la transacción, un segundo intento
+  // concurrente choca acá y hace rollback de todo (acta, cobro en Caja,
+  // cambio de estado) antes de duplicar nada.
+  @@unique([rentalId, type])
   @@index([rentalId])
   @@index([vehicleId])
   @@map("inspections")
