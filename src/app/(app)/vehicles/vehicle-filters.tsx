@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { compactControlClass } from "@/components/ui/fields";
 
 const SORTS = [
   { value: "model", label: "Modelo" },
@@ -20,9 +21,6 @@ const STATUSES = [
 function naturalDir(sort: string): "asc" | "desc" {
   return sort === "price" || sort === "km" ? "desc" : "asc";
 }
-
-const selectCls =
-  "h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40";
 
 export function VehicleFilters({
   sort,
@@ -49,7 +47,7 @@ export function VehicleFilters({
         aria-label="Filtrar por estado"
         value={status}
         onChange={(e) => push({ status: e.target.value })}
-        className={selectCls}
+        className={compactControlClass}
       >
         {STATUSES.map((s) => (
           <option key={s.value} value={s.value}>
@@ -63,7 +61,7 @@ export function VehicleFilters({
         value={sort}
         // Al cambiar de criterio, arrancamos con su dirección natural.
         onChange={(e) => push({ sort: e.target.value, dir: naturalDir(e.target.value) })}
-        className={selectCls}
+        className={compactControlClass}
       >
         {SORTS.map((s) => (
           <option key={s.value} value={s.value}>

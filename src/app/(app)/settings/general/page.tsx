@@ -3,50 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { TextField } from "@/components/ui/fields";
 import { saveConditions } from "../actions";
 import { createChecklistItem } from "../../checklist/actions";
 import { ChecklistItemRow } from "./checklist-item-row";
 
 export const metadata: Metadata = { title: "Condiciones y checklist — Andes" };
-
-function ConditionField({
-  name,
-  label,
-  hint,
-  defaultValue,
-  prefix,
-  suffix,
-  decimal = false,
-}: {
-  name: string;
-  label: string;
-  hint?: string;
-  defaultValue?: string;
-  prefix?: string;
-  suffix?: string;
-  /** Importes en pesos aceptan decimales (coma o punto); km/% son enteros. */
-  decimal?: boolean;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-foreground/80">{label}</span>
-      <div className="flex items-center gap-2 rounded-lg border border-foreground/15 px-3 focus-within:border-foreground/40">
-        {prefix ? <span className="text-sm text-foreground/50">{prefix}</span> : null}
-        <input
-          name={name}
-          type={decimal ? "text" : "number"}
-          inputMode={decimal ? "decimal" : "numeric"}
-          min={decimal ? undefined : 0}
-          defaultValue={defaultValue}
-          placeholder="—"
-          className="h-11 flex-1 bg-transparent text-base outline-none"
-        />
-        {suffix ? <span className="text-sm text-foreground/50">{suffix}</span> : null}
-      </div>
-      {hint ? <span className="text-xs text-foreground/50">{hint}</span> : null}
-    </label>
-  );
-}
 
 export default async function GeneralSettingsPage() {
   await requireAdmin();
@@ -76,49 +38,65 @@ export default async function GeneralSettingsPage() {
         </div>
         <form action={saveConditions} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
-            <ConditionField
-              name="kmPerDay"
+            <TextField
+              id="kmPerDay"
               label="Km por día"
               suffix="km"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="—"
               defaultValue={conditions?.kmPerDay?.toString()}
             />
-            <ConditionField
-              name="extraKmRate"
+            <TextField
+              id="extraKmRate"
               label="Km extra"
               prefix="$"
               suffix="c/u"
-              decimal
+              type="text"
+              inputMode="decimal"
+              placeholder="—"
               defaultValue={conditions?.extraKmRate?.toString()}
             />
-            <ConditionField
-              name="extraHourPercent"
+            <TextField
+              id="extraHourPercent"
               label="Hora extra"
               suffix="%"
               hint="% de la tarifa diaria"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="—"
               defaultValue={conditions?.extraHourPercent?.toString()}
             />
-            <ConditionField
-              name="deductible"
+            <TextField
+              id="deductible"
               label="Franquicia/Garantía estándar"
               prefix="$"
               hint="deducible del seguro y garantía tomada"
-              decimal
+              type="text"
+              inputMode="decimal"
+              placeholder="—"
               defaultValue={conditions?.deductible?.toString()}
             />
-            <ConditionField
-              name="deductibleReduced"
+            <TextField
+              id="deductibleReduced"
               label="Franquicia/Garantía con mejora de seguro"
               prefix="$"
               hint="reducida"
-              decimal
+              type="text"
+              inputMode="decimal"
+              placeholder="—"
               defaultValue={conditions?.deductibleReduced?.toString()}
             />
-            <ConditionField
-              name="kmPackPrice"
+            <TextField
+              id="kmPackPrice"
               label="Precio por pack de KM"
               prefix="$"
               hint="200 km c/u, de 1 a 20 packs"
-              decimal
+              type="text"
+              inputMode="decimal"
+              placeholder="—"
               defaultValue={conditions?.kmPackPrice?.toString()}
             />
           </div>

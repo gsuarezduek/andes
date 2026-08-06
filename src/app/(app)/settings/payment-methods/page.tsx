@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { createPaymentMethod } from "./actions";
 import { PaymentMethodsEditor } from "./payment-methods-editor";
 
@@ -33,47 +34,20 @@ export default async function PaymentMethodsSettingsPage() {
         <h2 className="text-sm font-semibold text-foreground/80">Nuevo medio de pago</h2>
         <form action={createPaymentMethod} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3">
           <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-foreground/80">Nombre</span>
-              <input
-                name="name"
-                required
-                placeholder="Ej. Tarjeta de crédito"
-                className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-foreground/80">% (recargo/descuento)</span>
-              <input
-                name="adjustmentPercent"
-                type="text"
-                inputMode="decimal"
-                placeholder="Ej. 10 o -5"
-                className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-              />
-            </label>
-          </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-foreground/80">Referencia (alias/CVU)</span>
-            <textarea
-              name="reference"
-              rows={2}
-              placeholder="Ej. Alias: mdzrentacar.mp"
-              className="rounded-lg border border-foreground/15 bg-transparent p-3 text-base outline-none focus:border-foreground/40"
+            <TextField id="name" label="Nombre" required placeholder="Ej. Tarjeta de crédito" />
+            <TextField
+              id="adjustmentPercent"
+              label="% (recargo/descuento)"
+              type="text"
+              inputMode="decimal"
+              placeholder="Ej. 10 o -5"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-foreground/80">Cuenta</span>
-            <select
-              name="ownership"
-              required
-              defaultValue="own"
-              className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-            >
-              <option value="own">Cuenta propia</option>
-              <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
-            </select>
-          </label>
+          </div>
+          <TextareaField id="reference" label="Referencia (alias/CVU)" rows={2} placeholder="Ej. Alias: mdzrentacar.mp" />
+          <SelectField id="ownership" label="Cuenta" required defaultValue="own">
+            <option value="own">Cuenta propia</option>
+            <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+          </SelectField>
           <label className="flex items-center gap-2 text-sm text-foreground/80">
             <input type="checkbox" name="requiresNote" className="h-4 w-4" />
             Requiere aclaración (ej. &quot;Otro&quot;: pide indicar a dónde fue el pago)

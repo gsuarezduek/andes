@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Croquis, type Marker } from "@/components/inspection/croquis";
 import { Button } from "@/components/ui/button";
+import { TextField } from "@/components/ui/fields";
 import { compressImage, uploadMedia } from "@/lib/client/media";
 import { addDamage } from "./damage-actions";
 
@@ -87,15 +88,13 @@ export function AddDamageForm({
       </div>
 
       <div className="flex flex-1 flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-foreground/70">Descripción</span>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ej. rayón en puerta trasera derecha"
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm"
-          />
-        </label>
+        <TextField
+          id="damage-description"
+          label="Descripción"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Ej. rayón en puerta trasera derecha"
+        />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-foreground/70">Foto (opcional)</span>

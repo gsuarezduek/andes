@@ -5,6 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import {
   togglePaymentMethod,
   deletePaymentMethod,
@@ -271,38 +272,39 @@ function PaymentMethodRow({
       {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
       <div className="flex flex-col gap-2">
         <div className="grid grid-cols-2 gap-2">
-          <input
+          <TextField
+            id={`name-${item.id}`}
+            label="Nombre"
             value={draft.name}
             onChange={(e) => setField(item.id, "name", e.target.value)}
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
           />
-          <input
+          <TextField
+            id={`adjustmentPercent-${item.id}`}
+            label="% recargo/descuento"
             value={draft.adjustmentPercent}
             onChange={(e) => setField(item.id, "adjustmentPercent", e.target.value)}
             type="text"
             inputMode="decimal"
-            placeholder="% recargo/descuento"
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+            placeholder="Ej. 10 o -5"
           />
         </div>
-        <textarea
+        <TextareaField
+          id={`reference-${item.id}`}
+          label="Referencia (alias/CVU)"
+          hint="Interna — se le muestra al empleado, nunca sale en el acta."
           value={draft.reference}
           onChange={(e) => setField(item.id, "reference", e.target.value)}
           rows={2}
-          placeholder="Referencia (alias/CVU) — interna"
-          className="rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
         />
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-foreground/80">Cuenta</span>
-          <select
-            value={draft.ownership}
-            onChange={(e) => setField(item.id, "ownership", e.target.value as PaymentMethodOwnership)}
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-          >
-            <option value="own">Cuenta propia</option>
-            <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
-          </select>
-        </label>
+        <SelectField
+          id={`ownership-${item.id}`}
+          label="Cuenta"
+          value={draft.ownership}
+          onChange={(e) => setField(item.id, "ownership", e.target.value as PaymentMethodOwnership)}
+        >
+          <option value="own">Cuenta propia</option>
+          <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+        </SelectField>
         <label className="flex items-center gap-2 text-sm text-foreground/80">
           <input
             type="checkbox"

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { compactControlClass } from "@/components/ui/fields";
 import { rentalStatusLabels } from "@/lib/labels";
 import { RENTAL_STATUSES, type RentalListFilters } from "@/lib/rental-list-filters";
 
@@ -30,7 +31,7 @@ export function RentalFiltersForm({
         <select
           name="status"
           defaultValue={statusFilter ?? ""}
-          className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+          className={compactControlClass}
         >
           <option value="">Todos los estados</option>
           {RENTAL_STATUSES.map((s) => (
@@ -42,7 +43,7 @@ export function RentalFiltersForm({
         <select
           name="confirm"
           defaultValue={confirm}
-          className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+          className={compactControlClass}
         >
           <option value="all">Confirmación: todas</option>
           <option value="confirmed">Confirmadas</option>
@@ -51,7 +52,7 @@ export function RentalFiltersForm({
         <select
           name="sort"
           defaultValue={sort}
-          className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+          className={compactControlClass}
         >
           {Object.entries(SORT_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -65,7 +66,7 @@ export function RentalFiltersForm({
             type="date"
             name="desde"
             defaultValue={desde}
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            className={compactControlClass}
           />
         </label>
         <label className="flex items-center gap-1 text-xs text-foreground/60">
@@ -74,7 +75,7 @@ export function RentalFiltersForm({
             type="date"
             name="hasta"
             defaultValue={hasta}
-            className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            className={compactControlClass}
           />
         </label>
         {hasFilters && (

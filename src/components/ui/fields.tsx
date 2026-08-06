@@ -4,6 +4,16 @@ const inputBase =
   "h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40";
 const inputErrorClass = "border-red-500/60 focus:border-red-500";
 
+/**
+ * Estilo compacto para controles SIN label visible (filtros de un listado:
+ * estado, orden, búsqueda por usuario, etc.) — no son TextField/SelectField
+ * porque esos siempre muestran un label arriba, y un filtro inline no lo
+ * necesita. Antes cada pantalla de filtros repetía este mismo className a
+ * mano; ahora es una sola fuente.
+ */
+export const compactControlClass =
+  "h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40";
+
 function FieldShell({
   label,
   htmlFor,
@@ -37,22 +47,37 @@ export function TextField({
   id,
   className = "",
   prefix,
+  suffix,
   ...props
-}: ComponentProps<"input"> & { label: string; hint?: string; error?: string; id: string; prefix?: ReactNode }) {
+}: ComponentProps<"input"> & {
+  label: string;
+  hint?: string;
+  error?: string;
+  id: string;
+  prefix?: ReactNode;
+  suffix?: ReactNode;
+}) {
   return (
     <FieldShell label={label} htmlFor={id} hint={hint} error={error}>
-      {prefix != null ? (
+      {prefix != null || suffix != null ? (
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-foreground/50">
-            {prefix}
-          </span>
+          {prefix != null && (
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-foreground/50">
+              {prefix}
+            </span>
+          )}
           <input
             id={id}
             name={id}
             aria-invalid={error ? true : undefined}
-            className={`${inputBase} pl-7 ${error ? inputErrorClass : ""} ${className}`}
+            className={`${inputBase} ${prefix != null ? "pl-7" : ""} ${suffix != null ? "pr-10" : ""} ${error ? inputErrorClass : ""} ${className}`}
             {...props}
           />
+          {suffix != null && (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-foreground/50">
+              {suffix}
+            </span>
+          )}
         </div>
       ) : (
         <input

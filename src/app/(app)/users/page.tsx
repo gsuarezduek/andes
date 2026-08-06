@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { compactControlClass } from "@/components/ui/fields";
 import { userRoleLabels, loginDeviceLabels } from "@/lib/labels";
 import { formatDateTime } from "@/lib/datetime";
 
@@ -66,7 +67,7 @@ export default async function UsersPage({
             <select
               name="loginUser"
               defaultValue={loginUser ?? ""}
-              className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+              className={compactControlClass}
             >
               <option value="">Todos los usuarios</option>
               {users.map((u) => (
