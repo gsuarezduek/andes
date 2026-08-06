@@ -8,9 +8,11 @@ import type { Item } from "@/components/nav/types";
 /**
  * Navegación de la app.
  *
- * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja.
+ * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja,
+ *   y para admin además Reportes, Usuarios y Configuración — antes vivían enterrados en
+ *   el submenú de cuenta, tan frecuentes para un admin como el resto de la barra principal.
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
- *   Perfil, Sincronización, [Usuarios, Configuración si es admin] y Salir.
+ *   Perfil, Sincronización y Salir — ajustes personales, no navegación operativa.
  * - En mobile todo colapsa en un menú hamburguesa.
  */
 export function AppNav({
@@ -31,11 +33,6 @@ export function AppNav({
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
     { href: "/caja", label: "Caja" },
-  ];
-
-  const menuItems: Item[] = [
-    { href: "/profile", label: "Perfil" },
-    { href: "/sync", label: "Sincronización" },
     ...(isAdmin
       ? [
           { href: "/reports", label: "Reportes" },
@@ -43,6 +40,11 @@ export function AppNav({
           { href: "/settings", label: "Configuración" },
         ]
       : []),
+  ];
+
+  const menuItems: Item[] = [
+    { href: "/profile", label: "Perfil" },
+    { href: "/sync", label: "Sincronización" },
   ];
 
   const isActive = (href: string) =>
