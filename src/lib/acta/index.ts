@@ -20,12 +20,23 @@ import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
 
-async function toDataUri(key: string | null | undefined): Promise<string | undefined> {
+/**
+ * Trae un archivo de storage como data URI para embeberlo en el PDF. Si falla
+ * la descarga (no si simplemente no había key: eso es normal), lo loguea
+ * explícitamente — sin esto, el acta se manda igual pero sin la firma o una
+ * foto, y nadie se entera de que hace falta regenerarla.
+ */
+async function toDataUri(
+  key: string | null | undefined,
+  context: string,
+  inspectionId: string,
+): Promise<string | undefined> {
   if (!key) return undefined;
   try {
     const { body, contentType } = await storage().get(key);
     return `data:${contentType};base64,${body.toString("base64")}`;
-  } catch {
+  } catch (e) {
+    console.error(`[acta] no se pudo leer ${context} (inspection ${inspectionId}, key "${key}") — el acta se genera sin ella`, e);
     return undefined;
   }
 }
@@ -59,9 +70,13 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   // Imágenes → data URIs.
   const photoKeys = inspection.media.filter((m) => m.type === "photo").map((m) => m.url);
   const photoDataUris = (
-    await Promise.all(photoKeys.slice(0, MAX_PHOTOS_IN_PDF).map((k) => toDataUri(k)))
+    await Promise.all(
+      photoKeys
+        .slice(0, MAX_PHOTOS_IN_PDF)
+        .map((k) => toDataUri(k, "una foto", inspectionId)),
+    )
   ).filter((x): x is string => Boolean(x));
-  const signatureDataUri = await toDataUri(inspection.signatureUrl);
+  const signatureDataUri = await toDataUri(inspection.signatureUrl, "la firma", inspectionId);
 
   const r = inspection.rental;
   const t = dict.acta;
