@@ -84,7 +84,7 @@ export function RemoteSignForm({
           <SummaryRow label="Vehículo" value={summary.vehicleLabel} />
           {summary.datesLabel && <SummaryRow label="Período" value={summary.datesLabel} />}
           <SummaryRow label="Kilometraje" value={`${summary.km.toLocaleString("es-AR")} km`} />
-          <SummaryRow label="Nafta" value={`${summary.fuelLevel}/8`} />
+          <SummaryRow label="Nafta" value={`${summary.fuelLevel}/${summary.maxFuel ?? 8}`} />
           <SummaryRow
             label="Daños"
             value={summary.newDamages.length ? summary.newDamages.join(", ") : "Sin daños nuevos"}

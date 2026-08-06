@@ -16,6 +16,7 @@ const inputSchema = z.object({
     vehicleLabel: z.string(),
     km: z.number(),
     fuelLevel: z.number(),
+    maxFuel: z.number().optional(),
     newDamages: z.array(z.string()),
     observations: z.string().optional(),
     clientName: z.string().optional(),

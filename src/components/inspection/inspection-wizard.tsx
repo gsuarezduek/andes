@@ -400,6 +400,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           "—",
         km: Number(draft.km || 0),
         fuelLevel: draft.fuelLevel,
+        maxFuel,
         newDamages: draft.damages.map((d, i) => d.description.trim() || `Daño #${i + 1}`),
         observations: draft.observations.trim() || undefined,
         clientName: (draft.signerName || draft.clientName || "").trim() || undefined,

@@ -12,6 +12,9 @@ export type SignatureSummary = {
   vehicleLabel: string;
   km: number;
   fuelLevel: number;
+  /** Divisiones del tanque de este vehículo (Vehicle.fuelLevels, 4–16). Los
+   *  pedidos viejos no lo tienen: se asume 8 (el default histórico). */
+  maxFuel?: number;
   newDamages: string[];
   observations?: string;
   clientName?: string;
