@@ -1,4 +1,5 @@
 import { TextareaField } from "@/components/ui/fields";
+import { CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
 import type { StepContext } from "../context";
 
@@ -24,7 +25,9 @@ export function StepFotos({ ctx }: { ctx: StepContext }) {
                   {p.status === "uploading" ? "Subiendo…" : p.status === "error" ? "No se pudo subir" : "Pendiente de señal"}
                 </span>
               )}
-              <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} aria-label="Quitar foto" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>
+              <button type="button" onClick={() => { dropUpload(p.id); patch({ photos: draft.photos.filter((x) => x.id !== p.id) }); }} aria-label="Quitar foto" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white">
+                <CloseIcon />
+              </button>
             </div>
           ))}
         </div>

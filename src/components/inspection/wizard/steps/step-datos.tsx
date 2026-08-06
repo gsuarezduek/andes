@@ -1,4 +1,5 @@
 import { TextField, SelectField } from "@/components/ui/fields";
+import { CameraIcon, GalleryIcon, CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
 import { languageLabels, documentKindLabels } from "@/lib/labels";
 import { DOC_KINDS, type Lang } from "../types";
@@ -41,11 +42,11 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                   <p className="text-center text-xs font-medium text-foreground/70">{documentKindLabels[kind]}</p>
                   <div className="flex gap-1.5">
                     <label className="flex h-11 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-xs font-medium" title="Sacar foto">
-                      📷
+                      <CameraIcon />
                       <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
                     </label>
                     <label className="flex h-11 flex-1 items-center justify-center rounded-lg border border-dashed border-foreground/30 text-center text-xs font-medium" title="Elegir de la galería">
-                      🖼️
+                      <GalleryIcon />
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addDocument(e.target.files, kind)} />
                     </label>
                   </div>
@@ -58,7 +59,9 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                           {doc.status === "uploading" ? "Subiendo…" : doc.status === "error" ? "No subió" : "Pendiente"}
                         </span>
                       )}
-                      <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar documento" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-sm text-white">✕</button>
+                      <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar documento" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white">
+                        <CloseIcon />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -97,12 +100,12 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex h-11 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto">
-                    📷 Licencia
+                  <label className="flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Sacar foto">
+                    <CameraIcon className="size-4" /> Licencia
                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                   </label>
                   <label className="flex h-11 items-center gap-1 rounded-lg border border-dashed border-foreground/30 px-3 text-xs font-medium" title="Elegir de la galería">
-                    🖼️
+                    <GalleryIcon className="size-4" />
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => addDocument(e.target.files, "license", dr.id)} />
                   </label>
                   <div className="flex gap-1">
@@ -115,7 +118,9 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
                             {doc.status === "error" ? "✕" : "…"}
                           </span>
                         )}
-                        <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar foto de licencia" className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white">✕</button>
+                        <button type="button" onClick={() => { dropUpload(doc.id); patch({ documents: draft.documents.filter((x) => x.id !== doc.id) }); }} aria-label="Quitar foto de licencia" className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white">
+                          <CloseIcon className="size-3" />
+                        </button>
                       </div>
                     ))}
                   </div>

@@ -1,4 +1,5 @@
 import { Croquis, type Marker } from "@/components/inspection/croquis";
+import { CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
 import { newId } from "../new-id";
 import type { StepContext } from "../context";
@@ -54,9 +55,9 @@ export function StepDanos({ ctx }: { ctx: StepContext }) {
                     setDraft((d) => ({ ...d, damages: d.damages.map((x) => (x.id === dm.id ? { ...x, photo: undefined } : x)) }));
                   }}
                   aria-label="Sacar de nuevo"
-                  className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                  className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"
                 >
-                  ✕
+                  <CloseIcon className="size-3" />
                 </button>
               )}
             </div>
