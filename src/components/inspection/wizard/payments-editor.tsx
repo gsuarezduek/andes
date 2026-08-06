@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { formatArs, paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 
@@ -105,93 +106,82 @@ export function PaymentsEditor({
         + Agregar pago
       </button>
 
-      {payModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPayModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-xl border border-foreground/10 bg-background p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+      <Modal open={payModalOpen} onClose={() => setPayModalOpen(false)} title="Agregar pago">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-foreground/80">Medio de pago</span>
+          <select
+            value={payMethodId}
+            onChange={(e) => setPayMethodId(e.target.value)}
+            className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
           >
-            <p className="mb-4 text-sm font-semibold text-foreground/90">Agregar pago</p>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-foreground/80">Medio de pago</span>
-              <select
-                value={payMethodId}
-                onChange={(e) => setPayMethodId(e.target.value)}
-                className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-              >
-                <option value="">Elegir…</option>
-                {paymentMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="mt-3">
-              <TextField
-                id="pay_amount"
-                label="Importe"
-                type="text"
-                inputMode="decimal"
-                prefix="$"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-              />
-            </div>
-            {selectedMethod?.reference && (
-              <p className="mt-2 whitespace-pre-wrap rounded-lg bg-foreground/5 p-2 text-xs text-foreground/70">
-                {selectedMethod.reference}
-              </p>
-            )}
-            {selectedMethod?.requiresNote && (
-              <div className="mt-3">
-                <TextField
-                  id="pay_note"
-                  label="¿A dónde fue?"
-                  hint="Obligatorio para este medio de pago"
-                  value={payNote}
-                  onChange={(e) => setPayNote(e.target.value)}
-                />
-              </div>
-            )}
-            {selectedMethod && (
-              <p className="mt-3 text-sm text-foreground/70">
-                Se cobra:{" "}
-                <span className="font-semibold text-foreground">
-                  {formatArs(paymentAdjustedAmount(parseDecimal(payAmount) ?? 0, selectedMethod.adjustmentPercent))}
-                </span>
-                {selectedMethod.adjustmentPercent ? (
-                  <span className="ml-1 text-xs text-foreground/50">
-                    ({selectedMethod.adjustmentPercent > 0 ? "+" : ""}
-                    {selectedMethod.adjustmentPercent}% aplicado)
-                  </span>
-                ) : null}
-              </p>
-            )}
-            <div className="mt-5 flex gap-2">
-              <Button type="button" variant="secondary" className="flex-1" onClick={() => setPayModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                className="flex-1"
-                disabled={
-                  !selectedMethod ||
-                  !((parseDecimal(payAmount) ?? 0) > 0) ||
-                  (selectedMethod.requiresNote && !payNote.trim())
-                }
-                onClick={confirmPayment}
-              >
-                Agregar
-              </Button>
-            </div>
-          </div>
+            <option value="">Elegir…</option>
+            {paymentMethods.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-3">
+          <TextField
+            id="pay_amount"
+            label="Importe"
+            type="text"
+            inputMode="decimal"
+            prefix="$"
+            value={payAmount}
+            onChange={(e) => setPayAmount(e.target.value)}
+          />
         </div>
-      )}
+        {selectedMethod?.reference && (
+          <p className="mt-2 whitespace-pre-wrap rounded-lg bg-foreground/5 p-2 text-xs text-foreground/70">
+            {selectedMethod.reference}
+          </p>
+        )}
+        {selectedMethod?.requiresNote && (
+          <div className="mt-3">
+            <TextField
+              id="pay_note"
+              label="¿A dónde fue?"
+              hint="Obligatorio para este medio de pago"
+              value={payNote}
+              onChange={(e) => setPayNote(e.target.value)}
+            />
+          </div>
+        )}
+        {selectedMethod && (
+          <p className="mt-3 text-sm text-foreground/70">
+            Se cobra:{" "}
+            <span className="font-semibold text-foreground">
+              {formatArs(paymentAdjustedAmount(parseDecimal(payAmount) ?? 0, selectedMethod.adjustmentPercent))}
+            </span>
+            {selectedMethod.adjustmentPercent ? (
+              <span className="ml-1 text-xs text-foreground/50">
+                ({selectedMethod.adjustmentPercent > 0 ? "+" : ""}
+                {selectedMethod.adjustmentPercent}% aplicado)
+              </span>
+            ) : null}
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={() => setPayModalOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={
+              !selectedMethod ||
+              !((parseDecimal(payAmount) ?? 0) > 0) ||
+              (selectedMethod.requiresNote && !payNote.trim())
+            }
+            onClick={confirmPayment}
+          >
+            Agregar
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

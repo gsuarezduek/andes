@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { TextField, TextareaField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import {
   extraHourAmount,
   formatArs,
@@ -237,59 +238,48 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
 
       <p className="text-xs text-foreground/50">Se registran en el acta; Andes no procesa cobros.</p>
 
-      {packModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPackModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-xl border border-foreground/10 bg-background p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="mb-1 text-sm font-semibold text-foreground/90">Pack de KM</p>
-            <p className="mb-4 text-xs text-foreground/50">
-              200 km adicionales por pack. Hasta {KM_PACK_MAX} packs.
-            </p>
-            <TextField
-              id="pack_qty"
-              label="Cantidad de packs"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={KM_PACK_MAX}
-              value={packQty}
-              onChange={(e) => setPackQty(e.target.value)}
-            />
-            <p className="mt-3 text-sm text-foreground/70">
-              {(() => {
-                const qty = Math.max(0, Math.round(parseDecimal(packQty) ?? 0));
-                const total = kmPackAmount({ kmPacks: qty, kmPackPrice: packPrice });
-                return (
-                  <>
-                    +{(qty * KM_PACK_SIZE).toLocaleString("es-AR")} km ·{" "}
-                    <span className="font-semibold text-foreground">
-                      {total != null ? formatArs(total) : "—"}
-                    </span>
-                  </>
-                );
-              })()}
-            </p>
-            <div className="mt-5 flex gap-2">
-              {packs > 0 && (
-                <Button type="button" variant="danger" onClick={removePack}>
-                  Quitar
-                </Button>
-              )}
-              <Button type="button" variant="secondary" className="flex-1" onClick={() => setPackModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" className="flex-1" onClick={confirmPack}>
-                Agregar
-              </Button>
-            </div>
-          </div>
+      <Modal open={packModalOpen} onClose={() => setPackModalOpen(false)} title="Pack de KM">
+        <p className="mb-4 text-xs text-foreground/50">
+          200 km adicionales por pack. Hasta {KM_PACK_MAX} packs.
+        </p>
+        <TextField
+          id="pack_qty"
+          label="Cantidad de packs"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={KM_PACK_MAX}
+          value={packQty}
+          onChange={(e) => setPackQty(e.target.value)}
+        />
+        <p className="mt-3 text-sm text-foreground/70">
+          {(() => {
+            const qty = Math.max(0, Math.round(parseDecimal(packQty) ?? 0));
+            const total = kmPackAmount({ kmPacks: qty, kmPackPrice: packPrice });
+            return (
+              <>
+                +{(qty * KM_PACK_SIZE).toLocaleString("es-AR")} km ·{" "}
+                <span className="font-semibold text-foreground">
+                  {total != null ? formatArs(total) : "—"}
+                </span>
+              </>
+            );
+          })()}
+        </p>
+        <div className="mt-5 flex gap-2">
+          {packs > 0 && (
+            <Button type="button" variant="danger" onClick={removePack}>
+              Quitar
+            </Button>
+          )}
+          <Button type="button" variant="secondary" className="flex-1" onClick={() => setPackModalOpen(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" className="flex-1" onClick={confirmPack}>
+            Agregar
+          </Button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
