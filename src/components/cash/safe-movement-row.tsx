@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { TextField, TextareaField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
+import { EditIcon } from "@/components/ui/icons";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateSafeMovement, deleteSafeMovement } from "@/app/(app)/caja/safe-actions";
@@ -16,20 +18,16 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
 
   if (mode === "confirmDelete") {
     return (
-      <li className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
-        <p className="text-red-600">
-          ¿Eliminar &quot;{movement.description}&quot; ({formatArs(movement.amount)})? No va a aparecer más en el
-          saldo.
-        </p>
-        <form action={deleteSafeMovement.bind(null, movement.id)} className="mt-2 flex items-center gap-3">
-          <button type="button" onClick={() => setMode("edit")} className="text-xs text-foreground/50">
-            Volver
-          </button>
-          <SubmitButton pendingLabel="Eliminando…" variant="danger" className="ml-auto h-auto px-2.5 py-1 text-xs">
-            Sí, eliminar
-          </SubmitButton>
-        </form>
-      </li>
+      <ConfirmDeleteCard
+        message={
+          <>
+            ¿Eliminar &quot;{movement.description}&quot; ({formatArs(movement.amount)})? No va a aparecer más en el
+            saldo.
+          </>
+        }
+        action={deleteSafeMovement.bind(null, movement.id)}
+        onCancel={() => setMode("edit")}
+      />
     );
   }
 
@@ -89,9 +87,7 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
           aria-label="Editar"
           className="text-foreground/50 hover:text-foreground/80"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
-            <path d="M13.586 2.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 4.793 3 13.172V17h3.828l8.379-8.379-3.828-3.828Z" />
-          </svg>
+          <EditIcon />
         </button>
       </div>
     </li>

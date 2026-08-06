@@ -16,3 +16,12 @@ export function ServiceIcon() {
     </svg>
   );
 }
+
+/** Lápiz de "editar" — antes duplicado byte a byte en MovementRow y SafeMovementRow. */
+export function EditIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M13.586 2.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 4.793 3 13.172V17h3.828l8.379-8.379-3.828-3.828Z" />
+    </svg>
+  );
+}
