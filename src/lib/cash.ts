@@ -33,11 +33,17 @@ export function monthRangeUtc(ym: string): { start: Date; end: Date } {
 
 export type CashMovementRow = {
   id: string;
+  type: "income" | "expense";
   description: string;
   amount: number;
   paymentMethodId: string | null;
   paymentMethodName: string;
   paymentMethodNote: string | null;
+  // Destino de un Pago: cuenta ajena a la que se le pagó. Opcional — no todo
+  // pago tiene una cuenta ajena puntual. No se usa en Cobros.
+  recipientPaymentMethodId: string | null;
+  recipientPaymentMethodName: string | null;
+  recipientPaymentMethodNote: string | null;
   rentalClientName: string | null;
   createdByName: string;
   createdAt: Date;
@@ -54,14 +60,14 @@ export type CashMonthDetail = {
   net: number;
 };
 
-async function findMovements(where: Prisma.CashMovementWhereInput) {
+async function findMovements(where: Prisma.CashMovementWhereInput): Promise<CashMovementRow[]> {
   const rows = await prisma.cashMovement.findMany({
     where: { ...where, deletedAt: null },
     include: { createdBy: { select: { name: true } }, rental: { select: { clientName: true } } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map(
-    (r): CashMovementRow & { type: "income" | "expense" } => ({
+    (r): CashMovementRow => ({
       id: r.id,
       type: r.type,
       description: r.description,
@@ -69,6 +75,9 @@ async function findMovements(where: Prisma.CashMovementWhereInput) {
       paymentMethodId: r.paymentMethodId,
       paymentMethodName: r.paymentMethodName,
       paymentMethodNote: r.paymentMethodNote,
+      recipientPaymentMethodId: r.recipientPaymentMethodId,
+      recipientPaymentMethodName: r.recipientPaymentMethodName,
+      recipientPaymentMethodNote: r.recipientPaymentMethodNote,
       rentalClientName: r.rental?.clientName ?? null,
       createdByName: r.createdBy?.name ?? "—",
       createdAt: r.createdAt,
@@ -97,10 +106,7 @@ export async function getCashMonthDetail(month: string): Promise<CashMonthDetail
   };
 }
 
-export async function getOwnCashMovements(
-  userId: string,
-  month: string,
-): Promise<(CashMovementRow & { type: "income" | "expense" })[]> {
+export async function getOwnCashMovements(userId: string, month: string): Promise<CashMovementRow[]> {
   const { start, end } = monthRangeUtc(month);
   return findMovements({ createdById: userId, createdAt: { gte: start, lt: end } });
 }

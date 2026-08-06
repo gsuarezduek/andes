@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatArs } from "@/lib/contract";
@@ -8,7 +9,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
 import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 
-type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
+type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 
 /**
  * Fila de un movimiento (solo se usa en la vista admin). En reposo solo
@@ -30,7 +31,15 @@ export function MovementRow({
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
+  const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState(
+    movement.recipientPaymentMethodId ?? "",
+  );
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
+  const isExpense = movement.type === "expense";
+  const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
+  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
+  const methodOptions = isExpense ? ownMethods : paymentMethods;
 
   if (mode === "confirmDelete") {
     return (
@@ -68,15 +77,15 @@ export function MovementRow({
           />
           <SelectField
             id="paymentMethodId"
-            label="Medio de pago"
+            label={isExpense ? "Origen" : "Medio de pago"}
             required
             value={paymentMethodId}
             onChange={(e) => setPaymentMethodId(e.target.value)}
           >
             <option value="" disabled>
-              Elegí un medio de pago
+              {isExpense ? "Elegí de dónde sale la plata" : "Elegí un medio de pago"}
             </option>
-            {paymentMethods.map((m) => (
+            {methodOptions.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
@@ -90,6 +99,33 @@ export function MovementRow({
               defaultValue={movement.paymentMethodNote ?? ""}
               required
             />
+          )}
+          {isExpense && (
+            <>
+              <SelectField
+                id="recipientPaymentMethodId"
+                label="Destino"
+                hint="Opcional — cuenta ajena a la que se le pagó"
+                value={recipientPaymentMethodId}
+                onChange={(e) => setRecipientPaymentMethodId(e.target.value)}
+              >
+                <option value="">Sin destino específico</option>
+                {thirdPartyMethods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </SelectField>
+              {selectedRecipient?.requiresNote && (
+                <TextField
+                  id="recipientPaymentMethodNote"
+                  label="¿A dónde fue? (destino)"
+                  hint="Obligatorio para este destino"
+                  defaultValue={movement.recipientPaymentMethodNote ?? ""}
+                  required
+                />
+              )}
+            </>
           )}
           <div className="mt-1 flex items-center gap-3">
             <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">
@@ -122,6 +158,8 @@ export function MovementRow({
       <p className="mt-1 text-xs text-foreground/50">
         {movement.paymentMethodName}
         {movement.paymentMethodNote ? ` (${movement.paymentMethodNote})` : ""}
+        {movement.recipientPaymentMethodName ? ` → ${movement.recipientPaymentMethodName}` : ""}
+        {movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""}
         {movement.rentalClientName ? ` · ${movement.rentalClientName}` : ""} · {movement.createdByName} ·{" "}
         {formatDateTime(movement.createdAt)}
       </p>

@@ -1,16 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
 import { createCashMovement } from "@/app/(app)/caja/actions";
 import type { RentalPickerOption } from "@/lib/cash";
 
-type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
+type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
 
-/** Formulario de alta de un cobro o un pago. `mode` lo fija el botón que lo
- *  abrió (ver MovementLauncher) — este componente ya no maneja ese estado. */
+/**
+ * Formulario de alta de un cobro o un pago. `mode` lo fija el botón que lo
+ * abrió (ver MovementLauncher) — este componente ya no maneja ese estado.
+ *
+ * En un Pago hay dos cuentas: Origen (de dónde sale la plata, solo cuentas
+ * propias, obligatorio) y Destino (a quién se le paga, solo cuentas ajenas,
+ * opcional). En un Cobro sigue siendo un único "Medio de pago" con todas
+ * las cuentas, como antes.
+ */
 export function CashMovementForm({
   mode,
   onCancel,
@@ -23,7 +31,13 @@ export function CashMovementForm({
   rentalOptions: RentalPickerOption[];
 }) {
   const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState("");
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
+
+  const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
+  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
+  const methodOptions = mode === "expense" ? ownMethods : paymentMethods;
 
   return (
     <form
@@ -46,15 +60,15 @@ export function CashMovementForm({
       <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
       <SelectField
         id="paymentMethodId"
-        label="Medio de pago"
+        label={mode === "expense" ? "Origen" : "Medio de pago"}
         required
         value={paymentMethodId}
         onChange={(e) => setPaymentMethodId(e.target.value)}
       >
         <option value="" disabled>
-          Elegí un medio de pago
+          {mode === "expense" ? "Elegí de dónde sale la plata" : "Elegí un medio de pago"}
         </option>
-        {paymentMethods.map((m) => (
+        {methodOptions.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
           </option>
@@ -67,6 +81,32 @@ export function CashMovementForm({
           hint="Obligatorio para este medio de pago"
           required
         />
+      )}
+      {mode === "expense" && (
+        <>
+          <SelectField
+            id="recipientPaymentMethodId"
+            label="Destino"
+            hint="Opcional — cuenta ajena a la que se le pagó"
+            value={recipientPaymentMethodId}
+            onChange={(e) => setRecipientPaymentMethodId(e.target.value)}
+          >
+            <option value="">Sin destino específico</option>
+            {thirdPartyMethods.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </SelectField>
+          {selectedRecipient?.requiresNote && (
+            <TextField
+              id="recipientPaymentMethodNote"
+              label="¿A dónde fue? (destino)"
+              hint="Obligatorio para este destino"
+              required
+            />
+          )}
+        </>
       )}
       {mode === "income" && <RentalPicker options={rentalOptions} />}
       <SubmitButton pendingLabel="Guardando…">

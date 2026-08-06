@@ -3,11 +3,7 @@ import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
 
-export function CashOwnList({
-  items,
-}: {
-  items: (CashMovementRow & { type: "income" | "expense" })[];
-}) {
+export function CashOwnList({ items }: { items: CashMovementRow[] }) {
   return (
     <section className="flex flex-col gap-2">
       <SectionTitle>Mis movimientos de este mes</SectionTitle>
@@ -31,6 +27,8 @@ export function CashOwnList({
               <p className="mt-1 text-xs text-foreground/50">
                 {r.paymentMethodName}
                 {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
+                {r.recipientPaymentMethodName ? ` → ${r.recipientPaymentMethodName}` : ""}
+                {r.recipientPaymentMethodNote ? ` (${r.recipientPaymentMethodNote})` : ""}
                 {r.rentalClientName ? ` · ${r.rentalClientName}` : ""} · {formatDateTime(r.createdAt)}
               </p>
             </li>

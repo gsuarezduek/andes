@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CashMovementForm } from "./cash-movement-form";
 import { SafeMovementForm } from "./safe-movement-form";
 import type { RentalPickerOption } from "@/lib/cash";
 
-type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
+type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
 type Action = "income" | "expense" | "safe" | null;
 
 /**

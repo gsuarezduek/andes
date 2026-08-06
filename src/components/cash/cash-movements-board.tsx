@@ -31,8 +31,13 @@ export function CashMovementsBoard({
 }) {
   const [accountId, setAccountId] = useState("");
 
+  // Un Pago puede matchear el filtro por su Origen (cuenta propia) o su
+  // Destino (cuenta ajena) — nunca ambos a la vez, ya que una cuenta es una
+  // cosa u otra (ownership es fijo), así que no hay ambigüedad.
   const filteredIncomes = accountId ? incomes.filter((r) => r.paymentMethodId === accountId) : incomes;
-  const filteredExpenses = accountId ? expenses.filter((r) => r.paymentMethodId === accountId) : expenses;
+  const filteredExpenses = accountId
+    ? expenses.filter((r) => r.paymentMethodId === accountId || r.recipientPaymentMethodId === accountId)
+    : expenses;
   const selectedAccount = paymentMethods.find((m) => m.id === accountId);
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
   const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
@@ -126,7 +131,7 @@ function MovementColumn({
             // cambia y el componente se remonta con los valores nuevos (evita
             // quedar con el form de edición pegado a los datos viejos).
             <MovementRow
-              key={`${r.id}:${r.description}:${r.amount}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}`}
+              key={`${r.id}:${r.description}:${r.amount}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}`}
               movement={r}
               tone={tone}
               paymentMethods={paymentMethods}
