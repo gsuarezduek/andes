@@ -48,6 +48,11 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const storageKey = `andes:${props.mode}:${props.rentalId}`;
   const sigRef = useRef<SignaturePadHandle>(null);
   const geo = useRef<{ lat?: number; lng?: number }>({});
+  // Lock síncrono contra doble-submit: `saving` recién se pone en true
+  // después de un `await` (captura de firma), así que un doble-tap rápido
+  // (común en conexión inestable) podía disparar submit() dos veces antes de
+  // que el botón se deshabilitara.
+  const submittingRef = useRef(false);
 
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string>();
@@ -482,6 +487,16 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }, [remote, remoteStatus]);
 
   async function submit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await submitImpl();
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  async function submitImpl() {
     setError(undefined);
     setQueuedSubmit(false);
     const localDrawn = Boolean(sigRef.current && !sigRef.current.isEmpty());
