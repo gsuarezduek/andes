@@ -5,10 +5,13 @@ import { useRouter, unstable_rethrow } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { ServiceIcon } from "@/components/ui/icons";
-import { formatDateInput } from "@/lib/datetime";
 import { markVehicleService } from "@/app/(app)/rentals/[id]/service-actions";
+import { MaintenanceFormFields, type PaymentMethodOption } from "@/components/vehicle/maintenance-form-fields";
 
-type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
+const SERVICE_TYPES = [
+  { value: "service", label: "Service" },
+  { value: "repair", label: "Arreglo" },
+];
 
 /**
  * Única acción de "Service / arreglo" desde el detalle de la reserva: para
@@ -35,17 +38,11 @@ export function AddServiceButton({
   paymentMethods: PaymentMethodOption[];
 }) {
   const [open, setOpen] = useState(false);
-  const [cost, setCost] = useState("");
-  const [paymentMethodId, setPaymentMethodId] = useState("");
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
   const router = useRouter();
-  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
-  const hasCost = cost.trim() !== "" && Number(cost) > 0;
 
   function openModal() {
-    setCost("");
-    setPaymentMethodId("");
     setError(undefined);
     setOpen(true);
   }
@@ -82,63 +79,7 @@ export function AddServiceButton({
 
       <Modal open={open} onClose={() => setOpen(false)} title="Service / arreglo">
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-foreground/70">Tipo</span>
-              <select name="type" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" defaultValue="service">
-                <option value="service">Service</option>
-                <option value="repair">Arreglo</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-foreground/70">Fecha</span>
-              <input type="date" name="date" required defaultValue={formatDateInput(new Date())} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-foreground/70">Km</span>
-              <input type="number" name="km" inputMode="numeric" defaultValue={currentKm ?? ""} className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-foreground/70">Costo</span>
-              <input
-                type="text"
-                name="cost"
-                inputMode="decimal"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
-              />
-            </label>
-          </div>
-          <input name="place" placeholder="Lugar / taller (opcional)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-          <input name="description" required placeholder="Descripción (ej. cambio de aceite y filtros)" className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm" />
-          {hasCost && (
-            <>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-foreground/70">De dónde sale</span>
-                <select
-                  name="paymentMethodId"
-                  required
-                  value={paymentMethodId}
-                  onChange={(e) => setPaymentMethodId(e.target.value)}
-                  className="h-10 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm"
-                >
-                  <option value="" disabled>Elegí un medio de pago</option>
-                  {paymentMethods.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </label>
-              {selectedMethod?.requiresNote && (
-                <input
-                  name="paymentMethodNote"
-                  required
-                  placeholder="¿A dónde fue?"
-                  className="h-10 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm"
-                />
-              )}
-            </>
-          )}
+          <MaintenanceFormFields types={SERVICE_TYPES} currentKm={currentKm} paymentMethods={paymentMethods} />
           <p className="text-xs text-amber-700 dark:text-amber-400">
             Esto cancela esta reserva y deja el auto <strong>fuera de servicio</strong>. Cuando
             vuelva, reactivalo desde su ficha.
