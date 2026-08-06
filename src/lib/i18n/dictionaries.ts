@@ -68,6 +68,9 @@ export type Dictionary = {
     kmDriven: string;
     fuelDifference: string;
     newDamages: string;
+    comparisonTitle: string;
+    photosTitle: string;
+    checklistTitle: string;
     fuelPolicy: string;
     settlement: {
       title: string;
@@ -156,6 +159,9 @@ const es: Dictionary = {
     kmDriven: "Kilómetros recorridos",
     fuelDifference: "Diferencia de nafta",
     newDamages: "Daños nuevos",
+    comparisonTitle: "Comparación con la entrega",
+    photosTitle: "Fotos",
+    checklistTitle: "Checklist",
     fuelPolicy:
       "MDZ Rent a Car no hace reintegros por sobrante de combustible. En caso de faltante de combustible se cobrará la diferencia al valor del litro de nafta premium del día. Por pinchadura o rotura de neumáticos y/o sus componentes el cliente es total responsable de la reparación.",
     settlement: {
@@ -259,6 +265,9 @@ const en: Dictionary = {
     kmDriven: "Kilometers driven",
     fuelDifference: "Fuel difference",
     newDamages: "New damages",
+    comparisonTitle: "Comparison with handover",
+    photosTitle: "Photos",
+    checklistTitle: "Checklist",
     fuelPolicy:
       "MDZ Rent a Car does not refund surplus fuel. If fuel is missing, the difference is charged at the day's premium fuel price per liter. The customer is fully responsible for repairs to punctured or damaged tires and/or their components.",
     settlement: {

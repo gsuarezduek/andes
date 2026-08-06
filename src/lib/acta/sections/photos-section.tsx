@@ -4,9 +4,10 @@ import type { ActaData } from "../types";
 
 export function PhotosSection({ data }: { data: ActaData }) {
   if (data.photoDataUris.length === 0) return null;
+  const t = data.dict.acta;
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Fotos</Text>
+      <Text style={styles.sectionTitle}>{t.photosTitle}</Text>
       <View style={styles.photos}>
         {data.photoDataUris.map((src, i) => (
           // eslint-disable-next-line jsx-a11y/alt-text

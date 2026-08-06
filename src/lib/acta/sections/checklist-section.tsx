@@ -3,9 +3,10 @@ import { styles } from "../styles";
 import type { ActaData } from "../types";
 
 export function ChecklistSection({ data }: { data: ActaData }) {
+  const t = data.dict.acta;
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Checklist</Text>
+      <Text style={styles.sectionTitle}>{t.checklistTitle}</Text>
       <View style={styles.checklistWrap}>
         {data.checklist.map((c, i) => (
           <View style={styles.li} key={i}>

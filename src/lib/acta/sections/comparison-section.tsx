@@ -8,7 +8,7 @@ export function ComparisonSection({ data }: { data: ActaData }) {
   const c = data.comparison;
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Comparación con la entrega</Text>
+      <Text style={styles.sectionTitle}>{t.comparisonTitle}</Text>
       <View style={styles.grid2}>
         <View style={styles.cell}>
           <Text style={styles.label}>{t.kmDriven}</Text>
