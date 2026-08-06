@@ -1,5 +1,5 @@
 import { formatArs, type RentalPayment } from "@/lib/contract";
-import { CompareRow } from "../compare-row";
+import { Row } from "@/components/ui/row";
 import { PaymentsEditor } from "../payments-editor";
 import type { StepContext } from "../context";
 
@@ -11,13 +11,13 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
     <div className="flex flex-col gap-3">
       <p className="text-sm text-foreground/60">Comparación contra la entrega:</p>
       <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        <CompareRow
+        <Row
           label="Km recorridos"
           value={`${kmDriven.toLocaleString("es-AR")} km`}
           tone={settlement && settlement.extraKm > 0 ? "warn" : undefined}
         />
-        <CompareRow label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
-        <CompareRow label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
+        <Row label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
+        <Row label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
       </div>
       <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
         <p className="text-sm font-semibold">
@@ -138,15 +138,15 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
           </div>
 
           <div className="divide-y divide-foreground/10 border-t border-foreground/10 pt-1">
-            <CompareRow label="Subtotal" value={formatArs(settlement.subtotal)} />
+            <Row label="Subtotal" value={formatArs(settlement.subtotal)} />
             {settlement.depositApplied > 0 && (
-              <CompareRow label="Cubierto por depósito (daños)" value={formatArs(settlement.depositApplied)} />
+              <Row label="Cubierto por depósito (daños)" value={formatArs(settlement.depositApplied)} />
             )}
             {settlement.balanceDue > 0 && (
-              <CompareRow label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
+              <Row label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
             )}
             {settlement.depositReturn > 0 && (
-              <CompareRow label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
+              <Row label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
             )}
           </div>
 

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { SignatureCanvas } from "@/components/inspection/signature-canvas";
 import { dropUpload } from "@/lib/client/upload-queue";
 import { formatArs } from "@/lib/contract";
-import { CompareRow } from "../compare-row";
+import { Row } from "@/components/ui/row";
 import type { StepContext } from "../context";
 
 export function StepFirma({ ctx }: { ctx: StepContext }) {
@@ -35,13 +35,13 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
           </h3>
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
             {signConditionRows.map((r, i) => (
-              <CompareRow key={i} label={r.label} value={r.value} />
+              <Row key={i} label={r.label} value={r.value} />
             ))}
             {!isHandover && settlement && settlement.balanceDue > 0 && (
-              <CompareRow label={dict.acta.settlement.balanceDue} value={formatArs(settlement.balanceDue)} tone="warn" />
+              <Row label={dict.acta.settlement.balanceDue} value={formatArs(settlement.balanceDue)} tone="warn" />
             )}
             {!isHandover && settlement && settlement.depositReturn > 0 && (
-              <CompareRow label={dict.acta.settlement.depositReturn} value={formatArs(settlement.depositReturn)} />
+              <Row label={dict.acta.settlement.depositReturn} value={formatArs(settlement.depositReturn)} />
             )}
           </div>
         </section>

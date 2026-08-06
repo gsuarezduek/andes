@@ -1,6 +1,6 @@
 import { languageLabels } from "@/lib/labels";
 import { formatArs } from "@/lib/contract";
-import { CompareRow } from "../compare-row";
+import { Row } from "@/components/ui/row";
 import type { StepContext } from "../context";
 
 export function StepResumen({ ctx }: { ctx: StepContext }) {
@@ -8,21 +8,21 @@ export function StepResumen({ ctx }: { ctx: StepContext }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        {isHandover && <CompareRow label="Cliente" value={draft.clientName || "—"} />}
-        <CompareRow label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
-        <CompareRow label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
-        <CompareRow label="Nafta" value={`${draft.fuelLevel}/${maxFuel}`} />
-        {props.returnContext && <CompareRow label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
+        {isHandover && <Row label="Cliente" value={draft.clientName || "—"} />}
+        <Row label="Vehículo" value={props.vehicle?.label ?? props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ?? "—"} />
+        <Row label="Kilometraje" value={`${Number(draft.km || 0).toLocaleString("es-AR")} km`} />
+        <Row label="Nafta" value={`${draft.fuelLevel}/${maxFuel}`} />
+        {props.returnContext && <Row label="Km recorridos" value={`${kmDriven.toLocaleString("es-AR")} km`} />}
         {settlement && settlement.balanceDue > 0 && (
-          <CompareRow label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
+          <Row label="Saldo a cobrar" value={formatArs(settlement.balanceDue)} tone="warn" />
         )}
         {settlement && settlement.depositReturn > 0 && (
-          <CompareRow label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
+          <Row label="Depósito a devolver" value={formatArs(settlement.depositReturn)} />
         )}
-        <CompareRow label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
-        <CompareRow label="Daños nuevos" value={String(draft.damages.length)} />
-        <CompareRow label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />
-        <CompareRow label="Idioma del acta" value={languageLabels[draft.language]} />
+        <Row label="Fallas checklist" value={String(Object.values(draft.checklist).filter((v) => v === "fail").length)} />
+        <Row label="Daños nuevos" value={String(draft.damages.length)} />
+        <Row label="Fotos" value={String(draft.photos.filter((p) => p.key).length)} />
+        <Row label="Idioma del acta" value={languageLabels[draft.language]} />
       </div>
       {photosPending && (
         <p className="text-xs text-amber-600">
