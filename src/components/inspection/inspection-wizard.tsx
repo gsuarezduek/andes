@@ -13,6 +13,7 @@ import {
   pendingForDraft,
   clearDraftUploads,
   startAutoRetry,
+  dropUpload,
   type QueueSlot,
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
@@ -20,6 +21,7 @@ import { PRICING_FIELDS, computeBalance, roundMoney, type ContractPricing } from
 import { computeComparison } from "@/lib/comparison";
 import { parseDecimal } from "@/lib/number-input";
 import type { InspectionInput, DocumentKindInput } from "@/lib/inspection-input";
+import { cancelRemoteSignature } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 import { newId } from "./wizard/new-id";
 import { buildSettlement, summaryConditions, validateStep } from "./wizard/logic";
 import type { StepContext } from "./wizard/context";
@@ -336,6 +338,26 @@ export function InspectionWizard(props: InspectionWizardProps) {
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   }
   function back() {
+    // Si ya hay una firma (local o remota) y se vuelve de "Firma" hacia atrás,
+    // esa firma quedó atada a los datos que se van a poder editar de nuevo
+    // (km, nafta, daños, condiciones) — se invalida para que el cliente firme
+    // los datos reales, no unos que ya cambiaron.
+    if (current === "Firma") {
+      const hadSignature =
+        Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId) || remoteStatus !== "idle";
+      if (hadSignature) {
+        sigRef.current?.clear();
+        if (draft.signaturePendingId) dropUpload(draft.signaturePendingId);
+        if (remote) void cancelRemoteSignature(remote.id);
+        patch({ signatureKey: undefined, signaturePendingId: undefined, signatureUploadFailed: false });
+        setClientAccepted(false);
+        setRemote(null);
+        setRemoteStatus("idle");
+        setError("Volviste a editar datos: la firma anterior se invalidó. El cliente va a tener que firmar de nuevo.");
+        setStep((s) => Math.max(0, s - 1));
+        return;
+      }
+    }
     setError(undefined);
     setStep((s) => Math.max(0, s - 1));
   }
@@ -405,6 +427,9 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }
 
   function cancelRemote() {
+    // Best-effort: si el cliente ya tiene la página de firma abierta, que no
+    // pueda firmar un pedido que el empleado ya dio por cancelado.
+    if (remote) void cancelRemoteSignature(remote.id);
     setRemote(null);
     setRemoteStatus("idle");
   }

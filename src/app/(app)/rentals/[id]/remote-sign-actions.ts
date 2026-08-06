@@ -67,3 +67,18 @@ export async function createRemoteSignature(
   const svg = await qrSvg(url);
   return { ok: true, id: request.id, url, svg };
 }
+
+/**
+ * Cancela un pedido de firma remota (el empleado tocó "Cancelar", o volvió a
+ * editar datos posteriores a la firma). Solo afecta pedidos aún `pending`
+ * (guard atómico con `updateMany`) — si el cliente ya firmó o el pedido ya
+ * venció/se canceló, no hace nada. Best-effort: si falla, no bloquea al
+ * empleado (el pedido igual expira solo a los 30 min).
+ */
+export async function cancelRemoteSignature(id: string): Promise<void> {
+  await requireUser();
+  await prisma.signatureRequest.updateMany({
+    where: { id, status: "pending" },
+    data: { status: "cancelled" },
+  });
+}
