@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -16,6 +17,8 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -29,7 +32,7 @@ export default function AppError({
       </p>
       <div className="flex gap-3">
         <Button type="button" onClick={reset}>Reintentar</Button>
-        <Button type="button" variant="secondary" onClick={() => { window.location.href = "/"; }}>
+        <Button type="button" variant="secondary" onClick={() => router.push("/")}>
           Ir al inicio
         </Button>
       </div>
