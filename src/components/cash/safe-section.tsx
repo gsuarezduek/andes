@@ -33,6 +33,9 @@ export function SafeSection({
           </span>
         )}
       </div>
+      <p className="-mt-2 text-xs text-foreground/50">
+        Efectivo físico guardado — no se relaciona con los cobros/pagos de reservas de arriba.
+      </p>
 
       {movements.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">

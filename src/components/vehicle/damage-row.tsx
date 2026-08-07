@@ -16,9 +16,9 @@ export function DamageRow({
   damage: Damage;
   isAdmin: boolean;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<"delete" | "repair" | null>(null);
 
-  if (confirming) {
+  if (confirming === "delete") {
     return (
       <li className="flex items-center justify-between gap-3 bg-red-500/5 px-3 py-2 text-sm">
         <span className="min-w-0 text-red-700 dark:text-red-400">
@@ -27,7 +27,7 @@ export function DamageRow({
         <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
-            onClick={() => setConfirming(false)}
+            onClick={() => setConfirming(null)}
             className="text-xs text-foreground/50"
           >
             Cancelar
@@ -35,6 +35,31 @@ export function DamageRow({
           <form action={deleteDamage.bind(null, vehicleId, damage.id)}>
             <SubmitButton variant="danger" pendingLabel="Borrando…" className="h-auto px-2.5 py-1 text-xs">
               Sí, borrar
+            </SubmitButton>
+          </form>
+        </div>
+      </li>
+    );
+  }
+
+  if (confirming === "repair") {
+    return (
+      <li className="flex items-center justify-between gap-3 bg-emerald-500/5 px-3 py-2 text-sm">
+        <span className="min-w-0 text-emerald-700 dark:text-emerald-400">
+          ¿Marcar &quot;{damage.description || "daño sin descripción"}&quot; como reparado? Pasa al
+          historial.
+        </span>
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirming(null)}
+            className="text-xs text-foreground/50"
+          >
+            Cancelar
+          </button>
+          <form action={markDamageRepaired.bind(null, vehicleId, damage.id)}>
+            <SubmitButton pendingLabel="Guardando…" className="h-auto px-2.5 py-1 text-xs">
+              Sí, marcar reparado
             </SubmitButton>
           </form>
         </div>
@@ -63,13 +88,17 @@ export function DamageRow({
         <span className="min-w-0">{damage.description || "Daño sin descripción"}</span>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <form action={markDamageRepaired.bind(null, vehicleId, damage.id)}>
-          <button className="text-xs font-medium text-emerald-600">Marcar reparado</button>
-        </form>
+        <button
+          type="button"
+          onClick={() => setConfirming("repair")}
+          className="text-xs font-medium text-emerald-600"
+        >
+          Marcar reparado
+        </button>
         {isAdmin && (
           <button
             type="button"
-            onClick={() => setConfirming(true)}
+            onClick={() => setConfirming("delete")}
             className="text-xs text-red-600"
           >
             Borrar
