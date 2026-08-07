@@ -38,28 +38,46 @@ export function AddServiceButton({
   paymentMethods: PaymentMethodOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [pendingData, setPendingData] = useState<FormData | null>(null);
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
   const router = useRouter();
 
   function openModal() {
     setError(undefined);
+    setConfirming(false);
+    setPendingData(null);
     setOpen(true);
   }
 
-  function submit(e: React.FormEvent<HTMLFormElement>) {
+  function closeModal() {
+    setOpen(false);
+    setConfirming(false);
+    setPendingData(null);
+  }
+
+  // Primer paso: solo junta los datos del form y pide confirmación explícita
+  // antes de cancelar la reserva y bloquear el auto (acción irreversible).
+  function requestConfirm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     setError(undefined);
+    setPendingData(new FormData(e.currentTarget));
+    setConfirming(true);
+  }
+
+  function confirmSubmit() {
+    if (!pendingData) return;
     start(async () => {
       try {
-        await markVehicleService(rentalId, vehicleId, formData);
-        setOpen(false);
+        await markVehicleService(rentalId, vehicleId, pendingData);
+        closeModal();
         router.refresh();
       } catch (err) {
         // markVehicleService redirige al terminar bien: ese error interno de
         // Next tiene que propagarse, no mostrarse como un fallo real.
         unstable_rethrow(err);
+        setConfirming(false);
         setError(err instanceof Error ? err.message : "No se pudo guardar el registro.");
       }
     });
@@ -77,22 +95,48 @@ export function AddServiceButton({
         <ServiceIcon />
       </button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Service / arreglo">
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <MaintenanceFormFields types={SERVICE_TYPES} currentKm={currentKm} paymentMethods={paymentMethods} />
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            Esto cancela esta reserva y deja el auto <strong>fuera de servicio</strong>. Cuando
-            vuelva, reactivalo desde su ficha.
-          </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="flex-1" disabled={pending}>
-              {pending ? "Guardando…" : "Marcar fuera de servicio"}
-            </Button>
-          </div>
+      <Modal open={open} onClose={closeModal} title="Service / arreglo">
+        {/* El <form> queda siempre montado (nunca se desmonta al pasar a
+            "confirming"): así los campos no pierden lo tipeado si el
+            empleado toca "Volver" para revisar algo antes de confirmar. */}
+        <form onSubmit={requestConfirm} className="flex flex-col gap-3">
+          <fieldset disabled={confirming} className="contents">
+            <MaintenanceFormFields types={SERVICE_TYPES} currentKm={currentKm} paymentMethods={paymentMethods} />
+          </fieldset>
+
+          {confirming ? (
+            <>
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+                ¿Confirmás? Esto cancela esta reserva y deja el auto <strong>fuera de servicio</strong>.
+                No se puede deshacer.
+              </p>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setConfirming(false)} disabled={pending}>
+                  Volver
+                </Button>
+                <Button type="button" className="flex-1" onClick={confirmSubmit} disabled={pending}>
+                  {pending ? "Guardando…" : "Sí, marcar fuera de servicio"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Esto cancela esta reserva y deja el auto <strong>fuera de servicio</strong>. Cuando
+                vuelva, reactivalo desde su ficha.
+              </p>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" className="flex-1" onClick={closeModal}>
+                  Cancelar
+                </Button>
+                <Button type="submit" className="flex-1">
+                  Continuar
+                </Button>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
     </>
