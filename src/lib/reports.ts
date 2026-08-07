@@ -25,6 +25,7 @@ export type VehicleReport = {
   cost: number;
   net: number;
   damages: number;
+  archived: boolean;
 };
 
 export type Reports = {
@@ -74,9 +75,12 @@ function last12Months(): string[] {
 
 export async function getReports(): Promise<Reports> {
   const [vehicles, finished, maintenance, damages, activeCount] = await Promise.all([
+    // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
+    // historial de ingresos/costos, y si se lo excluyera acá el total de la
+    // tabla "por vehículo" dejaría de reconciliar contra el KPI de arriba
+    // (que sí suma todo lo finalizado, haya o no vehículo archivado después).
     prisma.vehicle.findMany({
-      where: { archivedAt: null },
-      select: { id: true, plate: true, brand: true, model: true, status: true },
+      select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
     }),
     prisma.rental.findMany({
       where: { status: "finished" },
@@ -110,6 +114,7 @@ export async function getReports(): Promise<Reports> {
         cost: 0,
         net: 0,
         damages: 0,
+        archived: v.archivedAt != null,
       },
     ]),
   );
@@ -159,7 +164,7 @@ export async function getReports(): Promise<Reports> {
 
   return {
     kpis: {
-      fleet: vehicles.length,
+      fleet: vehicles.filter((v) => v.archivedAt == null).length,
       rentedNow: vehicles.filter((v) => v.status === "rented").length,
       finished: finished.length,
       active: activeCount,

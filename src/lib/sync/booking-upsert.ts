@@ -140,14 +140,18 @@ function bookingFacts(b: RawBooking, optionals: RawOptional[] = []) {
   };
 }
 
-/** Mapea (idcar, carindex) → vehicle.id. `carindex` NULL → sin unidad asignada. */
+/**
+ * Mapea (idcar, carindex) → vehicle.id. `carindex` NULL → sin unidad asignada.
+ * Excluye archivados: son de baja operativa (el dueño ya no los tiene en la
+ * calle) y no deberían recibir asignaciones nuevas del sync.
+ */
 async function resolveVehicleId(
   idcar: number | null,
   carindex: number | null,
 ): Promise<string | null> {
   if (idcar == null || carindex == null) return null;
-  const v = await prisma.vehicle.findUnique({
-    where: { wpCarId_wpCarIndex: { wpCarId: idcar, wpCarIndex: carindex } },
+  const v = await prisma.vehicle.findFirst({
+    where: { wpCarId: idcar, wpCarIndex: carindex, archivedAt: null },
     select: { id: true },
   });
   return v?.id ?? null;

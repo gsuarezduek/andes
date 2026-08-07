@@ -58,6 +58,7 @@ export default async function ReportsPage() {
                   <td className="px-3 py-2">
                     <span className="font-medium">{v.label}</span>
                     <span className="text-foreground/50"> · {v.plate}</span>
+                    {v.archived && <span className="ml-1 text-xs text-foreground/40">(archivado)</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{v.rentals}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatArs(v.income)}</td>

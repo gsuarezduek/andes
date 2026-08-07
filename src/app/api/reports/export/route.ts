@@ -31,8 +31,10 @@ export async function GET(req: NextRequest) {
     for (const m of reports.byMonth) rows.push([m.month, m.rentals, m.km]);
     name = "reporte-por-mes";
   } else {
-    rows = [["Vehículo", "Patente", "Alquileres", "Ingresos", "Costos", "Neto", "Daños activos"]];
-    for (const v of reports.vehicles) rows.push([v.label, v.plate, v.rentals, v.income, v.cost, v.net, v.damages]);
+    rows = [["Vehículo", "Patente", "Alquileres", "Ingresos", "Costos", "Neto", "Daños activos", "Archivado"]];
+    for (const v of reports.vehicles) {
+      rows.push([v.label, v.plate, v.rentals, v.income, v.cost, v.net, v.damages, v.archived ? "Sí" : "No"]);
+    }
     name = "reporte-por-vehiculo";
   }
 
