@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { Croquis, type Marker } from "@/components/inspection/croquis";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/fields";
+import { CameraIcon, GalleryIcon } from "@/components/ui/icons";
 import { compressImage, uploadMedia } from "@/lib/client/media";
 import { addDamage } from "./damage-actions";
 
@@ -26,9 +27,11 @@ export function AddDamageForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
     setError(null);
     setUploading(true);
@@ -38,7 +41,7 @@ export function AddDamageForm({
       setPhotoKey(key);
     } catch {
       setError("No se pudo subir la foto. Probá de nuevo.");
-      if (fileRef.current) fileRef.current.value = "";
+      input.value = "";
     } finally {
       setUploading(false);
     }
@@ -49,6 +52,7 @@ export function AddDamageForm({
     setDescription("");
     setPhotoKey(null);
     if (fileRef.current) fileRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -96,19 +100,21 @@ export function AddDamageForm({
           placeholder="Ej. rayón en puerta trasera derecha"
         />
 
-        <label className="flex flex-col gap-1 text-sm">
+        <div className="flex flex-col gap-1.5 text-sm">
           <span className="text-foreground/70">Foto (opcional)</span>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handlePhoto}
-            className="text-sm text-foreground/70 file:mr-3 file:rounded-lg file:border-0 file:bg-foreground/10 file:px-3 file:py-2 file:text-sm"
-          />
+          <div className="flex gap-2">
+            <label className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-xs font-medium" title="Sacar foto">
+              <CameraIcon className="size-4" /> Cámara
+              <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+            </label>
+            <label className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-xs font-medium" title="Elegir de la galería">
+              <GalleryIcon className="size-4" /> Galería
+              <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+            </label>
+          </div>
           {uploading && <span className="text-xs text-foreground/50">Subiendo foto…</span>}
           {photoKey && !uploading && <span className="text-xs text-emerald-600">Foto cargada ✓</span>}
-        </label>
+        </div>
 
         {error && <p className="text-xs text-red-600">{error}</p>}
 

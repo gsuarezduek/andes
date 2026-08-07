@@ -1,5 +1,5 @@
 import { TextareaField } from "@/components/ui/fields";
-import { CloseIcon } from "@/components/ui/icons";
+import { CameraIcon, GalleryIcon, CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
 import type { StepContext } from "../context";
 
@@ -7,10 +7,16 @@ export function StepFotos({ ctx }: { ctx: StepContext }) {
   const { draft, patch, addPhotos } = ctx;
   return (
     <div className="flex flex-col gap-4">
-      <label className="flex h-11 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-sm font-medium">
-        + Agregar fotos (frente, atrás, laterales)
-        <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files, "main")} />
-      </label>
+      <div className="flex gap-2">
+        <label className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-sm font-medium" title="Sacar foto">
+          <CameraIcon /> Cámara
+          <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => addPhotos(e.target.files, "main")} />
+        </label>
+        <label className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/30 text-sm font-medium" title="Elegir de la galería">
+          <GalleryIcon /> Galería
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files, "main")} />
+        </label>
+      </div>
       {draft.photos.length === 0 && (
         <p className="text-xs font-medium text-amber-600">Obligatorio: agregá al menos una foto para continuar.</p>
       )}

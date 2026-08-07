@@ -62,10 +62,16 @@ export function StepDanos({ ctx }: { ctx: StepContext }) {
               )}
             </div>
           ) : (
-            <label className="text-xs text-foreground/60 underline">
-              Agregar foto del daño
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addPhotos(e.target.files, { damageId: dm.id })} />
-            </label>
+            <div className="flex gap-3">
+              <label className="text-xs text-foreground/60 underline">
+                Sacar foto del daño
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addPhotos(e.target.files, { damageId: dm.id })} />
+              </label>
+              <label className="text-xs text-foreground/60 underline">
+                Elegir de la galería
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => addPhotos(e.target.files, { damageId: dm.id })} />
+              </label>
+            </div>
           )}
         </div>
         );
