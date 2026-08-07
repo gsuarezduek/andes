@@ -5,7 +5,7 @@ export const paymentSchema = z.object({
   methodId: z.string().optional(),
   methodName: z.string(),
   adjustmentPercent: z.number().optional(),
-  amount: z.number(),
-  adjustedAmount: z.number(),
+  amount: z.number().positive(),
+  adjustedAmount: z.number().positive(),
   note: z.string().optional(),
 });
