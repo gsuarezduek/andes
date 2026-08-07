@@ -5,6 +5,7 @@
  * on every reload. We cache the client on `globalThis` outside production.
  */
 
+import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
