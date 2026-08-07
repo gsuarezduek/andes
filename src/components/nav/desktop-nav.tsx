@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { NavLink } from "@/components/nav-link";
-import { SyncButton } from "@/components/nav/sync-button";
+import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import type { Item } from "@/components/nav/types";
 
 /** Menú principal inline + submenú de cuenta desplegable, visibles solo en desktop. */
@@ -19,7 +19,7 @@ export function DesktopNav({
   isActive: (href: string) => boolean;
   userName?: string | null;
   logout: () => void;
-  sync?: () => Promise<void>;
+  sync?: () => Promise<SyncOutcome>;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 

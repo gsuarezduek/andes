@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime } from "@/lib/datetime";
-import { triggerSync, triggerFleetSeed } from "./actions";
+import { triggerSyncForm, triggerFleetSeed } from "./actions";
 
 export const metadata: Metadata = { title: "Sincronización — Andes" };
 
@@ -72,7 +72,7 @@ export default async function SyncPage({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <form action={triggerSync}>
+        <form action={triggerSyncForm}>
           <SubmitButton pendingLabel="Sincronizando…">Sincronizar ahora</SubmitButton>
         </form>
         <form action={triggerFleetSeed}>

@@ -3,14 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
-import { runBookingSync } from "@/lib/sync/engine";
+import { runBookingSync, type SyncSummary } from "@/lib/sync/engine";
 import { seedFleetFromWp } from "@/lib/sync/fleet-seed";
 
-/** Corre la sincronización manualmente (botón "Sincronizar ahora"). */
-export async function triggerSync() {
+/**
+ * Corre la sincronización manualmente (botón "Sincronizar ahora"). Devuelve
+ * el resultado (antes se descartaba: el botón del header mostraba el mismo
+ * ✓ verde aunque `runBookingSync` hubiera vuelto con result:"error").
+ */
+export async function triggerSync(): Promise<Pick<SyncSummary, "result" | "message">> {
   await requireUser();
-  await runBookingSync();
+  const { result, message } = await runBookingSync();
   revalidatePath("/sync");
+  return { result, message };
+}
+
+/** Misma sincronización, para el `<form action>` de /sync (ignora el resultado — el feedback ahí sale de la lista de `sync_logs`, ya recargada por `revalidatePath`). */
+export async function triggerSyncForm(): Promise<void> {
+  await triggerSync();
 }
 
 /** Seed inicial de la flota desde wp_vikrentcar_cars (crea las unidades faltantes

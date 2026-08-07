@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SyncButton } from "@/components/nav/sync-button";
+import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import type { Item } from "@/components/nav/types";
 
 /** Botón hamburguesa + panel colapsable, visibles solo en mobile. */
@@ -18,7 +18,7 @@ export function MobileNav({
   isActive: (href: string) => boolean;
   userName?: string | null;
   logout: () => void;
-  sync?: () => Promise<void>;
+  sync?: () => Promise<SyncOutcome>;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 

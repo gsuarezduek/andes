@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { DesktopNav } from "@/components/nav/desktop-nav";
 import { MobileNav } from "@/components/nav/mobile-nav";
+import type { SyncOutcome } from "@/components/nav/sync-button";
 import type { Item } from "@/components/nav/types";
 
 /**
@@ -24,7 +25,7 @@ export function AppNav({
   isAdmin: boolean;
   userName?: string | null;
   logout: () => void;
-  sync?: () => Promise<void>;
+  sync?: () => Promise<SyncOutcome>;
 }) {
   const pathname = usePathname();
 
