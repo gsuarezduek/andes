@@ -1,66 +1,78 @@
+import { useState } from "react";
 import { formatArs, type RentalPayment } from "@/lib/contract";
 import { Row } from "@/components/ui/row";
 import { PaymentsEditor } from "../payments-editor";
+import { SubStepTabs, NextSectionLink } from "../sub-step-tabs";
 import type { StepContext } from "../context";
+
+const SECTIONS = ["Comparación", "Liquidación"];
 
 /** Solo se monta cuando `props.returnContext` está definido (lo garantiza el llamador). */
 export function StepComparacion({ ctx }: { ctx: StepContext }) {
   const { draft, patch, props, maxFuel, kmDriven, fuelDiff, settlement } = ctx;
   const returnContext = props.returnContext!;
+  const [section, setSection] = useState(0);
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-foreground/60">Comparación contra la entrega:</p>
-      <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-        <Row
-          label="Km recorridos"
-          value={`${kmDriven.toLocaleString("es-AR")} km`}
-          tone={settlement && settlement.extraKm > 0 ? "warn" : undefined}
-        />
-        <Row label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
-        <Row label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
-      </div>
-      <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
-        <p className="text-sm font-semibold">
-          Daños nuevos: {draft.damages.length}
-        </p>
-        {draft.damages.length > 0 && (
-          <ul className="mt-1 list-disc pl-4 text-sm text-red-600">
-            {draft.damages.map((d, i) => (
-              <li key={d.id}>{d.description.trim() || `Daño #${i + 1}`}</li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <SubStepTabs sections={SECTIONS} active={section} onChange={setSection} />
 
-      {fuelDiff < 0 && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-            ⚠ Devuelve con menos nafta que a la entrega
-          </p>
-          <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
-            {returnContext.handoverFuel}/{maxFuel} → {draft.fuelLevel}/{maxFuel} ({Math.abs(fuelDiff)}/{maxFuel} menos)
-          </p>
-        </div>
-      )}
-
-      {settlement && settlement.extraKm > 0 && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-            ⚠ Superó el kilometraje incluido
-          </p>
-          <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
-            {settlement.extraKm.toLocaleString("es-AR")} km sobre {settlement.includedKm.toLocaleString("es-AR")} incluidos
-            {settlement.extraKmCharge > 0 && (
-              <>
-                {" "}
-                · cargo estimado <span className="font-semibold">{formatArs(settlement.extraKmCharge)}</span>
-              </>
+      {section === 0 && (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-foreground/60">Comparación contra la entrega:</p>
+          <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+            <Row
+              label="Km recorridos"
+              value={`${kmDriven.toLocaleString("es-AR")} km`}
+              tone={settlement && settlement.extraKm > 0 ? "warn" : undefined}
+            />
+            <Row label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
+            <Row label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
+          </div>
+          <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
+            <p className="text-sm font-semibold">
+              Daños nuevos: {draft.damages.length}
+            </p>
+            {draft.damages.length > 0 && (
+              <ul className="mt-1 list-disc pl-4 text-sm text-red-600">
+                {draft.damages.map((d, i) => (
+                  <li key={d.id}>{d.description.trim() || `Daño #${i + 1}`}</li>
+                ))}
+              </ul>
             )}
-          </p>
+          </div>
+
+          {fuelDiff < 0 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                ⚠ Devuelve con menos nafta que a la entrega
+              </p>
+              <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
+                {returnContext.handoverFuel}/{maxFuel} → {draft.fuelLevel}/{maxFuel} ({Math.abs(fuelDiff)}/{maxFuel} menos)
+              </p>
+            </div>
+          )}
+
+          {settlement && settlement.extraKm > 0 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                ⚠ Superó el kilometraje incluido
+              </p>
+              <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
+                {settlement.extraKm.toLocaleString("es-AR")} km sobre {settlement.includedKm.toLocaleString("es-AR")} incluidos
+                {settlement.extraKmCharge > 0 && (
+                  <>
+                    {" "}
+                    · cargo estimado <span className="font-semibold">{formatArs(settlement.extraKmCharge)}</span>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+          <NextSectionLink onClick={() => setSection(1)} label="Ir a Liquidación" />
         </div>
       )}
 
-      {settlement && (
+      {section === 1 && settlement && (
         <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3">
           <p className="text-sm font-semibold">Liquidación</p>
           <p className="text-xs text-foreground/50">
