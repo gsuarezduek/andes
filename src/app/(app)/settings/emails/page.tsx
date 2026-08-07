@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField } from "@/components/ui/fields";
+import { SavedBanner } from "@/components/ui/saved-banner";
 import { getDictionary } from "@/lib/i18n";
 import { saveEmailSettings } from "../actions";
 
@@ -83,8 +84,13 @@ function LocaleFields({
   );
 }
 
-export default async function EmailSettingsPage() {
+export default async function EmailSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string }>;
+}) {
   await requireAdmin();
+  const { saved } = await searchParams;
 
   const settings = await prisma.emailSettings.findUnique({ where: { id: 1 } });
   const esDefaults = getDictionary("es").email;
@@ -99,6 +105,8 @@ export default async function EmailSettingsPage() {
           Dejá un campo vacío para usar el texto por defecto (visible como sugerencia).
         </p>
       </div>
+
+      <SavedBanner show={saved === "1"} label="Correos guardados." />
 
       <form action={saveEmailSettings} className="flex flex-col gap-8">
         {/* Remitente */}

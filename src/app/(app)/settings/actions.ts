@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
@@ -42,6 +43,7 @@ export async function saveConditions(formData: FormData) {
     update: data,
   });
   revalidatePath("/settings/general");
+  redirect("/settings/general?saved=1");
 }
 
 /** Texto recortado, o null si el campo viene vacío (→ usa el default del sistema). */
@@ -84,6 +86,7 @@ export async function saveEmailSettings(formData: FormData) {
     update: data,
   });
   revalidatePath("/settings/emails");
+  redirect("/settings/emails?saved=1");
 }
 
 /**

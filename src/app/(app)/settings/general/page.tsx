@@ -4,14 +4,20 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField } from "@/components/ui/fields";
+import { SavedBanner } from "@/components/ui/saved-banner";
 import { saveConditions } from "../actions";
 import { createChecklistItem } from "../../checklist/actions";
 import { ChecklistItemRow } from "./checklist-item-row";
 
 export const metadata: Metadata = { title: "Condiciones y checklist — Andes" };
 
-export default async function GeneralSettingsPage() {
+export default async function GeneralSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string }>;
+}) {
   await requireAdmin();
+  const { saved } = await searchParams;
 
   const [conditions, items] = await Promise.all([
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
@@ -26,6 +32,8 @@ export default async function GeneralSettingsPage() {
           Condiciones económicas precargadas y checklist de entrega/devolución.
         </p>
       </div>
+
+      <SavedBanner show={saved === "1"} label="Condiciones guardadas." />
 
       {/* Condiciones económicas (precarga global) */}
       <section className="flex flex-col gap-4">
