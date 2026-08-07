@@ -55,6 +55,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const submittingRef = useRef(false);
 
   const [step, setStep] = useState(0);
+  // Paso más lejano ya visitado: habilita saltar a un paso anterior ya
+  // completado tocando la barra de progreso, sin permitir saltar adelante a
+  // uno que todavía no se validó.
+  const [maxStepReached, setMaxStepReached] = useState(0);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [online, setOnline] = useState(true);
@@ -340,14 +344,25 @@ export function InspectionWizard(props: InspectionWizardProps) {
       if (!(await captureSignature())) return setError("Falta la firma del cliente.");
     }
     setError(undefined);
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    const newStep = Math.min(STEPS.length - 1, step + 1);
+    setStep(newStep);
+    setMaxStepReached((m) => Math.max(m, newStep));
   }
-  function back() {
-    // Si ya hay una firma (local o remota) y se vuelve de "Firma" hacia atrás,
-    // esa firma quedó atada a los datos que se van a poder editar de nuevo
-    // (km, nafta, daños, condiciones) — se invalida para que el cliente firme
-    // los datos reales, no unos que ya cambiaron.
-    if (current === "Firma") {
+  const firmaIndex = STEPS.indexOf("Firma");
+
+  /**
+   * Salta a cualquier paso ya visitado (barra de progreso clicable) o al
+   * anterior/siguiente inmediato (botones Atrás/Siguiente). Nunca permite
+   * saltar a un paso más allá de `maxStepReached` (todavía no validado).
+   * Si el destino queda antes de "Firma" y ya había una firma (local o
+   * remota) hecha, se invalida — quedó atada a datos que se van a poder
+   * editar de nuevo — y se recorta `maxStepReached` para forzar volver a
+   * pasar por "Firma" (re-firmar) antes de poder llegar de nuevo al Resumen.
+   */
+  function goToStep(target: number) {
+    const clamped = Math.max(0, Math.min(STEPS.length - 1, target));
+    if (clamped === step || clamped > maxStepReached) return;
+    if (clamped < firmaIndex && step >= firmaIndex) {
       const hadSignature =
         Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId) || remoteStatus !== "idle";
       if (hadSignature) {
@@ -359,12 +374,16 @@ export function InspectionWizard(props: InspectionWizardProps) {
         setRemote(null);
         setRemoteStatus("idle");
         setError("Volviste a editar datos: la firma anterior se invalidó. El cliente va a tener que firmar de nuevo.");
-        setStep((s) => Math.max(0, s - 1));
+        setMaxStepReached(clamped);
+        setStep(clamped);
         return;
       }
     }
     setError(undefined);
-    setStep((s) => Math.max(0, s - 1));
+    setStep(clamped);
+  }
+  function back() {
+    goToStep(step - 1);
   }
 
   /**
@@ -685,9 +704,22 @@ export function InspectionWizard(props: InspectionWizardProps) {
         </p>
       )}
       <div className="flex items-center gap-1.5">
-        {STEPS.map((label, i) => (
-          <div key={label} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-foreground" : "bg-foreground/15"}`} />
-        ))}
+        {STEPS.map((label, i) => {
+          const reachable = i !== step && i <= maxStepReached;
+          return (
+            <button
+              key={label}
+              type="button"
+              disabled={!reachable}
+              onClick={() => goToStep(i)}
+              aria-label={`Ir al paso ${i + 1} de ${STEPS.length}: ${label}`}
+              aria-current={i === step ? "step" : undefined}
+              className={`flex-1 py-2 ${reachable ? "cursor-pointer hover:opacity-70" : "cursor-default"}`}
+            >
+              <span className={`block h-1.5 rounded-full ${i <= step ? "bg-foreground" : "bg-foreground/15"}`} />
+            </button>
+          );
+        })}
       </div>
       <p className="text-sm text-foreground/60">
         Paso {step + 1} de {STEPS.length} · <span className="font-medium text-foreground">{current}</span>
