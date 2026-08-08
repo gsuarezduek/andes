@@ -68,7 +68,7 @@ export function RemoteSignForm({
 
   if (state === "done") {
     return (
-      <p className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-6 text-center text-sm font-medium text-green-700 dark:text-green-400">
+      <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-6 text-center text-sm font-medium text-emerald-700 dark:text-emerald-400">
         ¡Gracias! Tu firma fue enviada. Podés cerrar esta página.
       </p>
     );

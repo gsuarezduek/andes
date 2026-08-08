@@ -87,7 +87,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "goo
   return (
     <div className="rounded-xl border border-foreground/10 p-3">
       <p className="text-xs text-foreground/50">{label}</p>
-      <p className={`mt-1 text-lg font-bold tabular-nums ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-green-600" : ""}`}>{value}</p>
+      <p className={`mt-1 text-lg font-bold tabular-nums ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : ""}`}>{value}</p>
     </div>
   );
 }

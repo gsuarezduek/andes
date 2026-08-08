@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "green" | "amber" | "red" | "blue" | "orange";
+type Tone = "neutral" | "emerald" | "amber" | "red" | "blue" | "orange";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-foreground/10 text-foreground/70",
-  green: "bg-green-500/15 text-green-700 dark:text-green-400",
+  // "Positivo" en toda la app es emerald (no green) — mismo tono que el ring
+  // "complete" de acá abajo y el resto de los indicadores de éxito.
+  emerald: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   amber: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   red: "bg-red-500/15 text-red-700 dark:text-red-400",
   blue: "bg-blue-500/15 text-blue-700 dark:text-blue-400",

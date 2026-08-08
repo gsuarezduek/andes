@@ -1,7 +1,7 @@
 import type { RentalStatus } from "@prisma/client";
 import type { PaymentAccent } from "@/lib/rental-payments";
 
-export type BadgeTone = "neutral" | "green" | "amber" | "red" | "blue" | "orange";
+export type BadgeTone = "neutral" | "emerald" | "amber" | "red" | "blue" | "orange";
 
 /**
  * Nombre y color "oficiales" del estado de un alquiler: los mismos que usa el
@@ -19,7 +19,7 @@ export function rentalStatusDisplay(
     case "cancelled":
       return { label: "Cancelado", tone: "red" };
     case "active":
-      return { label: "Activo", tone: "green" };
+      return { label: "Activo", tone: "emerald" };
     case "finished":
       return { label: "Finalizado", tone: "neutral" };
     default: // reserved

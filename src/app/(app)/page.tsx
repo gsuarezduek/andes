@@ -6,9 +6,9 @@ import { formatDateTime } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 
-const stateTone: Record<MovementState, "amber" | "green" | "red"> = {
+const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
-  completada: "green",
+  completada: "emerald",
   demorada: "red",
 };
 

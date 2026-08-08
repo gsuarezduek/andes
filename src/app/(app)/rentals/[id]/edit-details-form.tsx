@@ -70,7 +70,7 @@ export function EditDetailsForm({
 
       <FormError>{state.error}</FormError>
       {state.ok && (
-        <p className="rounded-lg bg-green-500/10 px-3 py-2 text-sm font-medium text-green-700 dark:text-green-400">
+        <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
           Datos guardados.
         </p>
       )}

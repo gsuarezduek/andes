@@ -61,7 +61,7 @@ export default async function CalendarPage({
       {/* Leyenda de colores de las barras */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-green-600/90" /> Activo
+          <span className="inline-block h-3 w-3 rounded bg-emerald-600/90" /> Activo
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-amber-400" /> Confirmado (pagado)

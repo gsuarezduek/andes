@@ -3,9 +3,9 @@ import type { VehicleStatus } from "@prisma/client";
 /** Tono del badge según el estado del vehículo. */
 export const vehicleStatusTone: Record<
   VehicleStatus,
-  "green" | "blue" | "amber"
+  "emerald" | "blue" | "amber"
 > = {
-  available: "green",
+  available: "emerald",
   rented: "blue",
   out_of_service: "amber",
 };

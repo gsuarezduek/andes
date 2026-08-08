@@ -71,7 +71,7 @@ function Message({ text, tone }: { text: string; tone?: "ok" }) {
     <p
       className={`rounded-xl border px-4 py-6 text-center text-sm font-medium ${
         tone === "ok"
-          ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
           : "border-foreground/15 text-foreground/70"
       }`}
     >

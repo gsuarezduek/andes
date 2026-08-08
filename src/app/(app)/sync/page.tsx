@@ -10,8 +10,8 @@ import { triggerSyncForm, triggerFleetSeed } from "./actions";
 
 export const metadata: Metadata = { title: "Sincronización — Andes" };
 
-const resultTone: Record<SyncResult, "green" | "amber" | "red"> = {
-  success: "green",
+const resultTone: Record<SyncResult, "emerald" | "amber" | "red"> = {
+  success: "emerald",
   partial: "amber",
   error: "red",
 };
@@ -58,7 +58,7 @@ export default async function SyncPage({
           <span className="text-foreground/60">Transporte</span>
           <span className="flex items-center gap-2 font-medium">
             {transport.label}
-            <Badge tone={transport.ok ? "green" : "red"}>{transport.ok ? "activo" : "falta"}</Badge>
+            <Badge tone={transport.ok ? "emerald" : "red"}>{transport.ok ? "activo" : "falta"}</Badge>
           </span>
         </div>
         <div className="flex items-center justify-between py-3 text-sm">
@@ -82,7 +82,7 @@ export default async function SyncPage({
         </form>
       </div>
       {flota !== undefined && (
-        <p className="-mt-4 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-700 dark:text-green-400">
+        <p className="-mt-4 rounded-lg bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
           Flota importada: {flotaCreated} unidad{flotaCreated === 1 ? "" : "es"} nueva
           {flotaCreated === 1 ? "" : "s"}
           {flotaReactivated > 0

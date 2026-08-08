@@ -73,7 +73,7 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
           </button>
         </div>
         {draft.signatureKey ? (
-          <p className="text-xs text-green-600">Firma registrada. Volvé a firmar para reemplazarla.</p>
+          <p className="text-xs text-emerald-600">Firma registrada. Volvé a firmar para reemplazarla.</p>
         ) : draft.signaturePendingId ? (
           <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
         ) : draft.signatureUploadFailed ? (
@@ -86,7 +86,7 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
         <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">
           <p className="text-xs font-medium text-foreground/70">¿El cliente prefiere firmar en su teléfono?</p>
           {remoteStatus === "signed" ? (
-            <p className="text-sm font-medium text-green-600">Firma del cliente recibida ✓</p>
+            <p className="text-sm font-medium text-emerald-600">Firma del cliente recibida ✓</p>
           ) : !remote ? (
             <Button type="button" variant="secondary" onClick={startRemoteSign} disabled={remoteBusy}>
               {remoteBusy ? "Generando…" : "Generar QR para el cliente"}

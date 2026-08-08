@@ -14,7 +14,7 @@ export function barClasses(bar: CalendarBar): string {
     case "cancelled":
       return "bg-red-600/90 text-white hover:bg-red-600 hover:ring-red-300";
     case "active":
-      return "bg-green-600/90 text-white hover:bg-green-600 hover:ring-green-300";
+      return "bg-emerald-600/90 text-white hover:bg-emerald-600 hover:ring-emerald-300";
     case "finished":
       return "bg-slate-400/90 text-white hover:ring-slate-300";
     default: // reserved
@@ -35,7 +35,7 @@ export function chipClasses(bar: CalendarBar): string {
     case "cancelled":
       return "bg-red-500/20 text-red-700 dark:text-red-400";
     case "active":
-      return "bg-green-500/20 text-green-700 dark:text-green-400";
+      return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400";
     case "finished":
       return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
     default: // reserved

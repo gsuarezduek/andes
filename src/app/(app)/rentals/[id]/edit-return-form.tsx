@@ -32,7 +32,7 @@ export function EditReturnForm({
         <TextField id="endAt" label="Fecha y hora de devolución" type="datetime-local" defaultValue={endAt} required />
         <TextField id="returnPlace" label="Lugar de devolución" defaultValue={returnPlace} placeholder="Ej. Aeropuerto, oficina centro…" />
         {state.ok && (
-          <p className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+          <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
             Devolución actualizada.
           </p>
         )}
