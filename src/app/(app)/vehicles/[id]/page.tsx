@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SectionTitle } from "@/components/ui/section-title";
 import { KmChart } from "@/components/vehicle/km-chart";
-import { TeamNotesSection } from "@/components/vehicle/team-notes-section";
+import { TeamNotesSection } from "@/components/team-notes-section";
+import { addVehicleNote, resolveVehicleNote } from "./notes-actions";
 import { VehicleInfo } from "@/components/vehicle/vehicle-info";
 import { VehicleActionsBar } from "@/components/vehicle/vehicle-actions-bar";
 import { ActiveDamagesSection } from "@/components/vehicle/active-damages-section";
@@ -64,7 +65,13 @@ export default async function VehicleDetailPage({
         {/* Notas del equipo: mensajes internos entre compañeros sobre alguna
             situación a tener en cuenta. Mientras no se resuelven, alertan en
             el Calendario sobre la patente de este auto. */}
-        <TeamNotesSection vehicleId={vehicle.id} activeNotes={activeNotes} resolvedNotes={resolvedNotes} />
+        <TeamNotesSection
+          activeNotes={activeNotes}
+          resolvedNotes={resolvedNotes}
+          addNote={addVehicleNote.bind(null, vehicle.id)}
+          resolveNote={(noteId) => resolveVehicleNote.bind(null, vehicle.id, noteId)}
+          placeholder="Ej: quedó con poca nafta, avisar al próximo turno…"
+        />
 
         <VehicleInfo vehicle={vehicle} />
 

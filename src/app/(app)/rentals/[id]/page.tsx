@@ -9,7 +9,8 @@ import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatArs } from "@/lib/contract";
 import { StatusBanners } from "@/components/rentals/status-banners";
-import { TeamNotesSection } from "@/components/rentals/team-notes-section";
+import { TeamNotesSection } from "@/components/team-notes-section";
+import { addRentalNote, resolveRentalNote } from "./notes-actions";
 import { ClientInfoSection } from "@/components/rentals/client-info-section";
 import { DateInfoSection } from "@/components/rentals/date-info-section";
 import { PaymentsSection } from "@/components/rentals/payments-section";
@@ -141,7 +142,13 @@ export default async function RentalDetailPage({
       {/* Notas del equipo: mensajes internos entre compañeros sobre esta
           reserva. Mientras no se resuelven, alertan en el listado de
           Alquileres y en la barra del Calendario. */}
-      <TeamNotesSection rentalId={rental.id} activeNotes={activeNotes} resolvedNotes={resolvedNotes} />
+      <TeamNotesSection
+        activeNotes={activeNotes}
+        resolvedNotes={resolvedNotes}
+        addNote={addRentalNote.bind(null, rental.id)}
+        resolveNote={(noteId) => resolveRentalNote.bind(null, rental.id, noteId)}
+        placeholder="Ej: el cliente pidió cambiar el horario de entrega…"
+      />
 
       {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}
       {rental.bookingNote && (

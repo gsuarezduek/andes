@@ -1,20 +1,37 @@
+import { SectionTitle } from "@/components/ui/section-title";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime } from "@/lib/datetime";
-import { addRentalNote, resolveRentalNote } from "@/app/(app)/rentals/[id]/notes-actions";
-import type { RentalDetail } from "@/lib/rental-detail-queries";
 
+type Note = {
+  id: string;
+  text: string;
+  createdAt: Date;
+  createdBy: { name: string } | null;
+  resolvedBy?: { name: string } | null;
+  resolvedAt?: Date | null;
+};
+
+/**
+ * Mensajería de equipo sobre un vehículo o una reserva (distinta del campo
+ * libre `notes` de la ficha del vehículo). Mismo componente para los dos —
+ * antes eran dos copias idénticas salvo qué action llamaban.
+ */
 export function TeamNotesSection({
-  rentalId,
   activeNotes,
   resolvedNotes,
+  addNote,
+  resolveNote,
+  placeholder,
 }: {
-  rentalId: string;
-  activeNotes: RentalDetail["teamNotes"];
-  resolvedNotes: RentalDetail["teamNotes"];
+  activeNotes: Note[];
+  resolvedNotes: Note[];
+  addNote: (formData: FormData) => Promise<void>;
+  resolveNote: (noteId: string) => (formData: FormData) => Promise<void>;
+  placeholder: string;
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Notas del equipo</h2>
+      <SectionTitle>Notas del equipo</SectionTitle>
       {activeNotes.length > 0 && (
         <ul className="flex flex-col gap-2">
           {activeNotes.map((n) => (
@@ -28,19 +45,19 @@ export function TeamNotesSection({
                   {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
                 </p>
               </div>
-              <form action={resolveRentalNote.bind(null, rentalId, n.id)} className="shrink-0">
+              <form action={resolveNote(n.id)} className="shrink-0">
                 <button className="text-xs font-medium text-emerald-600">Resolver</button>
               </form>
             </li>
           ))}
         </ul>
       )}
-      <form action={addRentalNote.bind(null, rentalId)} className="flex flex-col gap-2 sm:flex-row sm:items-start">
+      <form action={addNote} className="flex flex-col gap-2 sm:flex-row sm:items-start">
         <textarea
           name="text"
           required
           rows={2}
-          placeholder="Ej: el cliente pidió cambiar el horario de entrega…"
+          placeholder={placeholder}
           className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
         />
         <SubmitButton pendingLabel="Agregando…">Agregar nota</SubmitButton>
