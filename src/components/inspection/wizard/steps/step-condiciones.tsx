@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TextField, TextareaField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { ToggleButton } from "@/components/ui/toggle-button";
 import {
   extraHourAmount,
   formatArs,
@@ -133,18 +134,19 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
       {section === 1 && (
         <div className="flex flex-col gap-3">
           <TextField id="pricing_deductible" label="Importe" type="text" inputMode="decimal" prefix="$" value={priceStr("deductible")} onChange={(e) => setPrice("deductible", e.target.value)} />
-          <button
-            type="button"
+          <ToggleButton
+            active={draft.insuranceUpgrade}
+            tone="accent"
+            className="w-full"
             onClick={() => {
               const next = !draft.insuranceUpgrade;
               const ded = next ? props.deductibleReduced : props.deductibleBase;
               patch({ insuranceUpgrade: next });
               if (ded != null) setPrice("deductible", String(ded));
             }}
-            className={`w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.insuranceUpgrade ? "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-400" : "border-foreground/25 text-foreground/70"}`}
           >
             {draft.insuranceUpgrade ? "✓ Con mejora de seguro (franquicia reducida)" : "Mejora de seguro"}
-          </button>
+          </ToggleButton>
           {draft.insuranceUpgrade && (
             <p className="text-xs text-foreground/50">Franquicia reducida por la mejora de seguro contratada.</p>
           )}
@@ -162,21 +164,12 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
             </div>
           )}
           <div className="mt-1 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => patch({ unlimitedKm: !draft.unlimitedKm })}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${draft.unlimitedKm ? "border-foreground bg-foreground text-background" : "border-foreground/25 text-foreground/70"}`}
-            >
+            <ToggleButton active={draft.unlimitedKm} onClick={() => patch({ unlimitedKm: !draft.unlimitedKm })}>
               {draft.unlimitedKm ? "✓ KM Libres" : "KM Libres"}
-            </button>
-            <button
-              type="button"
-              onClick={openPackModal}
-              disabled={draft.unlimitedKm}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 ${packs > 0 ? "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-400" : "border-foreground/25 text-foreground/70"}`}
-            >
+            </ToggleButton>
+            <ToggleButton active={packs > 0} tone="accent" disabled={draft.unlimitedKm} onClick={openPackModal}>
               {packs > 0 ? `✓ Pack de KM (${packs})` : "Pack de KM"}
-            </button>
+            </ToggleButton>
           </div>
           {draft.unlimitedKm ? (
             <p className="text-xs text-foreground/50">Sin límite de kilómetros: no se cobra excedente en la devolución.</p>
