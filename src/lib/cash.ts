@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import type { RentalPayment } from "@/lib/contract";
+import type { FieldChange } from "@/lib/movement-audit";
 
 function monthOf(date: Date): string {
   return formatDateInput(date).slice(0, 7);
@@ -187,7 +188,7 @@ export function paymentsToCashMovements(
   }));
 }
 
-export type CashMovementFieldChange = { field: string; from: string; to: string };
+export type CashMovementFieldChange = FieldChange;
 
 export type CashMovementEditRow = {
   id: string;

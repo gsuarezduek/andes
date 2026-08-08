@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
-import { formatArs } from "@/lib/contract";
 import type { SafeMovementFieldChange } from "@/lib/safe";
+import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 
 const createSafeMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -48,13 +48,7 @@ export async function updateSafeMovement(id: string, formData: FormData) {
   const existing = await prisma.safeMovement.findUnique({ where: { id } });
   if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
 
-  const changes: SafeMovementFieldChange[] = [];
-  if (existing.description !== description) {
-    changes.push({ field: "Motivo", from: existing.description, to: description });
-  }
-  if (Number(existing.amount) !== amount) {
-    changes.push({ field: "Monto", from: formatArs(Number(existing.amount)), to: formatArs(amount) });
-  }
+  const changes: SafeMovementFieldChange[] = diffDescriptionAndAmount(existing, { description, amount }, "Motivo");
   if (changes.length === 0) return;
 
   await prisma.$transaction([

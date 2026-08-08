@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { FieldChange } from "@/lib/movement-audit";
 
 const SAFE_MOVEMENTS_LIMIT = 100;
 
@@ -53,7 +54,7 @@ export async function getSafeBalance(): Promise<number> {
   return Number(deposits._sum.amount ?? 0) - Number(withdrawals._sum.amount ?? 0);
 }
 
-export type SafeMovementFieldChange = { field: string; from: string; to: string };
+export type SafeMovementFieldChange = FieldChange;
 
 export type SafeMovementEditRow = {
   id: string;

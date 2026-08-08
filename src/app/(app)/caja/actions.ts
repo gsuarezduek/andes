@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
-import { formatArs } from "@/lib/contract";
 import type { CashMovementFieldChange } from "@/lib/cash";
+import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -141,13 +141,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   }
   const nextRecipientNote = recipient?.requiresNote ? (recipientPaymentMethodNote ?? null) : null;
 
-  const changes: CashMovementFieldChange[] = [];
-  if (existing.description !== description) {
-    changes.push({ field: "Detalle", from: existing.description, to: description });
-  }
-  if (Number(existing.amount) !== amount) {
-    changes.push({ field: "Monto", from: formatArs(Number(existing.amount)), to: formatArs(amount) });
-  }
+  const changes: CashMovementFieldChange[] = diffDescriptionAndAmount(existing, { description, amount }, "Detalle");
   if (existing.paymentMethodName !== method.name) {
     const field = existing.type === "expense" ? "Origen" : "Medio de pago";
     changes.push({ field, from: existing.paymentMethodName, to: method.name });
