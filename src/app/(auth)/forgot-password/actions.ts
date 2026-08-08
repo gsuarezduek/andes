@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { generatePasswordResetToken, PASSWORD_RESET_TTL_MS } from "@/lib/password-reset";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 export type ForgotPasswordState = { error?: string; ok?: boolean };
 
@@ -12,6 +13,12 @@ const schema = z.object({ email: z.email() });
 // Mismo mensaje siempre, exista o no el email: evita que alguien use este
 // formulario para descubrir qué emails están dados de alta.
 const GENERIC_OK: ForgotPasswordState = { ok: true };
+
+// Por IP (no por email): frena que un script agote la cuota de Resend
+// mandando decenas de mails de recuperación, sea a una cuenta puntual o
+// probando muchas — sin esto el formulario público no tenía ningún límite.
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000;
 
 /**
  * Pide el link de recuperación. Nunca revela si el email existe o no; si el
@@ -22,6 +29,11 @@ export async function requestPasswordReset(
   _prev: ForgotPasswordState,
   formData: FormData,
 ): Promise<ForgotPasswordState> {
+  const ip = await getClientIp();
+  if (isRateLimited(`forgot-password:${ip}`, MAX_ATTEMPTS, WINDOW_MS)) {
+    return { error: "Demasiados pedidos. Esperá unos minutos antes de volver a intentar." };
+  }
+
   const parsed = schema.safeParse({ email: formData.get("email") });
   if (!parsed.success) return { error: "Ingresá un email válido." };
 
