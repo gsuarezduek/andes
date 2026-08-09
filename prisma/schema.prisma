@@ -807,6 +807,11 @@ model ChecklistItem {
 // Valores por defecto que el empleado ve precargados en el paso "Condiciones"
 // de la entrega y puede ajustar antes de firmar. Singleton: siempre id = 1.
 // La "hora extra" se expresa como % de la tarifa diaria del alquiler.
+//
+// Límite conocido: al ser un singleton global, asume una sola sucursal/
+// política económica para toda la flota. Si algún día hay más de una
+// sucursal con condiciones propias, esto necesita pasar de `id: 1` fijo a
+// una fila por sucursal (branchId) — no hay ningún atajo hoy para eso.
 model ConditionSettings {
   id                Int      @id @default(1)
   insuranceAmount   Decimal? @map("insurance_amount") @db.Decimal(12, 2) // seguro
@@ -833,6 +838,9 @@ model ConditionSettings {
 // Singleton: siempre id = 1. Cada campo es un override opcional del diccionario
 // i18n (src/lib/i18n/dictionaries.ts): si está vacío/null, se usa el texto por
 // defecto del sistema. `fromAddress` pisa la env var EMAIL_FROM.
+//
+// Mismo límite de multi-sucursal que ConditionSettings (ver arriba): un solo
+// remitente/texto para toda la app.
 model EmailSettings {
   id          Int     @id @default(1)
   fromAddress String? @map("from_address") // casilla "desde" (pisa EMAIL_FROM)
