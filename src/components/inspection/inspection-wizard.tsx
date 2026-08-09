@@ -17,13 +17,13 @@ import {
   type QueueSlot,
 } from "@/lib/client/upload-queue";
 import { getDictionary } from "@/lib/i18n";
-import { PRICING_FIELDS, computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
+import { computeBalance } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import { parseDecimal } from "@/lib/number-input";
-import type { InspectionInput, DocumentKindInput } from "@/lib/inspection-input";
+import type { DocumentKindInput } from "@/lib/inspection-input";
 import { cancelRemoteSignature } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 import { newId } from "./wizard/new-id";
-import { buildSettlement, summaryConditions, validateStep } from "./wizard/logic";
+import { buildSettlement, summaryConditions, validateStep, buildInspectionPayload } from "./wizard/logic";
 import type { StepContext } from "./wizard/context";
 import type { Draft, PhotoItem, DocItem, InspectionWizardProps } from "./wizard/types";
 import { StepDatos } from "./wizard/steps/step-datos";
@@ -555,84 +555,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
         setSaving(false);
         return setError("Falta la firma del cliente.");
       }
-      const pricing: ContractPricing = {};
-      for (const f of PRICING_FIELDS) {
-        const n = parseDecimal(draft.pricing[f.key] as string | undefined);
-        if (n !== undefined) (pricing as Record<string, number>)[f.key] = n;
-      }
-      if (draft.unlimitedKm) pricing.unlimitedKm = true;
-      if (draft.insuranceUpgrade) pricing.insuranceUpgrade = true;
-      {
-        // Franquicia/Garantía: un solo importe cargado por el empleado, que
-        // vale tanto de deducible (acta) como de garantía tomada (liquidación
-        // de la devolución, donde solo cubre daños).
-        const ded = parseDecimal(draft.pricing.deductible as string | undefined);
-        if (ded !== undefined) {
-          pricing.deductible = ded;
-          pricing.deposit = ded;
-        }
-      }
-      // Precio del pack de KM: no se edita en el wizard (viene de Configuración
-      // → Condiciones), pero viaja en `pricing` para poder calcular su importe
-      // en el acta y en la liquidación de la devolución.
-      {
-        const packPrice = parseDecimal(draft.pricing.kmPackPrice as string | undefined);
-        if (packPrice !== undefined) pricing.kmPackPrice = packPrice;
-      }
-      if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
-      if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
-      if (draft.payments.length) {
-        pricing.payments = draft.payments;
-        pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.adjustedAmount, 0));
-      }
-      const payload: InspectionInput = {
-        rentalId: props.rentalId,
-        vehicleId: draft.vehicleId,
-        language: draft.language,
-        km: Number(draft.km),
-        fuelLevel: draft.fuelLevel,
-        checklist: draft.checklist,
-        observations: draft.observations.trim() || undefined,
-        newDamages: draft.damages.map((d) => ({
-          view: "top" as const,
-          posX: d.posX,
-          posY: d.posY,
-          description: d.description.trim() || undefined,
-          photoKey: d.photo?.key,
-        })),
-        photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
-        signatureKey,
-        signerName: draft.signerName.trim(),
-        ...(isHandover
-          ? {
-              clientName: draft.clientName.trim(),
-              clientEmail: draft.clientEmail.trim() || undefined,
-              clientPhone: draft.clientPhone.trim() || undefined,
-              clientDocNumber: draft.clientDocNumber.trim() || undefined,
-              clientAddress: draft.clientAddress.trim() || undefined,
-              licenseExpiry: draft.licenseExpiry || undefined,
-              pricing: Object.keys(pricing).length ? pricing : undefined,
-              documents: (() => {
-                // holderName en el draft es el id del conductor adicional; al
-                // persistir lo traducimos a su nombre (o undefined = titular).
-                const driverName = (id?: string) =>
-                  id ? draft.additionalDrivers.find((dr) => dr.id === id)?.name.trim() || undefined : undefined;
-                const docs = draft.documents
-                  .filter((doc) => doc.key)
-                  .map((doc) => ({ kind: doc.kind, key: doc.key!, holderName: driverName(doc.holderName) }));
-                return docs.length ? docs : undefined;
-              })(),
-              additionalDrivers: (() => {
-                const drivers = draft.additionalDrivers
-                  .filter((dr) => dr.name.trim())
-                  .map((dr) => ({ name: dr.name.trim() }));
-                return drivers.length ? drivers : undefined;
-              })(),
-            }
-          : { settlement: buildSettlement(draft, props.returnContext) ?? undefined }),
-        latitude: geo.current.lat,
-        longitude: geo.current.lng,
-      };
+      const payload = buildInspectionPayload(draft, props, isHandover, signatureKey, geo.current);
       const res = await props.save(payload);
       if (!res.ok) {
         setSaving(false);

@@ -1,8 +1,9 @@
 import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
 import { parseDecimal } from "@/lib/number-input";
-import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, roundMoney, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
-import type { Draft } from "./types";
+import type { InspectionInput } from "@/lib/inspection-input";
+import type { Draft, InspectionWizardProps } from "./types";
 
 /**
  * Liquidación en vivo (solo devolución): auto-calculada desde la comparación
@@ -182,4 +183,99 @@ export function validateStep(
     }
   }
   return undefined;
+}
+
+/**
+ * Arma el payload final que recibe `saveHandover`/`saveReturn` a partir del
+ * draft del wizard. `signatureKey` va aparte (ya resuelto por el caller —
+ * puede venir de una subida recién terminada) en vez de leerse de
+ * `draft.signatureKey` para dejar explícito que submit ya lo validó antes de
+ * llegar acá.
+ */
+export function buildInspectionPayload(
+  draft: Draft,
+  props: InspectionWizardProps,
+  isHandover: boolean,
+  signatureKey: string,
+  geo: { lat?: number; lng?: number },
+): InspectionInput {
+  const pricing: ContractPricing = {};
+  for (const f of PRICING_FIELDS) {
+    const n = parseDecimal(draft.pricing[f.key] as string | undefined);
+    if (n !== undefined) (pricing as Record<string, number>)[f.key] = n;
+  }
+  if (draft.unlimitedKm) pricing.unlimitedKm = true;
+  if (draft.insuranceUpgrade) pricing.insuranceUpgrade = true;
+  {
+    // Franquicia/Garantía: un solo importe cargado por el empleado, que vale
+    // tanto de deducible (acta) como de garantía tomada (liquidación de la
+    // devolución, donde solo cubre daños).
+    const ded = parseDecimal(draft.pricing.deductible as string | undefined);
+    if (ded !== undefined) {
+      pricing.deductible = ded;
+      pricing.deposit = ded;
+    }
+  }
+  // Precio del pack de KM: no se edita en el wizard (viene de Configuración →
+  // Condiciones), pero viaja en `pricing` para poder calcular su importe en
+  // el acta y en la liquidación de la devolución.
+  {
+    const packPrice = parseDecimal(draft.pricing.kmPackPrice as string | undefined);
+    if (packPrice !== undefined) pricing.kmPackPrice = packPrice;
+  }
+  if (draft.accessoriesDesc.trim()) pricing.accessoriesDesc = draft.accessoriesDesc.trim();
+  if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
+  if (draft.payments.length) {
+    pricing.payments = draft.payments;
+    pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.adjustedAmount, 0));
+  }
+
+  return {
+    rentalId: props.rentalId,
+    vehicleId: draft.vehicleId,
+    language: draft.language,
+    km: Number(draft.km),
+    fuelLevel: draft.fuelLevel,
+    checklist: draft.checklist,
+    observations: draft.observations.trim() || undefined,
+    newDamages: draft.damages.map((d) => ({
+      view: "top" as const,
+      posX: d.posX,
+      posY: d.posY,
+      description: d.description.trim() || undefined,
+      photoKey: d.photo?.key,
+    })),
+    photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
+    signatureKey,
+    signerName: draft.signerName.trim(),
+    ...(isHandover
+      ? {
+          clientName: draft.clientName.trim(),
+          clientEmail: draft.clientEmail.trim() || undefined,
+          clientPhone: draft.clientPhone.trim() || undefined,
+          clientDocNumber: draft.clientDocNumber.trim() || undefined,
+          clientAddress: draft.clientAddress.trim() || undefined,
+          licenseExpiry: draft.licenseExpiry || undefined,
+          pricing: Object.keys(pricing).length ? pricing : undefined,
+          documents: (() => {
+            // holderName en el draft es el id del conductor adicional; al
+            // persistir lo traducimos a su nombre (o undefined = titular).
+            const driverName = (id?: string) =>
+              id ? draft.additionalDrivers.find((dr) => dr.id === id)?.name.trim() || undefined : undefined;
+            const docs = draft.documents
+              .filter((doc) => doc.key)
+              .map((doc) => ({ kind: doc.kind, key: doc.key!, holderName: driverName(doc.holderName) }));
+            return docs.length ? docs : undefined;
+          })(),
+          additionalDrivers: (() => {
+            const drivers = draft.additionalDrivers
+              .filter((dr) => dr.name.trim())
+              .map((dr) => ({ name: dr.name.trim() }));
+            return drivers.length ? drivers : undefined;
+          })(),
+        }
+      : { settlement: buildSettlement(draft, props.returnContext) ?? undefined }),
+    latitude: geo.lat,
+    longitude: geo.lng,
+  };
 }
