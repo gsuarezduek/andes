@@ -25,7 +25,12 @@ const contentSecurityPolicy = [
   // wizard); data: para el ícono/manifest.
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // data: acá es imprescindible: el paso "Firma" convierte el canvas a blob
+  // vía `fetch(dataUrl)` (src/components/inspection/inspection-wizard.tsx) —
+  // sin esto, connect-src bloquea esa conversión y la firma local (el
+  // fallback sin QR remoto) queda rota en silencio. Encontrado recién al
+  // probar el flujo de firma completo después de agregar el CSP.
+  "connect-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
