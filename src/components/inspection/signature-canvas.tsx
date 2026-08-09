@@ -1,7 +1,7 @@
 "use client";
 
-import SignaturePad from "signature_pad";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import type SignaturePad from "signature_pad";
 
 export type SignaturePadHandle = {
   isEmpty: () => boolean;
@@ -17,23 +17,37 @@ export const SignatureCanvas = forwardRef<SignaturePadHandle>(
     useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const pad = new SignaturePad(canvas, { penColor: "#0f172a" });
-      padRef.current = pad;
+      let cancelled = false;
+      let cleanup: (() => void) | undefined;
 
-      function resize() {
-        if (!canvas) return;
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * ratio;
-        canvas.height = rect.height * ratio;
-        canvas.getContext("2d")?.scale(ratio, ratio);
-        pad.clear();
-      }
-      resize();
-      window.addEventListener("resize", resize);
+      // signature_pad solo hace falta en este paso del wizard ("Firma", el
+      // último antes de guardar): se importa dinámicamente para que quede en
+      // su propio chunk en vez de ir en el bundle inicial de los 7 pasos.
+      import("signature_pad").then(({ default: SignaturePadImpl }) => {
+        if (cancelled || !canvas) return;
+        const el: HTMLCanvasElement = canvas;
+        const pad = new SignaturePadImpl(el, { penColor: "#0f172a" });
+        padRef.current = pad;
+
+        const resize = () => {
+          const ratio = Math.max(window.devicePixelRatio || 1, 1);
+          const rect = el.getBoundingClientRect();
+          el.width = rect.width * ratio;
+          el.height = rect.height * ratio;
+          el.getContext("2d")?.scale(ratio, ratio);
+          pad.clear();
+        };
+        resize();
+        window.addEventListener("resize", resize);
+        cleanup = () => {
+          window.removeEventListener("resize", resize);
+          pad.off();
+        };
+      });
+
       return () => {
-        window.removeEventListener("resize", resize);
-        pad.off();
+        cancelled = true;
+        cleanup?.();
       };
     }, []);
 
