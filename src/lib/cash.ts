@@ -117,6 +117,7 @@ export type RentalPickerOption = {
   id: string;
   clientName: string;
   bookingId: string | null;
+  plate: string | null;
   label: string;
 };
 
@@ -158,6 +159,7 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
       id: r.id,
       clientName: r.clientName,
       bookingId,
+      plate: r.vehicle?.plate ?? null,
       label: `${r.clientName} — ${r.vehicle?.plate ?? "sin unidad"} (${formatDateInput(r.startAt)})${
         bookingId ? ` · #${bookingId}` : ""
       }`,

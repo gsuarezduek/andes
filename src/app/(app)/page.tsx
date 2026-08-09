@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { getDashboardData, type MovementState } from "@/lib/dashboard";
+import { getRentalPickerOptions } from "@/lib/cash";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import { HomeSearch } from "@/components/home-search";
 import { formatDateTime } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
@@ -66,13 +69,27 @@ function MovementRow({
 
 export default async function HomePage() {
   const user = await requireUser();
-  const { today, fleet, alerts } = await getDashboardData();
+  const [{ today, fleet, alerts }, rentalOptions] = await Promise.all([
+    getDashboardData(),
+    getRentalPickerOptions(),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Hola, {user.name?.split(" ")[0] ?? "equipo"}</h1>
         <p className="text-sm text-foreground/60">Movimientos de hoy y estado de la flota.</p>
+      </div>
+
+      {/* Buscador + acceso rápido: la pantalla más usada del día no debería
+          obligar a pasar por /rentals para nada que no sea "hoy". */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex-1">
+          <HomeSearch options={rentalOptions} />
+        </div>
+        <ButtonLink href="/rentals/new" className="shrink-0">
+          + Alquiler manual
+        </ButtonLink>
       </div>
 
       {/* HOY */}
