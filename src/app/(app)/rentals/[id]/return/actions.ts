@@ -9,6 +9,8 @@ import { requireUser } from "@/lib/auth-helpers";
 import { generateAndSendActa } from "@/lib/acta";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
+import { computeSettlement, rollupSettlement } from "@/lib/settlement";
+import type { ContractPricing } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const damageSchema = z.object({
@@ -71,7 +73,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
 
   const rental = await prisma.rental.findUnique({
     where: { id: data.rentalId },
-    include: { inspections: { select: { id: true, type: true, km: true } } },
+    include: { inspections: { select: { id: true, type: true, km: true, fuelLevel: true } } },
   });
   if (!rental) return { ok: false, error: "El alquiler no existe." };
   if (rental.status !== "active") {
@@ -88,6 +90,34 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
     return { ok: false, error: `El kilometraje no puede ser menor al de entrega (${handover.km.toLocaleString("es-AR")} km).` };
   }
 
+  // La liquidación que firma el cliente no se persiste tal cual la manda el
+  // cliente: kmDriven/includedKm/extraKm/fuelMissingEighths y sobre todo los
+  // totales (subtotal, saldo a cobrar, depósito a devolver) se recalculan acá
+  // a partir de datos de confianza (la entrega y `Rental.pricing`, ambos ya
+  // en la base) en vez de aceptar la aritmética que mandó el cliente — el
+  // empleado sigue pudiendo editar los importes de km extra/nafta/daños/
+  // depósito (son legítimamente ajustables), pero no puede hacer que el
+  // saldo final quede desacoplado de esos importes.
+  const settlementForPersist = data.settlement
+    ? rollupSettlement({
+        ...computeSettlement({
+          handoverKm: handover.km,
+          returnKm: data.km,
+          handoverFuel: handover.fuelLevel,
+          returnFuel: data.fuelLevel,
+          pricing: rental.pricing as ContractPricing | null,
+          newDamages: data.newDamages,
+        }),
+        extraKmCharge: data.settlement.extraKmCharge,
+        fuelCharge: data.settlement.fuelCharge,
+        deposit: data.settlement.deposit,
+        damageCharges: data.settlement.damageCharges,
+        payments: data.settlement.payments,
+        method: data.settlement.method,
+        note: data.settlement.note,
+      })
+    : undefined;
+
   let inspection;
   try {
     inspection = await prisma.$transaction(async (tx) => {
@@ -103,7 +133,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           observations: data.observations ?? null,
           signatureUrl: data.signatureKey,
           signerName: data.signerName,
-          settlement: data.settlement ?? undefined,
+          settlement: settlementForPersist ?? undefined,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
           media: {
@@ -143,9 +173,9 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
 
       // Cada pago anotado en la liquidación queda también como cobro en Caja,
       // vinculado a esta reserva — el empleado no lo anota dos veces.
-      if (data.settlement?.payments?.length) {
+      if (settlementForPersist?.payments?.length) {
         await tx.cashMovement.createMany({
-          data: paymentsToCashMovements(data.settlement.payments, {
+          data: paymentsToCashMovements(settlementForPersist.payments, {
             rentalId: rental.id,
             createdById: user.id,
             description: `Cobro de devolución — ${rental.clientName}`,

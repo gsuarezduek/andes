@@ -284,6 +284,35 @@ describe("saveReturn", () => {
     });
   });
 
+  it("recalcula la liquidación server-side en vez de confiar en los totales del cliente (SEC-03)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({
+      id: "r1",
+      status: "active",
+      clientName: "Juan Pérez",
+      pricing: { kmPerDay: 200, days: 2, extraKmRate: 100, deposit: 50_000 },
+      inspections: [{ id: "h1", type: "handover", km: 10_000, fuelLevel: 8 }],
+    });
+    // Cliente manipulado: los importes editables (extraKmCharge/fuelCharge/
+    // damageCharges/deposit) son reales, pero los totales derivados vienen
+    // adulterados para esconder el saldo real (debería dar $10.000, no $0).
+    const tamperedSettlement = {
+      kmDriven: 500, includedKm: 400, extraKm: 100, extraKmRate: 100, extraKmCharge: 10_000,
+      fuelMissingEighths: 0, fuelCharge: 0, damageCharges: [], damagesTotal: 0,
+      subtotal: 0, // debería ser 10.000
+      deposit: 50_000, depositApplied: 0, balanceDue: 0, // debería ser 10.000
+      depositReturn: 50_000,
+    };
+    await saveReturn({ ...returnInput, km: 10_500, settlement: tamperedSettlement });
+
+    const inspArg = tx.inspection.create.mock.calls[0][0].data;
+    expect(inspArg.settlement).toMatchObject({
+      extraKmCharge: 10_000,
+      subtotal: 10_000,
+      balanceDue: 10_000,
+      depositReturn: 50_000,
+    });
+  });
+
   it("rechaza km de devolución menor al de entrega", async () => {
     prismaMock.rental.findUnique.mockResolvedValue({
       id: "r1",
