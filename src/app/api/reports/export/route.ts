@@ -1,18 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
-import { getReports } from "@/lib/reports";
+import {
+  getReports,
+  sortVehicleReports,
+  MONTH_RANGE_OPTIONS,
+  DEFAULT_MONTH_RANGE,
+  DEFAULT_VEHICLE_SORT,
+  type VehicleSortKey,
+} from "@/lib/reports";
+import { csvResponse } from "@/lib/csv";
+
+const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "income", "cost", "net", "damages"];
 
 export const runtime = "nodejs";
-
-/** Escapa un valor para CSV (comillas dobles, comas, saltos de línea). */
-function csvCell(v: string | number): string {
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function toCsv(rows: (string | number)[][]): string {
-  return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
-}
 
 /** Exporta los reportes como CSV (admin). ?type=vehicles|months */
 export async function GET(req: NextRequest) {
@@ -22,7 +22,15 @@ export async function GET(req: NextRequest) {
   }
 
   const type = req.nextUrl.searchParams.get("type") ?? "vehicles";
-  const reports = await getReports();
+  const rawMonths = req.nextUrl.searchParams.get("months");
+  const months = MONTH_RANGE_OPTIONS.find((m) => String(m) === rawMonths) ?? DEFAULT_MONTH_RANGE;
+  const rawSort = req.nextUrl.searchParams.get("sort");
+  const sort = VEHICLE_SORT_KEYS.includes(rawSort as VehicleSortKey)
+    ? (rawSort as VehicleSortKey)
+    : DEFAULT_VEHICLE_SORT;
+  const dir = req.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
+
+  const reports = await getReports(months);
 
   let rows: (string | number)[][];
   let name: string;
@@ -32,18 +40,11 @@ export async function GET(req: NextRequest) {
     name = "reporte-por-mes";
   } else {
     rows = [["Vehículo", "Patente", "Alquileres", "Ingresos", "Costos", "Neto", "Daños activos", "Archivado"]];
-    for (const v of reports.vehicles) {
+    for (const v of sortVehicleReports(reports.vehicles, sort, dir)) {
       rows.push([v.label, v.plate, v.rentals, v.income, v.cost, v.net, v.damages, v.archived ? "Sí" : "No"]);
     }
     name = "reporte-por-vehiculo";
   }
 
-  // BOM para que Excel abra los acentos correctamente.
-  const csv = "﻿" + toCsv(rows);
-  return new NextResponse(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${name}.csv"`,
-    },
-  });
+  return csvResponse(rows, name);
 }

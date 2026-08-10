@@ -68,12 +68,28 @@ export function recentMonths(currentYm: string, count: number): string[] {
   return months;
 }
 
-/** Últimos 12 meses en hora de Mendoza, del más viejo al actual. */
-function last12Months(): string[] {
-  return recentMonths(monthOf(new Date()), 12);
+/** Opciones de período para el gráfico "por mes" (selector en la UI). */
+export const MONTH_RANGE_OPTIONS = [3, 6, 12, 24] as const;
+export type MonthRangeOption = (typeof MONTH_RANGE_OPTIONS)[number];
+export const DEFAULT_MONTH_RANGE: MonthRangeOption = 12;
+
+export type VehicleSortKey = "rentals" | "income" | "cost" | "net" | "damages";
+export const DEFAULT_VEHICLE_SORT: VehicleSortKey = "income";
+
+/**
+ * Reordena la tabla "por vehículo" por la columna elegida (click en el
+ * encabezado, ver reports/page.tsx). No muta el array de entrada.
+ */
+export function sortVehicleReports(
+  vehicles: VehicleReport[],
+  sort: VehicleSortKey,
+  dir: "asc" | "desc",
+): VehicleReport[] {
+  const mul = dir === "asc" ? 1 : -1;
+  return [...vehicles].sort((a, b) => mul * (a[sort] - b[sort]) || b.income - a.income);
 }
 
-export async function getReports(): Promise<Reports> {
+export async function getReports(months: number = DEFAULT_MONTH_RANGE): Promise<Reports> {
   const [vehicles, finished, maintenance, damages, activeCount] = await Promise.all([
     // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
     // historial de ingresos/costos, y si se lo excluyera acá el total de la
@@ -119,8 +135,8 @@ export async function getReports(): Promise<Reports> {
     ]),
   );
 
-  const months = last12Months();
-  const monthMap = new Map<string, MonthPoint>(months.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
+  const monthList = recentMonths(monthOf(new Date()), months);
+  const monthMap = new Map<string, MonthPoint>(monthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
 
   let incomeTotal = 0;
   for (const r of finished) {
@@ -172,7 +188,7 @@ export async function getReports(): Promise<Reports> {
       costTotal,
       netTotal: incomeTotal - costTotal,
     },
-    byMonth: months.map((m) => monthMap.get(m)!),
+    byMonth: monthList.map((m) => monthMap.get(m)!),
     vehicles: vehicleReports,
   };
 }

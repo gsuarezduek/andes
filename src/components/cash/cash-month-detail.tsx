@@ -32,7 +32,13 @@ export function CashMonthDetail({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{monthLabel(data.month)}</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            className="text-xs font-medium underline"
+            href={`/api/caja/export?month=${data.month}`}
+          >
+            Exportar CSV
+          </a>
           <ButtonLink variant="secondary" href={nav(data.prevMonth)}>
             ← Anterior
           </ButtonLink>
