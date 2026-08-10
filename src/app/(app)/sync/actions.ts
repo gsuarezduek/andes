@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import { runBookingSync, type SyncSummary } from "@/lib/sync/engine";
 import { seedFleetFromWp } from "@/lib/sync/fleet-seed";
+import { sendDailySummaryEmail } from "@/lib/daily-summary";
 
 /**
  * Corre la sincronización manualmente (botón "Sincronizar ahora"). Devuelve
@@ -31,4 +32,17 @@ export async function triggerFleetSeed() {
   revalidatePath("/sync");
   revalidatePath("/vehicles");
   redirect(`/sync?flota=${result.created}-${result.reactivated}`);
+}
+
+/**
+ * Botón "Enviar ahora" del resumen diario (admin): dispara el mismo envío
+ * que el cron de Railway llamaría todos los días, autenticado por sesión en
+ * vez de CRON_SECRET (mismo criterio que `triggerSync` vs `/api/sync`). Útil
+ * también para probar sin depender de que el cron ya esté configurado.
+ */
+export async function triggerDailySummaryForm(): Promise<void> {
+  await requireAdmin();
+  const result = await sendDailySummaryEmail();
+  const status = result.sent ? "enviado" : result.reason;
+  redirect(`/sync?resumen=${status}`);
 }

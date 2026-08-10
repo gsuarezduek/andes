@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime } from "@/lib/datetime";
-import { triggerSyncForm, triggerFleetSeed } from "./actions";
+import { triggerSyncForm, triggerFleetSeed, triggerDailySummaryForm } from "./actions";
 
 export const metadata: Metadata = { title: "Sincronización — Andes" };
 
@@ -22,13 +22,19 @@ const resultLabel: Record<SyncResult, string> = {
   error: "Error",
 };
 
+const DAILY_SUMMARY_STATUS_LABEL: Record<string, string> = {
+  enviado: "Resumen enviado por email.",
+  "sin-alertas": "Sin alertas vencidas — no se mandó ningún email.",
+  "email-no-configurado": "Resend no está configurado (RESEND_API_KEY/EMAIL_FROM/ADMIN_EMAIL) — no se pudo enviar.",
+};
+
 export default async function SyncPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flota?: string }>;
+  searchParams: Promise<{ flota?: string; resumen?: string }>;
 }) {
-  await requireUser();
-  const { flota } = await searchParams;
+  const user = await requireUser();
+  const { flota, resumen } = await searchParams;
   const [flotaCreated, flotaReactivated] = flota?.split("-").map(Number) ?? [];
 
   const logs = await prisma.syncLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
@@ -127,6 +133,29 @@ export default async function SyncPage({
           </div>
         )}
       </section>
+
+      {user.role === "admin" && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Resumen diario de alertas
+          </h2>
+          <p className="text-xs text-foreground/50">
+            Email al admin con las devoluciones y service vencidos (mismas alertas del Home). Pensado
+            para un cron diario de Railway: <code>POST /api/daily-summary</code> con{" "}
+            <code>CRON_SECRET</code>. Si no hay nada vencido, no manda nada.
+          </p>
+          <form action={triggerDailySummaryForm}>
+            <SubmitButton pendingLabel="Enviando…" variant="secondary">
+              Enviar resumen ahora
+            </SubmitButton>
+          </form>
+          {resumen && (
+            <p className="rounded-lg bg-foreground/[0.03] px-4 py-2 text-sm">
+              {DAILY_SUMMARY_STATUS_LABEL[resumen] ?? resumen}
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

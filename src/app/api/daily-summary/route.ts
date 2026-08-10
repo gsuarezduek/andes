@@ -1,18 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { runBookingSync } from "@/lib/sync/engine";
 import { isValidCronRequest } from "@/lib/cron-auth";
+import { sendDailySummaryEmail } from "@/lib/daily-summary";
 
 export const runtime = "nodejs";
-// El sync puede tardar unos segundos; no lo cachees.
 export const dynamic = "force-dynamic";
 
 /**
- * Dispara la sincronización con VikRentCar. Pensado para el cron de Railway.
- * Autenticación por secreto compartido (CRON_SECRET), NO por sesión — este
- * endpoint está excluido del proxy de auth (ver src/proxy.ts).
+ * Manda el resumen diario de alertas vencidas (devoluciones + service) al
+ * admin por email. Pensado para un cron diario de Railway (mismo criterio
+ * que /api/sync): autenticación por CRON_SECRET, NO por sesión — este
+ * endpoint está excluido del proxy de auth (ver src/proxy.ts). Sin alertas
+ * vencidas, no manda nada (`sent: false`).
  *
- *   curl -X POST https://andes.mdzrentacar.com/api/sync \
+ *   curl -X POST https://andes.mdzrentacar.com/api/daily-summary \
  *        -H "Authorization: Bearer $CRON_SECRET"
  */
 export async function POST(req: NextRequest) {
@@ -23,7 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no autorizado" }, { status: 401 });
   }
 
-  const summary = await runBookingSync();
-  const status = summary.result === "error" ? 502 : 200;
-  return NextResponse.json(summary, { status });
+  const result = await sendDailySummaryEmail();
+  return NextResponse.json(result);
 }
