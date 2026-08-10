@@ -282,6 +282,55 @@ Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/an
 - **Logo opcional** `assets/andes_pay_stripe.png` (sin él, el método aparece igual, sin imagen).
 - **Reembolsar** el cobro de prueba en Live (0,65 USD) si se desea.
 
+## v12 — Auditoría integral: seguridad, UX del wizard, Configuración/Reportes/Caja, arquitectura y performance
+
+Tanda grande nacida de una auditoría completa del código (backlog de ~70 hallazgos, códigos `SEC-`/`UX-`/`UI-`/`COD-`/`ARQ-`/`PERF-`/`PROD-`). Cada ítem se implementó y desplegó por separado (build/lint/tests en verde en cada uno; UI verificada en navegador, 375px cuando correspondía). Resumen por área (código entre paréntesis para cruzar contra `git log`):
+
+- **Seguridad:**
+  - **SEC-03:** la liquidación/pricing de la devolución se recalcula **server-side** antes de persistir — ya no se confía en el monto final que manda el cliente.
+  - **SEC-04:** los pagos de entrega/devolución exigen monto positivo (cerraba un caso límite de descuento >100% dejando un pago negativo).
+  - **SEC-05:** headers de seguridad nuevos en `next.config.ts` (CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy` acotado a cámara/geolocalización propias). Fix inmediato: `connect-src` necesitaba `data:` — sin eso, `fetch()` sobre una `data:` URI (así se sube la firma local del wizard) fallaba en silencio.
+  - **SEC-06:** rate limiting básico (5 pedidos/15 min por IP) en `/forgot-password` — sin límite, un script podía agotar la cuota de Resend.
+  - **fix(deps):** Next.js 16.2.10→16.3.0 y next-auth beta.31→32 por CVEs reales (next-auth: fail-open crítico en el chequeo de auth; Next.js: SSRF/DoS en Server Actions, bypass de proxy con Turbopack). `npm audit`: 5 vulnerabilidades → 0.
+  - **fix(uploads):** `/api/uploads` detecta el Content-Type real por los primeros bytes (magic numbers), no por lo que declara el cliente — cerraba un vector de XSS almacenado (subir un archivo con Content-Type falsificado). `/api/media` suma `X-Content-Type-Options: nosniff`.
+  - **fix(rentals):** doble entrega/devolución por carrera (dos empleados, doble-tap, reintento de la cola offline) — `@@unique([rentalId, type])` en `Inspection` + guard que atrapa el conflicto y devuelve un resultado normal en vez de reventar.
+- **Flujo de entrega/devolución (wizard):**
+  - **UX-02:** confirmación de dos pasos al marcar service/arreglo (antes cancelaba la reserva y bloqueaba el auto con un solo click).
+  - **UX-07:** elegir fotos de la galería además de la cámara (fotos generales, de cada daño, y en "Agregar daño" del perfil del vehículo).
+  - **UX-08:** los pasos "Condiciones" (5 sub-secciones) y "Comparación/Liquidación" (2) pasan a pestañas (`TabBar`, antes `SubStepTabs`) — menos scroll en 375px, mismo conteo de pasos del wizard.
+  - **UX-09:** la barra de progreso del wizard es clicable (saltar a cualquier paso ya visitado); saltar antes de "Firma" con una firma ya hecha la invalida.
+  - **fix:** la firma (local o remota) se invalida si se editan datos después de firmar — incluye cancelar el pedido remoto server-side (antes quedaba `pending` y un cliente con la página abierta podía firmarlo igual).
+  - **fix:** el resumen de firma remota usaba `maxFuel` hardcodeado en 8; ahora usa el real del vehículo (hasta 16 líneas).
+  - **fix:** lock síncrono contra doble-submit del botón final (un doble-tap con señal inestable podía disparar el guardado dos veces antes de que SEC-03/el guard de arriba entraran en juego).
+  - **fix:** targets táctiles del selector de nafta a 44px mínimo (autos con hasta 16 líneas quedaban con botones muy chicos).
+  - **fix:** la cola de subida offline ya no se traba para siempre si un solo ítem tiene un error no transitorio — reintentos por ítem, error accionable en vez de "Pendiente" indefinido.
+  - **COD-11:** el armado del payload final del wizard se extrae a una función pura en `logic.ts`, separada del control de flujo del guardado.
+- **Configuración, Reportes y Caja:**
+  - **UX-12:** feedback visible (`SavedBanner`) al guardar Condiciones/Correos.
+  - **UX-13:** el botón de sync manual del header muestra el resultado real (verde/ámbar/rojo con mensaje) en vez de un ✓ verde fijo aunque el sync hubiera fallado.
+  - **UX-19:** confirmación al "marcar reparado" (antes un solo click); aclaración de que Caja y Caja fuerte son cosas distintas.
+  - **UX-21:** auditoría de cambios en Condiciones económicas — historial de quién cambió qué y cuándo (`ConditionSettingsEdit`, mismo patrón que Caja).
+  - **UX-22:** selector de período (3/6/12/24 meses) y orden por columna en Reportes; export CSV nuevo en Caja.
+  - **feat(caja):** "Origen/Destino" en Pagos (cuenta propia obligatoria → cuenta ajena opcional); Caja fuerte (efectivo físico, separado de `CashMovement`) + botón único de guardar en Medios de pago.
+  - **COD-09:** diff de detalle+monto para el historial de ediciones extraído a `movement-audit.ts` (antes duplicado en `cash.ts`/`safe.ts`).
+  - **COD-06/COD-07:** Reportes reconcilia el KPI de ingresos/costos contra la tabla "por vehículo" (antes el KPI sumaba autos archivados y la tabla los excluía); el sync ya no reasigna una reserva nueva a un vehículo archivado.
+- **Arquitectura y calidad de código:**
+  - **ARQ-01:** 7 módulos de servidor (prisma, cash, safe, queries) marcados `"server-only"`.
+  - **ARQ-05:** documentado en el schema el límite de multi-sucursal de `ConditionSettings`/`EmailSettings` (singleton `id=1`).
+  - Varias unificaciones de UI duplicada (sin cambios visuales, verificadas en navegador): `ToggleButton` (UI-01), `TeamNotesSection` de vehículo/reserva (UI-05), "positivo" unificado a emerald (UI-09, sacando `green` suelto), `Row`/`CompareRow`, ícono de editar + tarjeta de confirmar borrado, modales hand-rolled migrados a `<Modal>` (foco atrapado, Escape, `role="dialog"`), emojis funcionales (📷/🖼️/✕) reemplazados por íconos SVG, formulario de service/arreglo duplicado, inputs/formularios divergentes unificados en `fields.tsx` (UI-02).
+  - **fix(acta):** loguea si falla la descarga de firma/fotos al generar el PDF (antes fallaba en silencio y el acta se mandaba sin la evidencia); 3 títulos que quedaban hardcodeados en español pasan al diccionario i18n.
+  - **fix(app):** `error.tsx` global nuevo (no existía ninguno en toda la app) + manejo de error inline en acciones críticas (eliminar reserva, fusionar duplicado, archivar vehículo) para mostrar el motivo del rechazo en vez de la pantalla de error técnica de Next.
+  - **fix(settings):** confirmación de dos pasos al borrar un medio de pago o un ítem de checklist.
+  - **fix(nav):** Reportes/Usuarios/Configuración suben a la barra principal (antes enterrados en el dropdown de cuenta, sin pista visual).
+- **Performance:**
+  - **PERF-01:** `signature_pad` pasa a `import()` dinámico (antes en el bundle inicial de los 7 pasos del wizard, aunque solo lo usa "Firma").
+  - **ARQ-02 / PERF-02:** en `reports.ts`, el costo de mantenimiento por vehículo pasa de traer cada registro a un `groupBy` agregado en la base (acotado al tamaño de la flota); `getReports()` se cachea (`unstable_cache`, 60s, sin invalidación por tag — es analítica de admin, tolera hasta 1 minuto desactualizado). El dashboard de Home (`getDashboardData`) queda **a propósito sin caché**: es el estado operativo del día, necesita reflejar cambios al instante.
+- **UX-24 (nuevo, no viene de la auditoría original):** resumen diario de alertas vencidas (devoluciones + service) por email al admin. Endpoint `POST /api/daily-summary` (autenticado por `CRON_SECRET`, mismo criterio que `/api/sync`) + botón manual "Enviar resumen ahora" en `/sync` (admin) para probarlo. **Falta programar el cron diario en Railway** (ver pendientes abajo).
+
+**No implementado — PROD-03 (plantillas de condiciones económicas por modelo/segmento):** requiere una decisión de producto antes de tocar el schema (hoy `ConditionSettings` es un singleton global, sin concepto de segmento en `Vehicle`). Opciones evaluadas con el dueño, sin definir todavía: (a) agregar un campo "segmento" al vehículo + una plantilla por segmento, (b) una plantilla opcional por cada marca+modelo exacto (sin campo nuevo, pero con hasta 14 plantillas), o (c) override de condiciones directo en la ficha de cada auto, sin entidad de plantilla. **Pendiente de decisión.**
+
+**Ítems de prioridad "Baja" del backlog, sin implementar:** UX-16, UX-17, UX-20, UX-23; UI-08, UI-11, UI-12, UI-13, UI-14; COD-08, COD-10, COD-12, COD-13; ARQ-03, ARQ-04, ARQ-06; PERF-03, PERF-04, PERF-05, PERF-06; SEC-07, SEC-08; PROD-05.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
@@ -291,3 +340,15 @@ Plugin de WordPress **independiente** de la app Next.js, en `wordpress-plugin/an
 - ~~Tamaño de flota~~ ≈ 18 unidades / 14 modelos (de `wp_vikrentcar_cars`). Falta cantidad de empleados.
 - Política de nafta (por ahora solo se registra la diferencia, no se cobra).
 - ~~Versión VikRentCar / daños en el plugin~~ free, sin daños cargados para migrar (reconfirmar).
+- **Cron diario de `/api/daily-summary` (v12, UX-24):** falta programarlo en Railway (mismo mecanismo que ya existe para `/api/sync`) para que el resumen de alertas vencidas se mande solo todos los días.
+- **PROD-03 (v12):** decidir cómo se arman las plantillas de condiciones económicas por modelo/segmento (ver las 3 opciones arriba) antes de implementarlo.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
