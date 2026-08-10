@@ -10,6 +10,7 @@ import "server-only";
  * alquileres **finalizados** (los reservados por el sync no tienen contrato).
  * Cortes de mes en hora de Mendoza. Ver PROYECTO-ANDES.md §4.3–4.4.
  */
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput } from "@/lib/datetime";
 import type { ContractPricing } from "@/lib/contract";
@@ -89,106 +90,128 @@ export function sortVehicleReports(
   return [...vehicles].sort((a, b) => mul * (a[sort] - b[sort]) || b.income - a.income);
 }
 
-export async function getReports(months: number = DEFAULT_MONTH_RANGE): Promise<Reports> {
-  const [vehicles, finished, maintenance, damages, activeCount] = await Promise.all([
-    // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
-    // historial de ingresos/costos, y si se lo excluyera acá el total de la
-    // tabla "por vehículo" dejaría de reconciliar contra el KPI de arriba
-    // (que sí suma todo lo finalizado, haya o no vehículo archivado después).
-    prisma.vehicle.findMany({
-      select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
-    }),
-    prisma.rental.findMany({
-      where: { status: "finished" },
-      select: {
-        id: true,
-        vehicleId: true,
-        pricing: true,
-        bookingTotal: true,
-        endAt: true,
-        inspections: { select: { type: true, km: true } },
-      },
-    }),
-    prisma.maintenanceLog.findMany({ select: { vehicleId: true, cost: true } }),
-    prisma.damage.groupBy({
-      by: ["vehicleId"],
-      where: { repaired: false },
-      _count: { _all: true },
-    }),
-    prisma.rental.count({ where: { status: "active" } }),
-  ]);
+/**
+ * Reportes es analítica histórica de solo lectura (admin), no parte del flujo
+ * operativo del día — a diferencia del dashboard (getDashboardData), acá
+ * tolera quedar hasta 1 minuto desatualizado a cambio de no recalcular estas
+ * agregaciones en cada carga de página y en cada export CSV. Sin
+ * invalidación por tag: no vale la complejidad de engancharse a
+ * saveHandover/saveReturn/mantenimiento solo para bajar de 60s a instantáneo
+ * en una pantalla de admin que no se mira en tiempo real.
+ */
+export const getReports = unstable_cache(
+  async (months: number = DEFAULT_MONTH_RANGE): Promise<Reports> => {
+    const [vehicles, finished, maintenanceByVehicle, damages, activeCount] = await Promise.all([
+      // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
+      // historial de ingresos/costos, y si se lo excluyera acá el total de la
+      // tabla "por vehículo" dejaría de reconciliar contra el KPI de arriba
+      // (que sí suma todo lo finalizado, haya o no vehículo archivado después).
+      prisma.vehicle.findMany({
+        select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
+      }),
+      // Sin acotar por fecha a propósito: la tabla "por vehículo" es un
+      // acumulado de toda la vida del auto (ver más abajo), y el ingreso sale
+      // de un campo Json (`pricing`, con fallback a `bookingTotal`) que no se
+      // puede sumar a nivel base de datos — hace falta traer cada alquiler
+      // finalizado para resolverlo en JS. El costo de recorrerlos igual queda
+      // absorbido por el caché de arriba.
+      prisma.rental.findMany({
+        where: { status: "finished" },
+        select: {
+          id: true,
+          vehicleId: true,
+          pricing: true,
+          bookingTotal: true,
+          endAt: true,
+          inspections: { select: { type: true, km: true } },
+        },
+      }),
+      // Agregado en la base (una fila por vehículo) en vez de traer cada
+      // registro de mantenimiento — a diferencia de `finished`, acá sí se
+      // puede sumar en SQL porque `cost` es una columna numérica simple.
+      prisma.maintenanceLog.groupBy({ by: ["vehicleId"], _sum: { cost: true } }),
+      prisma.damage.groupBy({
+        by: ["vehicleId"],
+        where: { repaired: false },
+        _count: { _all: true },
+      }),
+      prisma.rental.count({ where: { status: "active" } }),
+    ]);
 
-  const vMap = new Map<string, VehicleReport>(
-    vehicles.map((v) => [
-      v.id,
-      {
-        id: v.id,
-        label: `${v.brand} ${v.model}`,
-        plate: v.plate,
-        rentals: 0,
-        income: 0,
-        cost: 0,
-        net: 0,
-        damages: 0,
-        archived: v.archivedAt != null,
-      },
-    ]),
-  );
+    const vMap = new Map<string, VehicleReport>(
+      vehicles.map((v) => [
+        v.id,
+        {
+          id: v.id,
+          label: `${v.brand} ${v.model}`,
+          plate: v.plate,
+          rentals: 0,
+          income: 0,
+          cost: 0,
+          net: 0,
+          damages: 0,
+          archived: v.archivedAt != null,
+        },
+      ]),
+    );
 
-  const monthList = recentMonths(monthOf(new Date()), months);
-  const monthMap = new Map<string, MonthPoint>(monthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
+    const monthList = recentMonths(monthOf(new Date()), months);
+    const monthMap = new Map<string, MonthPoint>(monthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
 
-  let incomeTotal = 0;
-  for (const r of finished) {
-    const pricing = (r.pricing ?? {}) as ContractPricing;
-    const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
-    incomeTotal += income;
+    let incomeTotal = 0;
+    for (const r of finished) {
+      const pricing = (r.pricing ?? {}) as ContractPricing;
+      const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
+      incomeTotal += income;
 
-    const handover = r.inspections.find((i) => i.type === "handover");
-    const ret = r.inspections.find((i) => i.type === "return_");
-    const kmDriven = handover && ret ? Math.max(0, ret.km - handover.km) : 0;
+      const handover = r.inspections.find((i) => i.type === "handover");
+      const ret = r.inspections.find((i) => i.type === "return_");
+      const kmDriven = handover && ret ? Math.max(0, ret.km - handover.km) : 0;
 
-    const v = r.vehicleId ? vMap.get(r.vehicleId) : undefined;
-    if (v) {
-      v.rentals += 1;
-      v.income += income;
+      const v = r.vehicleId ? vMap.get(r.vehicleId) : undefined;
+      if (v) {
+        v.rentals += 1;
+        v.income += income;
+      }
+
+      const bucket = monthMap.get(monthOf(r.endAt));
+      if (bucket) {
+        bucket.rentals += 1;
+        bucket.km += kmDriven;
+      }
     }
 
-    const bucket = monthMap.get(monthOf(r.endAt));
-    if (bucket) {
-      bucket.rentals += 1;
-      bucket.km += kmDriven;
+    let costTotal = 0;
+    for (const m of maintenanceByVehicle) {
+      const cost = m._sum.cost ? Number(m._sum.cost) : 0;
+      costTotal += cost;
+      const v = vMap.get(m.vehicleId);
+      if (v) v.cost = cost;
     }
-  }
 
-  let costTotal = 0;
-  for (const m of maintenance) {
-    const cost = m.cost ? Number(m.cost) : 0;
-    costTotal += cost;
-    const v = vMap.get(m.vehicleId);
-    if (v) v.cost += cost;
-  }
+    for (const d of damages) {
+      const v = vMap.get(d.vehicleId);
+      if (v) v.damages = d._count._all;
+    }
 
-  for (const d of damages) {
-    const v = vMap.get(d.vehicleId);
-    if (v) v.damages = d._count._all;
-  }
+    const vehicleReports = [...vMap.values()]
+      .map((v) => ({ ...v, net: v.income - v.cost }))
+      .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
 
-  const vehicleReports = [...vMap.values()]
-    .map((v) => ({ ...v, net: v.income - v.cost }))
-    .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
-
-  return {
-    kpis: {
-      fleet: vehicles.filter((v) => v.archivedAt == null).length,
-      rentedNow: vehicles.filter((v) => v.status === "rented").length,
-      finished: finished.length,
-      active: activeCount,
-      incomeTotal,
-      costTotal,
-      netTotal: incomeTotal - costTotal,
-    },
-    byMonth: monthList.map((m) => monthMap.get(m)!),
-    vehicles: vehicleReports,
-  };
-}
+    return {
+      kpis: {
+        fleet: vehicles.filter((v) => v.archivedAt == null).length,
+        rentedNow: vehicles.filter((v) => v.status === "rented").length,
+        finished: finished.length,
+        active: activeCount,
+        incomeTotal,
+        costTotal,
+        netTotal: incomeTotal - costTotal,
+      },
+      byMonth: monthList.map((m) => monthMap.get(m)!),
+      vehicles: vehicleReports,
+    };
+  },
+  ["reports"],
+  { revalidate: 60, tags: ["reports"] },
+);

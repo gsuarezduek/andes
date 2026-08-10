@@ -6,7 +6,14 @@ const SERVICE_KM_THRESHOLD = 500; // avisar cuando falten ≤ 500 km para el ser
 
 export type MovementState = "pendiente" | "completada" | "demorada";
 
-/** Datos agregados para el dashboard (§4.3). */
+/**
+ * Datos agregados para el dashboard (§4.3). A propósito **sin caché** (a
+ * diferencia de getReports en reports.ts): esto es el estado operativo del
+ * día — un empleado que acaba de cerrar una devolución necesita verla
+ * reflejada al instante en "Hoy", no hasta 60s después. Además las queries ya
+ * están acotadas por su naturaleza (flota chica, ventana de "hoy", filtros de
+ * estado), así que el costo de recalcular en cada carga es bajo.
+ */
 export async function getDashboardData() {
   const now = new Date();
   const todayStr = formatDateInput(now);
