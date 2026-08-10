@@ -9,6 +9,7 @@ import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatArs } from "@/lib/contract";
 import { StatusBanners } from "@/components/rentals/status-banners";
+import { RentalDetailTabs } from "@/components/rentals/rental-detail-tabs";
 import { TeamNotesSection } from "@/components/team-notes-section";
 import { addRentalNote, resolveRentalNote } from "./notes-actions";
 import { ClientInfoSection } from "@/components/rentals/client-info-section";
@@ -27,6 +28,16 @@ import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
+
+/** Placeholder para una pestaña sin contenido — sin esto, la pestaña queda
+ *  en blanco y parece rota en vez de simplemente "no hay nada acá todavía". */
+function TabEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
+      {children}
+    </p>
+  );
+}
 
 export default async function RentalDetailPage({
   params,
@@ -158,34 +169,55 @@ export default async function RentalDetailPage({
         </div>
       )}
 
-      <ClientInfoSection rental={rental} canStartHandover={canStartHandover} editableVehicles={editableVehicles} />
-
-      <div className="flex flex-col gap-3">
-        <SectionTitle>Datos de pago y retiro</SectionTitle>
-        <DateInfoSection rental={rental} />
-        {showPayments && (
-          <PaymentsSection hasContract={hasContract} hasRealPaid={hasRealPaid} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
-        )}
-        <PaymentHistorySection
-          movements={rental.cashMovements.map((m) => ({
-            id: m.id,
-            description: m.description,
-            amount: Number(m.amount),
-            paymentMethodName: m.paymentMethodName,
-            paymentMethodNote: m.paymentMethodNote,
-            createdByName: m.createdBy?.name ?? null,
-            createdAt: m.createdAt,
-          }))}
-        />
-      </div>
-
-      <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
-
-      {/* Documentos del cliente (solo interno: no van al acta ni al email) */}
-      <DocumentsSection documents={rental.documents} />
-
-      {/* Inspecciones registradas */}
-      <InspectionsSection inspections={rental.inspections} />
+      <RentalDetailTabs
+        datos={
+          <>
+            <ClientInfoSection rental={rental} canStartHandover={canStartHandover} editableVehicles={editableVehicles} />
+            <div className="flex flex-col gap-3">
+              <SectionTitle>Datos de pago y retiro</SectionTitle>
+              <DateInfoSection rental={rental} />
+              {showPayments && (
+                <PaymentsSection hasContract={hasContract} hasRealPaid={hasRealPaid} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
+              )}
+            </div>
+          </>
+        }
+        pagos={
+          rental.cashMovements.length === 0 ? (
+            <TabEmpty>Sin pagos registrados.</TabEmpty>
+          ) : (
+            <PaymentHistorySection
+              movements={rental.cashMovements.map((m) => ({
+                id: m.id,
+                description: m.description,
+                amount: Number(m.amount),
+                paymentMethodName: m.paymentMethodName,
+                paymentMethodNote: m.paymentMethodNote,
+                createdByName: m.createdBy?.name ?? null,
+                createdAt: m.createdAt,
+              }))}
+            />
+          )
+        }
+        documentos={
+          /* Documentos del cliente (solo interno: no van al acta ni al email) */
+          rental.documents.length === 0 ? (
+            <TabEmpty>Sin documentos cargados.</TabEmpty>
+          ) : (
+            <DocumentsSection documents={rental.documents} />
+          )
+        }
+        inspecciones={
+          !canEditReturn && !returnManagedInWp && rental.inspections.length === 0 ? (
+            <TabEmpty>Todavía no hay inspecciones registradas.</TabEmpty>
+          ) : (
+            <>
+              <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
+              <InspectionsSection inspections={rental.inspections} />
+            </>
+          )
+        }
+      />
 
       {canStartHandover && !canStartHandoverNow && (
         <p className="rounded-lg bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">

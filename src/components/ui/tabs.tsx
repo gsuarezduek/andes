@@ -1,11 +1,11 @@
 /**
- * Navegación por pestañas dentro de un paso del wizard ("Condiciones",
- * "Comparación") para partirlo en secciones más chicas — evita un solo
- * scroll larguísimo con muchos campos en 375px. Salto libre (sin
- * validación): son solo agrupaciones visuales del mismo formulario, todo se
- * sigue guardando junto al terminar el paso.
+ * Barra de pestañas simple (controlada por el padre) para partir una
+ * pantalla larga en secciones más chicas — evita un solo scroll larguísimo
+ * con mucho contenido en 375px. Salto libre (sin validación): son solo
+ * agrupaciones visuales, no gatean nada. Usado tanto dentro de un paso del
+ * wizard ("Condiciones", "Comparación") como en el detalle de la reserva.
  */
-export function SubStepTabs({
+export function TabBar({
   sections,
   active,
   onChange,

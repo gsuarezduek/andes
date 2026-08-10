@@ -2,7 +2,7 @@ import { useState } from "react";
 import { formatArs, type RentalPayment } from "@/lib/contract";
 import { Row } from "@/components/ui/row";
 import { PaymentsEditor } from "../payments-editor";
-import { SubStepTabs, NextSectionLink } from "../sub-step-tabs";
+import { TabBar, NextSectionLink } from "@/components/ui/tabs";
 import type { StepContext } from "../context";
 
 const SECTIONS = ["Comparación", "Liquidación"];
@@ -14,7 +14,7 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
   const [section, setSection] = useState(0);
   return (
     <div className="flex flex-col gap-3">
-      <SubStepTabs sections={SECTIONS} active={section} onChange={setSection} />
+      <TabBar sections={SECTIONS} active={section} onChange={setSection} />
 
       {section === 0 && (
         <div className="flex flex-col gap-3">

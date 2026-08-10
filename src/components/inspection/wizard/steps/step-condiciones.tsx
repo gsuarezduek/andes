@@ -16,7 +16,7 @@ import {
 } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 import { PaymentsEditor } from "../payments-editor";
-import { SubStepTabs, NextSectionLink } from "../sub-step-tabs";
+import { TabBar, NextSectionLink } from "@/components/ui/tabs";
 import type { StepContext } from "../context";
 
 const SECTIONS = ["Tarifa", "Garantía", "Kilometraje", "Accesorios", "Pago"];
@@ -107,7 +107,7 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <SubStepTabs sections={SECTIONS} active={section} onChange={setSection} />
+      <TabBar sections={SECTIONS} active={section} onChange={setSection} />
 
       {section === 0 && (
         <div className="flex flex-col gap-3">
