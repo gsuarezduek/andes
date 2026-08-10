@@ -5,6 +5,28 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
+import { formatArs } from "@/lib/contract";
+import { diffFields } from "@/lib/movement-audit";
+
+const CONDITION_LABELS = {
+  kmPerDay: "Km por día",
+  extraKmRate: "Km extra",
+  extraHourPercent: "Hora extra (%)",
+  deductible: "Franquicia/Garantía estándar",
+  deductibleReduced: "Franquicia/Garantía con mejora de seguro",
+  kmPackPrice: "Precio por pack de KM",
+  sendHandoverActa: "Enviar Acta de Entrega",
+  sendReturnActa: "Enviar Acta de Devolución",
+} as const;
+
+const CONDITION_MONEY_FIELDS = new Set(["extraKmRate", "deductible", "deductibleReduced", "kmPackPrice"]);
+
+function formatConditionValue(key: string | number | symbol, v: unknown): string {
+  if (v == null || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Sí" : "No";
+  if (CONDITION_MONEY_FIELDS.has(String(key))) return formatArs(Number(v));
+  return String(v);
+}
 
 /** Entero no negativo, o null si el campo viene vacío. */
 function intOrNull(v: FormDataEntryValue | null): number | null {
@@ -26,7 +48,7 @@ function moneyOrNull(v: FormDataEntryValue | null): number | null {
  * "Condiciones" de la entrega. La hora extra es un % de la tarifa diaria.
  */
 export async function saveConditions(formData: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const data = {
     kmPerDay: intOrNull(formData.get("kmPerDay")),
     extraKmRate: moneyOrNull(formData.get("extraKmRate")),
@@ -37,11 +59,39 @@ export async function saveConditions(formData: FormData) {
     sendHandoverActa: formData.get("sendHandoverActa") === "on",
     sendReturnActa: formData.get("sendReturnActa") === "on",
   };
-  await prisma.conditionSettings.upsert({
-    where: { id: 1 },
-    create: { id: 1, ...data },
-    update: data,
-  });
+
+  const existing = await prisma.conditionSettings.findUnique({ where: { id: 1 } });
+  // Son condiciones económicas que se precargan en cada entrega — un cambio
+  // acá afecta a todos los alquileres siguientes en silencio. Queda quién
+  // cambió qué y cuándo, mismo criterio que el historial de ediciones de Caja.
+  const changes = existing
+    ? diffFields(
+        {
+          kmPerDay: existing.kmPerDay,
+          extraKmRate: existing.extraKmRate != null ? Number(existing.extraKmRate) : null,
+          extraHourPercent: existing.extraHourPercent,
+          deductible: existing.deductible != null ? Number(existing.deductible) : null,
+          deductibleReduced: existing.deductibleReduced != null ? Number(existing.deductibleReduced) : null,
+          kmPackPrice: existing.kmPackPrice != null ? Number(existing.kmPackPrice) : null,
+          sendHandoverActa: existing.sendHandoverActa,
+          sendReturnActa: existing.sendReturnActa,
+        },
+        data,
+        CONDITION_LABELS,
+        formatConditionValue,
+      )
+    : [];
+
+  await prisma.$transaction([
+    prisma.conditionSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, ...data },
+      update: data,
+    }),
+    ...(changes.length > 0
+      ? [prisma.conditionSettingsEdit.create({ data: { changes, editedById: user.id } })]
+      : []),
+  ]);
   revalidatePath("/settings/general");
   redirect("/settings/general?saved=1");
 }

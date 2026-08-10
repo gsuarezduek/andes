@@ -151,6 +151,7 @@ model User {
   createdSafeMovements SafeMovement[]       @relation("SafeMovementCreator")
   deletedSafeMovements SafeMovement[]       @relation("SafeMovementDeleter")
   safeMovementEdits    SafeMovementEdit[]   @relation("SafeMovementEditor")
+  conditionSettingsEdits ConditionSettingsEdit[]
   loginEvents          LoginEvent[]
   passwordResetTokens  PasswordResetToken[]
 
@@ -832,6 +833,22 @@ model ConditionSettings {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("condition_settings")
+}
+
+// Auditoría de cambios en ConditionSettings (singleton, sin FK propia: no
+// hace falta, solo hay una fila). Mismo shape de `changes` (FieldChange[])
+// que CashMovementEdit/SafeMovementEdit — ver src/lib/movement-audit.ts.
+model ConditionSettingsEdit {
+  id String @id @default(cuid())
+
+  changes Json // FieldChange[]
+
+  editedById String @map("edited_by_id")
+  editedBy   User   @relation(fields: [editedById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("condition_settings_edits")
 }
 
 // Textos editables de los correos transaccionales y casilla remitente.

@@ -23,3 +23,28 @@ export function diffDescriptionAndAmount(
   }
   return changes;
 }
+
+/**
+ * Diff genérico campo por campo entre dos objetos planos (ej. antes/después
+ * de guardar Configuración → Condiciones), con formato de valor a cargo del
+ * caller. `labels` define qué campos comparar y cómo se llaman en el
+ * historial; los campos no listados se ignoran. Trata `null`/`undefined`/`""`
+ * como "vacío" equivalentes entre sí (no genera un cambio falso).
+ */
+export function diffFields<T extends Record<string, unknown>>(
+  existing: T,
+  next: T,
+  labels: Partial<Record<keyof T, string>>,
+  formatValue: (key: keyof T, v: unknown) => string,
+): FieldChange[] {
+  const isEmpty = (v: unknown) => v == null || v === "";
+  const changes: FieldChange[] = [];
+  for (const key of Object.keys(labels) as (keyof T)[]) {
+    const a = existing[key];
+    const b = next[key];
+    if (a === b) continue;
+    if (isEmpty(a) && isEmpty(b)) continue;
+    changes.push({ field: labels[key]!, from: formatValue(key, a), to: formatValue(key, b) });
+  }
+  return changes;
+}

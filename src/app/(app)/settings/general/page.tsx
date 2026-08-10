@@ -5,6 +5,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
+import { formatDateTime } from "@/lib/datetime";
+import type { FieldChange } from "@/lib/movement-audit";
 import { saveConditions } from "../actions";
 import { createChecklistItem } from "../../checklist/actions";
 import { ChecklistItemRow } from "./checklist-item-row";
@@ -19,9 +21,14 @@ export default async function GeneralSettingsPage({
   await requireAdmin();
   const { saved } = await searchParams;
 
-  const [conditions, items] = await Promise.all([
+  const [conditions, items, conditionEdits] = await Promise.all([
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.checklistItem.findMany({ orderBy: { ordering: "asc" } }),
+    prisma.conditionSettingsEdit.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { editedBy: { select: { name: true } } },
+    }),
   ]);
 
   return (
@@ -133,6 +140,30 @@ export default async function GeneralSettingsPage({
             <SubmitButton>Guardar</SubmitButton>
           </div>
         </form>
+
+        {conditionEdits.length > 0 && (
+          <details className="rounded-xl border border-foreground/10 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium text-foreground/70">
+              Historial de cambios ({conditionEdits.length})
+            </summary>
+            <ul className="mt-3 flex flex-col gap-3">
+              {conditionEdits.map((e) => (
+                <li key={e.id} className="text-sm">
+                  <p className="text-xs text-foreground/50">
+                    {e.editedBy?.name ?? "—"} · {formatDateTime(e.createdAt)}
+                  </p>
+                  <ul className="mt-1 list-disc pl-4 text-xs text-foreground/70">
+                    {(e.changes as FieldChange[]).map((c, i) => (
+                      <li key={i}>
+                        {c.field}: {c.from} → {c.to}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </section>
 
       {/* Checklist */}
