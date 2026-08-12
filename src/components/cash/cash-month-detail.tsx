@@ -77,7 +77,9 @@ export function CashMonthDetail({
 
 function editSummary(edit: CashMovementEditRow): string {
   if (edit.action === "deleted") {
-    return `Eliminado — ${edit.movementDescription} (${formatArs(edit.movementAmount)})`;
+    const note = edit.changes?.find((c) => c.field === "Motivo")?.to;
+    const base = `Eliminado — ${edit.movementDescription} (${formatArs(edit.movementAmount)})`;
+    return note ? `${base} · Motivo: ${note}` : base;
   }
   return (edit.changes ?? []).map((c) => `${c.field}: ${c.from} → ${c.to}`).join(" · ");
 }

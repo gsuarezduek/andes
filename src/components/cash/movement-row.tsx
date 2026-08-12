@@ -54,6 +54,7 @@ export function MovementRow({
         }
         action={deleteCashMovement.bind(null, movement.id)}
         onCancel={() => setMode("edit")}
+        requireNote
       />
     );
   }

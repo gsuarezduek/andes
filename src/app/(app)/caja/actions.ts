@@ -185,11 +185,16 @@ export async function updateCashMovement(id: string, formData: FormData) {
 
 // Borrado de un movimiento mal cargado. Solo admin. Soft delete: la fila
 // queda (deletedAt/deletedById) para que el historial de ediciones pueda
-// seguir mostrando qué era.
-export async function deleteCashMovement(id: string) {
+// seguir mostrando qué era. El motivo (obligatorio) queda en `changes` para
+// que el historial lo muestre junto al resto de la auditoría.
+export async function deleteCashMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
+  const note = z.string().trim().min(1).max(300).parse(formData.get("note"));
+
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
   if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
+
+  const changes: CashMovementFieldChange[] = [{ field: "Motivo", from: "—", to: note }];
 
   await prisma.$transaction([
     prisma.cashMovement.update({
@@ -197,7 +202,7 @@ export async function deleteCashMovement(id: string) {
       data: { deletedAt: new Date(), deletedById: user.id },
     }),
     prisma.cashMovementEdit.create({
-      data: { cashMovementId: id, action: "deleted", editedById: user.id },
+      data: { cashMovementId: id, action: "deleted", changes, editedById: user.id },
     }),
   ]);
 
