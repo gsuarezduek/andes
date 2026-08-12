@@ -10,6 +10,7 @@ import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
+import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const optNum = z.number().nonnegative().optional();
@@ -107,6 +108,12 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
 
   const vehicle = await prisma.vehicle.findUnique({ where: { id: data.vehicleId } });
   if (!vehicle) return { ok: false, error: "El vehículo no existe." };
+  if (vehicle.archivedAt) return { ok: false, error: "Ese vehículo está archivado." };
+  // El vehículo puede haber cambiado dentro del wizard (ver `fetchHandoverVehicle`)
+  // o venir de una reserva "sin unidad asignada" — revalidar acá que siga libre
+  // en estas fechas, no solo confiar en el chequeo que se hizo al elegirlo.
+  const clash = await findOverlappingRental(vehicle.id, rental.startAt, rental.endAt, rental.id);
+  if (clash) return { ok: false, error: overlapErrorMessage(clash) };
 
   let inspection;
   try {
@@ -230,4 +237,62 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
   revalidatePath(`/rentals/${rental.id}`);
   revalidatePath("/rentals");
   return { ok: true, inspectionId: inspection.id };
+}
+
+export type FetchHandoverVehicleResult =
+  | {
+      ok: true;
+      vehicle: { id: string; label: string; currentKm: number; maxFuel?: number };
+      existingDamages: { posX: number; posY: number; description: string | null }[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Vuelve a buscar los datos de un vehículo (km, nafta, daños activos) para
+ * cambiar la unidad DURANTE la entrega — ej. el checklist encuentra una falla
+ * (luces, etc.) y hay que asignar otro auto sin perder lo ya cargado (cliente,
+ * documentos). No persiste nada: el `vehicleId` nuevo se guarda recién al
+ * confirmar la entrega, igual que el resto del borrador. Solo mientras la
+ * reserva sigue `reserved` y sin acta de entrega todavía.
+ */
+export async function fetchHandoverVehicle(
+  rentalId: string,
+  vehicleId: string,
+): Promise<FetchHandoverVehicleResult> {
+  await requireUser();
+
+  const rental = await prisma.rental.findUnique({
+    where: { id: rentalId },
+    include: { inspections: { where: { type: "handover" }, select: { id: true } } },
+  });
+  if (!rental) return { ok: false, error: "El alquiler no existe." };
+  if (rental.status !== "reserved" || rental.inspections.length > 0) {
+    return { ok: false, error: "Ya no se puede cambiar la unidad: la entrega ya se guardó." };
+  }
+
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id: vehicleId },
+    select: { id: true, plate: true, brand: true, model: true, currentKm: true, fuelLevels: true, archivedAt: true },
+  });
+  if (!vehicle) return { ok: false, error: "El vehículo no existe." };
+  if (vehicle.archivedAt) return { ok: false, error: "Ese vehículo está archivado." };
+
+  const clash = await findOverlappingRental(vehicle.id, rental.startAt, rental.endAt, rental.id);
+  if (clash) return { ok: false, error: overlapErrorMessage(clash) };
+
+  const existingDamages = await prisma.damage.findMany({
+    where: { vehicleId: vehicle.id, repaired: false, view: "top" },
+    select: { posX: true, posY: true, description: true },
+  });
+
+  return {
+    ok: true,
+    vehicle: {
+      id: vehicle.id,
+      label: `${vehicle.brand} ${vehicle.model} · ${vehicle.plate}`,
+      currentKm: vehicle.currentKm,
+      maxFuel: vehicle.fuelLevels,
+    },
+    existingDamages,
+  };
 }

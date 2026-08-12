@@ -22,6 +22,7 @@ import { computeComparison } from "@/lib/comparison";
 import { parseDecimal } from "@/lib/number-input";
 import type { DocumentKindInput } from "@/lib/inspection-input";
 import { cancelRemoteSignature } from "@/app/(app)/rentals/[id]/remote-sign-actions";
+import { fetchHandoverVehicle } from "@/app/(app)/rentals/[id]/handover/actions";
 import { newId } from "./wizard/new-id";
 import { buildSettlement, summaryConditions, validateStep, buildInspectionPayload } from "./wizard/logic";
 import type { StepContext } from "./wizard/context";
@@ -44,7 +45,6 @@ export function InspectionWizard(props: InspectionWizardProps) {
     ? ["Datos", "Condiciones", "Estado", "Daños", "Fotos", "Firma", "Resumen"]
     : ["Datos", "Estado", "Daños", "Fotos", "Comparación", "Firma", "Resumen"];
 
-  const maxFuel = props.maxFuel ?? 8;
   const storageKey = `andes:${props.mode}:${props.rentalId}`;
   const sigRef = useRef<SignaturePadHandle>(null);
   const geo = useRef<{ lat?: number; lng?: number }>({});
@@ -69,6 +69,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const [remoteBusy, setRemoteBusy] = useState(false);
   // El cliente aceptó las condiciones (habilita la firma en este dispositivo).
   const [clientAccepted, setClientAccepted] = useState(false);
+  // Cambio de unidad dentro de la entrega (ej. el checklist encuentra una
+  // falla): reemplaza `props.vehicle`/`props.existingDamages` una vez
+  // confirmado por el servidor (disponibilidad + datos del auto nuevo).
+  const [vehicleOverride, setVehicleOverride] = useState<{
+    vehicle: { id: string; label: string; currentKm: number; maxFuel?: number };
+    existingDamages: { posX: number; posY: number; description: string | null }[];
+  } | null>(null);
+  const [vehicleSwapBusy, setVehicleSwapBusy] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(() => ({
     draftId: newId(),
@@ -103,6 +111,19 @@ export function InspectionWizard(props: InspectionWizardProps) {
     observations: "",
     signerName: props.client.name,
   }));
+
+  // Vehículo "efectivo" para el resto del wizard: el de la reserva, o el que
+  // se haya elegido con `swapVehicle` durante la entrega. `wizardProps` es lo
+  // que reciben los pasos (`ctx.props`) — así `step-danos.tsx`/etc. no tienen
+  // que saber que hubo un cambio de unidad.
+  const effectiveVehicle = vehicleOverride?.vehicle ?? props.vehicle;
+  const effectiveExistingDamages = vehicleOverride?.existingDamages ?? props.existingDamages;
+  const maxFuel = vehicleOverride?.vehicle.maxFuel ?? props.maxFuel ?? 8;
+  const wizardProps: InspectionWizardProps = {
+    ...props,
+    vehicle: effectiveVehicle,
+    existingDamages: effectiveExistingDamages,
+  };
 
   useEffect(() => {
     let draftId = draft.draftId;
@@ -410,6 +431,37 @@ export function InspectionWizard(props: InspectionWizardProps) {
     setQueuedSubmit(true);
   }
 
+  /**
+   * Cambia la unidad asignada sin perder lo demás cargado (Datos, documentos,
+   * pagos ya anotados). Revalida en el servidor que el auto nuevo no esté
+   * archivado ni tenga otra reserva superpuesta, y trae su km/nafta/daños
+   * activos. El checklist, km y nafta se resetean: son específicos del auto
+   * físico, no tiene sentido arrastrar lo cargado para el auto anterior.
+   */
+  async function swapVehicle(vehicleId: string) {
+    setVehicleSwapBusy(true);
+    setError(undefined);
+    try {
+      const res = await fetchHandoverVehicle(props.rentalId, vehicleId);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setVehicleOverride({ vehicle: res.vehicle, existingDamages: res.existingDamages });
+      patch({
+        vehicleId: res.vehicle.id,
+        km: String(res.vehicle.currentKm),
+        fuelLevel: 0,
+        checklist: {},
+        damages: [],
+      });
+    } catch {
+      setError("No se pudo cambiar la unidad. Reintentá.");
+    } finally {
+      setVehicleSwapBusy(false);
+    }
+  }
+
   // Genera el pedido de firma remota y muestra el QR para que lo escanee el
   // cliente. La firma llega por el polling de abajo.
   async function startRemoteSign() {
@@ -419,7 +471,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     try {
       const summary = {
         vehicleLabel:
-          props.vehicle?.label ??
+          effectiveVehicle?.label ??
           props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ??
           "—",
         km: Number(draft.km || 0),
@@ -589,7 +641,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
   ];
 
   const ctx: StepContext = {
-    props,
+    props: wizardProps,
     draft,
     setDraft,
     patch,
@@ -617,6 +669,8 @@ export function InspectionWizard(props: InspectionWizardProps) {
     photosPending,
     online,
     queuedSubmit,
+    vehicleSwapBusy,
+    swapVehicle,
   };
 
   return (

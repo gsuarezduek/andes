@@ -39,4 +39,9 @@ export type StepContext = {
   photosPending: boolean;
   online: boolean;
   queuedSubmit: boolean;
+  /** Cambiar la unidad asignada sin perder lo demás cargado (entrega). Ver
+   *  `fetchHandoverVehicle`: revalida disponibilidad y trae km/nafta/daños del
+   *  vehículo nuevo antes de reemplazarlo en el draft. */
+  vehicleSwapBusy: boolean;
+  swapVehicle: (vehicleId: string) => Promise<void>;
 };

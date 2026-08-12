@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { TextField, SelectField } from "@/components/ui/fields";
 import { CameraIcon, GalleryIcon, CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
@@ -5,6 +6,50 @@ import { languageLabels, documentKindLabels } from "@/lib/labels";
 import { DOC_KINDS, type Lang } from "../types";
 import { newId } from "../new-id";
 import type { StepContext } from "../context";
+
+function VehicleField({ ctx }: { ctx: StepContext }) {
+  const [editing, setEditing] = useState(false);
+  const { props, vehicleSwapBusy, swapVehicle } = ctx;
+  const vehicle = props.vehicle!;
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-foreground/10 p-4 text-sm">
+        <div>
+          <span className="text-foreground/60">Vehículo: </span>
+          <span className="font-medium">{vehicle.label}</span>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 text-xs font-medium text-foreground/70 underline"
+          onClick={() => setEditing(true)}
+        >
+          Cambiar unidad
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <SelectField
+      id="vehicleSwap"
+      label="Cambiar a otra unidad"
+      hint={vehicleSwapBusy ? "Verificando disponibilidad…" : "Revalida que esté libre en estas fechas y trae su km/nafta"}
+      defaultValue={vehicle.id}
+      disabled={vehicleSwapBusy}
+      onChange={async (e) => {
+        const id = e.target.value;
+        setEditing(false);
+        if (!id || id === vehicle.id) return;
+        await swapVehicle(id);
+      }}
+    >
+      {props.vehicleOptions.map((v) => (
+        <option key={v.id} value={v.id}>{v.label}</option>
+      ))}
+    </SelectField>
+  );
+}
 
 export function StepDatos({ ctx }: { ctx: StepContext }) {
   const { draft, patch, props, isHandover, addDocument } = ctx;
@@ -131,10 +176,14 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
         </div>
       )}
       {props.vehicle ? (
-        <div className="rounded-xl border border-foreground/10 p-4 text-sm">
-          <span className="text-foreground/60">Vehículo: </span>
-          <span className="font-medium">{props.vehicle.label}</span>
-        </div>
+        isHandover ? (
+          <VehicleField ctx={ctx} />
+        ) : (
+          <div className="rounded-xl border border-foreground/10 p-4 text-sm">
+            <span className="text-foreground/60">Vehículo: </span>
+            <span className="font-medium">{props.vehicle.label}</span>
+          </div>
+        )
       ) : (
         <SelectField id="vehicleId" label="Vehículo" hint="Reserva sin unidad asignada" value={draft.vehicleId} onChange={(e) => patch({ vehicleId: e.target.value })}>
           <option value="">Elegir vehículo…</option>

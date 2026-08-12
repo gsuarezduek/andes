@@ -4,7 +4,7 @@ import type { InspectionInput } from "@/lib/inspection-input";
 // --- Mocks (hoisted para poder referenciarlos en vi.mock) ---
 const { prismaMock, requireUserMock, actaMock } = vi.hoisted(() => ({
   prismaMock: {
-    rental: { findUnique: vi.fn(), update: vi.fn() },
+    rental: { findUnique: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
     vehicle: { findUnique: vi.fn(), update: vi.fn() },
     inspection: { create: vi.fn() },
     $transaction: vi.fn(),
