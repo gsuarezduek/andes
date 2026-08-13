@@ -3,11 +3,12 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import {
   getReports,
   sortVehicleReports,
-  MONTH_RANGE_OPTIONS,
-  DEFAULT_MONTH_RANGE,
+  parseReportPeriod,
+  reportPeriodParam,
+  reportPeriodLabel,
+  REPORT_PERIOD_OPTIONS,
   DEFAULT_VEHICLE_SORT,
   type MonthPoint,
-  type MonthRangeOption,
   type VehicleSortKey,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
@@ -26,31 +27,52 @@ const VEHICLE_SORT_LABELS: Record<VehicleSortKey, string> = {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ months?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ period?: string; sort?: string; dir?: string }>;
 }) {
   await requireAdmin();
-  const { months: rawMonths, sort: rawSort, dir: rawDir } = await searchParams;
+  const { period: rawPeriod, sort: rawSort, dir: rawDir } = await searchParams;
 
-  const months = (MONTH_RANGE_OPTIONS.find((m) => String(m) === rawMonths) ??
-    DEFAULT_MONTH_RANGE) as MonthRangeOption;
+  const period = parseReportPeriod(rawPeriod);
+  const periodParam = reportPeriodParam(period);
   const sort = VEHICLE_SORT_KEYS.includes(rawSort as VehicleSortKey)
     ? (rawSort as VehicleSortKey)
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, vehicles: unsortedVehicles } = await getReports(months);
+  const { kpis, byMonth, vehicles: unsortedVehicles } = await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
   /** href de un encabezado de columna: si ya se ordena por esa columna, invierte la dirección. */
   function sortHref(key: VehicleSortKey): string {
     const nextDir = sort === key && dir === "desc" ? "asc" : "desc";
-    return `/reports?months=${months}&sort=${key}&dir=${nextDir}`;
+    return `/reports?period=${periodParam}&sort=${key}&dir=${nextDir}`;
   }
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
+          <p className="text-sm text-foreground/60">{reportPeriodLabel(period)}</p>
+        </div>
+        <form className="flex items-center gap-2">
+          {sort !== DEFAULT_VEHICLE_SORT && <input type="hidden" name="sort" value={sort} />}
+          {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
+          <select
+            name="period"
+            defaultValue={periodParam}
+            className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+          >
+            {REPORT_PERIOD_OPTIONS.map((o) => (
+              <option key={o.param} value={o.param}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button className="h-9 rounded-lg border border-foreground/15 px-3 text-sm font-medium">
+            Aplicar
+          </button>
+        </form>
       </div>
 
       {/* KPIs */}
@@ -67,32 +89,12 @@ export default async function ReportsPage({
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground/70">Alquileres finalizados por mes</h2>
-          <div className="flex items-center gap-3">
-            <form className="flex items-center gap-2">
-              {sort !== DEFAULT_VEHICLE_SORT && <input type="hidden" name="sort" value={sort} />}
-              {dir !== "desc" && <input type="hidden" name="dir" value={dir} />}
-              <select
-                name="months"
-                defaultValue={String(months)}
-                className="h-8 rounded-lg border border-foreground/15 bg-transparent px-2 text-xs outline-none focus:border-foreground/40"
-              >
-                {MONTH_RANGE_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    Últimos {m} meses
-                  </option>
-                ))}
-              </select>
-              <button className="h-8 rounded-lg border border-foreground/15 px-3 text-xs font-medium">
-                Aplicar
-              </button>
-            </form>
-            <a
-              className="text-xs font-medium underline"
-              href={`/api/reports/export?type=months&months=${months}`}
-            >
-              Exportar CSV
-            </a>
-          </div>
+          <a
+            className="text-xs font-medium underline"
+            href={`/api/reports/export?type=months&period=${periodParam}`}
+          >
+            Exportar CSV
+          </a>
         </div>
         <MonthBars data={byMonth} />
       </section>
@@ -103,7 +105,7 @@ export default async function ReportsPage({
           <h2 className="text-sm font-semibold text-foreground/70">Por vehículo</h2>
           <a
             className="text-xs font-medium underline"
-            href={`/api/reports/export?type=vehicles&sort=${sort}&dir=${dir}`}
+            href={`/api/reports/export?type=vehicles&period=${periodParam}&sort=${sort}&dir=${dir}`}
           >
             Exportar CSV
           </a>

@@ -3,8 +3,7 @@ import { getSessionUser } from "@/lib/auth-helpers";
 import {
   getReports,
   sortVehicleReports,
-  MONTH_RANGE_OPTIONS,
-  DEFAULT_MONTH_RANGE,
+  parseReportPeriod,
   DEFAULT_VEHICLE_SORT,
   type VehicleSortKey,
 } from "@/lib/reports";
@@ -22,15 +21,14 @@ export async function GET(req: NextRequest) {
   }
 
   const type = req.nextUrl.searchParams.get("type") ?? "vehicles";
-  const rawMonths = req.nextUrl.searchParams.get("months");
-  const months = MONTH_RANGE_OPTIONS.find((m) => String(m) === rawMonths) ?? DEFAULT_MONTH_RANGE;
+  const period = parseReportPeriod(req.nextUrl.searchParams.get("period") ?? undefined);
   const rawSort = req.nextUrl.searchParams.get("sort");
   const sort = VEHICLE_SORT_KEYS.includes(rawSort as VehicleSortKey)
     ? (rawSort as VehicleSortKey)
     : DEFAULT_VEHICLE_SORT;
   const dir = req.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
 
-  const reports = await getReports(months);
+  const reports = await getReports(period);
 
   let rows: (string | number)[][];
   let name: string;
