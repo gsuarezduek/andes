@@ -1,56 +1,28 @@
-import { ButtonLink } from "@/components/ui/button";
-import { SectionTitle } from "@/components/ui/section-title";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
+import { cashPeriodSearch } from "@/lib/cash";
+import { SectionTitle } from "@/components/ui/section-title";
 import { CashMovementsBoard, type PaymentMethodOption } from "./cash-movements-board";
-import type { CashMonthDetail as CashMonthDetailData, CashMovementEditRow } from "@/lib/cash";
+import type { CashPeriodDetail as CashPeriodDetailData, CashMovementEditRow, CashPeriod } from "@/lib/cash";
 
-function monthLabel(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-AR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-export function CashMonthDetail({
+export function CashPeriodDetail({
   data,
   edits,
   paymentMethods,
-  todayMonth,
+  period,
 }: {
-  data: CashMonthDetailData;
+  data: CashPeriodDetailData;
   edits: CashMovementEditRow[];
   paymentMethods: PaymentMethodOption[];
-  todayMonth: string;
+  period: CashPeriod;
 }) {
-  const nav = (target: string) => `/caja?month=${target}`;
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{monthLabel(data.month)}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            className="text-xs font-medium underline"
-            href={`/api/caja/export?month=${data.month}`}
-          >
-            Exportar CSV
-          </a>
-          <ButtonLink variant="secondary" href={nav(data.prevMonth)}>
-            ← Anterior
-          </ButtonLink>
-          {data.month !== todayMonth && (
-            <ButtonLink variant="secondary" href={nav(todayMonth)}>
-              Hoy
-            </ButtonLink>
-          )}
-          <ButtonLink variant="secondary" href={nav(data.nextMonth)}>
-            Siguiente →
-          </ButtonLink>
-        </div>
+        <h2 className="text-lg font-semibold">{data.periodLabel}</h2>
+        <a className="text-xs font-medium underline" href={`/api/caja/export?${cashPeriodSearch(period)}`}>
+          Exportar CSV
+        </a>
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-center">
@@ -68,7 +40,7 @@ export function CashMonthDetail({
         </div>
       </div>
 
-      <CashMovementsBoard incomes={data.incomes} expenses={data.expenses} paymentMethods={paymentMethods} />
+      <CashMovementsBoard incomes={data.incomes} expenses={data.expenses} paymentMethods={paymentMethods} period={period} />
 
       <EditHistorySection edits={edits} />
     </div>
@@ -90,7 +62,7 @@ function EditHistorySection({ edits }: { edits: CashMovementEditRow[] }) {
       <SectionTitle>Historial de ediciones</SectionTitle>
       {edits.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin ediciones este mes.
+          Sin ediciones en este período.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">

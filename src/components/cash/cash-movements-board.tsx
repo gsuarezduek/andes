@@ -3,10 +3,11 @@
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
-import { SelectField } from "@/components/ui/fields";
 import { formatArs } from "@/lib/contract";
 import { MovementRow } from "./movement-row";
+import { CashPeriodPicker } from "./cash-period-picker";
 import type { CashMovementRow } from "@/lib/cash";
+import type { CashPeriod } from "@/lib/cash-period";
 
 export type PaymentMethodOption = {
   id: string;
@@ -19,15 +20,23 @@ function sum(rows: CashMovementRow[]): number {
   return rows.reduce((acc, r) => acc + r.amount, 0);
 }
 
-/** Ingresos y egresos del mes, con un filtro por cuenta (medio de pago) compartido entre las dos columnas. */
+/**
+ * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
+ * achicado a la izquierda) y el selector de fecha (Hoy/Semana/Mes/fecha
+ * puntual, a la derecha) en la misma fila. El filtro de cuenta es
+ * client-side sobre los datos ya traídos para el período; el de fecha
+ * navega y trae datos nuevos del server (ver CashPeriodPicker).
+ */
 export function CashMovementsBoard({
   incomes,
   expenses,
   paymentMethods,
+  period,
 }: {
   incomes: CashMovementRow[];
   expenses: CashMovementRow[];
   paymentMethods: PaymentMethodOption[];
+  period: CashPeriod;
 }) {
   const [accountId, setAccountId] = useState("");
 
@@ -44,32 +53,37 @@ export function CashMovementsBoard({
 
   return (
     <div className="flex flex-col gap-4">
-      <SelectField
-        id="accountFilter"
-        label="Filtrar por cuenta"
-        value={accountId}
-        onChange={(e) => setAccountId(e.target.value)}
-      >
-        <option value="">Todas las cuentas</option>
-        {ownMethods.length > 0 && (
-          <optgroup label="Propias">
-            {ownMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {thirdPartyMethods.length > 0 && (
-          <optgroup label="Ajenas (Proveedores/Equipo)">
-            {thirdPartyMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </SelectField>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-foreground/80">Cuenta</span>
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="h-11 w-48 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+          >
+            <option value="">Todas las cuentas</option>
+            {ownMethods.length > 0 && (
+              <optgroup label="Propias">
+                {ownMethods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {thirdPartyMethods.length > 0 && (
+              <optgroup label="Ajenas (Proveedores/Equipo)">
+                {thirdPartyMethods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+        <CashPeriodPicker period={period} />
+      </div>
 
       {selectedAccount && (
         <div className="grid grid-cols-3 gap-3 text-center">

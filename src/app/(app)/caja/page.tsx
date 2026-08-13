@@ -3,14 +3,15 @@ import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import {
   currentMonth,
-  getCashMonthDetail,
-  getCashMonthEdits,
+  getCashPeriodDetail,
+  getCashPeriodEdits,
   getOwnCashMovements,
   getRentalPickerOptions,
+  parseCashPeriod,
 } from "@/lib/cash";
 import { getAllSafeMovements, getOwnSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
 import { MovementLauncher } from "@/components/cash/movement-launcher";
-import { CashMonthDetail } from "@/components/cash/cash-month-detail";
+import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { CashOwnList } from "@/components/cash/cash-own-list";
 import { SafeSection } from "@/components/cash/safe-section";
 
@@ -19,12 +20,11 @@ export const metadata: Metadata = { title: "Caja — Andes" };
 export default async function CajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ period?: string; date?: string }>;
 }) {
   const user = await requireUser();
-  const { month: rawMonth } = await searchParams;
-  const today = currentMonth();
-  const month = rawMonth && /^\d{4}-\d{2}$/.test(rawMonth) ? rawMonth : today;
+  const { period: rawPeriod, date: rawDate } = await searchParams;
+  const period = parseCashPeriod(rawPeriod, rawDate);
 
   const [paymentMethods, rentalOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -49,11 +49,11 @@ export default async function CajaPage({
 
       {user.role === "admin" ? (
         <>
-          <CashMonthDetail
-            data={await getCashMonthDetail(month)}
-            edits={await getCashMonthEdits(month)}
+          <CashPeriodDetail
+            data={await getCashPeriodDetail(period)}
+            edits={await getCashPeriodEdits(period)}
             paymentMethods={paymentMethods}
-            todayMonth={today}
+            period={period}
           />
           <SafeSection
             movements={await getAllSafeMovements()}
@@ -63,7 +63,7 @@ export default async function CajaPage({
         </>
       ) : (
         <>
-          <CashOwnList items={await getOwnCashMovements(user.id, today)} />
+          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
           <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} />
         </>
       )}

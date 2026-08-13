@@ -1,10 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
-import { getCashMonthDetail, currentMonth, type CashMovementRow } from "@/lib/cash";
+import { getCashPeriodDetail, parseCashPeriod, type CashMovementRow, type CashPeriod } from "@/lib/cash";
 import { formatDateTime } from "@/lib/datetime";
 import { csvResponse } from "@/lib/csv";
 
 export const runtime = "nodejs";
+
+// Nombre de archivo seguro para el header Content-Disposition (ByteString:
+// sólo Latin-1). El label legible (`detail.periodLabel`, ej. "Esta semana
+// (10/08/2026 – 16/08/2026)") tiene guión largo y paréntesis — rompe el
+// header. Se arma en cambio a partir del período crudo, siempre ASCII.
+function periodFileSuffix(period: CashPeriod): string {
+  return period.kind === "date" ? period.date : period.kind;
+}
 
 function toRow(m: CashMovementRow): (string | number)[] {
   return [
@@ -19,16 +27,18 @@ function toRow(m: CashMovementRow): (string | number)[] {
   ];
 }
 
-/** Exporta los movimientos de Caja del mes visible como CSV (admin). ?month=YYYY-MM */
+/** Exporta los movimientos de Caja del período visible como CSV (admin). ?period=today|week|month|date&date=YYYY-MM-DD */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 
-  const rawMonth = req.nextUrl.searchParams.get("month");
-  const month = rawMonth && /^\d{4}-\d{2}$/.test(rawMonth) ? rawMonth : currentMonth();
-  const detail = await getCashMonthDetail(month);
+  const period = parseCashPeriod(
+    req.nextUrl.searchParams.get("period") ?? undefined,
+    req.nextUrl.searchParams.get("date") ?? undefined,
+  );
+  const detail = await getCashPeriodDetail(period);
 
   const rows: (string | number)[][] = [
     ["Tipo", "Detalle", "Monto", "Medio de pago", "Destino (egreso)", "Reserva", "Cargado por", "Fecha"],
@@ -36,5 +46,5 @@ export async function GET(req: NextRequest) {
   for (const m of detail.incomes) rows.push(toRow(m));
   for (const m of detail.expenses) rows.push(toRow(m));
 
-  return csvResponse(rows, `caja-${month}`);
+  return csvResponse(rows, `caja-${periodFileSuffix(period)}`);
 }

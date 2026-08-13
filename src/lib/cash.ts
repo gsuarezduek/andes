@@ -1,9 +1,26 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { formatDateInput } from "@/lib/datetime";
 import type { RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
+import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
+
+// El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
+// Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
+// client component que dibuja el selector (`cash-period-picker.tsx`) puede
+// importarlas sin arrastrar Prisma. Re-exportadas acá para no tener que
+// cambiar los imports del resto del código de servidor (page.tsx, etc.).
+export {
+  monthRangeUtc,
+  mondayOf,
+  resolveCashPeriod,
+  parseCashPeriod,
+  cashPeriodSearch,
+  DEFAULT_CASH_PERIOD,
+  CASH_PERIOD_OPTIONS,
+  type CashPeriod,
+} from "@/lib/cash-period";
 
 function monthOf(date: Date): string {
   return formatDateInput(date).slice(0, 7);
@@ -11,26 +28,6 @@ function monthOf(date: Date): string {
 
 export function currentMonth(): string {
   return monthOf(new Date());
-}
-
-/** Mes anterior a `ym` ("YYYY-MM"), maneja el cambio de año. */
-export function prevMonth(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-}
-
-/** Mes siguiente a `ym` ("YYYY-MM"), maneja el cambio de año. */
-export function nextMonth(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-}
-
-/** Rango [start, end) en UTC de un mes ("YYYY-MM") en hora Mendoza. */
-export function monthRangeUtc(ym: string): { start: Date; end: Date } {
-  return {
-    start: mendozaWallTimeToUtc(`${ym}-01T00:00`),
-    end: mendozaWallTimeToUtc(`${nextMonth(ym)}-01T00:00`),
-  };
 }
 
 export type CashMovementRow = {
@@ -51,10 +48,8 @@ export type CashMovementRow = {
   createdAt: Date;
 };
 
-export type CashMonthDetail = {
-  month: string;
-  prevMonth: string;
-  nextMonth: string;
+export type CashPeriodDetail = {
+  periodLabel: string;
   incomes: CashMovementRow[];
   expenses: CashMovementRow[];
   totalIncome: number;
@@ -87,8 +82,8 @@ async function findMovements(where: Prisma.CashMovementWhereInput): Promise<Cash
   );
 }
 
-export async function getCashMonthDetail(month: string): Promise<CashMonthDetail> {
-  const { start, end } = monthRangeUtc(month);
+export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPeriodDetail> {
+  const { start, end, label } = resolveCashPeriod(period);
   const rows = await findMovements({ createdAt: { gte: start, lt: end } });
 
   const incomes = rows.filter((r) => r.type === "income");
@@ -97,9 +92,7 @@ export async function getCashMonthDetail(month: string): Promise<CashMonthDetail
   const totalExpense = expenses.reduce((sum, r) => sum + r.amount, 0);
 
   return {
-    month,
-    prevMonth: prevMonth(month),
-    nextMonth: nextMonth(month),
+    periodLabel: label,
     incomes,
     expenses,
     totalIncome,
@@ -203,9 +196,9 @@ export type CashMovementEditRow = {
   createdAt: Date;
 };
 
-/** Historial de ediciones/borrados de movimientos de Caja, del mes visible (por fecha de la edición). */
-export async function getCashMonthEdits(month: string): Promise<CashMovementEditRow[]> {
-  const { start, end } = monthRangeUtc(month);
+/** Historial de ediciones/borrados de movimientos de Caja, del período visible (por fecha de la edición). */
+export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMovementEditRow[]> {
+  const { start, end } = resolveCashPeriod(period);
   const rows = await prisma.cashMovementEdit.findMany({
     where: { createdAt: { gte: start, lt: end } },
     include: {
