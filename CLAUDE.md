@@ -331,6 +331,15 @@ Tanda grande nacida de una auditoría completa del código (backlog de ~70 halla
 
 **Ítems de prioridad "Baja" del backlog, sin implementar:** UX-16, UX-17, UX-20, UX-23; UI-08, UI-11, UI-12, UI-13, UI-14; COD-08, COD-10, COD-12, COD-13; ARQ-03, ARQ-04, ARQ-06; PERF-03, PERF-04, PERF-05, PERF-06; SEC-07, SEC-08; PROD-05.
 
+## v13 — Usuarios dentro de Configuración + Reportes por mes cerrado
+
+Dos ajustes de UX pedidos por el dueño. Construidos y probados en local (build/lint/tests en verde — 163 tests; verificado por HTTP autenticado contra la base real, incluido un filtrado end-to-end con alquileres de prueba).
+
+- **Usuarios pasa a vivir dentro de Configuración:** sacado de la barra principal (`app-nav.tsx`); ahora es un ítem más de `/settings` (junto a Condiciones/Calendario/Medios de pago/Correos), con el mismo botón "Volver a Configuración" que ya tenían las demás sub-secciones. La URL sigue siendo `/users` (sin mover carpetas ni romper links existentes) — solo cambió desde dónde se llega.
+- **Reportes: "todo" el reporte pasa a filtrarse por un período elegido, no solo el gráfico.** Antes el selector "Últimos N meses" (3/6/12/24) sólo acotaba el gráfico de barras; los KPIs (ingresos, neto, alquileres finalizados) y la tabla "por vehículo" eran acumulados de toda la vida del negocio. Ahora `ReportPeriod` (`src/lib/reports.ts`) es o bien un mes puntual (`{kind:"month", which:"previous"|"current"}`) o un rango de N meses (`{kind:"months", months}`), y `resolveReportPeriod` (pura, testeada) lo resuelve a un rango `[start, end)` en hora Mendoza que filtra tanto `rentals` (`endAt`) como `maintenanceLog` (`date`) — ambos acotados al período. **Default: mes anterior (cerrado)** — es el cierre de mes que un dueño quiere ver al entrar, no una tendencia de 12 meses. Selector con 6 opciones: "Mes anterior" (default), "Este mes", y los 4 rangos de antes, todas conviviendo en un único `<select name="period">` (antes `?months=`, ahora `?period=` con valores `prev`/`current`/`3`/`6`/`12`/`24`). Subtítulo nuevo debajo de "Reportes" (`reportPeriodLabel`) mostrando el período activo en texto ("julio de 2026", "agosto de 2026 (en curso)", "Últimos 12 meses") — necesario ahora que los KPIs cambian según la selección.
+  - **Quedan fuera del filtro a propósito** (siguen siendo "ahora", no del período): `kpis.fleet/rentedNow/active` (tamaño de flota y alquileres en curso son estado actual del negocio, no un evento del período) y los daños activos por vehículo (auto sin reparar *hoy*, no un evento que haya ocurrido "en" el período).
+  - `getReports(period)` y el export CSV (`/api/reports/export?period=...`) comparten el mismo `ReportPeriod`; `MONTH_RANGE_OPTIONS`/`DEFAULT_MONTH_RANGE` de UX-22 (v12) se renombran/reemplazan por este tipo.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
