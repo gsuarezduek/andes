@@ -6,7 +6,7 @@ import { TextField, TextareaField } from "@/components/ui/fields";
 import { createSafeMovement } from "@/app/(app)/caja/safe-actions";
 
 /** Formulario de alta de un movimiento de caja fuerte. A diferencia de
- *  Cobro/Pago, un solo botón ("Caja fuerte") abre este form, que elige el
+ *  Ingreso/Egreso, un solo botón ("Caja fuerte") abre este form, que elige el
  *  tipo (ingreso/retiro) por dentro con un selector de dos opciones. */
 export function SafeMovementForm({ onCancel }: { onCancel: () => void }) {
   const [type, setType] = useState<"deposit" | "withdrawal">("deposit");

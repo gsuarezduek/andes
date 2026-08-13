@@ -11,7 +11,7 @@ import { updateSafeMovement, deleteSafeMovement } from "@/app/(app)/caja/safe-ac
 import type { SafeMovementRow as SafeMovementRowData } from "@/lib/safe";
 
 /** Fila de un movimiento de caja fuerte (solo vista admin) — mismo patrón de
- *  edición/borrado que MovementRow (Cobros/Pagos), sin medio de pago. */
+ *  edición/borrado que MovementRow (Ingresos/Egresos), sin medio de pago. */
 export function SafeMovementRow({ movement }: { movement: SafeMovementRowData }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const tone = movement.type === "deposit" ? "text-emerald-600" : "text-red-600";

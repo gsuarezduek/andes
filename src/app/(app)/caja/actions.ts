@@ -17,13 +17,13 @@ const createMovementSchema = z.object({
   rentalId: z.string().optional(),
 });
 
-// Movimiento de Caja: cobro o pago. Cualquier rol puede cargarlo — la
+// Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo — la
 // restricción de "solo agregar" para empleados es de UI (no ven el detalle),
 // no de permisos de escritura. Editar/eliminar es solo para admin (ver abajo).
 //
-// En un Pago, `paymentMethodId` es el Origen (obligatorio, tiene que ser una
+// En un Egreso, `paymentMethodId` es el Origen (obligatorio, tiene que ser una
 // cuenta propia) y `recipientPaymentMethodId` el Destino (opcional, tiene que
-// ser una cuenta ajena si se manda). En un Cobro no hay esa distinción — el
+// ser una cuenta ajena si se manda). En un Ingreso no hay esa distinción — el
 // medio puede ser cualquiera, como hasta ahora.
 export async function createCashMovement(type: "income" | "expense", formData: FormData) {
   const user = await requireUser();
@@ -48,7 +48,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
   if (type === "expense" && method.ownership !== "own") {
-    throw new Error("El origen de un pago tiene que ser una cuenta propia.");
+    throw new Error("El origen de un egreso tiene que ser una cuenta propia.");
   }
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
@@ -58,7 +58,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   if (type === "expense" && recipientPaymentMethodId) {
     const found = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
     if (!found) throw new Error("Destino inválido");
-    if (found.ownership !== "third_party") throw new Error("El destino de un pago tiene que ser una cuenta ajena.");
+    if (found.ownership !== "third_party") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
     if (found.requiresNote && !recipientPaymentMethodNote) {
       throw new Error("Este destino requiere indicar a dónde fue.");
     }
@@ -94,7 +94,7 @@ const updateMovementSchema = z.object({
 });
 
 // Corrección de un error de carga (monto, medio de pago, detalle, y en un
-// Pago también Origen/Destino). Solo admin. Tipo y reserva vinculada no se
+// Egreso también Origen/Destino). Solo admin. Tipo y reserva vinculada no se
 // editan — si están mal, se borra el movimiento y se carga de nuevo. Cada
 // cambio real queda auditado en CashMovementEdit; si no cambió nada, no se
 // registra nada.
@@ -122,7 +122,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
   if (existing.type === "expense" && method.ownership !== "own") {
-    throw new Error("El origen de un pago tiene que ser una cuenta propia.");
+    throw new Error("El origen de un egreso tiene que ser una cuenta propia.");
   }
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
@@ -133,7 +133,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   if (existing.type === "expense" && recipientPaymentMethodId) {
     const found = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
     if (!found) throw new Error("Destino inválido");
-    if (found.ownership !== "third_party") throw new Error("El destino de un pago tiene que ser una cuenta ajena.");
+    if (found.ownership !== "third_party") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
     if (found.requiresNote && !recipientPaymentMethodNote) {
       throw new Error("Este destino requiere indicar a dónde fue.");
     }

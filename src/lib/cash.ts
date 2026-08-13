@@ -41,8 +41,8 @@ export type CashMovementRow = {
   paymentMethodId: string | null;
   paymentMethodName: string;
   paymentMethodNote: string | null;
-  // Destino de un Pago: cuenta ajena a la que se le pagó. Opcional — no todo
-  // pago tiene una cuenta ajena puntual. No se usa en Cobros.
+  // Destino de un Egreso: cuenta ajena a la que se le pagó. Opcional — no
+  // todo egreso tiene una cuenta ajena puntual. No se usa en Ingresos.
   recipientPaymentMethodId: string | null;
   recipientPaymentMethodName: string | null;
   recipientPaymentMethodNote: string | null;
@@ -169,7 +169,7 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
 
 /**
  * Traduce las líneas de pago anotadas en la entrega/devolución (medio de pago
- * real, con % de ajuste y nota) a filas de `CashMovement` — un cobro por
+ * real, con % de ajuste y nota) a filas de `CashMovement` — un ingreso por
  * línea, vinculado a la reserva. Se usa dentro de la misma transacción de
  * `saveHandover`/`saveReturn` (ver esos archivos) para que la Caja quede al
  * día sin que el empleado tenga que anotarlo dos veces.

@@ -55,11 +55,11 @@ export function CashMonthDetail({
 
       <div className="grid grid-cols-3 gap-3 text-center">
         <div className="rounded-lg border border-foreground/10 p-3">
-          <p className="text-xs text-foreground/50">Cobros</p>
+          <p className="text-xs text-foreground/50">Ingresos</p>
           <p className="text-lg font-semibold text-emerald-600">{formatArs(data.totalIncome)}</p>
         </div>
         <div className="rounded-lg border border-foreground/10 p-3">
-          <p className="text-xs text-foreground/50">Pagos</p>
+          <p className="text-xs text-foreground/50">Egresos</p>
           <p className="text-lg font-semibold text-red-600">{formatArs(data.totalExpense)}</p>
         </div>
         <div className="rounded-lg border border-foreground/10 p-3">

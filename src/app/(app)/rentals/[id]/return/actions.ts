@@ -171,14 +171,14 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
         data: { status: "available", currentKm: data.km },
       });
 
-      // Cada pago anotado en la liquidación queda también como cobro en Caja,
+      // Cada pago anotado en la liquidación queda también como ingreso en Caja,
       // vinculado a esta reserva — el empleado no lo anota dos veces.
       if (settlementForPersist?.payments?.length) {
         await tx.cashMovement.createMany({
           data: paymentsToCashMovements(settlementForPersist.payments, {
             rentalId: rental.id,
             createdById: user.id,
-            description: `Cobro de devolución — ${rental.clientName}`,
+            description: `Ingreso de devolución — ${rental.clientName}`,
           }),
         });
       }

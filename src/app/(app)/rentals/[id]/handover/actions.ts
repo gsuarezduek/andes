@@ -187,14 +187,14 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         data: { status: "rented", currentKm: data.km },
       });
 
-      // Cada pago anotado en "Condiciones" queda también como cobro en Caja,
+      // Cada pago anotado en "Condiciones" queda también como ingreso en Caja,
       // vinculado a esta reserva — el empleado no lo anota dos veces.
       if (data.pricing?.payments?.length) {
         await tx.cashMovement.createMany({
           data: paymentsToCashMovements(data.pricing.payments, {
             rentalId: rental.id,
             createdById: user.id,
-            description: `Cobro de entrega — ${data.clientName}`,
+            description: `Ingreso de entrega — ${data.clientName}`,
           }),
         });
       }

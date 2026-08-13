@@ -40,7 +40,7 @@ export default async function CajaPage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
         <p className="text-sm text-foreground/60">
-          Registrá cobros y pagos de las reservas. La <strong>caja fuerte</strong> (más abajo) es
+          Registrá ingresos y egresos de las reservas. La <strong>caja fuerte</strong> (más abajo) es
           aparte: es el efectivo físico guardado, sin vínculo con ninguna reserva.
         </p>
       </div>

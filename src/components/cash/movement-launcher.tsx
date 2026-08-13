@@ -11,9 +11,9 @@ type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ow
 type Action = "income" | "expense" | "safe" | null;
 
 /**
- * Selector de qué movimiento cargar. Desktop: Cobro y Pago ocupan 40% del
- * ancho cada uno, Caja fuerte el 20% restante. Mobile: Cobro/Pago en una
- * fila (50/50) y Caja fuerte ocupa el ancho completo debajo — se acomoda
+ * Selector de qué movimiento cargar. Desktop: Ingreso y Egreso ocupan 40%
+ * del ancho cada uno, Caja fuerte el 20% restante. Mobile: Ingreso/Egreso en
+ * una fila (50/50) y Caja fuerte ocupa el ancho completo debajo — se acomoda
  * mejor que forzar la misma proporción angosta en una pantalla chica.
  */
 export function MovementLauncher({
@@ -43,7 +43,7 @@ export function MovementLauncher({
   return (
     <div className="grid grid-cols-2 gap-3 md:flex">
       <Button type="button" className="md:basis-[40%] md:flex-none" onClick={() => setAction("income")}>
-        + Cobro
+        + Ingreso
       </Button>
       <Button
         type="button"
@@ -51,7 +51,7 @@ export function MovementLauncher({
         className="md:basis-[40%] md:flex-none"
         onClick={() => setAction("expense")}
       >
-        + Pago
+        + Egreso
       </Button>
       <Button
         type="button"

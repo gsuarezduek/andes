@@ -11,12 +11,12 @@ import type { RentalPickerOption } from "@/lib/cash";
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
 
 /**
- * Formulario de alta de un cobro o un pago. `mode` lo fija el botón que lo
- * abrió (ver MovementLauncher) — este componente ya no maneja ese estado.
+ * Formulario de alta de un ingreso o un egreso. `mode` lo fija el botón que
+ * lo abrió (ver MovementLauncher) — este componente ya no maneja ese estado.
  *
- * En un Pago hay dos cuentas: Origen (de dónde sale la plata, solo cuentas
+ * En un Egreso hay dos cuentas: Origen (de dónde sale la plata, solo cuentas
  * propias, obligatorio) y Destino (a quién se le paga, solo cuentas ajenas,
- * opcional). En un Cobro sigue siendo un único "Medio de pago" con todas
+ * opcional). En un Ingreso sigue siendo un único "Medio de pago" con todas
  * las cuentas, como antes.
  */
 export function CashMovementForm({
@@ -45,7 +45,7 @@ export function CashMovementForm({
       className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">{mode === "income" ? "Nuevo cobro" : "Nuevo pago"}</h2>
+        <h2 className="text-sm font-semibold">{mode === "income" ? "Nuevo ingreso" : "Nuevo egreso"}</h2>
         <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
           Cancelar
         </button>
@@ -110,7 +110,7 @@ export function CashMovementForm({
       )}
       {mode === "income" && <RentalPicker options={rentalOptions} />}
       <SubmitButton pendingLabel="Guardando…">
-        {mode === "income" ? "Agregar cobro" : "Agregar pago"}
+        {mode === "income" ? "Agregar ingreso" : "Agregar egreso"}
       </SubmitButton>
     </form>
   );

@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 function toRow(m: CashMovementRow): (string | number)[] {
   return [
-    m.type === "income" ? "Cobro" : "Pago",
+    m.type === "income" ? "Ingreso" : "Egreso",
     m.description,
     m.amount,
     m.paymentMethodName,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const detail = await getCashMonthDetail(month);
 
   const rows: (string | number)[][] = [
-    ["Tipo", "Detalle", "Monto", "Medio de pago", "Destino (pago)", "Reserva", "Cargado por", "Fecha"],
+    ["Tipo", "Detalle", "Monto", "Medio de pago", "Destino (egreso)", "Reserva", "Cargado por", "Fecha"],
   ];
   for (const m of detail.incomes) rows.push(toRow(m));
   for (const m of detail.expenses) rows.push(toRow(m));

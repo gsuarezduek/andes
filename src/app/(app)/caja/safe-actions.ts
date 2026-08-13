@@ -13,7 +13,7 @@ const createSafeMovementSchema = z.object({
 });
 
 // Ingreso o retiro de efectivo de la caja fuerte. Cualquier rol puede
-// cargarlo — igual que Cobro/Pago, la restricción de ver el detalle completo
+// cargarlo — igual que Ingreso/Egreso, la restricción de ver el detalle completo
 // (y acá además el saldo) es de UI, no de permiso de escritura.
 export async function createSafeMovement(type: "deposit" | "withdrawal", formData: FormData) {
   const user = await requireUser();

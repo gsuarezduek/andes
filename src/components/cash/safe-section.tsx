@@ -10,7 +10,7 @@ import type { SafeMovementEditRow, SafeMovementRow as SafeMovementRowData } from
  * (fecha + quién) sí es visible para cualquier rol, pero cada uno solo ve
  * sus propios movimientos (`movements` ya viene filtrado desde la página).
  * Editar/borrar (`SafeMovementRow`) solo aparece cuando hay `balance`
- * (admin) — mismo criterio que Cobros/Pagos.
+ * (admin) — mismo criterio que Ingresos/Egresos.
  */
 export function SafeSection({
   movements,
@@ -34,7 +34,7 @@ export function SafeSection({
         )}
       </div>
       <p className="-mt-2 text-xs text-foreground/50">
-        Efectivo físico guardado — no se relaciona con los cobros/pagos de reservas de arriba.
+        Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas de arriba.
       </p>
 
       {movements.length === 0 ? (

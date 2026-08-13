@@ -19,7 +19,7 @@ function sum(rows: CashMovementRow[]): number {
   return rows.reduce((acc, r) => acc + r.amount, 0);
 }
 
-/** Cobros y pagos del mes, con un filtro por cuenta (medio de pago) compartido entre las dos columnas. */
+/** Ingresos y egresos del mes, con un filtro por cuenta (medio de pago) compartido entre las dos columnas. */
 export function CashMovementsBoard({
   incomes,
   expenses,
@@ -31,7 +31,7 @@ export function CashMovementsBoard({
 }) {
   const [accountId, setAccountId] = useState("");
 
-  // Un Pago puede matchear el filtro por su Origen (cuenta propia) o su
+  // Un Egreso puede matchear el filtro por su Origen (cuenta propia) o su
   // Destino (cuenta ajena) — nunca ambos a la vez, ya que una cuenta es una
   // cosa u otra (ownership es fijo), así que no hay ambigüedad.
   const filteredIncomes = accountId ? incomes.filter((r) => r.paymentMethodId === accountId) : incomes;
@@ -74,11 +74,11 @@ export function CashMovementsBoard({
       {selectedAccount && (
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="rounded-lg border border-foreground/10 p-3">
-            <p className="text-xs text-foreground/50">Cobros · {selectedAccount.name}</p>
+            <p className="text-xs text-foreground/50">Ingresos · {selectedAccount.name}</p>
             <p className="text-lg font-semibold text-emerald-600">{formatArs(sum(filteredIncomes))}</p>
           </div>
           <div className="rounded-lg border border-foreground/10 p-3">
-            <p className="text-xs text-foreground/50">Pagos · {selectedAccount.name}</p>
+            <p className="text-xs text-foreground/50">Egresos · {selectedAccount.name}</p>
             <p className="text-lg font-semibold text-red-600">{formatArs(sum(filteredExpenses))}</p>
           </div>
           <div className="rounded-lg border border-foreground/10 p-3">
@@ -90,13 +90,13 @@ export function CashMovementsBoard({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <MovementColumn
-          title={`Cobros (${filteredIncomes.length})`}
+          title={`Ingresos (${filteredIncomes.length})`}
           rows={filteredIncomes}
           tone="emerald"
           paymentMethods={paymentMethods}
         />
         <MovementColumn
-          title={`Pagos (${filteredExpenses.length})`}
+          title={`Egresos (${filteredExpenses.length})`}
           rows={filteredExpenses}
           tone="red"
           paymentMethods={paymentMethods}
