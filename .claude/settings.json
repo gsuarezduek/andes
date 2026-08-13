@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(kill -9 68636 68637 72770)",
+      "Bash(cp /tmp/cleanup-ux21.mjs ./cleanup-ux21.mjs)",
+      "Bash(node cleanup-ux21.mjs)",
+      "Bash(rm -f ./cleanup-ux21.mjs /tmp/cleanup-ux21.mjs)",
+      "Bash(kill -9 88362 88363)",
+      "Bash(git commit -m ' *)",
+      "Bash(node -e \"const c = require\\('next/cache'\\); console.log\\(typeof c.unstable_cache, typeof c.revalidateTag\\)\")",
+      "Bash(kill -9 89605 89607)",
+      "Bash(kill -9 90706 90711)",
+      "Bash(node setup-ux24.mjs)",
+      "Bash(git pull *)",
+      "Bash(grep -rniE '\"[^\"]*cobro[^\"]*\"|\"[^\"]*pago[^\"]*\"|`[^`]*cobro[^`]*`|`[^`]*pago[^`]*`|>cobro|>pago' src/components/cash/ \"src/app/\\(app\\)/caja/\")"
     ]
   }
 }
