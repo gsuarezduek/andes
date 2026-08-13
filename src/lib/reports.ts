@@ -5,10 +5,17 @@ import "server-only";
  * home es operativo del día; esto es la mirada histórica: ingresos vs costos,
  * daños por vehículo y actividad por mes.
  *
- * Los ingresos salen del contrato del empleado (`Rental.pricing.total`), con
- * fallback al total importado de VikRentCar (`bookingTotal`). Sólo se cuentan
- * alquileres **finalizados** (los reservados por el sync no tienen contrato).
- * Cortes de mes en hora de Mendoza. Ver PROYECTO-ANDES.md §4.3–4.4.
+ * Los KPIs de "Ingresos"/"Egresos"/"Neto" salen de los movimientos REALES de
+ * Caja del período (`CashMovement`, dinero que efectivamente entró/salió) —
+ * no del contrato de la reserva. La tabla "por vehículo" sigue usando el
+ * contrato del empleado (`Rental.pricing.total`, con fallback a
+ * `bookingTotal`) porque necesita atribuir un ingreso a un auto puntual, y
+ * Caja no siempre tiene esa atribución (hay egresos/ingresos sin reserva
+ * vinculada — sueldos, gastos generales). Por eso el total de "Ingresos" de
+ * los KPIs y la suma de la columna "Ingresos" de la tabla no van a coincidir
+ * a propósito: miden cosas distintas (flujo de caja real vs. facturación por
+ * alquiler). Sólo se cuentan alquileres **finalizados** en la tabla. Cortes
+ * de mes en hora de Mendoza. Ver PROYECTO-ANDES.md §4.3–4.4.
  */
 import { unstable_cache } from "next/cache";
 import type { PaymentMethodOwnership } from "@prisma/client";
@@ -56,7 +63,11 @@ export type Reports = {
     rentedNow: number;
     finished: number;
     active: number;
+    // Ingresos/egresos/neto: movimientos reales de Caja del período (ver
+    // comentario de módulo). `costTotal` es aparte: costo de mantenimiento
+    // registrado (no siempre pasa también por Caja como egreso).
     incomeTotal: number;
+    expenseTotal: number;
     costTotal: number;
     netTotal: number;
   };
@@ -222,10 +233,8 @@ export const getReports = unstable_cache(
 
     const [vehicles, finished, maintenanceByVehicle, damages, activeCount, cashMovementsRaw] = await Promise.all([
       // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
-      // historial de ingresos/costos, y si se lo excluyera acá el total de la
-      // tabla "por vehículo" dejaría de reconciliar contra el KPI de arriba
-      // (que sí suma todo lo finalizado del período, haya o no vehículo
-      // archivado después).
+      // historial de ingresos/costos del período, aunque ya no esté en la
+      // flota operativa.
       prisma.vehicle.findMany({
         select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
       }),
@@ -290,11 +299,9 @@ export const getReports = unstable_cache(
 
     const monthMap = new Map<string, MonthPoint>(monthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
 
-    let incomeTotal = 0;
     for (const r of finished) {
       const pricing = (r.pricing ?? {}) as ContractPricing;
       const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
-      incomeTotal += income;
 
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
@@ -342,6 +349,10 @@ export const getReports = unstable_cache(
         paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
       })),
     );
+    // "Ingresos"/"Neto" del KPI principal son de Caja (dinero real), no del
+    // contrato — mismo criterio que `cashByOwnership`, así que van a
+    // coincidir con el desglose por cuenta que se muestra al lado.
+    const cashIncomeTotal = cashByOwnership.incomeOwn + cashByOwnership.incomeThirdParty + cashByOwnership.incomeUnclassified;
 
     return {
       kpis: {
@@ -349,9 +360,10 @@ export const getReports = unstable_cache(
         rentedNow: vehicles.filter((v) => v.status === "rented").length,
         finished: finished.length,
         active: activeCount,
-        incomeTotal,
+        incomeTotal: cashIncomeTotal,
+        expenseTotal: cashByOwnership.expenseTotal,
         costTotal,
-        netTotal: incomeTotal - costTotal,
+        netTotal: cashIncomeTotal - cashByOwnership.expenseTotal,
       },
       byMonth: monthList.map((m) => monthMap.get(m)!),
       vehicles: vehicleReports,

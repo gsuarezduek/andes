@@ -76,30 +76,35 @@ export default async function ReportsPage({
         </form>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Flota" value={String(kpis.fleet)} />
-        <Kpi label="Alquilados ahora" value={String(kpis.rentedNow)} />
-        <Kpi label="Activos" value={String(kpis.active)} />
-        <Kpi label="Finalizados" value={String(kpis.finished)} />
-        <Kpi label="Ingresos" value={formatArs(kpis.incomeTotal)} />
-        <Kpi label="Neto (− costos)" value={formatArs(kpis.netTotal)} tone={kpis.netTotal < 0 ? "bad" : "good"} />
-      </div>
-
-      {/* Caja: ingresos y egresos por cuenta */}
+      {/* Estado actual de la flota — no depende del período elegido */}
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-foreground/70">Caja — cuentas propias vs. ajenas</h2>
-        <div className={`grid grid-cols-2 gap-3 ${cashByOwnership.incomeUnclassified > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+        <h2 className="text-sm font-semibold text-foreground/70">Flota (estado actual)</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <Kpi label="Flota" value={String(kpis.fleet)} />
+          <Kpi label="Alquilados ahora" value={String(kpis.rentedNow)} />
+          <Kpi label="Activos" value={String(kpis.active)} />
+        </div>
+      </section>
+
+      {/* Resumen del período: todo de Caja (dinero real), coherente entre sí */}
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold text-foreground/70">Caja del período</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kpi label="Finalizados" value={String(kpis.finished)} />
+          <Kpi label="Ingresos" value={formatArs(kpis.incomeTotal)} />
+          <Kpi label="Egresos" value={formatArs(kpis.expenseTotal)} />
+          <Kpi label="Neto" value={formatArs(kpis.netTotal)} tone={kpis.netTotal < 0 ? "bad" : "good"} />
+        </div>
+        <div className={`grid grid-cols-2 gap-3 ${cashByOwnership.incomeUnclassified > 0 ? "sm:grid-cols-3" : ""}`}>
           <Kpi label="Ingresos — cuenta propia" value={formatArs(cashByOwnership.incomeOwn)} />
           <Kpi label="Ingresos — cuenta ajena" value={formatArs(cashByOwnership.incomeThirdParty)} />
           {cashByOwnership.incomeUnclassified > 0 && (
             <Kpi label="Ingresos — sin clasificar" value={formatArs(cashByOwnership.incomeUnclassified)} />
           )}
-          <Kpi label="Egresos (total)" value={formatArs(cashByOwnership.expenseTotal)} />
         </div>
         <p className="text-xs text-foreground/40">
-          Movimientos reales de Caja del período (no el contrato de la reserva, como el KPI &quot;Ingresos&quot; de
-          arriba). Los egresos van en un solo total: su origen siempre es una cuenta propia.
+          Ingresos/Egresos/Neto son los movimientos reales de Caja del período — no el contrato de cada reserva
+          (por eso no van a coincidir con la tabla &quot;Por vehículo&quot; de abajo).
           {cashByOwnership.incomeUnclassified > 0 &&
             " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}
         </p>
@@ -170,7 +175,10 @@ export default async function ReportsPage({
           </table>
         </div>
         <p className="text-xs text-foreground/40">
-          Ingresos del contrato del empleado (o total de la reserva si no hay); costos del registro de mantenimiento. Sólo alquileres finalizados.
+          Ingresos del contrato del empleado (o total de la reserva si no hay), no de Caja — atribuido a cada auto,
+          por eso no coincide con &quot;Ingresos&quot; de arriba. Costo total de mantenimiento del período:{" "}
+          <span className="font-medium text-foreground/60">{formatArs(kpis.costTotal)}</span> (registro aparte, no
+          siempre se carga también como egreso en Caja). Sólo alquileres finalizados.
         </p>
       </section>
     </div>
