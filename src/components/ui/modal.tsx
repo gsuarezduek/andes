@@ -29,11 +29,23 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
+  // Foco inicial: solo cuando el modal pasa a abierto. Aparte del listener de
+  // abajo a propósito — si dependiera también de `onClose`, cada re-render
+  // del que abre el modal con un `onClose={() => ...}` inline (la forma
+  // habitual) recrea esa función, dispara este efecto de nuevo y devuelve el
+  // foco al primer campo en cada tecla que el usuario escribe más adelante
+  // en el formulario (así se manifestaba: escribir en un input tipeaba un
+  // carácter y perdía el foco al toque).
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
     const first = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
     (first ?? panel)?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
