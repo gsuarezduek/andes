@@ -10,8 +10,9 @@ import type { Item } from "@/components/nav/types";
  * Navegación de la app.
  *
  * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja,
- *   y para admin además Reportes, Usuarios y Configuración — antes vivían enterrados en
- *   el submenú de cuenta, tan frecuentes para un admin como el resto de la barra principal.
+ *   y para admin además Reportes y Configuración — antes vivían enterrados en el submenú
+ *   de cuenta, tan frecuentes para un admin como el resto de la barra principal. Usuarios
+ *   vive dentro de Configuración (`/users`, un ítem más de esa pantalla), no en la barra.
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
  *   Perfil, Sincronización y Salir — ajustes personales, no navegación operativa.
  * - En mobile todo colapsa en un menú hamburguesa.
@@ -37,7 +38,6 @@ export function AppNav({
     ...(isAdmin
       ? [
           { href: "/reports", label: "Reportes" },
-          { href: "/users", label: "Usuarios" },
           { href: "/settings", label: "Configuración" },
         ]
       : []),

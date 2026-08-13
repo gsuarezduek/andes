@@ -105,6 +105,8 @@ export default async function UsersPage({
           </ul>
         )}
       </div>
+
+      <ButtonLink href="/settings" variant="secondary">Volver a Configuración</ButtonLink>
     </div>
   );
 }

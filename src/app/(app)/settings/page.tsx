@@ -25,6 +25,11 @@ const options: { href: string; title: string; description: string }[] = [
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",
   },
+  {
+    href: "/users",
+    title: "Usuarios",
+    description: "Alta, edición y desactivación de empleados y administradores.",
+  },
 ];
 
 export default async function SettingsPage() {
