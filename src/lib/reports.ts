@@ -11,6 +11,7 @@ import "server-only";
  * Cortes de mes en hora de Mendoza. Ver PROYECTO-ANDES.md §4.3–4.4.
  */
 import { unstable_cache } from "next/cache";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import type { ContractPricing } from "@/lib/contract";
@@ -22,11 +23,31 @@ export type VehicleReport = {
   label: string;
   plate: string;
   rentals: number;
+  // Días reales de uso: diferencia entre el momento de la entrega y el de la
+  // devolución (mismas inspecciones que ya alimentan `km`), no lo pactado en
+  // la reserva. Con decimales — un alquiler de medio día suma 0.5.
+  days: number;
   income: number;
   cost: number;
   net: number;
   damages: number;
   archived: boolean;
+};
+
+/**
+ * Ingresos de Caja del período, separados por cuenta propia/ajena del medio
+ * de pago elegido. Los egresos van en un único total sin separar: el Origen
+ * de todo egreso es siempre una cuenta propia (está validado en `caja/actions.ts`),
+ * así que "propio vs ajeno" no aporta información ahí — decisión tomada con
+ * el dueño. `incomeUnclassified` cubre el caso raro de un ingreso cuyo medio
+ * de pago se borró después (se pierde el ownership; el nombre snapshot queda
+ * pero no de qué tipo de cuenta era).
+ */
+export type CashByOwnership = {
+  incomeOwn: number;
+  incomeThirdParty: number;
+  incomeUnclassified: number;
+  expenseTotal: number;
 };
 
 export type Reports = {
@@ -41,6 +62,7 @@ export type Reports = {
   };
   byMonth: MonthPoint[];
   vehicles: VehicleReport[];
+  cashByOwnership: CashByOwnership;
 };
 
 /** Año-mes ("YYYY-MM") de un instante, en hora de Mendoza. */
@@ -148,8 +170,29 @@ export function resolveReportPeriod(
   return { start: monthStartUtc(monthList[0]), end: now, monthList };
 }
 
-export type VehicleSortKey = "rentals" | "income" | "cost" | "net" | "damages";
+export type VehicleSortKey = "rentals" | "days" | "income" | "cost" | "net" | "damages";
 export const DEFAULT_VEHICLE_SORT: VehicleSortKey = "income";
+
+type CashMovementForOwnership = {
+  type: "income" | "expense";
+  amount: number;
+  paymentMethodOwnership: PaymentMethodOwnership | null;
+};
+
+/** Agrega movimientos de Caja por cuenta propia/ajena (ver `CashByOwnership`). Pura y testeable. */
+export function aggregateCashByOwnership(movements: CashMovementForOwnership[]): CashByOwnership {
+  const result: CashByOwnership = { incomeOwn: 0, incomeThirdParty: 0, incomeUnclassified: 0, expenseTotal: 0 };
+  for (const m of movements) {
+    if (m.type === "expense") {
+      result.expenseTotal += m.amount;
+      continue;
+    }
+    if (m.paymentMethodOwnership === "own") result.incomeOwn += m.amount;
+    else if (m.paymentMethodOwnership === "third_party") result.incomeThirdParty += m.amount;
+    else result.incomeUnclassified += m.amount;
+  }
+  return result;
+}
 
 /**
  * Reordena la tabla "por vehículo" por la columna elegida (click en el
@@ -177,7 +220,7 @@ export const getReports = unstable_cache(
   async (period: ReportPeriod = DEFAULT_REPORT_PERIOD): Promise<Reports> => {
     const { start, end, monthList } = resolveReportPeriod(period);
 
-    const [vehicles, finished, maintenanceByVehicle, damages, activeCount] = await Promise.all([
+    const [vehicles, finished, maintenanceByVehicle, damages, activeCount, cashMovementsRaw] = await Promise.all([
       // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
       // historial de ingresos/costos, y si se lo excluyera acá el total de la
       // tabla "por vehículo" dejaría de reconciliar contra el KPI de arriba
@@ -198,7 +241,7 @@ export const getReports = unstable_cache(
           pricing: true,
           bookingTotal: true,
           endAt: true,
-          inspections: { select: { type: true, km: true } },
+          inspections: { select: { type: true, km: true, createdAt: true } },
         },
       }),
       // Agregado en la base (una fila por vehículo) en vez de traer cada
@@ -218,6 +261,13 @@ export const getReports = unstable_cache(
         _count: { _all: true },
       }),
       prisma.rental.count({ where: { status: "active" } }),
+      // Ingresos/egresos de Caja del período, para el desglose por cuenta
+      // propia/ajena — fuente de datos distinta de `finished` (movimientos
+      // de efectivo reales, no el total contractual de la reserva).
+      prisma.cashMovement.findMany({
+        where: { createdAt: { gte: start, lt: end }, deletedAt: null },
+        select: { type: true, amount: true, paymentMethod: { select: { ownership: true } } },
+      }),
     ]);
 
     const vMap = new Map<string, VehicleReport>(
@@ -228,6 +278,7 @@ export const getReports = unstable_cache(
           label: `${v.brand} ${v.model}`,
           plate: v.plate,
           rentals: 0,
+          days: 0,
           income: 0,
           cost: 0,
           net: 0,
@@ -248,10 +299,15 @@ export const getReports = unstable_cache(
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
       const kmDriven = handover && ret ? Math.max(0, ret.km - handover.km) : 0;
+      const daysRented =
+        handover && ret
+          ? Math.max(0, (ret.createdAt.getTime() - handover.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
 
       const v = r.vehicleId ? vMap.get(r.vehicleId) : undefined;
       if (v) {
         v.rentals += 1;
+        v.days += daysRented;
         v.income += income;
       }
 
@@ -279,6 +335,14 @@ export const getReports = unstable_cache(
       .map((v) => ({ ...v, net: v.income - v.cost }))
       .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
 
+    const cashByOwnership = aggregateCashByOwnership(
+      cashMovementsRaw.map((m) => ({
+        type: m.type,
+        amount: Number(m.amount),
+        paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
+      })),
+    );
+
     return {
       kpis: {
         fleet: vehicles.filter((v) => v.archivedAt == null).length,
@@ -291,6 +355,7 @@ export const getReports = unstable_cache(
       },
       byMonth: monthList.map((m) => monthMap.get(m)!),
       vehicles: vehicleReports,
+      cashByOwnership,
     };
   },
   ["reports"],

@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 import {
   recentMonths,
   sortVehicleReports,
+  aggregateCashByOwnership,
   parseReportPeriod,
   reportPeriodParam,
   reportPeriodLabel,
@@ -111,6 +112,7 @@ function vehicle(overrides: Partial<VehicleReport>): VehicleReport {
     label: "Auto",
     plate: "AA000AA",
     rentals: 0,
+    days: 0,
     income: 0,
     cost: 0,
     net: 0,
@@ -119,6 +121,35 @@ function vehicle(overrides: Partial<VehicleReport>): VehicleReport {
     ...overrides,
   };
 }
+
+describe("aggregateCashByOwnership", () => {
+  it("separa ingresos por cuenta propia/ajena y suma egresos en un único total", () => {
+    const result = aggregateCashByOwnership([
+      { type: "income", amount: 1000, paymentMethodOwnership: "own" },
+      { type: "income", amount: 500, paymentMethodOwnership: "own" },
+      { type: "income", amount: 300, paymentMethodOwnership: "third_party" },
+      { type: "expense", amount: 200, paymentMethodOwnership: "own" }, // origen de egreso siempre es own
+      { type: "expense", amount: 50, paymentMethodOwnership: "own" },
+    ]);
+    expect(result).toEqual({ incomeOwn: 1500, incomeThirdParty: 300, incomeUnclassified: 0, expenseTotal: 250 });
+  });
+
+  it("un ingreso sin ownership conocido (medio de pago borrado) cae en incomeUnclassified", () => {
+    const result = aggregateCashByOwnership([{ type: "income", amount: 100, paymentMethodOwnership: null }]);
+    expect(result.incomeUnclassified).toBe(100);
+    expect(result.incomeOwn).toBe(0);
+    expect(result.incomeThirdParty).toBe(0);
+  });
+
+  it("lista vacía da todos los totales en cero", () => {
+    expect(aggregateCashByOwnership([])).toEqual({
+      incomeOwn: 0,
+      incomeThirdParty: 0,
+      incomeUnclassified: 0,
+      expenseTotal: 0,
+    });
+  });
+});
 
 describe("sortVehicleReports", () => {
   const vehicles = [

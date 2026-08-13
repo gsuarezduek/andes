@@ -9,7 +9,7 @@ import {
 } from "@/lib/reports";
 import { csvResponse } from "@/lib/csv";
 
-const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "income", "cost", "net", "damages"];
+const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "days", "income", "cost", "net", "damages"];
 
 export const runtime = "nodejs";
 
@@ -37,9 +37,21 @@ export async function GET(req: NextRequest) {
     for (const m of reports.byMonth) rows.push([m.month, m.rentals, m.km]);
     name = "reporte-por-mes";
   } else {
-    rows = [["Vehículo", "Patente", "Alquileres", "Ingresos", "Costos", "Neto", "Daños activos", "Archivado"]];
+    rows = [
+      ["Vehículo", "Patente", "Alquileres", "Días alquilado", "Ingresos", "Costos", "Neto", "Daños activos", "Archivado"],
+    ];
     for (const v of sortVehicleReports(reports.vehicles, sort, dir)) {
-      rows.push([v.label, v.plate, v.rentals, v.income, v.cost, v.net, v.damages, v.archived ? "Sí" : "No"]);
+      rows.push([
+        v.label,
+        v.plate,
+        v.rentals,
+        Number(v.days.toFixed(1)),
+        v.income,
+        v.cost,
+        v.net,
+        v.damages,
+        v.archived ? "Sí" : "No",
+      ]);
     }
     name = "reporte-por-vehiculo";
   }

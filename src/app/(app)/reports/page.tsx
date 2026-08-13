@@ -15,9 +15,10 @@ import { formatArs } from "@/lib/contract";
 
 export const metadata: Metadata = { title: "Reportes — Andes" };
 
-const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "income", "cost", "net", "damages"];
+const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "days", "income", "cost", "net", "damages"];
 const VEHICLE_SORT_LABELS: Record<VehicleSortKey, string> = {
   rentals: "Alquileres",
+  days: "Días alquilado",
   income: "Ingresos",
   cost: "Costos",
   net: "Neto",
@@ -39,7 +40,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, vehicles: unsortedVehicles } = await getReports(period);
+  const { kpis, byMonth, vehicles: unsortedVehicles, cashByOwnership } = await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
   /** href de un encabezado de columna: si ya se ordena por esa columna, invierte la dirección. */
@@ -84,6 +85,25 @@ export default async function ReportsPage({
         <Kpi label="Ingresos" value={formatArs(kpis.incomeTotal)} />
         <Kpi label="Neto (− costos)" value={formatArs(kpis.netTotal)} tone={kpis.netTotal < 0 ? "bad" : "good"} />
       </div>
+
+      {/* Caja: ingresos y egresos por cuenta */}
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold text-foreground/70">Caja — cuentas propias vs. ajenas</h2>
+        <div className={`grid grid-cols-2 gap-3 ${cashByOwnership.incomeUnclassified > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+          <Kpi label="Ingresos — cuenta propia" value={formatArs(cashByOwnership.incomeOwn)} />
+          <Kpi label="Ingresos — cuenta ajena" value={formatArs(cashByOwnership.incomeThirdParty)} />
+          {cashByOwnership.incomeUnclassified > 0 && (
+            <Kpi label="Ingresos — sin clasificar" value={formatArs(cashByOwnership.incomeUnclassified)} />
+          )}
+          <Kpi label="Egresos (total)" value={formatArs(cashByOwnership.expenseTotal)} />
+        </div>
+        <p className="text-xs text-foreground/40">
+          Movimientos reales de Caja del período (no el contrato de la reserva, como el KPI &quot;Ingresos&quot; de
+          arriba). Los egresos van en un solo total: su origen siempre es una cuenta propia.
+          {cashByOwnership.incomeUnclassified > 0 &&
+            " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}
+        </p>
+      </section>
 
       {/* Actividad por mes */}
       <section className="flex flex-col gap-2">
@@ -134,6 +154,7 @@ export default async function ReportsPage({
                     {v.archived && <span className="ml-1 text-xs text-foreground/40">(archivado)</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{v.rentals}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{v.days.toFixed(1)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatArs(v.income)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatArs(v.cost)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${v.net < 0 ? "text-red-600" : ""}`}>{formatArs(v.net)}</td>
@@ -142,7 +163,7 @@ export default async function ReportsPage({
               ))}
               {vehicles.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-foreground/50">Sin datos todavía.</td>
+                  <td colSpan={7} className="px-3 py-6 text-center text-foreground/50">Sin datos todavía.</td>
                 </tr>
               )}
             </tbody>
