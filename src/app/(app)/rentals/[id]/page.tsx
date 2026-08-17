@@ -243,17 +243,30 @@ export default async function RentalDetailPage({
         </ButtonLink>
       </div>
 
-      {/* ¿Es un duplicado? (admin): la reserva que se cargó en VikRentCar solo
-          para bloquear el auto, mientras el alquiler real se entregó con otra
-          carga en Andes. */}
-      {canMergeDuplicate && (
-        <MergeDuplicateSection duplicateId={rental.id} candidates={mergeCandidates} />
-      )}
+      {/* ¿Es un duplicado? (fusionar con otra reserva) y Eliminar reserva: dos
+          acciones admin poco frecuentes, lado a lado en desktop (50% cada
+          una); apiladas en mobile porque su contenido expandido (buscador,
+          confirmación) no entra cómodo en la mitad de una pantalla chica. */}
+      {(canMergeDuplicate || (isAdmin && rental.inspections.length === 0)) && (
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {/* ¿Es un duplicado? (admin): la reserva que se cargó en VikRentCar
+              solo para bloquear el auto, mientras el alquiler real se entregó
+              con otra carga en Andes. */}
+          {canMergeDuplicate && (
+            <div className="sm:flex-1">
+              <MergeDuplicateSection duplicateId={rental.id} candidates={mergeCandidates} />
+            </div>
+          )}
 
-      {/* Eliminar reserva (admin, solo si no tiene entrega/acta). Para reservas
-          huérfanas: órdenes borradas en VikRentCar o cargas manuales erróneas. */}
-      {isAdmin && rental.inspections.length === 0 && (
-        <DangerZoneSection rentalId={rental.id} clientName={rental.clientName} />
+          {/* Eliminar reserva (admin, solo si no tiene entrega/acta). Para
+              reservas huérfanas: órdenes borradas en VikRentCar o cargas
+              manuales erróneas. */}
+          {isAdmin && rental.inspections.length === 0 && (
+            <div className="sm:flex-1">
+              <DangerZoneSection rentalId={rental.id} clientName={rental.clientName} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
