@@ -136,24 +136,24 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  inspections          Inspection[]
-  rentalDocuments      RentalDocument[]
-  signatureRequests    SignatureRequest[]
-  reportedDamages      Damage[]             @relation("DamageReporter")
-  repairedDamages      Damage[]             @relation("DamageRepairer")
-  createdVehicleNotes  VehicleNote[]        @relation("VehicleNoteCreator")
-  resolvedVehicleNotes VehicleNote[]        @relation("VehicleNoteResolver")
-  createdRentalNotes   RentalNote[]         @relation("RentalNoteCreator")
-  resolvedRentalNotes  RentalNote[]         @relation("RentalNoteResolver")
-  createdCashMovements CashMovement[]       @relation("CashMovementCreator")
-  deletedCashMovements CashMovement[]       @relation("CashMovementDeleter")
-  cashMovementEdits    CashMovementEdit[]   @relation("CashMovementEditor")
-  createdSafeMovements SafeMovement[]       @relation("SafeMovementCreator")
-  deletedSafeMovements SafeMovement[]       @relation("SafeMovementDeleter")
-  safeMovementEdits    SafeMovementEdit[]   @relation("SafeMovementEditor")
+  inspections            Inspection[]
+  rentalDocuments        RentalDocument[]
+  signatureRequests      SignatureRequest[]
+  reportedDamages        Damage[]                @relation("DamageReporter")
+  repairedDamages        Damage[]                @relation("DamageRepairer")
+  createdVehicleNotes    VehicleNote[]           @relation("VehicleNoteCreator")
+  resolvedVehicleNotes   VehicleNote[]           @relation("VehicleNoteResolver")
+  createdRentalNotes     RentalNote[]            @relation("RentalNoteCreator")
+  resolvedRentalNotes    RentalNote[]            @relation("RentalNoteResolver")
+  createdCashMovements   CashMovement[]          @relation("CashMovementCreator")
+  deletedCashMovements   CashMovement[]          @relation("CashMovementDeleter")
+  cashMovementEdits      CashMovementEdit[]      @relation("CashMovementEditor")
+  createdSafeMovements   SafeMovement[]          @relation("SafeMovementCreator")
+  deletedSafeMovements   SafeMovement[]          @relation("SafeMovementDeleter")
+  safeMovementEdits      SafeMovementEdit[]      @relation("SafeMovementEditor")
   conditionSettingsEdits ConditionSettingsEdit[]
-  loginEvents          LoginEvent[]
-  passwordResetTokens  PasswordResetToken[]
+  loginEvents            LoginEvent[]
+  passwordResetTokens    PasswordResetToken[]
 
   @@map("users")
 }
@@ -356,26 +356,27 @@ model Rental {
   // Datos económicos importados de VikRentCar (referencia; el empleado los usa
   // para precargar/confirmar las condiciones). Ver docs/wordpress-mapping.md:
   // `days` 100%, `custdata` 100% (texto libre), `order_total` ~95%, `car_cost` ~24%.
-  bookingDays              Int?     @map("booking_days") // days de la orden
-  bookingPricePerDay       Decimal? @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
-  bookingTotal             Decimal? @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
-  bookingPaid              Decimal? @map("booking_paid") @db.Decimal(12, 2) // totpaid: pagado/anticipo de la reserva (precarga "Seña")
-  bookingNote              String?  @map("booking_note") @db.Text // custdata: info de la reserva (staff)
+  bookingCreatedAt         DateTime? @map("booking_created_at") // ts: cuándo se cargó la reserva en VikRentCar
+  bookingDays              Int?      @map("booking_days") // days de la orden
+  bookingPricePerDay       Decimal?  @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
+  bookingTotal             Decimal?  @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
+  bookingPaid              Decimal?  @map("booking_paid") @db.Decimal(12, 2) // totpaid: pagado/anticipo de la reserva (precarga "Seña")
+  bookingNote              String?   @map("booking_note") @db.Text // custdata: info de la reserva (staff)
   // Modelo de VikRentCar (cars.name vía idcar): se muestra cuando la reserva
   // llegó sin unidad física asignada (carindex NULL).
-  bookingModel             String?  @map("booking_model")
-  bookingPickupPlace       String?  @map("booking_pickup_place") // idplace → places.name
-  bookingReturnPlace       String?  @map("booking_return_place") // idreturnplace → places.name
+  bookingModel             String?   @map("booking_model")
+  bookingPickupPlace       String?   @map("booking_pickup_place") // idplace → places.name
+  bookingReturnPlace       String?   @map("booking_return_place") // idreturnplace → places.name
   // Opcionales de VikRentCar (wp_vikrentcar_optionals). Los packs de km → accesorios
   // (descripción + importe precalculado); la "Mejora de Seguro" → flag que baja la
   // franquicia. Precargan las condiciones; el sync nunca pisa `pricing`.
-  bookingAccessories       String?  @map("booking_accessories") @db.Text
-  bookingAccessoriesAmount Decimal? @map("booking_accessories_amount") @db.Decimal(12, 2)
-  bookingInsuranceUpgrade  Boolean  @default(false) @map("booking_insurance_upgrade")
+  bookingAccessories       String?   @map("booking_accessories") @db.Text
+  bookingAccessoriesAmount Decimal?  @map("booking_accessories_amount") @db.Decimal(12, 2)
+  bookingInsuranceUpgrade  Boolean   @default(false) @map("booking_insurance_upgrade")
   // Método de pago de VikRentCar (orders.idpayment, ej. "Transferencia de Banco",
   // "Stripe", "Mercado Pago"). Solo el nombre; el `paymentlog` (datos de tarjeta)
   // NO se importa. ~25% de cobertura.
-  bookingPaymentMethod     String?  @map("booking_payment_method")
+  bookingPaymentMethod     String?   @map("booking_payment_method")
 
   // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
   // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el

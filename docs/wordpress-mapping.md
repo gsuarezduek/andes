@@ -122,8 +122,10 @@ Por eso `ritiro`/`consegna` deben pasar por **`vikRentCarUnixToUtc()`**
 (`src/lib/datetime.ts`), que reinterpreta los componentes como hora de pared de
 Mendoza y devuelve el instante UTC real (11:00 → `14:00Z`). Usar
 `fromUnixSeconds()` (epoch crudo) daría 3h de menos al mostrar (12:00 → 09:00).
-`ts` (fecha de creación) es referencial y no se muestra al cliente, así que
-mantiene `fromUnixSeconds`.
+`ts` (fecha de creación) se persiste en `rentals.booking_created_at` y se
+muestra al empleado en el detalle de la reserva ("cuándo se cargó"), así que
+pasa por `vikRentCarUnixToUtc()` igual que `ritiro`/`consegna` — no por
+`fromUnixSeconds`, que daría 3h de menos.
 
 ### `lang` → `rentals.language` (es/en)
 

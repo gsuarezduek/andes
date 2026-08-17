@@ -125,6 +125,9 @@ function bookingFacts(b: RawBooking, optionals: RawOptional[] = []) {
     // `standby` entra sin confirmar (naranja); `confirmed` confirmada. Si el dueño
     // confirma en VikRentCar, el próximo sync la actualiza a true.
     bookingConfirmed: b.status === "confirmed",
+    // Cuándo se cargó la reserva en VikRentCar (hora real de Mendoza, no cruda:
+    // se muestra al empleado, a diferencia de otros usos de `ts` referenciales).
+    bookingCreatedAt: b.createdUnix != null ? vikRentCarUnixToUtc(b.createdUnix) : null,
     bookingDays: b.days,
     bookingTotal: b.orderTotal,
     bookingPaid: b.paid,
