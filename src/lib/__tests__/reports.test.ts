@@ -12,7 +12,10 @@ import {
   reportPeriodParam,
   reportPeriodLabel,
   resolveReportPeriod,
+  chartMonthCount,
+  resolveChartMonths,
   DEFAULT_REPORT_PERIOD,
+  REPORT_PERIOD_OPTIONS,
   type VehicleReport,
 } from "@/lib/reports";
 
@@ -87,6 +90,39 @@ describe("resolveReportPeriod", () => {
     expect(monthList).toEqual(["2026-06", "2026-07", "2026-08"]);
     expect(start.toISOString()).toBe("2026-06-01T03:00:00.000Z");
     expect(end).toBe(now);
+  });
+});
+
+describe("REPORT_PERIOD_OPTIONS", () => {
+  it("el orden es: este mes, mes anterior, y después los rangos de N meses", () => {
+    expect(REPORT_PERIOD_OPTIONS.map((o) => o.param)).toEqual(["current", "prev", "3", "6", "12", "24"]);
+  });
+});
+
+describe("chartMonthCount / resolveChartMonths", () => {
+  const now = new Date("2026-08-13T15:00:00Z"); // "ahora" es agosto 2026
+
+  it("sin ningún finalizado todavía, muestra solo el mes actual", () => {
+    expect(chartMonthCount(now, null)).toBe(1);
+    expect(resolveChartMonths(now, null)).toEqual(["2026-08"]);
+  });
+
+  it("con menos de 12 meses de historia, muestra solo los disponibles", () => {
+    // primer finalizado en febrero 2026 → feb..ago = 7 meses
+    expect(chartMonthCount(now, "2026-02")).toBe(7);
+    expect(resolveChartMonths(now, "2026-02")).toEqual([
+      "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08",
+    ]);
+  });
+
+  it("con 12 meses de historia o más, se topa en 12", () => {
+    expect(chartMonthCount(now, "2024-01")).toBe(12);
+    expect(resolveChartMonths(now, "2024-01")).toHaveLength(12);
+    expect(resolveChartMonths(now, "2024-01")[0]).toBe("2025-09");
+  });
+
+  it("el primer finalizado es el mes actual → 1 solo mes", () => {
+    expect(chartMonthCount(now, "2026-08")).toBe(1);
   });
 });
 

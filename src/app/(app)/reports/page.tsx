@@ -40,7 +40,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, vehicles: unsortedVehicles, cashByOwnership } = await getReports(period);
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership } = await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
   /** href de un encabezado de columna: si ya se ordena por esa columna, invierte la dirección. */
@@ -121,7 +121,7 @@ export default async function ReportsPage({
             Exportar CSV
           </a>
         </div>
-        <MonthBars data={byMonth} />
+        <MonthBars data={byMonth} highlightMonth={highlightMonth} />
       </section>
 
       {/* Por vehículo */}
@@ -194,8 +194,17 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "goo
   );
 }
 
-/** Gráfico de barras (SVG) de alquileres finalizados por mes (período elegido). */
-function MonthBars({ data }: { data: MonthPoint[] }) {
+/** Color de acento cuando la barra corresponde al mes puntual elegido arriba (mes anterior/actual). */
+const HIGHLIGHT_COLOR = "#eab308"; // yellow-500
+
+/**
+ * Gráfico de barras (SVG) de alquileres finalizados por mes — siempre hasta
+ * 12 meses de historia (ver `chartMonthCount`), independiente del período
+ * elegido arriba. Si ese período es un mes puntual, `highlightMonth` marca
+ * esa barra en amarillo (el resto queda azul); para un rango de N meses no
+ * hay barra destacada (no hay un único mes "seleccionado").
+ */
+function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMonth: string | null }) {
   const w = 720;
   const h = 180;
   const pad = 24;
@@ -209,13 +218,22 @@ function MonthBars({ data }: { data: MonthPoint[] }) {
           const barH = (d.rentals / max) * (h - 2 * pad);
           const x = pad + i * bw;
           const y = h - pad - barH;
+          const isHighlighted = d.month === highlightMonth;
           return (
             <g key={d.month}>
-              <rect x={x + bw * 0.15} y={y} width={bw * 0.7} height={barH} fill="currentColor" fillOpacity="0.7" rx="2" />
+              <rect
+                x={x + bw * 0.15}
+                y={y}
+                width={bw * 0.7}
+                height={barH}
+                fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"}
+                fillOpacity="0.7"
+                rx="2"
+              />
               {d.rentals > 0 && (
-                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill="currentColor" fillOpacity="0.6">{d.rentals}</text>
+                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.6}>{d.rentals}</text>
               )}
-              <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill="currentColor" fillOpacity="0.45">
+              <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.45}>
                 {d.month.slice(5)}/{d.month.slice(2, 4)}
               </text>
             </g>

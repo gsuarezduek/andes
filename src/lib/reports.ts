@@ -72,6 +72,10 @@ export type Reports = {
     netTotal: number;
   };
   byMonth: MonthPoint[];
+  // Mes a resaltar en el gráfico "por mes" ("YYYY-MM"): el mes puntual
+  // elegido arriba (anterior/actual), o null si el período es un rango de N
+  // meses (no hay un único mes "seleccionado" para destacar).
+  highlightMonth: string | null;
   vehicles: VehicleReport[];
   cashByOwnership: CashByOwnership;
 };
@@ -124,8 +128,8 @@ export const DEFAULT_REPORT_PERIOD: ReportPeriod = { kind: "month", which: "prev
 const REPORT_PERIOD_PARAMS = { previous: "prev", current: "current" } as const;
 
 export const REPORT_PERIOD_OPTIONS: { param: string; label: string }[] = [
-  { param: REPORT_PERIOD_PARAMS.previous, label: "Mes anterior" },
   { param: REPORT_PERIOD_PARAMS.current, label: "Este mes" },
+  { param: REPORT_PERIOD_PARAMS.previous, label: "Mes anterior" },
   ...MONTH_RANGE_OPTIONS.map((m) => ({ param: String(m), label: `Últimos ${m} meses` })),
 ];
 
@@ -181,6 +185,32 @@ export function resolveReportPeriod(
   return { start: monthStartUtc(monthList[0]), end: now, monthList };
 }
 
+/** Meses entre `fromYm` y `toYm` (inclusive), como "YYYY-MM". Pura y testeable. */
+function monthsBetweenInclusive(fromYm: string, toYm: string): number {
+  const [fy, fm] = fromYm.split("-").map(Number);
+  const [ty, tm] = toYm.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm) + 1;
+}
+
+/**
+ * Cuántos meses mostrar en el gráfico "Alquileres finalizados por mes": hasta
+ * 12, pero no más atrás que el primer alquiler finalizado que exista en Andes
+ * — evita un gráfico lleno de meses en 0 de antes de que el negocio/la app
+ * tuviera datos. Sin ningún finalizado todavía, muestra solo el mes actual.
+ * El gráfico es **independiente del período elegido arriba** cuando ese
+ * período es un mes puntual (mes anterior/este mes): elegir un solo mes no
+ * debe colapsar el gráfico histórico a una sola barra.
+ */
+export function chartMonthCount(now: Date, earliestFinishedMonth: string | null): number {
+  if (!earliestFinishedMonth) return 1;
+  return Math.min(12, Math.max(1, monthsBetweenInclusive(earliestFinishedMonth, monthOf(now))));
+}
+
+/** Lista de meses del gráfico "por mes" — ver `chartMonthCount`. */
+export function resolveChartMonths(now: Date, earliestFinishedMonth: string | null): string[] {
+  return recentMonths(monthOf(now), chartMonthCount(now, earliestFinishedMonth));
+}
+
 export type VehicleSortKey = "rentals" | "days" | "income" | "cost" | "net" | "damages";
 export const DEFAULT_VEHICLE_SORT: VehicleSortKey = "income";
 
@@ -229,55 +259,81 @@ export function sortVehicleReports(
  */
 export const getReports = unstable_cache(
   async (period: ReportPeriod = DEFAULT_REPORT_PERIOD): Promise<Reports> => {
-    const { start, end, monthList } = resolveReportPeriod(period);
+    const now = new Date();
+    const periodRange = resolveReportPeriod(period, now);
 
-    const [vehicles, finished, maintenanceByVehicle, damages, activeCount, cashMovementsRaw] = await Promise.all([
-      // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
-      // historial de ingresos/costos del período, aunque ya no esté en la
-      // flota operativa.
-      prisma.vehicle.findMany({
-        select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
-      }),
-      // Acotado al período elegido (mes anterior por defecto): el ingreso sale
-      // de un campo Json (`pricing`, con fallback a `bookingTotal`) que no se
-      // puede sumar a nivel base de datos — hace falta traer cada alquiler
-      // finalizado del período para resolverlo en JS.
-      prisma.rental.findMany({
-        where: { status: "finished", endAt: { gte: start, lt: end } },
-        select: {
-          id: true,
-          vehicleId: true,
-          pricing: true,
-          bookingTotal: true,
-          endAt: true,
-          inspections: { select: { type: true, km: true, createdAt: true } },
-        },
-      }),
-      // Agregado en la base (una fila por vehículo) en vez de traer cada
-      // registro de mantenimiento — a diferencia de `finished`, acá sí se
-      // puede sumar en SQL porque `cost` es una columna numérica simple.
-      // También acotado al período: es un costo del mes, no un acumulado.
-      prisma.maintenanceLog.groupBy({
-        by: ["vehicleId"],
-        where: { date: { gte: start, lt: end } },
-        _sum: { cost: true },
-      }),
-      // Daños activos = estado actual del auto (sin reparar ahora), no un
-      // evento del período — no se acota por fecha a propósito.
-      prisma.damage.groupBy({
-        by: ["vehicleId"],
-        where: { repaired: false },
-        _count: { _all: true },
-      }),
-      prisma.rental.count({ where: { status: "active" } }),
-      // Ingresos/egresos de Caja del período, para el desglose por cuenta
-      // propia/ajena — fuente de datos distinta de `finished` (movimientos
-      // de efectivo reales, no el total contractual de la reserva).
-      prisma.cashMovement.findMany({
-        where: { createdAt: { gte: start, lt: end }, deletedAt: null },
-        select: { type: true, amount: true, paymentMethod: { select: { ownership: true } } },
-      }),
-    ]);
+    const [vehicles, earliestFinished, maintenanceByVehicle, damages, activeCount, cashMovementsRaw] =
+      await Promise.all([
+        // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
+        // historial de ingresos/costos del período, aunque ya no esté en la
+        // flota operativa.
+        prisma.vehicle.findMany({
+          select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
+        }),
+        // Primer alquiler finalizado (cualquiera): tope real del gráfico "por
+        // mes" cuando el período elegido es un mes puntual (ver chartMonthCount).
+        prisma.rental.findFirst({
+          where: { status: "finished" },
+          orderBy: { endAt: "asc" },
+          select: { endAt: true },
+        }),
+        // Agregado en la base (una fila por vehículo) en vez de traer cada
+        // registro de mantenimiento — a diferencia de `finished`, acá sí se
+        // puede sumar en SQL porque `cost` es una columna numérica simple.
+        // También acotado al período: es un costo del mes, no un acumulado.
+        prisma.maintenanceLog.groupBy({
+          by: ["vehicleId"],
+          where: { date: { gte: periodRange.start, lt: periodRange.end } },
+          _sum: { cost: true },
+        }),
+        // Daños activos = estado actual del auto (sin reparar ahora), no un
+        // evento del período — no se acota por fecha a propósito.
+        prisma.damage.groupBy({
+          by: ["vehicleId"],
+          where: { repaired: false },
+          _count: { _all: true },
+        }),
+        prisma.rental.count({ where: { status: "active" } }),
+        // Ingresos/egresos de Caja del período, para el desglose por cuenta
+        // propia/ajena — fuente de datos distinta de `finished` (movimientos
+        // de efectivo reales, no el total contractual de la reserva).
+        prisma.cashMovement.findMany({
+          where: { createdAt: { gte: periodRange.start, lt: periodRange.end }, deletedAt: null },
+          select: { type: true, amount: true, paymentMethod: { select: { ownership: true } } },
+        }),
+      ]);
+
+    // El gráfico "por mes" es independiente del período elegido arriba
+    // cuando ese período es un mes puntual (anterior/actual): elegir un solo
+    // mes no debe colapsar el gráfico histórico a una sola barra. Para un
+    // rango de N meses, el gráfico sigue mostrando exactamente esos N meses
+    // (mismo comportamiento de antes).
+    const chartMonthList =
+      period.kind === "months"
+        ? periodRange.monthList
+        : resolveChartMonths(now, earliestFinished ? monthOf(earliestFinished.endAt) : null);
+    const chartStart = monthStartUtc(chartMonthList[0]);
+    // Ventana de la query de alquileres finalizados: la más amplia entre el
+    // período elegido (KPIs/tabla) y el gráfico (siempre "hasta ahora" en el
+    // extremo superior) — cuando difieren, el gráfico es superset.
+    const queryStart = chartStart.getTime() < periodRange.start.getTime() ? chartStart : periodRange.start;
+    // Mes a resaltar en el gráfico: solo tiene sentido para un mes puntual.
+    const highlightMonth = period.kind === "month" ? periodRange.monthList[0] : null;
+
+    // El ingreso sale de un campo Json (`pricing`, con fallback a
+    // `bookingTotal`) que no se puede sumar a nivel base de datos — hace
+    // falta traer cada alquiler finalizado para resolverlo en JS.
+    const finishedInRange = await prisma.rental.findMany({
+      where: { status: "finished", endAt: { gte: queryStart, lt: now } },
+      select: {
+        id: true,
+        vehicleId: true,
+        pricing: true,
+        bookingTotal: true,
+        endAt: true,
+        inspections: { select: { type: true, km: true, createdAt: true } },
+      },
+    });
 
     const vMap = new Map<string, VehicleReport>(
       vehicles.map((v) => [
@@ -297,15 +353,30 @@ export const getReports = unstable_cache(
       ]),
     );
 
-    const monthMap = new Map<string, MonthPoint>(monthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
+    const monthMap = new Map<string, MonthPoint>(chartMonthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
 
-    for (const r of finished) {
-      const pricing = (r.pricing ?? {}) as ContractPricing;
-      const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
-
+    let finishedCount = 0;
+    for (const r of finishedInRange) {
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
       const kmDriven = handover && ret ? Math.max(0, ret.km - handover.km) : 0;
+
+      // El gráfico "por mes" siempre suma esta fila si su mes está en el
+      // gráfico, sin importar si cae dentro del período elegido para los
+      // KPIs/tabla de abajo (ver chartMonthList más arriba).
+      const bucket = monthMap.get(monthOf(r.endAt));
+      if (bucket) {
+        bucket.rentals += 1;
+        bucket.km += kmDriven;
+      }
+
+      const inPeriod =
+        r.endAt.getTime() >= periodRange.start.getTime() && r.endAt.getTime() < periodRange.end.getTime();
+      if (!inPeriod) continue;
+
+      finishedCount += 1;
+      const pricing = (r.pricing ?? {}) as ContractPricing;
+      const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
       const daysRented =
         handover && ret
           ? Math.max(0, (ret.createdAt.getTime() - handover.createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -316,12 +387,6 @@ export const getReports = unstable_cache(
         v.rentals += 1;
         v.days += daysRented;
         v.income += income;
-      }
-
-      const bucket = monthMap.get(monthOf(r.endAt));
-      if (bucket) {
-        bucket.rentals += 1;
-        bucket.km += kmDriven;
       }
     }
 
@@ -358,14 +423,15 @@ export const getReports = unstable_cache(
       kpis: {
         fleet: vehicles.filter((v) => v.archivedAt == null).length,
         rentedNow: vehicles.filter((v) => v.status === "rented").length,
-        finished: finished.length,
+        finished: finishedCount,
         active: activeCount,
         incomeTotal: cashIncomeTotal,
         expenseTotal: cashByOwnership.expenseTotal,
         costTotal,
         netTotal: cashIncomeTotal - cashByOwnership.expenseTotal,
       },
-      byMonth: monthList.map((m) => monthMap.get(m)!),
+      byMonth: chartMonthList.map((m) => monthMap.get(m)!),
+      highlightMonth,
       vehicles: vehicleReports,
       cashByOwnership,
     };
