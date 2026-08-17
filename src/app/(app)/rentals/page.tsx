@@ -3,9 +3,11 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { RentalList } from "@/components/rentals/rental-list";
+import { ProximasSection } from "@/components/rentals/proximas-section";
 import { RentalFiltersForm } from "@/components/rentals/rental-filters-form";
 import { parseRentalListFilters, buildRentalWhereClauses } from "@/lib/rental-list-filters";
-import { getRentalListData } from "@/lib/rental-list-queries";
+import { getRentalListData, getRentalListOverview } from "@/lib/rental-list-queries";
+import { groupUpcomingByMonth } from "@/lib/rental-list-grouping";
 
 export const metadata: Metadata = { title: "Alquileres — Andes" };
 
@@ -26,6 +28,81 @@ export default async function RentalsPage({
   await requireUser();
   const sp = await searchParams;
   const filters = parseRentalListFilters(sp);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Alquileres</h1>
+        </div>
+        <ButtonLink href="/rentals/new">Nuevo manual</ButtonLink>
+      </div>
+
+      <RentalFiltersForm {...filters} />
+
+      {filters.hasFilters ? (
+        <FilteredResults filters={filters} />
+      ) : (
+        <DefaultOverview />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Vista curada por defecto (sin filtros): Atrasadas (si hay) → Alquilados →
+ * Próximas, agrupadas por mes (el mes actual, por día). "Pasados" queda
+ * completamente afuera — se accede buscando por fecha o estado.
+ */
+async function DefaultOverview() {
+  const now = new Date();
+  const { atrasadas, alquilados, proximas } = await getRentalListOverview(now);
+  const proximasMonths = groupUpcomingByMonth(proximas, now);
+
+  if (atrasadas.length === 0 && alquilados.length === 0 && proximas.length === 0) {
+    return (
+      <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
+        Todavía no hay alquileres.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      {atrasadas.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
+            Atrasadas para entregar ({atrasadas.length})
+          </h2>
+          <RentalList rentals={atrasadas} />
+        </section>
+      )}
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+          Alquilados{alquilados.length > 0 ? ` (${alquilados.length})` : ""}
+        </h2>
+        {alquilados.length === 0 ? (
+          <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
+            No hay autos alquilados ahora mismo.
+          </p>
+        ) : (
+          <RentalList rentals={alquilados} />
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+          Próximas{proximas.length > 0 ? ` (${proximas.length})` : ""}
+        </h2>
+        <ProximasSection months={proximasMonths} />
+      </section>
+    </>
+  );
+}
+
+/** Vista de resultados con filtros activos: Actuales + Pasados, sin curar. */
+async function FilteredResults({ filters }: { filters: ReturnType<typeof parseRentalListFilters> }) {
   const { currentWhere, pastWhere } = buildRentalWhereClauses(filters);
   const { current, currentTotal, currentPage, currentTotalPages, past, pastTotal, pastPage, pastTotalPages } =
     await getRentalListData(currentWhere, pastWhere, {
@@ -52,24 +129,14 @@ export default async function RentalsPage({
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Alquileres</h1>
-          <p className="text-sm text-foreground/60">
-            {filters.hasFilters
-              ? `${currentTotal + pastTotal} resultado${currentTotal + pastTotal === 1 ? "" : "s"}`
-              : `${currentTotal} actual${currentTotal === 1 ? "" : "es"} · ${pastTotal} pasado${pastTotal === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        <ButtonLink href="/rentals/new">Nuevo manual</ButtonLink>
-      </div>
-
-      <RentalFiltersForm {...filters} />
+    <>
+      <p className="text-sm text-foreground/60">
+        {currentTotal + pastTotal} resultado{currentTotal + pastTotal === 1 ? "" : "s"}
+      </p>
 
       {current.length === 0 && past.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
-          {filters.hasFilters ? "Sin resultados." : "Todavía no hay alquileres."}
+          Sin resultados.
         </p>
       ) : (
         <>
@@ -106,7 +173,7 @@ export default async function RentalsPage({
           </section>
         </>
       )}
-    </div>
+    </>
   );
 }
 
