@@ -54,7 +54,17 @@ export default async function VehiclesPage({
   };
 
   const [vehicles, archivedCount] = await Promise.all([
-    prisma.vehicle.findMany({ where, orderBy: orderByFor(sort, dir) }),
+    prisma.vehicle.findMany({
+      where,
+      orderBy: orderByFor(sort, dir),
+      include: {
+        teamNotes: {
+          where: { resolvedAt: null },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, text: true },
+        },
+      },
+    }),
     prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
   ]);
 
@@ -110,14 +120,31 @@ export default async function VehiclesPage({
                 href={`/vehicles/${v.id}`}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]"
               >
-                <div className="flex-1">
-                  <p className="font-medium">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 truncate font-medium">
                     {v.brand} {v.model}
+                    {v.teamNotes.length > 0 && (
+                      <span
+                        title={`${v.teamNotes.length} nota(s) sin resolver`}
+                        className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white"
+                      >
+                        {v.teamNotes.length}
+                      </span>
+                    )}
                   </p>
-                  <p className="text-sm text-foreground/60">
+                  <p className="truncate text-sm text-foreground/60">
                     {v.plate} · {v.currentKm.toLocaleString("es-AR")} km
                     {v.dailyRate != null ? ` · ${formatArs(Number(v.dailyRate))}/día` : ""}
                   </p>
+                  {v.teamNotes.length > 0 && (
+                    <ul className="mt-1 flex flex-col gap-0.5">
+                      {v.teamNotes.map((n) => (
+                        <li key={n.id} className="truncate text-[11px] text-red-600 dark:text-red-400">
+                          {n.text}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <Badge tone={vehicleStatusTone[v.status]}>
                   {vehicleStatusLabels[v.status]}
