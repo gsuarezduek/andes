@@ -901,23 +901,28 @@ model ChecklistItem {
 // sucursal con condiciones propias, esto necesita pasar de `id: 1` fijo a
 // una fila por sucursal (branchId) — no hay ningún atajo hoy para eso.
 model ConditionSettings {
-  id                Int      @id @default(1)
-  insuranceAmount   Decimal? @map("insurance_amount") @db.Decimal(12, 2) // seguro
-  kmPerDay          Int?     @map("km_per_day") // km incluidos por día
-  extraKmRate       Decimal? @map("extra_km_rate") @db.Decimal(12, 2) // $ por km extra
-  extraHourPercent  Int?     @map("extra_hour_percent") // % de la tarifa diaria por hora extra
+  id                       Int      @id @default(1)
+  insuranceAmount          Decimal? @map("insurance_amount") @db.Decimal(12, 2) // seguro
+  kmPerDay                 Int?     @map("km_per_day") // km incluidos por día
+  extraKmRate              Decimal? @map("extra_km_rate") @db.Decimal(12, 2) // $ por km extra
+  extraHourPercent         Int?     @map("extra_hour_percent") // % de la tarifa diaria por hora extra
   // Franquicia (deducible del seguro): la estándar y la reducida cuando el
   // alquiler lleva "Mejora de Seguro" (ej. 600.000 → 400.000).
-  deductible        Decimal? @map("deductible") @db.Decimal(12, 2) // franquicia estándar
-  deductibleReduced Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
+  deductible               Decimal? @map("deductible") @db.Decimal(12, 2) // franquicia estándar
+  deductibleReduced        Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
   // Pack de KM adicional (200 km c/u, de 1 a 20 packs por alquiler): precio de
   // referencia por pack, precargado en el paso "Condiciones" de la entrega.
-  kmPackPrice       Decimal? @map("km_pack_price") @db.Decimal(12, 2)
+  kmPackPrice              Decimal? @map("km_pack_price") @db.Decimal(12, 2)
   // Envío del acta al cliente por email (el admin siempre la recibe). Apagar
   // para dejar de mandarle al cliente el acta de entrega o de devolución.
-  sendHandoverActa  Boolean  @default(true) @map("send_handover_acta")
-  sendReturnActa    Boolean  @default(true) @map("send_return_acta")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  sendHandoverActa         Boolean  @default(true) @map("send_handover_acta")
+  sendReturnActa           Boolean  @default(true) @map("send_return_acta")
+  // Alertas de service (dashboard): un auto vencido se muestra en ámbar
+  // mientras el excedente sobre `nextServiceKm` no supere este % del
+  // intervalo de service del auto; por encima, pasa a rojo. Null → default
+  // 15 (ver DEFAULT_SERVICE_OVERDUE_RED_PERCENT en src/lib/service-alerts.ts).
+  serviceOverdueRedPercent Int?     @map("service_overdue_red_percent")
+  updatedAt                DateTime @updatedAt @map("updated_at")
 
   @@map("condition_settings")
 }

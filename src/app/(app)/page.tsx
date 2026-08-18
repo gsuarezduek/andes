@@ -94,6 +94,48 @@ export default async function HomePage() {
         </ButtonLink>
       </div>
 
+      {/* ALERTAS: arriba de todo — es lo que más necesita atención al entrar. */}
+      <Section title="Alertas">
+        {alerts.overdueReturns.length === 0 &&
+        alerts.upcomingServices.length === 0 &&
+        alerts.unassigned.length === 0 ? (
+          <Empty>Sin alertas. Todo al día.</Empty>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {alerts.overdueReturns.map((r) => (
+              <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
+                <span className="font-medium text-red-700 dark:text-red-400">Devolución vencida</span>
+                <span className="text-right text-foreground/70">
+                  {r.clientName}{r.vehicle ? ` · ${r.vehicle.plate}` : ""} · venció {formatDateTime(r.endAt)}
+                </span>
+              </Link>
+            ))}
+            {alerts.upcomingServices.map((v) => (
+              <Link
+                key={v.id}
+                href={`/vehicles/${v.id}`}
+                className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${v.critical ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
+              >
+                <span className={`font-medium ${v.critical ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
+                  {v.overdue ? "Service vencido" : "Service próximo"}
+                </span>
+                <span className="text-right text-foreground/70">
+                  {v.brand} {v.model} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
+                </span>
+              </Link>
+            ))}
+            {alerts.unassigned.map((r) => (
+              <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-foreground/15 px-4 py-3 text-sm">
+                <span className="font-medium">Reserva sin vehículo</span>
+                <span className="text-right text-foreground/70">
+                  {r.clientName} · retiro {formatDateTime(r.startAt)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Section>
+
       {/* HOY */}
       <div className="grid gap-6 md:grid-cols-2">
         <Section title={`Entregas de hoy (${today.handovers.length})`}>
@@ -214,48 +256,6 @@ export default async function HomePage() {
               </div>
             )}
           </Section>
-
-          {/* ALERTAS */}
-          <Section title="Alertas">
-            {alerts.overdueReturns.length === 0 &&
-            alerts.upcomingServices.length === 0 &&
-            alerts.unassigned.length === 0 ? (
-              <Empty>Sin alertas. Todo al día.</Empty>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {alerts.overdueReturns.map((r) => (
-                  <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
-                    <span className="font-medium text-red-700 dark:text-red-400">Devolución vencida</span>
-                    <span className="text-right text-foreground/70">
-                      {r.clientName}{r.vehicle ? ` · ${r.vehicle.plate}` : ""} · venció {formatDateTime(r.endAt)}
-                    </span>
-                  </Link>
-                ))}
-                {alerts.upcomingServices.map((v) => (
-                  <Link
-                    key={v.id}
-                    href={`/vehicles/${v.id}`}
-                    className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${v.overdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
-                  >
-                    <span className={`font-medium ${v.overdue ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
-                      {v.overdue ? "Service vencido" : "Service próximo"}
-                    </span>
-                    <span className="text-right text-foreground/70">
-                      {v.brand} {v.model} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
-                    </span>
-                  </Link>
-                ))}
-                {alerts.unassigned.map((r) => (
-                  <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-foreground/15 px-4 py-3 text-sm">
-                    <span className="font-medium">Reserva sin vehículo</span>
-                    <span className="text-right text-foreground/70">
-                      {r.clientName} · retiro {formatDateTime(r.startAt)}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-      </Section>
     </div>
   );
 }

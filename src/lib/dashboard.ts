@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { serviceOverdueSeverity, DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
 
 const SERVICE_KM_THRESHOLD = 500; // avisar cuando falten ≤ 500 km para el service
 
@@ -29,6 +30,7 @@ export async function getDashboardData() {
     overdueReturns,
     serviceCandidates,
     unassigned,
+    conditionSettings,
   ] = await Promise.all([
     // Entregas programadas hoy (por fecha de retiro).
     prisma.rental.findMany({
@@ -64,6 +66,7 @@ export async function getDashboardData() {
       where: { status: "reserved", vehicleId: null, bookingConfirmed: true },
       orderBy: { startAt: "asc" },
     }),
+    prisma.conditionSettings.findUnique({ where: { id: 1 }, select: { serviceOverdueRedPercent: true } }),
   ]);
 
   const handoverState = (r: (typeof todayHandovers)[number]): MovementState => {
@@ -75,10 +78,19 @@ export async function getDashboardData() {
     return now > r.endAt ? "demorada" : "pendiente";
   };
 
+  const serviceRedPercent = conditionSettings?.serviceOverdueRedPercent ?? DEFAULT_SERVICE_OVERDUE_RED_PERCENT;
   const upcomingServices = serviceCandidates
     .filter((v) => v.nextServiceKm != null && v.currentKm >= v.nextServiceKm - SERVICE_KM_THRESHOLD)
     .sort((a, b) => (a.nextServiceKm! - a.currentKm) - (b.nextServiceKm! - b.currentKm))
-    .map((v) => ({ ...v, overdue: v.currentKm >= v.nextServiceKm! }));
+    .map((v) => {
+      const overdue = v.currentKm >= v.nextServiceKm!;
+      // "critical" (rojo) solo una vez vencido y por encima de la gracia
+      // configurable; "próximo" (todavía no vencido) siempre queda en ámbar.
+      const critical =
+        overdue &&
+        serviceOverdueSeverity(v.currentKm, v.nextServiceKm!, v.serviceIntervalKm, serviceRedPercent) === "red";
+      return { ...v, overdue, critical };
+    });
 
   return {
     today: {

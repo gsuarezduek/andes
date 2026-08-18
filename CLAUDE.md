@@ -351,6 +351,10 @@ Sección nueva para coordinar trabajo suelto (lavar un auto, un trámite, una co
 - **Contador rojo en el nav** junto a "Tareas": tareas pendientes asignadas al usuario logueado (`getAssignedPendingCount`, calculado en `(app)/layout.tsx`). Primera vez que ese patrón de notificación (ya usado en Calendario/listado de Alquileres para notas de equipo) aparece en la barra de navegación — se extendió `Item` (`nav/types.ts`) con `badge?: number` y se pintó en `NavLink`/`DesktopNav`/`MobileNav`.
 - Sin cambios en el sync de VikRentCar ni en ningún otro modelo existente.
 
+## v15 — % de gracia configurable para "Service vencido" + Alertas arriba del Home
+
+Antes, un auto vencido de service se mostraba siempre en rojo apenas superaba `nextServiceKm`, sin margen. Ahora es configurable: `ConditionSettings.serviceOverdueRedPercent` (migración `add_service_overdue_red_percent`, editable en Configuración → Condiciones, default 15 si no está seteado) define qué % del intervalo de service del auto se tolera en ámbar antes de pasar a rojo — `serviceOverdueSeverity` (`src/lib/service-alerts.ts`, testeada) calcula el excedente sobre `nextServiceKm` contra ese % de `serviceIntervalKm`. Sin `serviceIntervalKm` configurado no hay base para una gracia proporcional, así que cualquier excedente sigue siendo rojo directo (mismo criterio que antes de esta configuración). `getDashboardData` (`src/lib/dashboard.ts`) suma el campo `critical` a cada `upcomingService`. La sección **"Alertas" del Home pasa al tope de la página** (antes vivía al final, después de "Flota"; ahora es lo primero, antes de "Entregas/Devoluciones de hoy") — es lo que más atención necesita al entrar. Orden final: Alertas → Hoy → Tareas (v14) → Flota.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

@@ -17,6 +17,7 @@ const CONDITION_LABELS = {
   kmPackPrice: "Precio por pack de KM",
   sendHandoverActa: "Enviar Acta de Entrega",
   sendReturnActa: "Enviar Acta de Devolución",
+  serviceOverdueRedPercent: "Service vencido: % de gracia antes de pasar a rojo",
 } as const;
 
 const CONDITION_MONEY_FIELDS = new Set(["extraKmRate", "deductible", "deductibleReduced", "kmPackPrice"]);
@@ -58,6 +59,7 @@ export async function saveConditions(formData: FormData) {
     kmPackPrice: moneyOrNull(formData.get("kmPackPrice")),
     sendHandoverActa: formData.get("sendHandoverActa") === "on",
     sendReturnActa: formData.get("sendReturnActa") === "on",
+    serviceOverdueRedPercent: intOrNull(formData.get("serviceOverdueRedPercent")),
   };
 
   const existing = await prisma.conditionSettings.findUnique({ where: { id: 1 } });
@@ -75,6 +77,7 @@ export async function saveConditions(formData: FormData) {
           kmPackPrice: existing.kmPackPrice != null ? Number(existing.kmPackPrice) : null,
           sendHandoverActa: existing.sendHandoverActa,
           sendReturnActa: existing.sendReturnActa,
+          serviceOverdueRedPercent: existing.serviceOverdueRedPercent,
         },
         data,
         CONDITION_LABELS,
