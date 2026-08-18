@@ -3,20 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { PaymentMethodOwnership } from "@prisma/client";
-import { SelectField, TextField } from "@/components/ui/fields";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { confirmCashMovementPaymentMethod } from "@/app/(app)/caja/actions";
+import { ConfirmPaymentMethodForm } from "@/components/cash/confirm-payment-method-form";
 import type { CashMovementRow } from "@/lib/cash";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 
 function ConfirmRow({ movement, paymentMethods }: { movement: CashMovementRow; paymentMethods: PaymentMethodOption[] }) {
   const [open, setOpen] = useState(false);
-  const [methodId, setMethodId] = useState("");
-  const selected = paymentMethods.find((m) => m.id === methodId);
 
   return (
     <li className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-3 text-sm">
@@ -29,43 +25,18 @@ function ConfirmRow({ movement, paymentMethods }: { movement: CashMovementRow; p
         {movement.rentalClientName ? ` · ${movement.rentalClientName}` : ""} · {formatDateTime(movement.createdAt)}
       </p>
       {open ? (
-        <form
-          action={confirmCashMovementPaymentMethod.bind(null, movement.id)}
-          className="mt-2 flex flex-col gap-2"
-        >
-          <SelectField
-            id="paymentMethodId"
-            label="Medio de pago real"
-            required
-            value={methodId}
-            onChange={(e) => setMethodId(e.target.value)}
-          >
-            <option value="" disabled>
-              Elegí un medio de pago
-            </option>
-            {paymentMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </SelectField>
-          {selected?.requiresNote && (
-            <TextField id="note" label="¿A dónde fue?" hint="Obligatorio para este medio de pago" required />
-          )}
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setOpen(false)} className="text-xs text-foreground/50">
-              Cancelar
-            </button>
-            {movement.rentalId && (
+        <ConfirmPaymentMethodForm
+          movementId={movement.id}
+          paymentMethods={paymentMethods}
+          onCancel={() => setOpen(false)}
+          extraFooter={
+            movement.rentalId ? (
               <Link href={`/rentals/${movement.rentalId}`} className="text-xs text-foreground/50 underline">
                 Ver reserva
               </Link>
-            )}
-            <SubmitButton pendingLabel="Confirmando…" className="ml-auto h-auto px-2.5 py-1 text-xs">
-              Confirmar
-            </SubmitButton>
-          </div>
-        </form>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="mt-2 flex items-center gap-3">
           <button

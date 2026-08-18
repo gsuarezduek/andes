@@ -8,6 +8,9 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { formatArs } from "@/lib/contract";
+import { env } from "@/lib/env";
+import { vikrentcarOrderUrl } from "@/lib/vikrentcar";
+import { ExternalLinkIcon } from "@/components/ui/icons";
 import { StatusBanners } from "@/components/rentals/status-banners";
 import { RentalDetailTabs } from "@/components/rentals/rental-detail-tabs";
 import { TeamNotesSection } from "@/components/team-notes-section";
@@ -81,6 +84,11 @@ export default async function RentalDetailPage({
   const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = payments;
   const accent = paymentAccent(rental.status, rental.bookingConfirmed, payments);
 
+  // Link directo a la orden en el admin de VikRentCar, solo si la reserva
+  // vino sincronizada (wpBookingId) y hay un sitio de WordPress configurado.
+  const wpOrderUrl =
+    rental.wpBookingId != null && env.wpSiteUrl ? vikrentcarOrderUrl(env.wpSiteUrl, rental.wpBookingId) : null;
+
   // Pago suelto (botón del header): solo tiene sentido antes de cerrar la reserva.
   const canAddPayment = rental.status === "reserved" || rental.status === "active";
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
@@ -118,6 +126,18 @@ export default async function RentalDetailPage({
             />
           )}
           {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
+          {wpOrderUrl && (
+            <a
+              href={wpOrderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Ver en VikRentCar"
+              aria-label="Ver en VikRentCar"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+            >
+              <ExternalLinkIcon />
+            </a>
+          )}
           {(() => {
             const { label, tone } = rentalStatusDisplay(rental.status, rental.bookingConfirmed);
             return (
@@ -197,6 +217,7 @@ export default async function RentalDetailPage({
                 createdByName: m.createdBy?.name ?? null,
                 createdAt: m.createdAt,
               }))}
+              paymentMethods={paymentMethods}
             />
           )
         }
