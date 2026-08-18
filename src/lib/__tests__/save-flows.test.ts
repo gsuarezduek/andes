@@ -201,6 +201,35 @@ describe("saveHandover", () => {
     expect(tx.cashMovement.createMany).not.toHaveBeenCalled();
   });
 
+  it("no duplica en Caja un pago que ya tiene cashMovementId (cargado antes con 'Agregar pago' o importado del sync)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+    await saveHandover({
+      ...baseInput,
+      pricing: {
+        total: 50_000,
+        paid: 30_000,
+        payments: [
+          // Ya tenía su movimiento en Caja (ej. "Agregar pago" antes de la entrega).
+          { methodId: "pm1", methodName: "Efectivo", amount: 20_000, adjustedAmount: 20_000, cashMovementId: "cm_old" },
+          // Nueva, cargada recién en el wizard.
+          { methodId: "pm2", methodName: "Transferencia", amount: 10_000, adjustedAmount: 10_000 },
+        ],
+      },
+    });
+
+    // pricing.payments conserva las dos líneas (para "Paga"/el resumen).
+    const rentalArg = tx.rental.update.mock.calls[0][0].data;
+    expect(rentalArg.pricing.payments).toHaveLength(2);
+
+    // Pero solo se crea movimiento para la que no tenía cashMovementId.
+    expect(tx.cashMovement.createMany).toHaveBeenCalledOnce();
+    const movements = tx.cashMovement.createMany.mock.calls[0][0].data;
+    expect(movements).toHaveLength(1);
+    expect(movements[0]).toMatchObject({ amount: 10_000, paymentMethodName: "Transferencia" });
+  });
+
   it("registra el autor del daño (reportedById) en la inspección", async () => {
     prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
     prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
@@ -282,6 +311,31 @@ describe("saveReturn", () => {
       rentalId: "r1",
       createdById: "user1",
     });
+  });
+
+  it("no duplica en Caja un pago de la liquidación que ya tiene cashMovementId", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({
+      id: "r1",
+      status: "active",
+      clientName: "Juan Pérez",
+      inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+    });
+    const settlement = {
+      kmDriven: 400, includedKm: 0, extraKm: 0, extraKmRate: 0, extraKmCharge: 0,
+      fuelMissingEighths: 2, fuelCharge: 5_000, damageCharges: [], damagesTotal: 0,
+      subtotal: 5_000, deposit: 0, depositApplied: 0, balanceDue: 5_000,
+      depositReturn: 0,
+      payments: [
+        { methodId: "pm1", methodName: "Efectivo", amount: 3_000, adjustedAmount: 3_000, cashMovementId: "cm_old" },
+        { methodId: "pm2", methodName: "Transferencia", amount: 2_000, adjustedAmount: 2_000 },
+      ],
+    };
+    await saveReturn({ ...returnInput, settlement });
+
+    expect(tx.cashMovement.createMany).toHaveBeenCalledOnce();
+    const movements = tx.cashMovement.createMany.mock.calls[0][0].data;
+    expect(movements).toHaveLength(1);
+    expect(movements[0]).toMatchObject({ amount: 2_000, paymentMethodName: "Transferencia" });
   });
 
   it("recalcula la liquidación server-side en vez de confiar en los totales del cliente (SEC-03)", async () => {

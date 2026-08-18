@@ -75,7 +75,10 @@ export function PaymentsEditor({
       {payments.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {payments.map((p, i) => (
-            <li key={i} className="flex flex-col gap-0.5 rounded-lg border border-foreground/10 px-3 py-2 text-sm">
+            <li
+              key={i}
+              className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-sm ${p.unconfirmed ? "border-amber-500/40 bg-amber-500/5" : "border-foreground/10"}`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span>
                   {p.methodName}
@@ -94,6 +97,12 @@ export function PaymentsEditor({
                 </span>
               </div>
               {p.note && <span className="text-xs text-foreground/50">{p.note}</span>}
+              {p.unconfirmed && (
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                  Importado de VikRentCar — todavía no se confirmó el medio real (se puede confirmar
+                  desde Caja).
+                </span>
+              )}
             </li>
           ))}
         </ul>

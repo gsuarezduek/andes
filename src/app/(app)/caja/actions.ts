@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
+import type { ContractPricing } from "@/lib/contract";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -207,4 +208,74 @@ export async function deleteCashMovement(id: string, formData: FormData) {
   ]);
 
   revalidatePath("/caja");
+}
+
+const confirmMethodSchema = z.object({
+  paymentMethodId: z.string().min(1),
+  note: z.string().trim().max(300).optional(),
+});
+
+/**
+ * Confirma el medio de pago real de un ingreso importado automáticamente
+ * desde VikRentCar (bandera `needsConfirmation` — ver `importBookingPayment`
+ * en `sync/booking-upsert.ts`). Cualquier usuario puede hacerlo: es completar
+ * un dato que faltaba, no corregir un error de carga (eso sigue siendo edición
+ * completa, solo admin, vía `updateCashMovement`). Si la reserva sigue con la
+ * línea correspondiente en `pricing.payments`, también se actualiza ahí para
+ * que el wizard de entrega la vea ya resuelta.
+ */
+export async function confirmCashMovementPaymentMethod(id: string, formData: FormData) {
+  const user = await requireUser();
+  const { paymentMethodId, note } = confirmMethodSchema.parse({
+    paymentMethodId: formData.get("paymentMethodId"),
+    note: formData.get("note") || undefined,
+  });
+
+  const existing = await prisma.cashMovement.findUnique({ where: { id } });
+  if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
+  if (!existing.needsConfirmation) throw new Error("Este movimiento ya está confirmado.");
+
+  const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
+  if (!method) throw new Error("Medio de pago inválido");
+  if (method.requiresNote && !note) throw new Error("Este medio de pago requiere indicar a dónde fue.");
+  const nextNote = method.requiresNote ? (note ?? null) : null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cashMovement.update({
+      where: { id },
+      data: {
+        paymentMethodId: method.id,
+        paymentMethodName: method.name,
+        paymentMethodNote: nextNote,
+        needsConfirmation: false,
+      },
+    });
+    await tx.cashMovementEdit.create({
+      data: {
+        cashMovementId: id,
+        action: "updated",
+        changes: [{ field: "Medio de pago", from: existing.paymentMethodName, to: method.name }],
+        editedById: user.id,
+      },
+    });
+
+    if (existing.rentalId) {
+      const rental = await tx.rental.findUnique({ where: { id: existing.rentalId }, select: { pricing: true } });
+      const pricing = (rental?.pricing ?? {}) as ContractPricing;
+      if (pricing.payments?.some((p) => p.cashMovementId === id)) {
+        const nextPayments = pricing.payments.map((p) =>
+          p.cashMovementId === id
+            ? { ...p, methodId: method.id, methodName: method.name, note: nextNote ?? undefined, unconfirmed: false }
+            : p,
+        );
+        await tx.rental.update({
+          where: { id: existing.rentalId! },
+          data: { pricing: { ...pricing, payments: nextPayments } },
+        });
+      }
+    }
+  });
+
+  revalidatePath("/caja");
+  if (existing.rentalId) revalidatePath(`/rentals/${existing.rentalId}`);
 }

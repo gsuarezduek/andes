@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { vikRentCarUnixToUtc } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
+import { roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
 import type { RawBooking, RawOptional } from "./types";
 import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
@@ -41,7 +42,7 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
   const clientName = effectiveClientName(b.clientName, b.custData);
 
   if (!existing) {
-    await prisma.rental.create({
+    const rental = await prisma.rental.create({
       data: {
         origin: "vikrentcar",
         wpBookingId: b.wpBookingId,
@@ -58,6 +59,8 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
         ...booking,
       },
     });
+    await upsertWpPaymentMethodCatalog(b.paymentMethod);
+    await importBookingPayment(rental.id, null, b.paid, b.paymentMethod, b.wpBookingId, clientName);
     return "imported";
   }
 
@@ -106,7 +109,110 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       ...booking,
     },
   });
+  await upsertWpPaymentMethodCatalog(b.paymentMethod);
+  await importBookingPayment(
+    existing.id,
+    existing.bookingPaidImportedAmount ? Number(existing.bookingPaidImportedAmount) : null,
+    b.paid,
+    b.paymentMethod,
+    b.wpBookingId,
+    clientName,
+  );
   return "updated";
+}
+
+/**
+ * Registra en el catálogo (`WpPaymentMethod`) un nombre de método de pago
+ * visto en una reserva — no hay una tabla fija de gateways en VikRentCar, así
+ * que se completa solo a medida que aparecen nombres reales. Idempotente.
+ */
+async function upsertWpPaymentMethodCatalog(name: string | null): Promise<void> {
+  if (!name) return;
+  await prisma.wpPaymentMethod.upsert({
+    where: { name },
+    create: { name },
+    update: {},
+  });
+}
+
+/**
+ * Si el nombre de VikRentCar está mapeado a exactamente UN medio de pago de
+ * Andes, se puede confirmar solo; con 0 o 2+ opciones queda "sin confirmar"
+ * (alguien tiene que elegir a mano, ver `confirmCashMovementPaymentMethod`).
+ */
+async function resolveWpPaymentMethod(
+  name: string | null,
+): Promise<{ id: string; name: string } | null> {
+  if (!name) return null;
+  const wp = await prisma.wpPaymentMethod.findUnique({
+    where: { name },
+    include: { paymentMethods: { select: { id: true, name: true } } },
+  });
+  if (wp?.paymentMethods.length === 1) return wp.paymentMethods[0];
+  return null;
+}
+
+/**
+ * Importa a Caja lo que se cobró de una reserva en VikRentCar (`totpaid`),
+ * como ingreso — solo la DIFERENCIA respecto de lo ya importado en una corrida
+ * anterior (`bookingPaidImportedAmount`), para no duplicar si el monto sigue
+ * creciendo entre syncs. Agrega la línea a `rental.pricing.payments` (mismo
+ * lugar que "Agregar pago") para que el wizard de entrega ya la vea cargada.
+ * Si el medio de pago no se puede resolver (ver `resolveWpPaymentMethod`), el
+ * movimiento queda marcado `needsConfirmation` para que cualquier usuario lo
+ * confirme desde Caja.
+ */
+export async function importBookingPayment(
+  rentalId: string,
+  priorImported: number | null,
+  newPaid: number | null,
+  wpPaymentMethodName: string | null,
+  wpBookingId: number | null,
+  clientName: string,
+): Promise<void> {
+  const prior = priorImported ?? 0;
+  const target = newPaid ?? 0;
+  const delta = roundMoney(target - prior);
+  if (delta <= 0.01) return;
+
+  const resolved = await resolveWpPaymentMethod(wpPaymentMethodName);
+  const methodName =
+    resolved?.name ??
+    (wpPaymentMethodName ? `${wpPaymentMethodName} (VikRentCar, sin confirmar)` : "Sin confirmar (VikRentCar)");
+  const needsConfirmation = resolved == null;
+
+  await prisma.$transaction(async (tx) => {
+    const movement = await tx.cashMovement.create({
+      data: {
+        type: "income",
+        description: `Seña — reserva VikRentCar${wpBookingId ? ` #${wpBookingId}` : ""} (${clientName})`,
+        amount: delta,
+        paymentMethodId: resolved?.id ?? null,
+        paymentMethodName: methodName,
+        needsConfirmation,
+        rentalId,
+      },
+    });
+
+    const rental = await tx.rental.findUnique({ where: { id: rentalId }, select: { pricing: true } });
+    const pricing = (rental?.pricing ?? {}) as ContractPricing;
+    const payment: RentalPayment = {
+      methodId: resolved?.id,
+      methodName,
+      amount: delta,
+      adjustedAmount: delta,
+      cashMovementId: movement.id,
+      unconfirmed: needsConfirmation,
+    };
+    const nextPayments = [...(pricing.payments ?? []), payment];
+    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.adjustedAmount, 0));
+    const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
+
+    await tx.rental.update({
+      where: { id: rentalId },
+      data: { pricing: nextPricing, bookingPaidImportedAmount: target },
+    });
+  });
 }
 
 /**

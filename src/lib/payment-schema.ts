@@ -8,4 +8,6 @@ export const paymentSchema = z.object({
   amount: z.number().positive(),
   adjustedAmount: z.number().positive(),
   note: z.string().optional(),
+  cashMovementId: z.string().optional(),
+  unconfirmed: z.boolean().optional(),
 });

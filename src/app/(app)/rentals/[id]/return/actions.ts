@@ -172,10 +172,13 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
       });
 
       // Cada pago anotado en la liquidación queda también como ingreso en Caja,
-      // vinculado a esta reserva — el empleado no lo anota dos veces.
-      if (settlementForPersist?.payments?.length) {
+      // vinculado a esta reserva — el empleado no lo anota dos veces. Las
+      // líneas con `cashMovementId` ya tienen su movimiento (cargadas antes
+      // vía "Agregar pago", o importadas del sync): no se recrean.
+      const newPayments = settlementForPersist?.payments?.filter((p) => !p.cashMovementId) ?? [];
+      if (newPayments.length) {
         await tx.cashMovement.createMany({
-          data: paymentsToCashMovements(settlementForPersist.payments, {
+          data: paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
             description: `Ingreso de devolución — ${rental.clientName}`,

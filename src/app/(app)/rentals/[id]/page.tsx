@@ -193,6 +193,7 @@ export default async function RentalDetailPage({
                 amount: Number(m.amount),
                 paymentMethodName: m.paymentMethodName,
                 paymentMethodNote: m.paymentMethodNote,
+                needsConfirmation: m.needsConfirmation,
                 createdByName: m.createdBy?.name ?? null,
                 createdAt: m.createdAt,
               }))}

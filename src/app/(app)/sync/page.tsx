@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime } from "@/lib/datetime";
-import { triggerSyncForm, triggerFleetSeed, triggerDailySummaryForm } from "./actions";
+import { triggerSyncForm, triggerFleetSeed, triggerDailySummaryForm, triggerBookingPaymentBackfill } from "./actions";
 
 export const metadata: Metadata = { title: "Sincronización — Andes" };
 
@@ -31,10 +31,10 @@ const DAILY_SUMMARY_STATUS_LABEL: Record<string, string> = {
 export default async function SyncPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flota?: string; resumen?: string }>;
+  searchParams: Promise<{ flota?: string; resumen?: string; senas?: string }>;
 }) {
   const user = await requireUser();
-  const { flota, resumen } = await searchParams;
+  const { flota, resumen, senas } = await searchParams;
   const [flotaCreated, flotaReactivated] = flota?.split("-").map(Number) ?? [];
 
   const logs = await prisma.syncLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 });
@@ -133,6 +133,32 @@ export default async function SyncPage({
           </div>
         )}
       </section>
+
+      {user.role === "admin" && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Señas de VikRentCar pendientes de importar
+          </h2>
+          <p className="text-xs text-foreground/50">
+            Crea en Caja el ingreso de las reservas ya sincronizadas con algo pagado (
+            <code>totpaid</code>) que todavía no tienen su movimiento — pensado para correrlo una vez
+            al activar esto. Idempotente: se puede repetir sin duplicar nada, el sync normal ya lo
+            hace solo de acá en adelante.
+          </p>
+          <form action={triggerBookingPaymentBackfill}>
+            <SubmitButton pendingLabel="Importando…" variant="secondary">
+              Importar señas pendientes
+            </SubmitButton>
+          </form>
+          {senas !== undefined && (
+            <p className="rounded-lg bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+              {senas === "0"
+                ? "No había señas pendientes de importar."
+                : `Se importaron ${senas} ingreso${senas === "1" ? "" : "s"} a Caja.`}
+            </p>
+          )}
+        </section>
+      )}
 
       {user.role === "admin" && (
         <section className="flex flex-col gap-2">

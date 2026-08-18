@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
-import { computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
+import { computeBalance, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
 
 /**
  * Pago suelto cargado desde el detalle de la reserva (botón "Agregar pago"),
@@ -27,23 +27,28 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
   }
 
   const pricing = (rental.pricing ?? {}) as ContractPricing;
-  const nextPayments = [...(pricing.payments ?? []), payment];
-  const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.adjustedAmount, 0));
-  const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
-  if (pricing.total != null) {
-    nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
-  }
 
-  await prisma.$transaction([
-    prisma.rental.update({ where: { id: rentalId }, data: { pricing: nextPricing } }),
-    prisma.cashMovement.createMany({
+  await prisma.$transaction(async (tx) => {
+    // Se crea primero el movimiento para poder marcar la línea de pago con su
+    // id (`cashMovementId`) — así, si más tarde se hace la entrega/devolución,
+    // saveHandover/saveReturn saben que esta línea ya tiene su ingreso en Caja
+    // y no vuelven a crear uno (evita contarla dos veces).
+    const movement = await tx.cashMovement.create({
       data: paymentsToCashMovements([payment], {
         rentalId,
         createdById: user.id,
         description: `Pago — ${rental.clientName}`,
-      }),
-    }),
-  ]);
+      })[0],
+    });
+    const paymentWithRef: RentalPayment = { ...payment, cashMovementId: movement.id };
+    const nextPayments = [...(pricing.payments ?? []), paymentWithRef];
+    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.adjustedAmount, 0));
+    const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
+    if (pricing.total != null) {
+      nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
+    }
+    await tx.rental.update({ where: { id: rentalId }, data: { pricing: nextPricing } });
+  });
 
   revalidatePath(`/rentals/${rentalId}`);
   revalidatePath("/caja");

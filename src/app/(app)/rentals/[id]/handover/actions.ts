@@ -188,10 +188,14 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       });
 
       // Cada pago anotado en "Condiciones" queda también como ingreso en Caja,
-      // vinculado a esta reserva — el empleado no lo anota dos veces.
-      if (data.pricing?.payments?.length) {
+      // vinculado a esta reserva — el empleado no lo anota dos veces. Las
+      // líneas que ya traían `cashMovementId` (cargadas antes de la entrega
+      // vía "Agregar pago", o importadas del sync) ya tienen su movimiento:
+      // no se recrea, para no contarlas dos veces.
+      const newPayments = data.pricing?.payments?.filter((p) => !p.cashMovementId) ?? [];
+      if (newPayments.length) {
         await tx.cashMovement.createMany({
-          data: paymentsToCashMovements(data.pricing.payments, {
+          data: paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
             description: `Ingreso de entrega — ${data.clientName}`,

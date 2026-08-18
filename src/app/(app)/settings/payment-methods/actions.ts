@@ -119,3 +119,27 @@ export async function movePaymentMethod(id: string, dir: "up" | "down") {
   ]);
   revalidatePath("/settings/payment-methods");
 }
+
+/**
+ * Asocia/desasocia un nombre de método de pago de VikRentCar (`WpPaymentMethod`,
+ * completado solo por el sync a medida que ve nombres reales) a un medio de
+ * pago de Andes. Cuando la asociación queda en exactamente uno, el sync puede
+ * confirmar solo el ingreso importado de esa reserva (ver `booking-upsert.ts`);
+ * con 0 o 2+, sigue quedando "sin confirmar" para que alguien lo elija a mano.
+ */
+export async function toggleWpPaymentMethodMapping(
+  wpPaymentMethodId: string,
+  paymentMethodId: string,
+  linked: boolean,
+) {
+  await requireAdmin();
+  await prisma.wpPaymentMethod.update({
+    where: { id: wpPaymentMethodId },
+    data: {
+      paymentMethods: linked
+        ? { connect: { id: paymentMethodId } }
+        : { disconnect: { id: paymentMethodId } },
+    },
+  });
+  revalidatePath("/settings/payment-methods");
+}

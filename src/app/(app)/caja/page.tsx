@@ -7,6 +7,7 @@ import {
   getCashPeriodEdits,
   getOwnCashMovements,
   getRentalPickerOptions,
+  getUnconfirmedCashMovements,
   parseCashPeriod,
 } from "@/lib/cash";
 import { getAllSafeMovements, getOwnSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
@@ -14,6 +15,7 @@ import { MovementLauncher } from "@/components/cash/movement-launcher";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { CashOwnList } from "@/components/cash/cash-own-list";
 import { SafeSection } from "@/components/cash/safe-section";
+import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
 
@@ -46,6 +48,11 @@ export default async function CajaPage({
       </div>
 
       <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
+
+      <UnconfirmedIncomesSection
+        movements={await getUnconfirmedCashMovements()}
+        paymentMethods={paymentMethods}
+      />
 
       {user.role === "admin" ? (
         <>

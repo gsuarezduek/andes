@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { createPaymentMethod } from "./actions";
 import { PaymentMethodsEditor } from "./payment-methods-editor";
+import { WpPaymentMethodsEditor } from "@/components/settings/wp-payment-methods-editor";
 
 export const metadata: Metadata = { title: "Medios de pago — Andes" };
 
@@ -13,6 +14,10 @@ export default async function PaymentMethodsSettingsPage() {
   await requireAdmin();
 
   const items = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const wpItems = await prisma.wpPaymentMethod.findMany({
+    orderBy: { name: "asc" },
+    include: { paymentMethods: { select: { id: true } } },
+  });
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6">
@@ -61,6 +66,23 @@ export default async function PaymentMethodsSettingsPage() {
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-foreground/80">{items.length} medios de pago</h2>
         <PaymentMethodsEditor items={items} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground/80">Métodos de pago de VikRentCar</h2>
+          <p className="text-sm text-foreground/60">
+            Nombres de método de pago que aparecieron en reservas sincronizadas (ej. &quot;Stripe&quot;,
+            &quot;Transferencia de Banco&quot;) — se van agregando solos, no hay que cargarlos a mano.
+            Asociá cada uno a uno o más medios de pago de Andes: cuando la asociación es a un único
+            medio, la seña de esa reserva se importa a Caja ya confirmada; si no, queda pendiente de
+            elegir el medio real.
+          </p>
+        </div>
+        <WpPaymentMethodsEditor
+          items={wpItems.map((wp) => ({ id: wp.id, name: wp.name, linkedIds: wp.paymentMethods.map((m) => m.id) }))}
+          paymentMethods={items.map((m) => ({ id: m.id, name: m.name }))}
+        />
       </section>
     </div>
   );

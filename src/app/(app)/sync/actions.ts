@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import { runBookingSync, type SyncSummary } from "@/lib/sync/engine";
 import { seedFleetFromWp } from "@/lib/sync/fleet-seed";
+import { importBookingPayment } from "@/lib/sync/booking-upsert";
 import { sendDailySummaryEmail } from "@/lib/daily-summary";
 
 /**
@@ -32,6 +34,42 @@ export async function triggerFleetSeed() {
   revalidatePath("/sync");
   revalidatePath("/vehicles");
   redirect(`/sync?flota=${result.created}-${result.reactivated}`);
+}
+
+/**
+ * Backfill de señas ya sincronizadas antes de que existiera el import
+ * automático a Caja (ver `importBookingPayment`, sync/booking-upsert.ts):
+ * recorre las reservas `reserved` con `bookingPaid` mayor a lo ya importado y
+ * crea el ingreso pendiente. Idempotente — correrlo de nuevo no duplica nada
+ * (solo importa la diferencia contra `bookingPaidImportedAmount`).
+ */
+export async function triggerBookingPaymentBackfill(): Promise<void> {
+  await requireAdmin();
+  const rentals = await prisma.rental.findMany({
+    where: { status: "reserved", bookingPaid: { not: null } },
+    select: {
+      id: true,
+      bookingPaid: true,
+      bookingPaidImportedAmount: true,
+      bookingPaymentMethod: true,
+      wpBookingId: true,
+      clientName: true,
+    },
+  });
+
+  let count = 0;
+  for (const r of rentals) {
+    const paid = r.bookingPaid ? Number(r.bookingPaid) : 0;
+    const imported = r.bookingPaidImportedAmount ? Number(r.bookingPaidImportedAmount) : 0;
+    if (paid > imported + 0.01) {
+      await importBookingPayment(r.id, imported, paid, r.bookingPaymentMethod, r.wpBookingId, r.clientName);
+      count++;
+    }
+  }
+
+  revalidatePath("/sync");
+  revalidatePath("/caja");
+  redirect(`/sync?senas=${count}`);
 }
 
 /**

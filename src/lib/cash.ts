@@ -43,6 +43,10 @@ export type CashMovementRow = {
   recipientPaymentMethodId: string | null;
   recipientPaymentMethodName: string | null;
   recipientPaymentMethodNote: string | null;
+  // Importado automático desde VikRentCar sin poder resolver el medio de pago
+  // real — falta que alguien lo confirme (ver `confirmCashMovementPaymentMethod`).
+  needsConfirmation: boolean;
+  rentalId: string | null;
   rentalClientName: string | null;
   createdByName: string;
   createdAt: Date;
@@ -75,11 +79,22 @@ async function findMovements(where: Prisma.CashMovementWhereInput): Promise<Cash
       recipientPaymentMethodId: r.recipientPaymentMethodId,
       recipientPaymentMethodName: r.recipientPaymentMethodName,
       recipientPaymentMethodNote: r.recipientPaymentMethodNote,
+      needsConfirmation: r.needsConfirmation,
+      rentalId: r.rentalId,
       rentalClientName: r.rental?.clientName ?? null,
       createdByName: r.createdBy?.name ?? "—",
       createdAt: r.createdAt,
     }),
   );
+}
+
+/**
+ * Ingresos importados automáticamente desde VikRentCar cuyo medio de pago no
+ * se pudo resolver — independiente del período visible en Caja (no importa
+ * cuándo llegó la seña: hasta que alguien lo confirme, sigue pendiente).
+ */
+export async function getUnconfirmedCashMovements(): Promise<CashMovementRow[]> {
+  return findMovements({ needsConfirmation: true });
 }
 
 export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPeriodDetail> {
@@ -178,6 +193,7 @@ export function paymentsToCashMovements(
     paymentMethodId: p.methodId ?? null,
     paymentMethodName: p.methodName,
     paymentMethodNote: p.note ?? null,
+    needsConfirmation: p.unconfirmed ?? false,
     rentalId: opts.rentalId,
     createdById: opts.createdById,
   }));

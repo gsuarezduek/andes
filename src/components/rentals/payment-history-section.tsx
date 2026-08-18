@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 
@@ -7,6 +8,7 @@ type PaymentHistoryRow = {
   amount: number;
   paymentMethodName: string;
   paymentMethodNote: string | null;
+  needsConfirmation: boolean;
   createdByName: string | null;
   createdAt: Date;
 };
@@ -30,6 +32,15 @@ export function PaymentHistorySection({ movements }: { movements: PaymentHistory
               <p className="text-xs text-foreground/50">
                 {m.createdByName ?? "—"} · {formatDateTime(m.createdAt)}
               </p>
+              {m.needsConfirmation && (
+                <p className="mt-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  Falta confirmar el medio de pago real —{" "}
+                  <Link href="/caja" className="underline">
+                    hacelo desde Caja
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
             <span className="shrink-0 font-medium">{formatArs(m.amount)}</span>
           </li>

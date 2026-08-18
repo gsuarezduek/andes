@@ -381,6 +381,10 @@ model Rental {
   // "Stripe", "Mercado Pago"). Solo el nombre; el `paymentlog` (datos de tarjeta)
   // NO se importa. ~25% de cobertura.
   bookingPaymentMethod     String?   @map("booking_payment_method")
+  // Cuánto de `bookingPaid` ya se importó como ingreso a Caja (ver
+  // `importBookingPayment` en booking-upsert.ts): permite importar solo la
+  // diferencia si `totpaid` sigue creciendo entre corridas, sin duplicar.
+  bookingPaidImportedAmount Decimal? @map("booking_paid_imported_amount") @db.Decimal(12, 2)
 
   // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
   // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el
@@ -693,8 +697,29 @@ model PaymentMethod {
 
   cashMovements            CashMovement[] @relation("CashMovementMethod")
   cashMovementsAsRecipient CashMovement[] @relation("CashMovementRecipient")
+  // Nombres de medio de pago de VikRentCar que corresponden a este medio de
+  // Andes (ver WpPaymentMethod). Puede haber más de un medio de Andes por
+  // nombre de VikRentCar: el sync solo auto-resuelve cuando hay exactamente uno.
+  wpPaymentMethods         WpPaymentMethod[] @relation("WpPaymentMethodMapping")
 
   @@map("payment_methods")
+}
+
+/// Catálogo de nombres de método de pago vistos en VikRentCar (`orders.idpayment`,
+/// ej. "Stripe", "Transferencia de Banco"). No hay una tabla fija de gateways en
+/// WordPress: se completa solo, a medida que el sync ve nombres reales en las
+/// reservas. El admin asocia cada nombre a uno o más medios de pago de Andes
+/// (Configuración → Medios de pago); cuando la asociación es a un único medio,
+/// el sync lo usa para confirmar solo el ingreso importado (ver `booking-upsert.ts`).
+model WpPaymentMethod {
+  id   String @id @default(cuid())
+  name String @unique
+
+  paymentMethods PaymentMethod[] @relation("WpPaymentMethodMapping")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("wp_payment_methods")
 }
 
 // ---------------------------------------------------------------------------
@@ -736,6 +761,12 @@ model CashMovement {
 
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])
+
+  // true = importado automático desde VikRentCar sin poder resolver a qué
+  // medio de pago de Andes corresponde (nombre desconocido, o mapeado a más
+  // de uno) — falta que alguien confirme el medio real (cualquier usuario,
+  // ver `confirmCashMovementPaymentMethod`).
+  needsConfirmation Boolean @default(false) @map("needs_confirmation")
 
   createdById String? @map("created_by_id")
   createdBy   User?   @relation("CashMovementCreator", fields: [createdById], references: [id])

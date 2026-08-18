@@ -61,6 +61,14 @@ export type RentalPayment = {
   // Aclaración libre, obligatoria cuando el medio elegido tenía `requiresNote`
   // (ej. "Otro"): indica a dónde fue el pago.
   note?: string;
+  // Id del CashMovement que YA representa esta línea en Caja (creado por
+  // "Agregar pago" o por el import automático de VikRentCar). Presente ⇒
+  // saveHandover/saveReturn NO deben volver a crear un movimiento para esta
+  // línea al guardar — evita contarla dos veces.
+  cashMovementId?: string;
+  // true = el medio de pago es un placeholder (no se pudo resolver a un medio
+  // real de Andes) y todavía necesita que alguien lo confirme.
+  unconfirmed?: boolean;
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
