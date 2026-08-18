@@ -7,6 +7,8 @@ import type {
   MaintenanceType,
   DocumentKind,
   LoginDevice,
+  TaskStatus,
+  TaskPriority,
 } from "@prisma/client";
 
 export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
@@ -55,4 +57,14 @@ export const documentKindLabels: Record<DocumentKind, string> = {
 export const loginDeviceLabels: Record<LoginDevice, string> = {
   pc: "PC",
   mobile: "Celular",
+};
+
+export const taskStatusLabels: Record<TaskStatus, string> = {
+  pending: "Pendiente",
+  done: "Hecha",
+};
+
+export const taskPriorityLabels: Record<TaskPriority, string> = {
+  normal: "Normal",
+  high: "Alta",
 };

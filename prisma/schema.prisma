@@ -154,6 +154,9 @@ model User {
   conditionSettingsEdits ConditionSettingsEdit[]
   loginEvents            LoginEvent[]
   passwordResetTokens    PasswordResetToken[]
+  createdTasks           Task[]                  @relation("TaskCreator")
+  assignedTasks          Task[]                  @relation("TaskAssignee")
+  completedTasks         Task[]                  @relation("TaskCompleter")
 
   @@map("users")
 }
@@ -256,6 +259,7 @@ model Vehicle {
   damages         Damage[]
   maintenanceLogs MaintenanceLog[]
   teamNotes       VehicleNote[]
+  tasks           Task[]
 
   @@unique([wpCarId, wpCarIndex])
   @@map("vehicles")
@@ -605,6 +609,57 @@ model MaintenanceLog {
 
   @@index([vehicleId])
   @@map("maintenance_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Tareas
+// ---------------------------------------------------------------------------
+
+enum TaskStatus {
+  pending
+  done
+}
+
+enum TaskPriority {
+  normal
+  high
+}
+
+/// Coordinación de trabajo del equipo (lavar un auto, hacer un trámite,
+/// comprar algo): cualquiera crea una tarea, opcionalmente la asigna a otro
+/// usuario y/o a un vehículo, con fecha opcional. Cualquiera puede marcarla
+/// hecha (mismo criterio que "Resolver" en VehicleNote/RentalNote); solo
+/// quien la creó o un admin puede editarla/borrarla. No es evidencia legal
+/// como las inspecciones, así que no hace falta soft-delete ni auditoría de
+/// ediciones (a diferencia de CashMovement).
+model Task {
+  id String @id @default(cuid())
+
+  text     String       @db.Text
+  priority TaskPriority @default(normal)
+  status   TaskStatus   @default(pending)
+  dueDate  DateTime?    @map("due_date")
+
+  vehicleId String?  @map("vehicle_id")
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  assignedToId String? @map("assigned_to_id")
+  assignedTo   User?   @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("TaskCreator", fields: [createdById], references: [id])
+
+  completedById String?   @map("completed_by_id")
+  completedBy   User?     @relation("TaskCompleter", fields: [completedById], references: [id])
+  completedAt   DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([dueDate])
+  @@index([vehicleId])
+  @@map("tasks")
 }
 
 // ---------------------------------------------------------------------------

@@ -58,13 +58,18 @@ export function MobileNav({
                 href={it.href}
                 onClick={() => setMobileOpen(false)}
                 aria-current={isActive(it.href) ? "page" : undefined}
-                className={`rounded-lg px-3 py-3 text-base font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-lg px-3 py-3 text-base font-medium transition-colors ${
                   isActive(it.href)
                     ? "bg-foreground/10 text-foreground"
                     : "text-foreground/70 hover:bg-foreground/5"
                 }`}
               >
                 {it.label}
+                {it.badge ? (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold leading-none text-white">
+                    {it.badge}
+                  </span>
+                ) : null}
               </a>
             ))}
 

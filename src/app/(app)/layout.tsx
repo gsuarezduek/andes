@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
+import { getAssignedPendingCount } from "@/lib/tasks";
 import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
 import { logout } from "./actions";
@@ -13,6 +14,7 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
+  const taskCount = await getAssignedPendingCount(user.id);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -23,7 +25,7 @@ export default async function AppLayout({
             <span className="text-base font-bold tracking-tight">Andes</span>
           </Link>
 
-          <AppNav isAdmin={isAdmin} userName={user.name} logout={logout} sync={triggerSync} />
+          <AppNav isAdmin={isAdmin} userName={user.name} logout={logout} sync={triggerSync} taskCount={taskCount} />
         </div>
       </header>
 

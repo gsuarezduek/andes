@@ -2,10 +2,11 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { getDashboardData, type MovementState } from "@/lib/dashboard";
 import { getRentalPickerOptions } from "@/lib/cash";
+import { getHomeTasks, isTaskOverdue, isTaskDueToday } from "@/lib/tasks";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { HomeSearch } from "@/components/home-search";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatDate } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 
@@ -69,9 +70,10 @@ function MovementRow({
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [{ today, fleet, alerts }, rentalOptions] = await Promise.all([
+  const [{ today, fleet, alerts }, rentalOptions, tasks] = await Promise.all([
     getDashboardData(),
     getRentalPickerOptions(),
+    getHomeTasks(user.id),
   ]);
 
   return (
@@ -136,6 +138,46 @@ export default async function HomePage() {
           )}
         </Section>
       </div>
+
+      {/* TAREAS: mis pendientes + las de cualquiera que vencen hoy o ya vencieron. */}
+      <Section title={`Tareas (${tasks.length})`}>
+        {tasks.length === 0 ? (
+          <Empty>No hay tareas pendientes para hoy.</Empty>
+        ) : (
+          <div className="divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
+            {tasks.map((task) => {
+              const overdue = isTaskOverdue(task);
+              const dueToday = isTaskDueToday(task);
+              return (
+                <Link
+                  key={task.id}
+                  href="/tasks"
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03] ${
+                    overdue ? "border-l-4 border-l-red-500" : dueToday ? "border-l-4 border-l-amber-500" : "border-l-4 border-l-transparent"
+                  }`}
+                >
+                  <div className="flex-1">
+                    <p className="flex items-center gap-2 font-medium">
+                      {task.text}
+                      {task.priority === "high" ? <Badge tone="red">Alta</Badge> : null}
+                    </p>
+                    <p className="text-sm text-foreground/60">
+                      {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+                      {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
+                    </p>
+                  </div>
+                  {task.dueDate ? (
+                    <Badge tone={overdue ? "red" : dueToday ? "amber" : "neutral"}>{formatDate(task.dueDate)}</Badge>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+        <Link href="/tasks" className="self-start text-xs font-medium text-foreground/60 underline">
+          Ver todas las tareas →
+        </Link>
+      </Section>
 
       {/* FLOTA */}
       <Section title="Flota">

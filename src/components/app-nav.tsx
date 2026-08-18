@@ -9,10 +9,11 @@ import type { Item } from "@/components/nav/types";
 /**
  * Navegación de la app.
  *
- * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja,
+ * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja, Tareas,
  *   y para admin además Reportes — antes vivía enterrado en el submenú de cuenta, tan
  *   frecuente para un admin como el resto de la barra principal. Usuarios vive dentro de
- *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra.
+ *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra. Tareas muestra un
+ *   contador rojo con las tareas pendientes asignadas al usuario logueado (`taskCount`).
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
  *   Perfil, Sincronización, Configuración (solo admin) y Salir — ajustes/administración
  *   menos frecuentes que la navegación operativa de la barra principal.
@@ -23,11 +24,13 @@ export function AppNav({
   userName,
   logout,
   sync,
+  taskCount,
 }: {
   isAdmin: boolean;
   userName?: string | null;
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
+  taskCount?: number;
 }) {
   const pathname = usePathname();
 
@@ -36,6 +39,7 @@ export function AppNav({
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
     { href: "/caja", label: "Caja" },
+    { href: "/tasks", label: "Tareas", badge: taskCount },
     ...(isAdmin ? [{ href: "/reports", label: "Reportes" }] : []),
   ];
 
