@@ -42,8 +42,29 @@ describe("parseCashPeriod / cashPeriodSearch", () => {
     expect(parseCashPeriod("month", undefined)).toEqual({ kind: "month" });
   });
 
-  it("\"date\" con una fecha válida se parsea como fecha puntual", () => {
-    expect(parseCashPeriod("date", "2026-08-13")).toEqual({ kind: "date", date: "2026-08-13" });
+  it("\"date\" con from/to válidos se parsea como rango", () => {
+    expect(parseCashPeriod("date", "2026-08-10", "2026-08-13")).toEqual({
+      kind: "date",
+      from: "2026-08-10",
+      to: "2026-08-13",
+    });
+  });
+
+  it("\"date\" sin \"to\" (o con formato inválido) usa \"from\" para los dos extremos — un solo día", () => {
+    expect(parseCashPeriod("date", "2026-08-13")).toEqual({ kind: "date", from: "2026-08-13", to: "2026-08-13" });
+    expect(parseCashPeriod("date", "2026-08-13", "13/08/2026")).toEqual({
+      kind: "date",
+      from: "2026-08-13",
+      to: "2026-08-13",
+    });
+  });
+
+  it("\"date\" con \"to\" antes que \"from\" (invertidas) usa \"from\" para los dos extremos", () => {
+    expect(parseCashPeriod("date", "2026-08-13", "2026-08-01")).toEqual({
+      kind: "date",
+      from: "2026-08-13",
+      to: "2026-08-13",
+    });
   });
 
   it("\"date\" sin fecha (o con formato inválido) cae en el default", () => {
@@ -52,10 +73,18 @@ describe("parseCashPeriod / cashPeriodSearch", () => {
   });
 
   it("cashPeriodSearch es el inverso de parseCashPeriod", () => {
-    for (const raw of [{ kind: "today" }, { kind: "week" }, { kind: "month" }, { kind: "date", date: "2026-08-13" }] as const) {
+    for (const raw of [
+      { kind: "today" },
+      { kind: "week" },
+      { kind: "month" },
+      { kind: "date", from: "2026-08-13", to: "2026-08-13" },
+      { kind: "date", from: "2026-08-10", to: "2026-08-13" },
+    ] as const) {
       const search = cashPeriodSearch(raw);
       const params = new URLSearchParams(search);
-      expect(parseCashPeriod(params.get("period") ?? undefined, params.get("date") ?? undefined)).toEqual(raw);
+      expect(
+        parseCashPeriod(params.get("period") ?? undefined, params.get("from") ?? undefined, params.get("to") ?? undefined),
+      ).toEqual(raw);
     }
   });
 });
@@ -84,10 +113,17 @@ describe("resolveCashPeriod", () => {
     expect(label).toBe("Este mes");
   });
 
-  it("fecha puntual: ese día completo, sin depender de `now`", () => {
-    const { start, end, label } = resolveCashPeriod({ kind: "date", date: "2026-01-05" }, now);
+  it("fecha puntual (from === to): ese día completo, sin depender de `now`", () => {
+    const { start, end, label } = resolveCashPeriod({ kind: "date", from: "2026-01-05", to: "2026-01-05" }, now);
     expect(start.toISOString()).toBe("2026-01-05T03:00:00.000Z");
     expect(end.toISOString()).toBe("2026-01-06T03:00:00.000Z");
     expect(label).toBe("05/01/2026");
+  });
+
+  it("rango de fechas: desde el 00:00 de \"from\" hasta el 00:00 del día siguiente a \"to\"", () => {
+    const { start, end, label } = resolveCashPeriod({ kind: "date", from: "2026-01-05", to: "2026-01-08" }, now);
+    expect(start.toISOString()).toBe("2026-01-05T03:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-01-09T03:00:00.000Z");
+    expect(label).toBe("05/01/2026 – 08/01/2026");
   });
 });

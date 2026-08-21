@@ -11,7 +11,8 @@ export const runtime = "nodejs";
 // (10/08/2026 – 16/08/2026)") tiene guión largo y paréntesis — rompe el
 // header. Se arma en cambio a partir del período crudo, siempre ASCII.
 function periodFileSuffix(period: CashPeriod): string {
-  return period.kind === "date" ? period.date : period.kind;
+  if (period.kind !== "date") return period.kind;
+  return period.from === period.to ? period.from : `${period.from}_${period.to}`;
 }
 
 function toRow(m: CashMovementRow): (string | number)[] {
@@ -27,7 +28,7 @@ function toRow(m: CashMovementRow): (string | number)[] {
   ];
 }
 
-/** Exporta los movimientos de Caja del período visible como CSV (admin). ?period=today|week|month|date&date=YYYY-MM-DD */
+/** Exporta los movimientos de Caja del período visible como CSV (admin). ?period=today|week|month|date&from=YYYY-MM-DD&to=YYYY-MM-DD */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") {
@@ -36,7 +37,8 @@ export async function GET(req: NextRequest) {
 
   const period = parseCashPeriod(
     req.nextUrl.searchParams.get("period") ?? undefined,
-    req.nextUrl.searchParams.get("date") ?? undefined,
+    req.nextUrl.searchParams.get("from") ?? undefined,
+    req.nextUrl.searchParams.get("to") ?? undefined,
   );
   const detail = await getCashPeriodDetail(period);
 

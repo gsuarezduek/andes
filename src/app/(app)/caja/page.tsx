@@ -8,6 +8,7 @@ import {
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
+  getWalletBalance,
   parseCashPeriod,
 } from "@/lib/cash";
 import { getAllSafeMovements, getOwnSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
@@ -22,11 +23,11 @@ export const metadata: Metadata = { title: "Caja — Andes" };
 export default async function CajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; date?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   const user = await requireUser();
-  const { period: rawPeriod, date: rawDate } = await searchParams;
-  const period = parseCashPeriod(rawPeriod, rawDate);
+  const { period: rawPeriod, from: rawFrom, to: rawTo } = await searchParams;
+  const period = parseCashPeriod(rawPeriod, rawFrom, rawTo);
 
   const [paymentMethods, rentalOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -65,13 +66,14 @@ export default async function CajaPage({
           <SafeSection
             movements={await getAllSafeMovements()}
             balance={await getSafeBalance()}
+            walletBalance={await getWalletBalance()}
             edits={await getSafeMovementEdits()}
           />
         </>
       ) : (
         <>
           <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
-          <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} />
+          <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} walletBalance={null} />
         </>
       )}
     </div>

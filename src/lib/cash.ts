@@ -5,6 +5,7 @@ import { formatDateInput } from "@/lib/datetime";
 import type { RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
+import { getSafeBalance } from "@/lib/safe";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -233,4 +234,31 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
     movementType: r.cashMovement.type,
     createdAt: r.createdAt,
   }));
+}
+
+/**
+ * Saldo de "Billetera": efectivo físico en mano que todavía NO se depositó en
+ * la caja fuerte. Histórico completo (no por período) — mismo criterio que
+ * `getSafeBalance`, representa cuánto hay HOY, no un movimiento puntual.
+ *
+ * Billetera = (ingresos − egresos en Caja con un medio marcado `isCash`) −
+ * saldo actual de la Caja fuerte. Al depositar en la caja fuerte, ese saldo
+ * sube y la Billetera baja en la misma medida (y al revés al retirar) —
+ * la resta ya lo refleja sin tener que filtrar los SafeMovement acá.
+ * Info sensible — solo para admin (mismo criterio que la Caja fuerte).
+ */
+export async function getWalletBalance(): Promise<number> {
+  const [income, expense, safeBalance] = await Promise.all([
+    prisma.cashMovement.aggregate({
+      where: { type: "income", deletedAt: null, paymentMethod: { isCash: true } },
+      _sum: { amount: true },
+    }),
+    prisma.cashMovement.aggregate({
+      where: { type: "expense", deletedAt: null, paymentMethod: { isCash: true } },
+      _sum: { amount: true },
+    }),
+    getSafeBalance(),
+  ]);
+  const cashNet = Number(income._sum.amount ?? 0) - Number(expense._sum.amount ?? 0);
+  return cashNet - safeBalance;
 }

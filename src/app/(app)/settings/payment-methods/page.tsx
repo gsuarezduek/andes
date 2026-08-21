@@ -57,6 +57,10 @@ export default async function PaymentMethodsSettingsPage() {
             <input type="checkbox" name="requiresNote" className="h-4 w-4" />
             Requiere aclaración (ej. &quot;Otro&quot;: pide indicar a dónde fue el pago)
           </label>
+          <label className="flex items-center gap-2 text-sm text-foreground/80">
+            <input type="checkbox" name="isCash" className="h-4 w-4" />
+            Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
+          </label>
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Agregando…">Agregar</SubmitButton>
           </div>

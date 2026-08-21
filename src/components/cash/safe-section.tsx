@@ -15,10 +15,14 @@ import type { SafeMovementEditRow, SafeMovementRow as SafeMovementRowData } from
 export function SafeSection({
   movements,
   balance,
+  walletBalance,
   edits,
 }: {
   movements: SafeMovementRowData[];
   balance: number | null;
+  /** Saldo de "Billetera" (ver `getWalletBalance`) — efectivo en mano que
+   *  todavía no se depositó acá. `null` para no-admin, mismo criterio que `balance`. */
+  walletBalance: number | null;
   edits?: SafeMovementEditRow[];
 }) {
   const isAdmin = balance !== null;
@@ -36,6 +40,19 @@ export function SafeSection({
       <p className="-mt-2 text-xs text-foreground/50">
         Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas de arriba.
       </p>
+      {walletBalance !== null && (
+        <div className="-mt-1 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+          <div>
+            <p className="text-sm font-medium">Billetera</p>
+            <p className="text-xs text-foreground/50">
+              Efectivo en mano, todavía sin depositar acá.
+            </p>
+          </div>
+          <span className={`shrink-0 text-sm font-semibold ${walletBalance < 0 ? "text-red-600" : ""}`}>
+            {formatArs(walletBalance)}
+          </span>
+        </div>
+      )}
 
       {movements.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">

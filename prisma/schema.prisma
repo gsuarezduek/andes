@@ -689,6 +689,10 @@ model PaymentMethod {
   // Cuenta propia (de la empresa) o ajena (proveedor/empleado). Obligatorio:
   // todo medio de pago tiene que estar catalogado como uno u otro.
   ownership         PaymentMethodOwnership @default(own) @map("ownership")
+  // Representa efectivo físico en mano (no en la caja fuerte todavía) — de
+  // los movimientos de Caja con este medio sale el saldo de "Billetera"
+  // (ver `getWalletBalance` en cash.ts). Normalmente uno solo ("Efectivo").
+  isCash            Boolean                @default(false) @map("is_cash")
   ordering          Int                    @default(0)
   active            Boolean                @default(true)
 

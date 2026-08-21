@@ -45,7 +45,7 @@ function formatYmdEs(ymd: string): string {
 
 /**
  * Filtro de fecha de la vista admin de Caja (reemplaza la navegación por mes
- * completo: con Hoy/Semana/Mes/fecha puntual alcanza, y "esta semana" puede
+ * completo: con Hoy/Semana/Mes/rango de fechas alcanza, y "esta semana" puede
  * cruzar el límite de un mes, así que no tiene sentido acotarlo a un mes
  * navegable). Sólo la vista admin lo usa — el empleado sigue viendo "mis
  * movimientos de este mes" sin cambios (`getOwnCashMovements`).
@@ -54,7 +54,9 @@ export type CashPeriod =
   | { kind: "today" }
   | { kind: "week" }
   | { kind: "month" }
-  | { kind: "date"; date: string }; // "YYYY-MM-DD" hora Mendoza
+  // Rango de fechas ("YYYY-MM-DD" hora Mendoza, ambos inclusive). Un solo
+  // día es un caso particular con from === to.
+  | { kind: "date"; from: string; to: string };
 
 export const DEFAULT_CASH_PERIOD: CashPeriod = { kind: "today" };
 
@@ -62,22 +64,31 @@ export const CASH_PERIOD_OPTIONS: { value: "today" | "week" | "month" | "date"; 
   { value: "today", label: "Hoy" },
   { value: "week", label: "Esta semana" },
   { value: "month", label: "Este mes" },
-  { value: "date", label: "Fecha específica" },
+  { value: "date", label: "Rango de fechas" },
 ];
 
-/** Parsea `?period=&date=` de la URL a un `CashPeriod`; valores desconocidos caen al default (hoy). */
-export function parseCashPeriod(rawPeriod: string | undefined, rawDate: string | undefined): CashPeriod {
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Parsea `?period=&from=&to=` de la URL a un `CashPeriod`; valores desconocidos caen al default (hoy). */
+export function parseCashPeriod(
+  rawPeriod: string | undefined,
+  rawFrom: string | undefined,
+  rawTo?: string | undefined,
+): CashPeriod {
   if (rawPeriod === "week") return { kind: "week" };
   if (rawPeriod === "month") return { kind: "month" };
-  if (rawPeriod === "date" && rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-    return { kind: "date", date: rawDate };
+  if (rawPeriod === "date" && rawFrom && YMD_RE.test(rawFrom)) {
+    const to = rawTo && YMD_RE.test(rawTo) ? rawTo : rawFrom;
+    // Si "hasta" quedó antes que "desde" (fechas invertidas a mano en la URL),
+    // se toma "desde" como los dos extremos en vez de armar un rango vacío/negativo.
+    return { kind: "date", from: rawFrom, to: to < rawFrom ? rawFrom : to };
   }
   return DEFAULT_CASH_PERIOD;
 }
 
 /** Inverso de `parseCashPeriod`: query string para links/navegación. */
 export function cashPeriodSearch(period: CashPeriod): string {
-  return period.kind === "date" ? `period=date&date=${period.date}` : `period=${period.kind}`;
+  return period.kind === "date" ? `period=date&from=${period.from}&to=${period.to}` : `period=${period.kind}`;
 }
 
 /**
@@ -106,8 +117,11 @@ export function resolveCashPeriod(period: CashPeriod, now: Date = new Date()): {
     return { ...monthRangeUtc(todayYmd.slice(0, 7)), label: "Este mes" };
   }
   return {
-    start: mendozaWallTimeToUtc(`${period.date}T00:00`),
-    end: mendozaWallTimeToUtc(`${addDaysYmd(period.date, 1)}T00:00`),
-    label: formatYmdEs(period.date),
+    start: mendozaWallTimeToUtc(`${period.from}T00:00`),
+    end: mendozaWallTimeToUtc(`${addDaysYmd(period.to, 1)}T00:00`),
+    label:
+      period.from === period.to
+        ? formatYmdEs(period.from)
+        : `${formatYmdEs(period.from)} – ${formatYmdEs(period.to)}`,
   };
 }

@@ -20,6 +20,7 @@ type Draft = {
   reference: string;
   ownership: PaymentMethodOwnership;
   requiresNote: boolean;
+  isCash: boolean;
 };
 
 function draftFrom(it: PaymentMethod): Draft {
@@ -29,6 +30,7 @@ function draftFrom(it: PaymentMethod): Draft {
     reference: it.reference ?? "",
     ownership: it.ownership,
     requiresNote: it.requiresNote,
+    isCash: it.isCash,
   };
 }
 
@@ -38,7 +40,8 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.adjustmentPercent === b.adjustmentPercent &&
     a.reference === b.reference &&
     a.ownership === b.ownership &&
-    a.requiresNote === b.requiresNote
+    a.requiresNote === b.requiresNote &&
+    a.isCash === b.isCash
   );
 }
 
@@ -254,6 +257,7 @@ function PaymentMethodRow({
           </form>
         </div>
         <span className="flex-1 text-sm font-medium">{item.name}</span>
+        {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
         <form action={togglePaymentMethod.bind(null, item.id)}>
@@ -313,6 +317,15 @@ function PaymentMethodRow({
             className="h-4 w-4"
           />
           Requiere aclaración (a dónde fue el pago)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/80">
+          <input
+            type="checkbox"
+            checked={draft.isCash}
+            onChange={(e) => setField(item.id, "isCash", e.target.checked)}
+            className="h-4 w-4"
+          />
+          Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
         </label>
       </div>
     </li>

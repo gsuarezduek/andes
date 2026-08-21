@@ -35,6 +35,7 @@ export async function createPaymentMethod(formData: FormData) {
       adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
       reference: strOrNull(formData.get("reference")),
       requiresNote: formData.get("requiresNote") === "on",
+      isCash: formData.get("isCash") === "on",
       ownership: ownershipOrDefault(formData.get("ownership")),
       ordering: (max._max.ordering ?? 0) + 1,
     },
@@ -48,6 +49,7 @@ export type PaymentMethodUpdateInput = {
   adjustmentPercent: string;
   reference: string;
   requiresNote: boolean;
+  isCash: boolean;
   ownership: PaymentMethodOwnership;
 };
 
@@ -67,6 +69,7 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           adjustmentPercent: percentOrNull(u.adjustmentPercent),
           reference: strOrNull(u.reference),
           requiresNote: u.requiresNote,
+          isCash: u.isCash,
           ownership: u.ownership,
         },
       }),
