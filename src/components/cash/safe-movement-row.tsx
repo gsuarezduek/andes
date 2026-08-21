@@ -39,17 +39,19 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
       <li className="rounded-lg border border-foreground/15 px-3 py-3 text-sm">
         <form action={updateSafeMovement.bind(null, movement.id)} className="flex flex-col gap-2">
           <TextareaField id="description" label="Motivo" defaultValue={movement.description} required rows={2} />
-          <CurrencyToggle value={currency} onChange={setCurrency} />
-          <TextField
-            id="amount"
-            label="Monto"
-            type="number"
-            step="0.01"
-            min="0"
-            prefix="$"
-            defaultValue={movement.amount}
-            required
-          />
+          <div className="grid grid-cols-[7fr_3fr] gap-2">
+            <TextField
+              id="amount"
+              label="Monto"
+              type="number"
+              step="0.01"
+              min="0"
+              prefix="$"
+              defaultValue={movement.amount}
+              required
+            />
+            <CurrencyToggle value={currency} onChange={setCurrency} />
+          </div>
           <div className="mt-1 flex items-center gap-3">
             <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">
               Cancelar

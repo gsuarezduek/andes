@@ -60,8 +60,10 @@ export function SafeMovementForm({ onCancel }: { onCancel: () => void }) {
         rows={2}
         placeholder={type === "deposit" ? "Ej: recaudación del día" : "Ej: pago de sueldos"}
       />
-      <CurrencyToggle value={currency} onChange={setCurrency} />
-      <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
+      <div className="grid grid-cols-[7fr_3fr] gap-2">
+        <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
+        <CurrencyToggle value={currency} onChange={setCurrency} />
+      </div>
 
       <SubmitButton pendingLabel="Guardando…">
         {type === "deposit" ? "Registrar ingreso" : "Registrar retiro"}

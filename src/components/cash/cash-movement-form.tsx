@@ -58,8 +58,10 @@ export function CashMovementForm({
         rows={2}
         placeholder="Ej: seña reserva Juan Pérez"
       />
-      <CurrencyToggle value={currency} onChange={setCurrency} />
-      <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
+      <div className="grid grid-cols-[7fr_3fr] gap-2">
+        <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
+        <CurrencyToggle value={currency} onChange={setCurrency} />
+      </div>
       <SelectField
         id="paymentMethodId"
         label={mode === "expense" ? "Origen" : "Medio de pago"}
