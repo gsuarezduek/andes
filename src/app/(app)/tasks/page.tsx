@@ -136,6 +136,8 @@ export default async function TasksPage({
                 <p className="text-foreground/70 line-through decoration-foreground/30">{task.text}</p>
                 <p className="mt-0.5 text-xs text-foreground/50">
                   {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+                  {" · creada por "}
+                  {task.createdBy?.name ?? "—"}
                   {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
                   {" · completada "}
                   {task.completedAt ? formatDateTime(task.completedAt) : ""}
