@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { SelectField, TextField } from "@/components/ui/fields";
+import { TextField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { confirmCashMovementPaymentMethod } from "@/app/(app)/caja/actions";
 
 export type ConfirmablePaymentMethod = { id: string; name: string; requiresNote?: boolean };
@@ -30,22 +31,13 @@ export function ConfirmPaymentMethodForm({
 
   return (
     <form action={confirmCashMovementPaymentMethod.bind(null, movementId)} className="mt-2 flex flex-col gap-2">
-      <SelectField
+      <PaymentMethodPicker
         id="paymentMethodId"
         label="Medio de pago real"
-        required
+        options={paymentMethods}
         value={methodId}
-        onChange={(e) => setMethodId(e.target.value)}
-      >
-        <option value="" disabled>
-          Elegí un medio de pago
-        </option>
-        {paymentMethods.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-          </option>
-        ))}
-      </SelectField>
+        onChange={setMethodId}
+      />
       {selected?.requiresNote && (
         <TextField id="note" label="¿A dónde fue?" hint="Obligatorio para este medio de pago" required />
       )}
@@ -54,7 +46,11 @@ export function ConfirmPaymentMethodForm({
           Cancelar
         </button>
         {extraFooter}
-        <SubmitButton pendingLabel="Confirmando…" className="ml-auto h-auto px-2.5 py-1 text-xs">
+        <SubmitButton
+          pendingLabel="Confirmando…"
+          className="ml-auto h-auto px-2.5 py-1 text-xs"
+          disabled={!methodId}
+        >
           Confirmar
         </SubmitButton>
       </div>

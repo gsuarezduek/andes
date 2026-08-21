@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { formatArs, paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 
@@ -116,22 +117,17 @@ export function PaymentsEditor({
       </button>
 
       <Modal open={payModalOpen} onClose={() => setPayModalOpen(false)} title="Agregar pago">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-foreground/80">Medio de pago</span>
-          <select
-            value={payMethodId}
-            onChange={(e) => setPayMethodId(e.target.value)}
-            className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-          >
-            <option value="">Elegir…</option>
-            {paymentMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-                {m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <PaymentMethodPicker
+          id="wizard_payment_method"
+          label="Medio de pago"
+          options={paymentMethods}
+          value={payMethodId}
+          onChange={setPayMethodId}
+          placeholder="Buscar medio de pago…"
+          formatOption={(m) =>
+            `${m.name}${m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}`
+          }
+        />
         <div className="mt-3">
           <TextField
             id="pay_amount"

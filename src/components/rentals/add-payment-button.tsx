@@ -6,6 +6,7 @@ import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { PaymentIcon } from "@/components/ui/icons";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { formatArs, paymentAdjustedAmount } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 import { addRentalPayment } from "@/app/(app)/rentals/[id]/payment-actions";
@@ -87,22 +88,17 @@ export function AddPaymentButton({
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Agregar pago">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-foreground/80">Medio de pago</span>
-          <select
-            value={methodId}
-            onChange={(e) => setMethodId(e.target.value)}
-            className="h-11 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
-          >
-            <option value="">Elegir…</option>
-            {paymentMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-                {m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <PaymentMethodPicker
+          id="add_payment_method"
+          label="Medio de pago"
+          options={paymentMethods}
+          value={methodId}
+          onChange={setMethodId}
+          placeholder="Buscar medio de pago…"
+          formatOption={(m) =>
+            `${m.name}${m.adjustmentPercent ? ` (${m.adjustmentPercent > 0 ? "+" : ""}${m.adjustmentPercent}%)` : ""}`
+          }
+        />
         <div className="mt-3">
           <TextField id="add_payment_amount" label="Importe" type="text" inputMode="decimal" prefix="$" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>

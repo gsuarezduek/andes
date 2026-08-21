@@ -3,9 +3,10 @@
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
+import { TextField, TextareaField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { createCashMovement } from "@/app/(app)/caja/actions";
 import type { RentalPickerOption } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
@@ -62,22 +63,14 @@ export function CashMovementForm({
         <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
         <CurrencyToggle value={currency} onChange={setCurrency} />
       </div>
-      <SelectField
+      <PaymentMethodPicker
         id="paymentMethodId"
         label={mode === "expense" ? "Origen" : "Medio de pago"}
-        required
+        options={paymentMethods}
         value={paymentMethodId}
-        onChange={(e) => setPaymentMethodId(e.target.value)}
-      >
-        <option value="" disabled>
-          {mode === "expense" ? "Elegí de dónde sale la plata" : "Elegí un medio de pago"}
-        </option>
-        {paymentMethods.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-          </option>
-        ))}
-      </SelectField>
+        onChange={setPaymentMethodId}
+        placeholder={mode === "expense" ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
+      />
       {selectedMethod?.requiresNote && (
         <TextField
           id="paymentMethodNote"
@@ -88,20 +81,15 @@ export function CashMovementForm({
       )}
       {mode === "expense" && (
         <>
-          <SelectField
+          <PaymentMethodPicker
             id="recipientPaymentMethodId"
             label="Destino"
             hint="Opcional — cuenta ajena a la que se le pagó"
+            options={thirdPartyMethods}
             value={recipientPaymentMethodId}
-            onChange={(e) => setRecipientPaymentMethodId(e.target.value)}
-          >
-            <option value="">Sin destino específico</option>
-            {thirdPartyMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </SelectField>
+            onChange={setRecipientPaymentMethodId}
+            placeholder="Sin destino específico — buscar…"
+          />
           {selectedRecipient?.requiresNote && (
             <TextField
               id="recipientPaymentMethodNote"
@@ -113,7 +101,7 @@ export function CashMovementForm({
         </>
       )}
       {mode === "income" && <RentalPicker options={rentalOptions} />}
-      <SubmitButton pendingLabel="Guardando…">
+      <SubmitButton pendingLabel="Guardando…" disabled={!paymentMethodId}>
         {mode === "income" ? "Agregar ingreso" : "Agregar egreso"}
       </SubmitButton>
     </form>

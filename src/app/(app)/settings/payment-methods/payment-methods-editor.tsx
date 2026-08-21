@@ -5,7 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
+import { TextField, TextareaField, SelectField, compactControlClass } from "@/components/ui/fields";
 import {
   togglePaymentMethod,
   deletePaymentMethod,
@@ -58,6 +58,7 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // `items` cambia de referencia solo cuando llegan datos frescos del server
   // (tras crear/activar/borrar/mover/guardar — revalidatePath re-renderiza el
@@ -100,17 +101,34 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
     });
   }
 
-  const own = items.filter((it) => it.ownership === "own");
-  const thirdParty = items.filter((it) => it.ownership === "third_party");
+  const filtered = search.trim()
+    ? items.filter((it) => it.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : items;
+  const own = filtered.filter((it) => it.ownership === "own");
+  const thirdParty = filtered.filter((it) => it.ownership === "third_party");
 
   return (
     <div className={`flex flex-col gap-4 ${dirtyIds.length > 0 ? "pb-16" : ""}`}>
-      <PaymentMethodGroup title="Propias" items={own} drafts={drafts} setField={setField} />
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar medio de pago…"
+        className={`${compactControlClass} w-full`}
+      />
+      <PaymentMethodGroup
+        title="Propias"
+        items={own}
+        drafts={drafts}
+        setField={setField}
+        emptyLabel={search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo."}
+      />
       <PaymentMethodGroup
         title="Ajenas (Proveedores/Equipo)"
         items={thirdParty}
         drafts={drafts}
         setField={setField}
+        emptyLabel={search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo."}
       />
 
       {dirtyIds.length > 0 && (
@@ -145,19 +163,19 @@ function PaymentMethodGroup({
   items,
   drafts,
   setField,
+  emptyLabel,
 }: {
   title: string;
   items: PaymentMethod[];
   drafts: Record<string, Draft>;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
+  emptyLabel: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">{title}</h3>
       {items.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin medios de pago en este grupo.
-        </p>
+        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">{emptyLabel}</p>
       ) : (
         <ul className="mt-1 flex flex-col gap-3">
           {items.map((it, i) => {

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
-import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
+import { TextField, TextareaField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
@@ -78,22 +79,14 @@ export function MovementRow({
             />
             <CurrencyToggle value={currency} onChange={setCurrency} />
           </div>
-          <SelectField
+          <PaymentMethodPicker
             id="paymentMethodId"
             label={isExpense ? "Origen" : "Medio de pago"}
-            required
+            options={paymentMethods}
             value={paymentMethodId}
-            onChange={(e) => setPaymentMethodId(e.target.value)}
-          >
-            <option value="" disabled>
-              {isExpense ? "Elegí de dónde sale la plata" : "Elegí un medio de pago"}
-            </option>
-            {paymentMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </SelectField>
+            onChange={setPaymentMethodId}
+            placeholder={isExpense ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
+          />
           {selectedMethod?.requiresNote && (
             <TextField
               id="paymentMethodNote"
@@ -105,20 +98,15 @@ export function MovementRow({
           )}
           {isExpense && (
             <>
-              <SelectField
+              <PaymentMethodPicker
                 id="recipientPaymentMethodId"
                 label="Destino"
                 hint="Opcional — cuenta ajena a la que se le pagó"
+                options={thirdPartyMethods}
                 value={recipientPaymentMethodId}
-                onChange={(e) => setRecipientPaymentMethodId(e.target.value)}
-              >
-                <option value="">Sin destino específico</option>
-                {thirdPartyMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </SelectField>
+                onChange={setRecipientPaymentMethodId}
+                placeholder="Sin destino específico — buscar…"
+              />
               {selectedRecipient?.requiresNote && (
                 <TextField
                   id="recipientPaymentMethodNote"
@@ -141,7 +129,7 @@ export function MovementRow({
             >
               Eliminar
             </button>
-            <SubmitButton pendingLabel="Guardando…" className="ml-auto">
+            <SubmitButton pendingLabel="Guardando…" className="ml-auto" disabled={!paymentMethodId}>
               Guardar
             </SubmitButton>
           </div>
