@@ -6,6 +6,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { SubsectionTitle } from "@/components/ui/subsection-title";
 import { getDictionary } from "@/lib/i18n";
 import { saveEmailSettings } from "../actions";
 
@@ -27,7 +29,7 @@ function LocaleFields({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-foreground/70">Correo de entrega</h3>
+        <SubsectionTitle>Correo de entrega</SubsectionTitle>
         <TextField
           id={`${prefix}HandoverSubject`}
           label="Asunto"
@@ -42,8 +44,8 @@ function LocaleFields({
         />
       </div>
 
-      <div className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-foreground/70">Correo de devolución</h3>
+      <div className="flex flex-col gap-4 border-t border-foreground/10 pt-5">
+        <SubsectionTitle>Correo de devolución</SubsectionTitle>
         <TextField
           id={`${prefix}ReturnSubject`}
           label="Asunto"
@@ -58,8 +60,8 @@ function LocaleFields({
         />
       </div>
 
-      <div className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-foreground/70">Textos comunes</h3>
+      <div className="flex flex-col gap-4 border-t border-foreground/10 pt-5">
+        <SubsectionTitle>Textos comunes</SubsectionTitle>
         <TextField
           id={`${prefix}Greeting`}
           label="Saludo"
@@ -111,7 +113,7 @@ export default async function EmailSettingsPage({
       <form action={saveEmailSettings} className="flex flex-col gap-8">
         {/* Remitente */}
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Remitente</h2>
+          <SectionHeading>Remitente</SectionHeading>
           <TextField
             id="fromAddress"
             label="Casilla desde donde salen los correos"
@@ -124,16 +126,15 @@ export default async function EmailSettingsPage({
 
         {/* Español */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Textos en español</h2>
+          <SectionHeading>Textos en español</SectionHeading>
           <LocaleFields prefix="es" settings={settings} defaults={esDefaults} />
         </section>
 
         {/* Inglés */}
         <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Textos en inglés</h2>
-          <p className="text-sm text-foreground/60">
-            Se usan solo en alquileres marcados en inglés.
-          </p>
+          <SectionHeading description="Se usan solo en alquileres marcados en inglés.">
+            Textos en inglés
+          </SectionHeading>
           <LocaleFields prefix="en" settings={settings} defaults={enDefaults} />
         </section>
 

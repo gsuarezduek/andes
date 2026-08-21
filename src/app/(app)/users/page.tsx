@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { compactControlClass } from "@/components/ui/fields";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { userRoleLabels, loginDeviceLabels } from "@/lib/labels";
 import { formatDateTime } from "@/lib/datetime";
 
@@ -60,9 +61,9 @@ export default async function UsersPage({
         ))}
       </ul>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 border-t border-foreground/10 pt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Historial de logins</h2>
+          <SectionHeading>Historial de logins</SectionHeading>
           <form className="flex items-center gap-2">
             <select
               name="loginUser"

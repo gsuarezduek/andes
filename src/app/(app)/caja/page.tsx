@@ -39,7 +39,7 @@ export default async function CajaPage({
   ]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
         <p className="text-sm text-foreground/60">
@@ -48,34 +48,41 @@ export default async function CajaPage({
         </p>
       </div>
 
-      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
+      <div className="flex flex-col gap-5">
+        <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
 
-      <UnconfirmedIncomesSection
-        movements={await getUnconfirmedCashMovements()}
-        paymentMethods={paymentMethods}
-      />
+        <UnconfirmedIncomesSection
+          movements={await getUnconfirmedCashMovements()}
+          paymentMethods={paymentMethods}
+        />
 
-      {user.role === "admin" ? (
-        <>
+        {user.role === "admin" ? (
           <CashPeriodDetail
             data={await getCashPeriodDetail(period)}
             edits={await getCashPeriodEdits(period)}
             paymentMethods={paymentMethods}
             period={period}
           />
+        ) : (
+          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+        )}
+      </div>
+
+      {/* Caja fuerte: efectivo físico, sin relación con las reservas de
+          arriba — divisor + espacio propio para que no se lea como una
+          fila más del libro de ingresos/egresos. */}
+      <div className="border-t border-foreground/10 pt-8">
+        {user.role === "admin" ? (
           <SafeSection
             movements={await getAllSafeMovements()}
             balance={await getSafeBalance()}
             walletBalance={await getWalletBalance()}
             edits={await getSafeMovementEdits()}
           />
-        </>
-      ) : (
-        <>
-          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+        ) : (
           <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} walletBalance={null} />
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }

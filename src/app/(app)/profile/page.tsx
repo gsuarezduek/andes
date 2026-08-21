@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { userRoleLabels } from "@/lib/labels";
 import { PasswordForm } from "./password-form";
 
@@ -27,7 +28,7 @@ export default async function ProfilePage() {
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Datos</h2>
+        <SectionHeading>Datos</SectionHeading>
         <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10">
           <Row label="Nombre" value={user.name ?? "—"} />
           <Row label="Email" value={user.email ?? "—"} />
@@ -36,7 +37,7 @@ export default async function ProfilePage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Cambiar contraseña</h2>
+        <SectionHeading>Cambiar contraseña</SectionHeading>
         <PasswordForm />
       </section>
     </div>

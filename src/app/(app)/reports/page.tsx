@@ -12,6 +12,7 @@ import {
   type VehicleSortKey,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 export const metadata: Metadata = { title: "Reportes — Andes" };
 
@@ -50,7 +51,7 @@ export default async function ReportsPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
@@ -77,8 +78,10 @@ export default async function ReportsPage({
       </div>
 
       {/* Estado actual de la flota — no depende del período elegido */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-foreground/70">Flota (estado actual)</h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeading description="Estado en este momento, no depende del período elegido arriba.">
+          Flota (estado actual)
+        </SectionHeading>
         <div className="grid grid-cols-3 gap-3">
           <Kpi label="Flota" value={String(kpis.fleet)} />
           <Kpi label="Alquilados ahora" value={String(kpis.rentedNow)} />
@@ -87,8 +90,8 @@ export default async function ReportsPage({
       </section>
 
       {/* Resumen del período: todo de Caja (dinero real), coherente entre sí */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-foreground/70">Caja del período</h2>
+      <section className="flex flex-col gap-3">
+        <SectionHeading>Caja del período</SectionHeading>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi label="Finalizados" value={String(kpis.finished)} />
           <Kpi label="Ingresos" value={formatArs(kpis.incomeTotal)} />
@@ -111,9 +114,9 @@ export default async function ReportsPage({
       </section>
 
       {/* Actividad por mes */}
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground/70">Alquileres finalizados por mes</h2>
+          <SectionHeading>Alquileres finalizados por mes</SectionHeading>
           <a
             className="text-xs font-medium underline"
             href={`/api/reports/export?type=months&period=${periodParam}`}
@@ -125,9 +128,9 @@ export default async function ReportsPage({
       </section>
 
       {/* Por vehículo */}
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground/70">Por vehículo</h2>
+          <SectionHeading>Por vehículo</SectionHeading>
           <a
             className="text-xs font-medium underline"
             href={`/api/reports/export?type=vehicles&period=${periodParam}&sort=${sort}&dir=${dir}`}

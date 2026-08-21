@@ -5,6 +5,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { SubsectionTitle } from "@/components/ui/subsection-title";
 import { formatDateTime } from "@/lib/datetime";
 import type { FieldChange } from "@/lib/movement-audit";
 import { DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
@@ -44,85 +46,82 @@ export default async function GeneralSettingsPage({
       <SavedBanner show={saved === "1"} label="Condiciones guardadas." />
 
       {/* Condiciones económicas (precarga global) */}
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Condiciones</h2>
-          <p className="text-sm text-foreground/60">
-            Valores por defecto que el empleado ve precargados al iniciar la entrega y puede
-            ajustar antes de firmar. El precio por día y los días se traen de la reserva.
-          </p>
-        </div>
-        <form action={saveConditions} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <TextField
-              id="kmPerDay"
-              label="Km por día"
-              suffix="km"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              placeholder="—"
-              defaultValue={conditions?.kmPerDay?.toString()}
-            />
-            <TextField
-              id="extraKmRate"
-              label="Km extra"
-              prefix="$"
-              suffix="c/u"
-              type="text"
-              inputMode="decimal"
-              placeholder="—"
-              defaultValue={conditions?.extraKmRate?.toString()}
-            />
-            <TextField
-              id="extraHourPercent"
-              label="Hora extra"
-              suffix="%"
-              hint="% de la tarifa diaria"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              placeholder="—"
-              defaultValue={conditions?.extraHourPercent?.toString()}
-            />
-            <TextField
-              id="deductible"
-              label="Franquicia/Garantía estándar"
-              prefix="$"
-              hint="deducible del seguro y garantía tomada"
-              type="text"
-              inputMode="decimal"
-              placeholder="—"
-              defaultValue={conditions?.deductible?.toString()}
-            />
-            <TextField
-              id="deductibleReduced"
-              label="Franquicia/Garantía con mejora de seguro"
-              prefix="$"
-              hint="reducida"
-              type="text"
-              inputMode="decimal"
-              placeholder="—"
-              defaultValue={conditions?.deductibleReduced?.toString()}
-            />
-            <TextField
-              id="kmPackPrice"
-              label="Precio por pack de KM"
-              prefix="$"
-              hint="200 km c/u, de 1 a 20 packs"
-              type="text"
-              inputMode="decimal"
-              placeholder="—"
-              defaultValue={conditions?.kmPackPrice?.toString()}
-            />
+      <section className="flex flex-col gap-5">
+        <SectionHeading description="Valores por defecto que el empleado ve precargados al iniciar la entrega y puede ajustar antes de firmar. El precio por día y los días se traen de la reserva.">
+          Condiciones
+        </SectionHeading>
+        <form action={saveConditions} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
+            <SubsectionTitle>Condiciones económicas</SubsectionTitle>
+            <div className="grid grid-cols-2 gap-4">
+              <TextField
+                id="kmPerDay"
+                label="Km por día"
+                suffix="km"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                placeholder="—"
+                defaultValue={conditions?.kmPerDay?.toString()}
+              />
+              <TextField
+                id="extraKmRate"
+                label="Km extra"
+                prefix="$"
+                suffix="c/u"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.extraKmRate?.toString()}
+              />
+              <TextField
+                id="extraHourPercent"
+                label="Hora extra"
+                suffix="%"
+                hint="% de la tarifa diaria"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                placeholder="—"
+                defaultValue={conditions?.extraHourPercent?.toString()}
+              />
+              <TextField
+                id="deductible"
+                label="Franquicia/Garantía estándar"
+                prefix="$"
+                hint="deducible del seguro y garantía tomada"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.deductible?.toString()}
+              />
+              <TextField
+                id="deductibleReduced"
+                label="Franquicia/Garantía con mejora de seguro"
+                prefix="$"
+                hint="reducida"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.deductibleReduced?.toString()}
+              />
+              <TextField
+                id="kmPackPrice"
+                label="Precio por pack de KM"
+                prefix="$"
+                hint="200 km c/u, de 1 a 20 packs"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.kmPackPrice?.toString()}
+              />
+            </div>
           </div>
 
-          <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Alertas de service (dashboard)</p>
-            <p className="mb-2 text-xs text-foreground/50">
-              Un auto con el service vencido se muestra en ámbar mientras el excedente no supere
-              este % del intervalo de service del auto; por encima, pasa a rojo.
-            </p>
+          <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
+            <SubsectionTitle description="Un auto con el service vencido se muestra en ámbar mientras el excedente no supere este % del intervalo de service del auto; por encima, pasa a rojo.">
+              Alertas de service (dashboard)
+            </SubsectionTitle>
             <TextField
               id="serviceOverdueRedPercent"
               label="% de gracia antes de pasar a rojo"
@@ -135,11 +134,10 @@ export default async function GeneralSettingsPage({
             />
           </div>
 
-          <div>
-            <p className="mb-2 text-sm font-medium text-foreground/80">Envío de actas al cliente</p>
-            <p className="mb-2 text-xs text-foreground/50">
-              El admin siempre recibe una copia; esto solo controla si también le llega al cliente.
-            </p>
+          <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
+            <SubsectionTitle description="El admin siempre recibe una copia; esto solo controla si también le llega al cliente.">
+              Envío de actas al cliente
+            </SubsectionTitle>
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="sendHandoverActa" defaultChecked={conditions?.sendHandoverActa ?? true} className="size-4" />
@@ -187,13 +185,11 @@ export default async function GeneralSettingsPage({
 
       {/* Checklist */}
       <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Checklist</h2>
-          <p className="text-sm text-foreground/60">
-            Ítems de verificación de la entrega/devolución. {items.filter((i) => i.active).length}{" "}
-            activos.
-          </p>
-        </div>
+        <SectionHeading
+          description={`Ítems de verificación de la entrega/devolución. ${items.filter((i) => i.active).length} activos.`}
+        >
+          Checklist
+        </SectionHeading>
 
         <form action={createChecklistItem} className="flex gap-2">
           <input
