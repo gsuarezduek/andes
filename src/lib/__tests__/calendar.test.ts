@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { assignLanes, type CalendarBar } from "@/lib/calendar";
+import { assignLanes, centerOffsetDays, type CalendarBar } from "@/lib/calendar";
+
+describe("centerOffsetDays", () => {
+  it("31 días (default): 15 antes de hoy, hoy exacto al medio, 15 después", () => {
+    expect(centerOffsetDays(31)).toBe(15);
+  });
+
+  it("7 días (semana): 3 antes, hoy, 3 después", () => {
+    expect(centerOffsetDays(7)).toBe(3);
+  });
+
+  it("cantidad par: un día más después que antes", () => {
+    expect(centerOffsetDays(30)).toBe(14); // 14 antes + hoy + 15 después
+  });
+
+  it("1 día: no hay ventana alrededor, solo hoy", () => {
+    expect(centerOffsetDays(1)).toBe(0);
+  });
+});
 
 function bar(rentalId: string, startIndex: number, span: number): CalendarBar {
   return {

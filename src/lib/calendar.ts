@@ -7,18 +7,30 @@ import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Ventana por defecto (columnas de día) que muestra el calendario. */
-export const DEFAULT_CALENDAR_DAYS = 30;
+/** Ventana por defecto (columnas de día) que muestra el calendario: 15 antes
+ *  de hoy + hoy + 15 después = 31, con hoy exactamente en el medio. */
+export const DEFAULT_CALENDAR_DAYS = 31;
 
 /** Presets de rango que ofrece el filtro Semana/Mes. */
 export const WEEK_DAYS = 7;
-export const MONTH_DAYS = 30;
+export const MONTH_DAYS = 31;
 
 /** Valida el parámetro `days` de la URL; cualquier otra cosa cae al default. */
 export function normalizeCalendarDays(raw: string | undefined): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1 || n > 90) return DEFAULT_CALENDAR_DAYS;
   return n;
+}
+
+/**
+ * Cuántos días quedan ANTES del centro en una ventana de `days` columnas
+ * centrada (el resto, `days - 1 - offset`, queda después). Con `days` impar
+ * el centro cae exacto al medio (ej. 31 → 15 antes, 15 después); con `days`
+ * par queda un día más después que antes (ej. 30 → 14 antes, 15 después).
+ * Pura y testeable — separada de `getCalendarData` (que además pega a la DB).
+ */
+export function centerOffsetDays(days: number): number {
+  return Math.floor((days - 1) / 2);
 }
 
 /** Un tramo alquilado de un auto dentro de la ventana visible. */
@@ -209,8 +221,9 @@ export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCou
 
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
- * más económico), columnas = días, barras = alquileres. Ventana móvil desde
- * `from` (default hoy) por `days` columnas, navegable hacia adelante/atrás.
+ * más económico), columnas = días, barras = alquileres. Ventana de `days`
+ * columnas CENTRADA en `from` (default hoy) — la mitad de los días quedan
+ * antes y la otra mitad después —, navegable hacia adelante/atrás.
  */
 export async function getCalendarData(opts?: {
   from?: string;
@@ -218,7 +231,11 @@ export async function getCalendarData(opts?: {
 }): Promise<CalendarData> {
   const days = opts?.days ?? DEFAULT_CALENDAR_DAYS;
   const from = normalizeFrom(opts?.from);
-  const windowStart = mendozaWallTimeToUtc(`${from}T00:00`);
+  // `from` es el centro de la ventana, no el inicio: se retrocede la mitad de
+  // los días (redondeando para abajo) para que `from` quede en la columna del
+  // medio — con `days` impar, exactamente al medio.
+  const centerDate = mendozaWallTimeToUtc(`${from}T00:00`);
+  const windowStart = new Date(centerDate.getTime() - centerOffsetDays(days) * DAY_MS);
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
   const todayKey = formatDateInput(new Date());
 
