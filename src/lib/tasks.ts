@@ -57,7 +57,7 @@ export async function getPendingTasks(filters: TaskFilters): Promise<TaskRow[]> 
   });
 }
 
-const COMPLETED_PAGE_SIZE = 50;
+const COMPLETED_PAGE_SIZE = 20;
 
 export type CompletedTasksPage = {
   items: TaskRow[];

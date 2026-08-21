@@ -5,8 +5,8 @@ import { requireUser } from "@/lib/auth-helpers";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
 import { TaskRow } from "@/components/tasks/task-row";
-import { formatDateTime } from "@/lib/datetime";
 import { getPendingTasks, getCompletedTasksPage, isTaskOverdue, isTaskDueToday, type TaskFilters } from "@/lib/tasks";
+import { groupCompletedTasksByDay } from "@/lib/task-grouping";
 
 export const metadata: Metadata = { title: "Tareas — Andes" };
 
@@ -38,6 +38,7 @@ export default async function TasksPage({
   ]);
 
   const hasFilters = Boolean(filters.assignedToId || filters.vehicleId || filters.priority);
+  const completedGroups = groupCompletedTasksByDay(completed.items, new Date());
 
   // Preserva los filtros vigentes al cambiar de página del historial.
   const completedPageHref = (page: number) => {
@@ -121,54 +122,59 @@ export default async function TasksPage({
         )}
       </section>
 
-      <section id="historial" className="flex scroll-mt-4 flex-col gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
-          Historial de completadas{completed.total > 0 ? ` (${completed.total})` : ""}
-        </h2>
-        {completed.items.length === 0 ? (
-          <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
-            Todavía no se completó ninguna tarea.
-          </p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-            {completed.items.map((task) => (
-              <li key={task.id} className="px-3 py-2.5 text-sm">
-                <p className="text-foreground/70 line-through decoration-foreground/30">{task.text}</p>
-                <p className="mt-0.5 text-xs text-foreground/50">
-                  {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
-                  {" · creada por "}
-                  {task.createdBy?.name ?? "—"}
-                  {" el "}
-                  {formatDateTime(task.createdAt)}
-                  {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
-                  {" · completada "}
-                  {task.completedAt ? formatDateTime(task.completedAt) : ""}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-        {completed.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-3 py-1 text-sm">
-            {completedPage > 1 ? (
-              <Link href={completedPageHref(completedPage - 1)} className="font-medium text-foreground/70 underline">
-                ← Anterior
-              </Link>
+      <section className="flex flex-col gap-2">
+        <details>
+          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Historial de completadas{completed.total > 0 ? ` (${completed.total})` : ""}
+          </summary>
+          <div id="historial" className="mt-3 flex scroll-mt-4 flex-col gap-4">
+            {completed.items.length === 0 ? (
+              <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
+                Todavía no se completó ninguna tarea.
+              </p>
             ) : (
-              <span className="text-foreground/30">← Anterior</span>
+              completedGroups.map((group) => (
+                <div key={group.key} className="flex flex-col gap-2">
+                  <h3 className="text-xs font-semibold text-foreground/50">{group.label}</h3>
+                  <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
+                    {group.tasks.map((task) => (
+                      <li key={task.id} className="px-3 py-2.5 text-sm">
+                        <p className="text-foreground/70 line-through decoration-foreground/30">{task.text}</p>
+                        <p className="mt-0.5 text-xs text-foreground/50">
+                          {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+                          {" · creada por "}
+                          {task.createdBy?.name ?? "—"}
+                          {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
             )}
-            <span className="text-xs text-foreground/50">
-              Página {completedPage} de {completed.totalPages}
-            </span>
-            {completedPage < completed.totalPages ? (
-              <Link href={completedPageHref(completedPage + 1)} className="font-medium text-foreground/70 underline">
-                Siguiente →
-              </Link>
-            ) : (
-              <span className="text-foreground/30">Siguiente →</span>
+            {completed.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 py-1 text-sm">
+                {completedPage > 1 ? (
+                  <Link href={completedPageHref(completedPage - 1)} className="font-medium text-foreground/70 underline">
+                    ← Anterior
+                  </Link>
+                ) : (
+                  <span className="text-foreground/30">← Anterior</span>
+                )}
+                <span className="text-xs text-foreground/50">
+                  Página {completedPage} de {completed.totalPages}
+                </span>
+                {completedPage < completed.totalPages ? (
+                  <Link href={completedPageHref(completedPage + 1)} className="font-medium text-foreground/70 underline">
+                    Siguiente →
+                  </Link>
+                ) : (
+                  <span className="text-foreground/30">Siguiente →</span>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </details>
       </section>
     </div>
   );
