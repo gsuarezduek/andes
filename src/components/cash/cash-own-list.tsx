@@ -1,5 +1,5 @@
 import { SectionTitle } from "@/components/ui/section-title";
-import { formatArs } from "@/lib/contract";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
 
@@ -21,7 +21,7 @@ export function CashOwnList({ items }: { items: CashMovementRow[] }) {
                   className={`shrink-0 font-semibold ${r.type === "income" ? "text-emerald-600" : "text-red-600"}`}
                 >
                   {r.type === "income" ? "+" : "-"}
-                  {formatArs(r.amount)}
+                  {formatMoney(r.amount, r.currency)}
                 </p>
               </div>
               <p className="mt-1 text-xs text-foreground/50">

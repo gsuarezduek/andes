@@ -44,11 +44,11 @@ export type VehicleReport = {
 /**
  * Ingresos de Caja del período, separados por cuenta propia/ajena del medio
  * de pago elegido. Los egresos van en un único total sin separar: el Origen
- * de todo egreso es siempre una cuenta propia (está validado en `caja/actions.ts`),
- * así que "propio vs ajeno" no aporta información ahí — decisión tomada con
- * el dueño. `incomeUnclassified` cubre el caso raro de un ingreso cuyo medio
- * de pago se borró después (se pierde el ownership; el nombre snapshot queda
- * pero no de qué tipo de cuenta era).
+ * de un egreso puede ser cualquier cuenta (propia o ajena), así que "propio
+ * vs ajeno" no aporta información ahí — decisión tomada con el dueño.
+ * `incomeUnclassified` cubre el caso raro de un ingreso cuyo medio de pago
+ * se borró después (se pierde el ownership; el nombre snapshot queda pero no
+ * de qué tipo de cuenta era).
  */
 export type CashByOwnership = {
   incomeOwn: number;

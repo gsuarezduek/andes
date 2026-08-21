@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extraHourAmount, formatArs, computeBalance, kmPackKm, kmPackAmount, paymentAdjustedAmount } from "@/lib/contract";
+import { extraHourAmount, formatArs, formatMoney, computeBalance, kmPackKm, kmPackAmount, paymentAdjustedAmount } from "@/lib/contract";
 
 describe("computeBalance", () => {
   it("saldo = total − seña − paga", () => {
@@ -91,5 +91,24 @@ describe("formatArs", () => {
     expect(formatArs(null)).toBe("—");
     expect(formatArs(undefined)).toBe("—");
     expect(formatArs(NaN)).toBe("—");
+  });
+});
+
+describe("formatMoney", () => {
+  it("formatea en pesos con $", () => {
+    const out = formatMoney(30_000, "ars").replace(/\s/g, " ");
+    expect(out).toMatch(/\$\s?30\.000/);
+    expect(out).not.toMatch(/US\$/);
+  });
+
+  it("formatea en dólares con US$, distinto de pesos", () => {
+    const out = formatMoney(200, "usd").replace(/\s/g, " ");
+    expect(out).toMatch(/US\$\s?200/);
+  });
+
+  it("devuelve — para valores nulos o NaN en cualquier moneda", () => {
+    expect(formatMoney(null, "usd")).toBe("—");
+    expect(formatMoney(undefined, "ars")).toBe("—");
+    expect(formatMoney(NaN, "usd")).toBe("—");
   });
 });

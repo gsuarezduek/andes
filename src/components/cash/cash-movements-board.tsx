@@ -3,9 +3,10 @@
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
-import { formatArs } from "@/lib/contract";
 import { MovementRow } from "./movement-row";
 import { CashPeriodPicker } from "./cash-period-picker";
+import { CurrencyTotalsDisplay } from "./currency-totals-display";
+import { sumByCurrency } from "@/lib/currency";
 import type { CashMovementRow } from "@/lib/cash";
 import type { CashPeriod } from "@/lib/cash-period";
 
@@ -15,10 +16,6 @@ export type PaymentMethodOption = {
   requiresNote?: boolean;
   ownership: PaymentMethodOwnership;
 };
-
-function sum(rows: CashMovementRow[]): number {
-  return rows.reduce((acc, r) => acc + r.amount, 0);
-}
 
 /**
  * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
@@ -40,9 +37,9 @@ export function CashMovementsBoard({
 }) {
   const [accountId, setAccountId] = useState("");
 
-  // Un Egreso puede matchear el filtro por su Origen (cuenta propia) o su
-  // Destino (cuenta ajena) — nunca ambos a la vez, ya que una cuenta es una
-  // cosa u otra (ownership es fijo), así que no hay ambigüedad.
+  // Un Egreso puede matchear el filtro por su Origen (cualquier cuenta) o su
+  // Destino (cuenta ajena) — el filter no distingue cuál, así que si por algún
+  // motivo coincidieran los dos igual se cuenta una sola vez la fila.
   const filteredIncomes = accountId ? incomes.filter((r) => r.paymentMethodId === accountId) : incomes;
   const filteredExpenses = accountId
     ? expenses.filter((r) => r.paymentMethodId === accountId || r.recipientPaymentMethodId === accountId)
@@ -85,22 +82,28 @@ export function CashMovementsBoard({
         <CashPeriodPicker period={period} />
       </div>
 
-      {selectedAccount && (
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-lg border border-foreground/10 p-3">
-            <p className="text-xs text-foreground/50">Ingresos · {selectedAccount.name}</p>
-            <p className="text-lg font-semibold text-emerald-600">{formatArs(sum(filteredIncomes))}</p>
-          </div>
-          <div className="rounded-lg border border-foreground/10 p-3">
-            <p className="text-xs text-foreground/50">Egresos · {selectedAccount.name}</p>
-            <p className="text-lg font-semibold text-red-600">{formatArs(sum(filteredExpenses))}</p>
-          </div>
-          <div className="rounded-lg border border-foreground/10 p-3">
-            <p className="text-xs text-foreground/50">Neto · {selectedAccount.name}</p>
-            <p className="text-lg font-semibold">{formatArs(sum(filteredIncomes) - sum(filteredExpenses))}</p>
-          </div>
-        </div>
-      )}
+      {selectedAccount &&
+        (() => {
+          const incomeTotals = sumByCurrency(filteredIncomes);
+          const expenseTotals = sumByCurrency(filteredExpenses);
+          const netTotals = { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
+          return (
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-lg border border-foreground/10 p-3">
+                <p className="text-xs text-foreground/50">Ingresos · {selectedAccount.name}</p>
+                <CurrencyTotalsDisplay totals={incomeTotals} toneClass="text-emerald-600" />
+              </div>
+              <div className="rounded-lg border border-foreground/10 p-3">
+                <p className="text-xs text-foreground/50">Egresos · {selectedAccount.name}</p>
+                <CurrencyTotalsDisplay totals={expenseTotals} toneClass="text-red-600" />
+              </div>
+              <div className="rounded-lg border border-foreground/10 p-3">
+                <p className="text-xs text-foreground/50">Neto · {selectedAccount.name}</p>
+                <CurrencyTotalsDisplay totals={netTotals} />
+              </div>
+            </div>
+          );
+        })()}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <MovementColumn
@@ -145,7 +148,7 @@ function MovementColumn({
             // cambia y el componente se remonta con los valores nuevos (evita
             // quedar con el form de edición pegado a los datos viejos).
             <MovementRow
-              key={`${r.id}:${r.description}:${r.amount}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}`}
+              key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}`}
               movement={r}
               tone={tone}
               paymentMethods={paymentMethods}

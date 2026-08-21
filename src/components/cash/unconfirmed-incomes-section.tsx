@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
-import { formatArs } from "@/lib/contract";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { ConfirmPaymentMethodForm } from "@/components/cash/confirm-payment-method-form";
 import type { CashMovementRow } from "@/lib/cash";
@@ -18,7 +18,7 @@ function ConfirmRow({ movement, paymentMethods }: { movement: CashMovementRow; p
     <li className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 whitespace-pre-wrap">{movement.description}</p>
-        <p className="shrink-0 font-semibold text-emerald-600">{formatArs(movement.amount)}</p>
+        <p className="shrink-0 font-semibold text-emerald-600">{formatMoney(movement.amount, movement.currency)}</p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
         {movement.paymentMethodName}

@@ -7,10 +7,12 @@ import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import type { ContractPricing } from "@/lib/contract";
+import { currencyLabels } from "@/lib/currency";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
   amount: z.coerce.number().positive(),
+  currency: z.enum(["ars", "usd"]).default("ars"),
   paymentMethodId: z.string().min(1),
   paymentMethodNote: z.string().trim().max(300).optional(),
   recipientPaymentMethodId: z.string().optional(),
@@ -22,15 +24,16 @@ const createMovementSchema = z.object({
 // restricción de "solo agregar" para empleados es de UI (no ven el detalle),
 // no de permisos de escritura. Editar/eliminar es solo para admin (ver abajo).
 //
-// En un Egreso, `paymentMethodId` es el Origen (obligatorio, tiene que ser una
-// cuenta propia) y `recipientPaymentMethodId` el Destino (opcional, tiene que
-// ser una cuenta ajena si se manda). En un Ingreso no hay esa distinción — el
-// medio puede ser cualquiera, como hasta ahora.
+// En un Egreso, `paymentMethodId` es el Origen (obligatorio, cualquier cuenta
+// — propia o ajena) y `recipientPaymentMethodId` el Destino (opcional, tiene
+// que ser una cuenta ajena si se manda). En un Ingreso no hay esa distinción —
+// el medio puede ser cualquiera, como hasta ahora.
 export async function createCashMovement(type: "income" | "expense", formData: FormData) {
   const user = await requireUser();
   const {
     description,
     amount,
+    currency,
     paymentMethodId,
     paymentMethodNote,
     recipientPaymentMethodId,
@@ -39,6 +42,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   } = createMovementSchema.parse({
     description: formData.get("description"),
     amount: formData.get("amount"),
+    currency: formData.get("currency") || undefined,
     paymentMethodId: formData.get("paymentMethodId"),
     paymentMethodNote: formData.get("paymentMethodNote") || undefined,
     recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
@@ -48,9 +52,6 @@ export async function createCashMovement(type: "income" | "expense", formData: F
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
-  if (type === "expense" && method.ownership !== "own") {
-    throw new Error("El origen de un egreso tiene que ser una cuenta propia.");
-  }
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
   }
@@ -71,6 +72,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
       type,
       description,
       amount,
+      currency,
       paymentMethodId: method.id,
       paymentMethodName: method.name,
       paymentMethodNote: method.requiresNote ? paymentMethodNote : null,
@@ -88,6 +90,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
 const updateMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
   amount: z.coerce.number().positive(),
+  currency: z.enum(["ars", "usd"]).default("ars"),
   paymentMethodId: z.string().min(1),
   paymentMethodNote: z.string().trim().max(300).optional(),
   recipientPaymentMethodId: z.string().optional(),
@@ -104,6 +107,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   const {
     description,
     amount,
+    currency,
     paymentMethodId,
     paymentMethodNote,
     recipientPaymentMethodId,
@@ -111,6 +115,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   } = updateMovementSchema.parse({
     description: formData.get("description"),
     amount: formData.get("amount"),
+    currency: formData.get("currency") || undefined,
     paymentMethodId: formData.get("paymentMethodId"),
     paymentMethodNote: formData.get("paymentMethodNote") || undefined,
     recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
@@ -122,9 +127,6 @@ export async function updateCashMovement(id: string, formData: FormData) {
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
-  if (existing.type === "expense" && method.ownership !== "own") {
-    throw new Error("El origen de un egreso tiene que ser una cuenta propia.");
-  }
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
   }
@@ -143,6 +145,9 @@ export async function updateCashMovement(id: string, formData: FormData) {
   const nextRecipientNote = recipient?.requiresNote ? (recipientPaymentMethodNote ?? null) : null;
 
   const changes: CashMovementFieldChange[] = diffDescriptionAndAmount(existing, { description, amount }, "Detalle");
+  if (existing.currency !== currency) {
+    changes.push({ field: "Moneda", from: currencyLabels[existing.currency], to: currencyLabels[currency] });
+  }
   if (existing.paymentMethodName !== method.name) {
     const field = existing.type === "expense" ? "Origen" : "Medio de pago";
     changes.push({ field, from: existing.paymentMethodName, to: method.name });
@@ -168,6 +173,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
       data: {
         description,
         amount,
+        currency,
         paymentMethodId: method.id,
         paymentMethodName: method.name,
         paymentMethodNote: nextNote,

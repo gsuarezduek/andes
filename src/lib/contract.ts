@@ -4,6 +4,8 @@
  * el seed, el wizard de entrega y el acta PDF.
  */
 
+import type { Currency } from "@/lib/currency";
+
 export const COMPANY = {
   name: "MDZ Rent a Car",
   legalName: "DUEK RENT SAS",
@@ -185,4 +187,18 @@ const arsFormatter = new Intl.NumberFormat("es-AR", {
 export function formatArs(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
   return arsFormatter.format(n);
+}
+
+// "es-AR" con moneda USD da "US$ …" (distinto del "$" de ARS) — es el
+// formato que ya usa el dueño para distinguirlos a mano.
+const usdFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+export function formatMoney(n: number | null | undefined, currency: Currency): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return currency === "usd" ? usdFormatter.format(n) : arsFormatter.format(n);
 }

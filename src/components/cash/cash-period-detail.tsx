@@ -1,8 +1,9 @@
-import { formatArs } from "@/lib/contract";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { cashPeriodSearch } from "@/lib/cash";
 import { SectionTitle } from "@/components/ui/section-title";
 import { CashMovementsBoard, type PaymentMethodOption } from "./cash-movements-board";
+import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import type { CashPeriodDetail as CashPeriodDetailData, CashMovementEditRow, CashPeriod } from "@/lib/cash";
 
 export function CashPeriodDetail({
@@ -28,15 +29,15 @@ export function CashPeriodDetail({
       <div className="grid grid-cols-3 gap-3 text-center">
         <div className="rounded-lg border border-foreground/10 p-3">
           <p className="text-xs text-foreground/50">Ingresos</p>
-          <p className="text-lg font-semibold text-emerald-600">{formatArs(data.totalIncome)}</p>
+          <CurrencyTotalsDisplay totals={data.totalIncome} toneClass="text-emerald-600" />
         </div>
         <div className="rounded-lg border border-foreground/10 p-3">
           <p className="text-xs text-foreground/50">Egresos</p>
-          <p className="text-lg font-semibold text-red-600">{formatArs(data.totalExpense)}</p>
+          <CurrencyTotalsDisplay totals={data.totalExpense} toneClass="text-red-600" />
         </div>
         <div className="rounded-lg border border-foreground/10 p-3">
           <p className="text-xs text-foreground/50">Neto</p>
-          <p className="text-lg font-semibold">{formatArs(data.net)}</p>
+          <CurrencyTotalsDisplay totals={data.net} />
         </div>
       </div>
 
@@ -50,7 +51,7 @@ export function CashPeriodDetail({
 function editSummary(edit: CashMovementEditRow): string {
   if (edit.action === "deleted") {
     const note = edit.changes?.find((c) => c.field === "Motivo")?.to;
-    const base = `Eliminado — ${edit.movementDescription} (${formatArs(edit.movementAmount)})`;
+    const base = `Eliminado — ${edit.movementDescription} (${formatMoney(edit.movementAmount, edit.movementCurrency)})`;
     return note ? `${base} · Motivo: ${note}` : base;
   }
   return (edit.changes ?? []).map((c) => `${c.field}: ${c.from} → ${c.to}`).join(" · ");

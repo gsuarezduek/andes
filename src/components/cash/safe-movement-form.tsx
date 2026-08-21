@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField } from "@/components/ui/fields";
+import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { createSafeMovement } from "@/app/(app)/caja/safe-actions";
+import type { Currency } from "@/lib/currency";
 
 /** Formulario de alta de un movimiento de caja fuerte. A diferencia de
  *  Ingreso/Egreso, un solo botón ("Caja fuerte") abre este form, que elige el
  *  tipo (ingreso/retiro) por dentro con un selector de dos opciones. */
 export function SafeMovementForm({ onCancel }: { onCancel: () => void }) {
   const [type, setType] = useState<"deposit" | "withdrawal">("deposit");
+  const [currency, setCurrency] = useState<Currency>("ars");
 
   return (
     <form
@@ -57,6 +60,7 @@ export function SafeMovementForm({ onCancel }: { onCancel: () => void }) {
         rows={2}
         placeholder={type === "deposit" ? "Ej: recaudación del día" : "Ej: pago de sueldos"}
       />
+      <CurrencyToggle value={currency} onChange={setCurrency} />
       <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
 
       <SubmitButton pendingLabel="Guardando…">

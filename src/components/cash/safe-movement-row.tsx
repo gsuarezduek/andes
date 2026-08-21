@@ -5,15 +5,18 @@ import { TextField, TextareaField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
-import { formatArs } from "@/lib/contract";
+import { CurrencyToggle } from "@/components/cash/currency-toggle";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateSafeMovement, deleteSafeMovement } from "@/app/(app)/caja/safe-actions";
 import type { SafeMovementRow as SafeMovementRowData } from "@/lib/safe";
+import type { Currency } from "@/lib/currency";
 
 /** Fila de un movimiento de caja fuerte (solo vista admin) — mismo patrón de
  *  edición/borrado que MovementRow (Ingresos/Egresos), sin medio de pago. */
 export function SafeMovementRow({ movement }: { movement: SafeMovementRowData }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
+  const [currency, setCurrency] = useState<Currency>(movement.currency);
   const tone = movement.type === "deposit" ? "text-emerald-600" : "text-red-600";
 
   if (mode === "confirmDelete") {
@@ -21,8 +24,8 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
       <ConfirmDeleteCard
         message={
           <>
-            ¿Eliminar &quot;{movement.description}&quot; ({formatArs(movement.amount)})? No va a aparecer más en el
-            saldo.
+            ¿Eliminar &quot;{movement.description}&quot; ({formatMoney(movement.amount, movement.currency)})? No va
+            a aparecer más en el saldo.
           </>
         }
         action={deleteSafeMovement.bind(null, movement.id)}
@@ -36,6 +39,7 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
       <li className="rounded-lg border border-foreground/15 px-3 py-3 text-sm">
         <form action={updateSafeMovement.bind(null, movement.id)} className="flex flex-col gap-2">
           <TextareaField id="description" label="Motivo" defaultValue={movement.description} required rows={2} />
+          <CurrencyToggle value={currency} onChange={setCurrency} />
           <TextField
             id="amount"
             label="Monto"
@@ -72,7 +76,7 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
         <p className="min-w-0 whitespace-pre-wrap">{movement.description}</p>
         <p className={`shrink-0 font-semibold ${tone}`}>
           {movement.type === "deposit" ? "+" : "-"}
-          {formatArs(movement.amount)}
+          {formatMoney(movement.amount, movement.currency)}
         </p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">

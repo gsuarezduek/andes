@@ -1,8 +1,26 @@
+import type { ReactNode } from "react";
 import { SectionTitle } from "@/components/ui/section-title";
-import { formatArs } from "@/lib/contract";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
+import { CURRENCIES, type CurrencyTotals } from "@/lib/currency";
 import { SafeMovementRow } from "./safe-movement-row";
 import type { SafeMovementEditRow, SafeMovementRow as SafeMovementRowData } from "@/lib/safe";
+
+/** Uno o más `moneda: monto` en línea, separados por " · " — pesos siempre
+ *  (aunque sea $0), dólares solo si hay saldo en esa moneda. */
+function InlineCurrencyTotals({ totals }: { totals: CurrencyTotals }) {
+  return (
+    <>
+      {CURRENCIES.filter((c) => c === "ars" || totals[c] !== 0)
+        .map((c) => (
+          <span key={c} className={totals[c] < 0 ? "text-red-600" : ""}>
+            {formatMoney(totals[c], c)}
+          </span>
+        ))
+        .reduce<ReactNode[]>((acc, node, i) => (i === 0 ? [node] : [...acc, " · ", node]), [])}
+    </>
+  );
+}
 
 /**
  * Historial de caja fuerte. `balance` es `null` para no-admin: el saldo
@@ -10,7 +28,8 @@ import type { SafeMovementEditRow, SafeMovementRow as SafeMovementRowData } from
  * (fecha + quién) sí es visible para cualquier rol, pero cada uno solo ve
  * sus propios movimientos (`movements` ya viene filtrado desde la página).
  * Editar/borrar (`SafeMovementRow`) solo aparece cuando hay `balance`
- * (admin) — mismo criterio que Ingresos/Egresos.
+ * (admin) — mismo criterio que Ingresos/Egresos. Los saldos van separados
+ * por moneda (ver `src/lib/currency.ts`) — nunca sumados entre sí.
  */
 export function SafeSection({
   movements,
@@ -19,10 +38,10 @@ export function SafeSection({
   edits,
 }: {
   movements: SafeMovementRowData[];
-  balance: number | null;
+  balance: CurrencyTotals | null;
   /** Saldo de "Billetera" (ver `getWalletBalance`) — efectivo en mano que
    *  todavía no se depositó acá. `null` para no-admin, mismo criterio que `balance`. */
-  walletBalance: number | null;
+  walletBalance: CurrencyTotals | null;
   edits?: SafeMovementEditRow[];
 }) {
   const isAdmin = balance !== null;
@@ -33,7 +52,7 @@ export function SafeSection({
         <SectionTitle>Caja fuerte</SectionTitle>
         {balance !== null && (
           <span className="text-sm font-semibold">
-            Saldo: <span className={balance < 0 ? "text-red-600" : ""}>{formatArs(balance)}</span>
+            Saldo: <InlineCurrencyTotals totals={balance} />
           </span>
         )}
       </div>
@@ -48,8 +67,8 @@ export function SafeSection({
               Efectivo en mano, todavía sin depositar acá.
             </p>
           </div>
-          <span className={`shrink-0 text-sm font-semibold ${walletBalance < 0 ? "text-red-600" : ""}`}>
-            {formatArs(walletBalance)}
+          <span className="shrink-0 text-sm font-semibold">
+            <InlineCurrencyTotals totals={walletBalance} />
           </span>
         </div>
       )}
@@ -71,7 +90,7 @@ export function SafeSection({
                     className={`shrink-0 font-semibold ${m.type === "deposit" ? "text-emerald-600" : "text-red-600"}`}
                   >
                     {m.type === "deposit" ? "+" : "-"}
-                    {formatArs(m.amount)}
+                    {formatMoney(m.amount, m.currency)}
                   </p>
                 </div>
                 <p className="mt-1 text-xs text-foreground/50">
@@ -93,7 +112,7 @@ export function SafeSection({
               <li key={e.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
                 <p className={e.action === "deleted" ? "text-red-600" : ""}>
                   {e.action === "deleted"
-                    ? `Eliminado — ${e.movementDescription} (${formatArs(e.movementAmount)})`
+                    ? `Eliminado — ${e.movementDescription} (${formatMoney(e.movementAmount, e.movementCurrency)})`
                     : (e.changes ?? []).map((c) => `${c.field}: ${c.from} → ${c.to}`).join(" · ")}
                 </p>
                 <p className="mt-1 text-xs text-foreground/50">

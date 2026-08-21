@@ -6,6 +6,7 @@ import type { RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
 import { getSafeBalance } from "@/lib/safe";
+import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -36,6 +37,7 @@ export type CashMovementRow = {
   type: "income" | "expense";
   description: string;
   amount: number;
+  currency: Currency;
   paymentMethodId: string | null;
   paymentMethodName: string;
   paymentMethodNote: string | null;
@@ -57,9 +59,10 @@ export type CashPeriodDetail = {
   periodLabel: string;
   incomes: CashMovementRow[];
   expenses: CashMovementRow[];
-  totalIncome: number;
-  totalExpense: number;
-  net: number;
+  // Totales separados por moneda — nunca sumados entre sí (ver `src/lib/currency.ts`).
+  totalIncome: CurrencyTotals;
+  totalExpense: CurrencyTotals;
+  net: CurrencyTotals;
 };
 
 async function findMovements(where: Prisma.CashMovementWhereInput): Promise<CashMovementRow[]> {
@@ -74,6 +77,7 @@ async function findMovements(where: Prisma.CashMovementWhereInput): Promise<Cash
       type: r.type,
       description: r.description,
       amount: Number(r.amount),
+      currency: r.currency,
       paymentMethodId: r.paymentMethodId,
       paymentMethodName: r.paymentMethodName,
       paymentMethodNote: r.paymentMethodNote,
@@ -104,8 +108,8 @@ export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPerio
 
   const incomes = rows.filter((r) => r.type === "income");
   const expenses = rows.filter((r) => r.type === "expense");
-  const totalIncome = incomes.reduce((sum, r) => sum + r.amount, 0);
-  const totalExpense = expenses.reduce((sum, r) => sum + r.amount, 0);
+  const totalIncome = sumByCurrency(incomes);
+  const totalExpense = sumByCurrency(expenses);
 
   return {
     periodLabel: label,
@@ -113,7 +117,7 @@ export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPerio
     expenses,
     totalIncome,
     totalExpense,
-    net: totalIncome - totalExpense,
+    net: { ars: totalIncome.ars - totalExpense.ars, usd: totalIncome.usd - totalExpense.usd },
   };
 }
 
@@ -209,6 +213,7 @@ export type CashMovementEditRow = {
   editedByName: string;
   movementDescription: string;
   movementAmount: number;
+  movementCurrency: Currency;
   movementType: "income" | "expense";
   createdAt: Date;
 };
@@ -220,7 +225,7 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
     where: { createdAt: { gte: start, lt: end } },
     include: {
       editedBy: { select: { name: true } },
-      cashMovement: { select: { description: true, amount: true, type: true } },
+      cashMovement: { select: { description: true, amount: true, currency: true, type: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -231,6 +236,7 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
     editedByName: r.editedBy?.name ?? "—",
     movementDescription: r.cashMovement.description,
     movementAmount: Number(r.cashMovement.amount),
+    movementCurrency: r.cashMovement.currency,
     movementType: r.cashMovement.type,
     createdAt: r.createdAt,
   }));
@@ -240,6 +246,7 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
  * Saldo de "Billetera": efectivo físico en mano que todavía NO se depositó en
  * la caja fuerte. Histórico completo (no por período) — mismo criterio que
  * `getSafeBalance`, representa cuánto hay HOY, no un movimiento puntual.
+ * Separado por moneda (un ingreso en efectivo puede ser ARS o USD).
  *
  * Billetera = (ingresos − egresos en Caja con un medio marcado `isCash`) −
  * saldo actual de la Caja fuerte. Al depositar en la caja fuerte, ese saldo
@@ -247,18 +254,22 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
  * la resta ya lo refleja sin tener que filtrar los SafeMovement acá.
  * Info sensible — solo para admin (mismo criterio que la Caja fuerte).
  */
-export async function getWalletBalance(): Promise<number> {
+export async function getWalletBalance(): Promise<CurrencyTotals> {
   const [income, expense, safeBalance] = await Promise.all([
-    prisma.cashMovement.aggregate({
+    prisma.cashMovement.groupBy({
+      by: ["currency"],
       where: { type: "income", deletedAt: null, paymentMethod: { isCash: true } },
       _sum: { amount: true },
     }),
-    prisma.cashMovement.aggregate({
+    prisma.cashMovement.groupBy({
+      by: ["currency"],
       where: { type: "expense", deletedAt: null, paymentMethod: { isCash: true } },
       _sum: { amount: true },
     }),
     getSafeBalance(),
   ]);
-  const cashNet = Number(income._sum.amount ?? 0) - Number(expense._sum.amount ?? 0);
-  return cashNet - safeBalance;
+  const totals = emptyCurrencyTotals();
+  for (const row of income) totals[row.currency] += Number(row._sum.amount ?? 0);
+  for (const row of expense) totals[row.currency] -= Number(row._sum.amount ?? 0);
+  return { ars: totals.ars - safeBalance.ars, usd: totals.usd - safeBalance.usd };
 }

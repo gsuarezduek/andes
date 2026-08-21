@@ -20,6 +20,7 @@ function toRow(m: CashMovementRow): (string | number)[] {
     m.type === "income" ? "Ingreso" : "Egreso",
     m.description,
     m.amount,
+    m.currency.toUpperCase(),
     m.paymentMethodName,
     m.recipientPaymentMethodName ?? "",
     m.rentalClientName ?? "",
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
   const detail = await getCashPeriodDetail(period);
 
   const rows: (string | number)[][] = [
-    ["Tipo", "Detalle", "Monto", "Medio de pago", "Destino (egreso)", "Reserva", "Cargado por", "Fecha"],
+    ["Tipo", "Detalle", "Monto", "Moneda", "Medio de pago", "Destino (egreso)", "Reserva", "Cargado por", "Fecha"],
   ];
   for (const m of detail.incomes) rows.push(toRow(m));
   for (const m of detail.expenses) rows.push(toRow(m));

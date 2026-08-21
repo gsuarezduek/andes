@@ -122,6 +122,15 @@ enum LoginDevice {
   mobile
 }
 
+/// Moneda de un movimiento de Caja o Caja fuerte. Por defecto siempre pesos
+/// argentinos — dólares es la excepción (ej. un ingreso de efectivo puntual
+/// en USD). Sin conversión entre ambas: los totales se muestran separados
+/// por moneda, nunca sumados entre sí (ver `src/lib/currency.ts`).
+enum Currency {
+  ars
+  usd
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -751,6 +760,7 @@ model CashMovement {
   type        CashMovementType
   description String           @db.Text
   amount      Decimal          @db.Decimal(12, 2)
+  currency    Currency         @default(ars)
 
   paymentMethodId   String?        @map("payment_method_id")
   paymentMethod     PaymentMethod? @relation("CashMovementMethod", fields: [paymentMethodId], references: [id])
@@ -837,6 +847,7 @@ model SafeMovement {
   type        SafeMovementType
   description String           @db.Text
   amount      Decimal          @db.Decimal(12, 2)
+  currency    Currency         @default(ars)
 
   createdById String? @map("created_by_id")
   createdBy   User?   @relation("SafeMovementCreator", fields: [createdById], references: [id])

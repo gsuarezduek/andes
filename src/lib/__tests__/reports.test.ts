@@ -164,8 +164,8 @@ describe("aggregateCashByOwnership", () => {
       { type: "income", amount: 1000, paymentMethodOwnership: "own" },
       { type: "income", amount: 500, paymentMethodOwnership: "own" },
       { type: "income", amount: 300, paymentMethodOwnership: "third_party" },
-      { type: "expense", amount: 200, paymentMethodOwnership: "own" }, // origen de egreso siempre es own
-      { type: "expense", amount: 50, paymentMethodOwnership: "own" },
+      { type: "expense", amount: 200, paymentMethodOwnership: "own" }, // ownership del egreso se ignora, cualquiera sea
+      { type: "expense", amount: 50, paymentMethodOwnership: "third_party" },
     ]);
     expect(result).toEqual({ incomeOwn: 1500, incomeThirdParty: 300, incomeUnclassified: 0, expenseTotal: 250 });
   });

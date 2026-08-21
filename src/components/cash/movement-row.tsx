@@ -6,10 +6,12 @@ import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
-import { formatArs } from "@/lib/contract";
+import { CurrencyToggle } from "@/components/cash/currency-toggle";
+import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
 import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
+import type { Currency } from "@/lib/currency";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 
@@ -32,6 +34,7 @@ export function MovementRow({
   paymentMethods: PaymentMethodOption[];
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
+  const [currency, setCurrency] = useState<Currency>(movement.currency);
   const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState(
     movement.recipientPaymentMethodId ?? "",
@@ -39,17 +42,15 @@ export function MovementRow({
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
   const isExpense = movement.type === "expense";
-  const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
   const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
-  const methodOptions = isExpense ? ownMethods : paymentMethods;
 
   if (mode === "confirmDelete") {
     return (
       <ConfirmDeleteCard
         message={
           <>
-            ¿Eliminar &quot;{movement.description}&quot; ({formatArs(movement.amount)})? No va a aparecer más en los
-            totales.
+            ¿Eliminar &quot;{movement.description}&quot; ({formatMoney(movement.amount, movement.currency)})? No va a
+            aparecer más en los totales.
           </>
         }
         action={deleteCashMovement.bind(null, movement.id)}
@@ -64,6 +65,7 @@ export function MovementRow({
       <li className="rounded-lg border border-foreground/15 px-3 py-3 text-sm">
         <form action={updateCashMovement.bind(null, movement.id)} className="flex flex-col gap-2">
           <TextareaField id="description" label="Detalle" defaultValue={movement.description} required rows={2} />
+          <CurrencyToggle value={currency} onChange={setCurrency} />
           <TextField
             id="amount"
             label="Monto"
@@ -84,7 +86,7 @@ export function MovementRow({
             <option value="" disabled>
               {isExpense ? "Elegí de dónde sale la plata" : "Elegí un medio de pago"}
             </option>
-            {methodOptions.map((m) => (
+            {paymentMethods.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
@@ -151,7 +153,7 @@ export function MovementRow({
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 whitespace-pre-wrap">{movement.description}</p>
         <p className={`shrink-0 font-semibold ${tone === "emerald" ? "text-emerald-600" : "text-red-600"}`}>
-          {formatArs(movement.amount)}
+          {formatMoney(movement.amount, movement.currency)}
         </p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
