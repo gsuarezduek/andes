@@ -7,7 +7,7 @@ import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
-import { formatDate, formatDateInput } from "@/lib/datetime";
+import { formatDate, formatDateTime, formatDateInput } from "@/lib/datetime";
 import { completeTask, updateTask, deleteTask } from "@/app/(app)/tasks/actions";
 import type { TaskRow as TaskRowData } from "@/lib/tasks";
 
@@ -122,6 +122,8 @@ export function TaskRow({
           {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
           {" · creada por "}
           {task.createdBy?.name ?? "—"}
+          {" el "}
+          {formatDateTime(task.createdAt)}
           {task.vehicle ? (
             <>
               {" · "}

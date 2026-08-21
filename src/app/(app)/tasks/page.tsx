@@ -138,6 +138,8 @@ export default async function TasksPage({
                   {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
                   {" · creada por "}
                   {task.createdBy?.name ?? "—"}
+                  {" el "}
+                  {formatDateTime(task.createdAt)}
                   {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
                   {" · completada "}
                   {task.completedAt ? formatDateTime(task.completedAt) : ""}
