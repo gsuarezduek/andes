@@ -30,17 +30,6 @@ class VikRentCarAndesPayStripePayment extends JPayment
     const STRIPE_API = 'https://api.stripe.com';
 
     /**
-     * Monedas de Stripe sin decimales: el importe se envía como entero "tal cual"
-     * (no ×100). El resto va en la unidad mínima (centavos).
-     *
-     * @see https://docs.stripe.com/currencies#zero-decimal
-     */
-    const ZERO_DECIMAL = [
-        'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga',
-        'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf',
-    ];
-
-    /**
      * @override
      */
     public function __construct($alias, $order, $params = [])
@@ -100,19 +89,23 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function beginTransaction()
     {
+        $booking = (array) $this->get('order', []);
+        $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
+        $env     = $this->resolveEnvironment();
+
         $secret = $this->getSecretKey();
         if (!$secret) {
+            $this->logEvent('error', $env, $orderId, '', '', '', null, 'Falta configurar la Secret Key de Stripe.');
             echo $this->errorBox('El método de pago no está configurado (falta la Secret Key de Stripe). Avisá al establecimiento.');
             return true;
         }
 
-        $booking  = (array) $this->get('order', []);
-        $orderId  = isset($booking['id']) ? (int) $booking['id'] : 0;
         $currency = strtolower((string) $this->get('transaction_currency'));
         $total    = (float) $this->get('total_to_pay');
         $minor    = $this->toMinorUnits($total, $currency);
 
         if ($orderId <= 0 || $currency === '' || $minor <= 0) {
+            $this->logEvent('error', $env, $orderId, '', '', $currency, $total, 'Datos de la reserva incompletos al iniciar el pago.');
             echo $this->errorBox('No se pudo iniciar el pago: datos de la reserva incompletos.');
             return true;
         }
@@ -168,9 +161,12 @@ class VikRentCarAndesPayStripePayment extends JPayment
         $session = $this->stripeRequest('POST', '/v1/checkout/sessions', $secret, $payload);
 
         if (!is_object($session) || empty($session->url)) {
+            $this->logEvent('error', $env, $orderId, '', '', $currency, $total, 'Stripe no devolvió una sesión de Checkout válida.');
             echo $this->errorBox('No se pudo iniciar el pago con tarjeta. Probá de nuevo en unos minutos.');
             return true;
         }
+
+        $this->logEvent('created', $env, $orderId, $session->id, '', $currency, $total, 'Sesión de Checkout creada, esperando a que el cliente pague.', $notifyUrl);
 
         // Aviso de depósito/seña si VikRentCar lo indica (mismo comportamiento que la pasarela oficial).
         if ($this->get('leave_deposit')) {
@@ -217,15 +213,21 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function validateTransaction(JPaymentStatus &$status)
     {
+        $booking = (array) $this->get('order', []);
+        $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
+        $env     = $this->resolveEnvironment();
+
         $sessionId = JFactory::getApplication()->input->getString('session_id');
         if (!$sessionId) {
             $status->appendLog('Falta session_id en el request de retorno.');
+            $this->logEvent('error', $env, $orderId, '', '', '', null, 'Falta session_id en el request de retorno.');
             return false;
         }
 
         $secret = $this->getSecretKey();
         if (!$secret) {
             $status->appendLog('Secret Key de Stripe no configurada.');
+            $this->logEvent('error', $env, $orderId, $sessionId, '', '', null, 'Secret Key de Stripe no configurada.');
             return false;
         }
 
@@ -238,13 +240,15 @@ class VikRentCarAndesPayStripePayment extends JPayment
 
         if (!is_object($session) || !isset($session->id)) {
             $status->appendLog('No se pudo recuperar la sesión de Stripe.');
+            $this->logEvent('error', $env, $orderId, $sessionId, '', '', null, 'No se pudo recuperar la sesión de Stripe.');
             return false;
         }
 
         // Único requisito duro: Stripe confirma que la sesión está pagada.
         if (!isset($session->payment_status) || $session->payment_status !== 'paid') {
-            $status->appendLog('El pago no figura como completado en Stripe (payment_status='
-                . (isset($session->payment_status) ? $session->payment_status : 'desconocido') . ').');
+            $paymentStatus = isset($session->payment_status) ? $session->payment_status : 'desconocido';
+            $status->appendLog('El pago no figura como completado en Stripe (payment_status=' . $paymentStatus . ').');
+            $this->logEvent('failed', $env, $orderId, $sessionId, '', '', null, 'payment_status=' . $paymentStatus);
             return false;
         }
 
@@ -256,27 +260,76 @@ class VikRentCarAndesPayStripePayment extends JPayment
         $paidMinor = isset($session->amount_total) ? (int) $session->amount_total : 0;
         $paid      = $this->fromMinorUnits($paidMinor, $currency);
 
+        $pi = '';
+        if (isset($session->payment_intent)) {
+            $pi = is_object($session->payment_intent) ? $session->payment_intent->id : $session->payment_intent;
+        }
+
         // Chequeo blando: si tenemos el id del pedido, avisamos (sin bloquear) si
-        // la referencia de la sesión no coincide.
-        $booking = (array) $this->get('order', []);
-        $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
-        $ref     = isset($session->client_reference_id) ? (string) $session->client_reference_id : '';
-        if ($orderId > 0 && $ref !== '' && $ref !== (string) $orderId) {
+        // la referencia de la sesión no coincide. Queda marcado en el log local
+        // como "Pagado (con aviso)" para poder revisarlo después.
+        $ref      = isset($session->client_reference_id) ? (string) $session->client_reference_id : '';
+        $mismatch = ($orderId > 0 && $ref !== '' && $ref !== (string) $orderId);
+        if ($mismatch) {
             $status->appendLog("Aviso: client_reference_id ({$ref}) distinto del pedido ({$orderId}).");
         }
 
         // Guardar el id de la transacción (payment_intent) para referencia/reembolsos.
-        if (isset($session->payment_intent)) {
-            $pi = is_object($session->payment_intent) ? $session->payment_intent->id : $session->payment_intent;
+        if ($pi !== '') {
             $status->setData('transaction_id', $pi);
         }
 
         // Pago verificado. VikRentCar marca la orden como pagada/confirmada.
         $status->appendLog("Pago verificado por Stripe: {$paid} " . strtoupper($currency) . " (session {$session->id}).");
+        $this->logEvent(
+            $mismatch ? 'paid_mismatch' : 'paid',
+            $env,
+            $orderId,
+            $sessionId,
+            $pi,
+            $currency,
+            $paid,
+            $mismatch
+                ? "Pagado, pero client_reference_id ({$ref}) no coincide con el pedido ({$orderId})."
+                : 'Pago verificado por Stripe.'
+        );
         $status->paid($paid);
         $status->verified();
 
         return true;
+    }
+
+    /**
+     * Registra un evento en el log local (tabla wp_andes_pay_stripe_log) para
+     * poder auditar pagos sin salir de WordPress. Silencioso si la función no
+     * existe (por ejemplo, plugin principal no cargado en algún contexto raro).
+     *
+     * @param  string       $status
+     * @param  string       $environment
+     * @param  int          $orderId
+     * @param  string       $sessionId
+     * @param  string       $paymentIntentId
+     * @param  string       $currency
+     * @param  float|null   $amount
+     * @param  string       $message
+     * @param  string       $notifyUrl  Sólo se guarda al crear la sesión ('created'); el webhook lo usa para completar la reserva si el cliente no vuelve.
+     */
+    protected function logEvent($status, $environment, $orderId, $sessionId = '', $paymentIntentId = '', $currency = '', $amount = null, $message = '', $notifyUrl = '')
+    {
+        if (!function_exists('andes_pay_stripe_log_event')) {
+            return;
+        }
+        andes_pay_stripe_log_event([
+            'status'            => $status,
+            'environment'       => $environment,
+            'order_id'          => $orderId,
+            'session_id'        => $sessionId,
+            'payment_intent_id' => $paymentIntentId,
+            'currency'          => $currency,
+            'amount'            => $amount,
+            'message'           => $message,
+            'notify_url'        => $notifyUrl,
+        ]);
     }
 
     /**
@@ -396,7 +449,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function toMinorUnits($amount, $currency)
     {
-        if (in_array($currency, self::ZERO_DECIMAL, true)) {
+        if (in_array($currency, ANDES_PAY_STRIPE_ZERO_DECIMAL, true)) {
             return (int) round($amount);
         }
         return (int) round($amount * 100);
@@ -411,7 +464,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function fromMinorUnits($minor, $currency)
     {
-        if (in_array($currency, self::ZERO_DECIMAL, true)) {
+        if (in_array($currency, ANDES_PAY_STRIPE_ZERO_DECIMAL, true)) {
             return (float) $minor;
         }
         return $minor / 100;

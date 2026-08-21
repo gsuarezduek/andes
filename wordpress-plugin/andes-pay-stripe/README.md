@@ -86,14 +86,59 @@ mínima (centavos; o entero para monedas sin decimales como JPY/CLP). Si operás
 en **ARS**, confirmá que tu cuenta de Stripe admite cobros en pesos; si no,
 configurá VikRentCar en una moneda soportada (p. ej. USD).
 
-## Modelo de retorno (y una limitación conocida)
+## Modelo de retorno + webhook de respaldo
 
-La confirmación ocurre cuando el cliente **vuelve** de Stripe al sitio (mismo
-modelo que PayPal Checkout de VikWP). Si el cliente cierra la pestaña antes de
-volver, el pago existe en Stripe pero la reserva queda pendiente hasta que
-regrese por el enlace. Para cerrar ese hueco se puede agregar más adelante un
-**webhook de Stripe** (`checkout.session.completed`) como respaldo; no está en
-esta primera versión para mantenerla simple y en paridad con la oficial.
+La confirmación "normal" ocurre cuando el cliente **vuelve** de Stripe al
+sitio (mismo modelo que PayPal Checkout de VikWP). Si el cliente cierra la
+pestaña antes de volver, el pago existe en Stripe pero, sin nada más, la
+reserva queda pendiente para siempre — esta es la causa más probable de "no
+estoy seguro si se hizo".
+
+Para cerrar ese hueco hay un **webhook de Stripe** (`checkout.session.completed`)
+como respaldo: Stripe le avisa a WordPress directamente (server-to-server, sin
+depender del navegador del cliente) apenas se completa el pago. El plugin
+**no** escribe directamente en la base de VikRentCar (no tenemos su código
+fuente para conocer su esquema interno con certeza) — en cambio, dispara
+internamente la misma URL de confirmación que VikRentCar procesaría si el
+cliente hubiese vuelto por su cuenta, reusando su lógica real.
+
+**Activarlo (opcional, recomendado):**
+1. En **Ajustes → Andes Pay Stripe**, copiá la URL del webhook que aparece en
+   la sección "Webhook de respaldo".
+2. En el panel de Stripe → **Developers → Webhooks → Add endpoint**, pegá esa
+   URL y suscribila al evento `checkout.session.completed`. Hacelo una vez en
+   modo **Test** y otra en **Live** (pantallas separadas en Stripe).
+3. Cada uno te da un **Signing secret** (`whsec_…`) distinto — cargalos en los
+   campos correspondientes de Ajustes.
+
+Sin el secreto de un entorno cargado, los webhooks de ese entorno se ignoran
+(nada se rompe, simplemente no hacen efecto — el flujo normal por retorno
+sigue funcionando igual). En la página **Pagos**, un registro completado por
+esta vía aparece como **"Pagado (webhook, sin retorno)"** — vale la pena
+revisar esas reservas igual, ya que la confirmación automática no compara el
+monto contra el total esperado (mismo criterio que la validación normal).
+
+## Página "Pagos" (Ajustes → Pagos (Stripe))
+
+Registro local de cada intento de cobro, para poder revisar sin salir de
+WordPress qué pasó con un pago puntual:
+
+- **Iniciado**: se creó la sesión de Checkout y se está esperando a que el
+  cliente pague (o vuelva).
+- **Pagado**: Stripe confirmó `payment_status = paid` y VikRentCar marcó la
+  reserva como pagada.
+- **Pagado (con aviso)**: pagado, pero el `client_reference_id` de la sesión
+  no coincide con el pedido — vale la pena revisarlo a mano.
+- **No pagado**: el cliente volvió, pero Stripe todavía no reporta el pago
+  como completado.
+- **Error**: falta configuración, no se pudo hablar con la API de Stripe, o
+  faltaban datos de la reserva al iniciar el cobro.
+
+Cada fila tiene filtros (estado, entorno, Nº de reserva, session/payment id) y
+un link directo **"Ver en Stripe"** al Dashboard (test o live, según
+corresponda). Los datos se guardan en la tabla propia
+`wp_andes_pay_stripe_log` — no reemplaza el historial de VikRentCar, es un
+registro paralelo pensado para auditoría.
 
 ## Notas
 
