@@ -38,6 +38,7 @@ describe("ActaDocument", () => {
         { view: "top", description: "Rayón puerta", posX: 0.3, posY: 0.4 },
         { view: "top", description: "Golpe paragolpes", posX: 0.6, posY: 0.85 },
       ],
+      existingDamages: [{ view: "top", description: "Abolladura capot", posX: 0.5, posY: 0.15 }],
       observations: "Sin novedades.",
       signerName: "Juan Pérez",
       photoDataUris: [],
@@ -47,6 +48,33 @@ describe("ActaDocument", () => {
     const buf = await renderToBuffer(element);
     // %PDF header + tamaño razonable.
     expect(buf.length).toBeGreaterThan(1000);
+    expect(buf.subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("dibuja el croquis aunque no haya daños nuevos, si el auto ya tenía daños activos", async () => {
+    // Regresión: antes, sin daños NUEVOS en esta inspección, la sección de
+    // daños quedaba vacía aunque el auto ya tuviera daños activos registrados.
+    const data: ActaData = {
+      kind: "handover",
+      dict: getDictionary("es"),
+      company: COMPANY,
+      dateStr: "14/07/2026 10:00",
+      vehicleLabel: "Toyota Etios",
+      plate: "AB123CD",
+      clientRows: [{ label: "Cliente", value: "Juan Pérez" }],
+      termRows: [],
+      km: 50_000,
+      fuelLevel: 10,
+      fuelLevels: 12,
+      checklist: [],
+      damages: [],
+      existingDamages: [{ view: "top", description: "Rayón puerta", posX: 0.3, posY: 0.4 }],
+      signerName: "Juan Pérez",
+      photoDataUris: [],
+    };
+
+    const element = createElement(ActaDocument, data) as unknown as ReactElement<DocumentProps>;
+    const buf = await renderToBuffer(element);
     expect(buf.subarray(0, 4).toString()).toBe("%PDF");
   });
 });

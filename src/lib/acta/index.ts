@@ -55,6 +55,20 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   });
   if (!inspection) throw new Error(`inspection ${inspectionId} not found`);
 
+  // Daños activos del auto previos a ESTA inspección (vista superior, para el
+  // croquis) — sin esto, si la entrega/devolución no encontró ningún daño
+  // NUEVO, el acta no mostraba el dibujo aunque el auto ya tuviera rayones
+  // registrados de antes.
+  const existingDamageRows = await prisma.damage.findMany({
+    where: {
+      vehicleId: inspection.vehicleId,
+      view: "top",
+      repaired: false,
+      NOT: { id: { in: inspection.damages.map((d) => d.id) } },
+    },
+    select: { posX: true, posY: true, description: true },
+  });
+
   const locale = inspection.rental.language as Locale;
   const dict = getDictionary(locale);
 
@@ -193,6 +207,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     fuelLevels: inspection.vehicle.fuelLevels,
     checklist,
     damages: inspection.damages.map((d) => ({ view: d.view, description: d.description, posX: d.posX, posY: d.posY })),
+    existingDamages: existingDamageRows.map((d) => ({ view: "top", description: d.description, posX: d.posX, posY: d.posY })),
     observations: inspection.observations,
     signerName: inspection.signerName,
     signatureDataUri,

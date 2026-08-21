@@ -39,7 +39,12 @@ export type ActaData = {
   };
   settlement?: Settlement;
   checklist: ActaChecklist[];
+  /** Daños detectados en ESTA inspección (se marcan en rojo en el croquis). */
   damages: ActaDamage[];
+  /** Daños activos previos a esta inspección (en ámbar en el croquis) — para
+   *  que el croquis del acta siempre refleje el estado real del auto, no solo
+   *  lo que se cargó en esta entrega/devolución puntual. */
+  existingDamages: ActaDamage[];
   observations?: string | null;
   signerName?: string | null;
   signatureDataUri?: string;

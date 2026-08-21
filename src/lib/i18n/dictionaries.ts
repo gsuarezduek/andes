@@ -63,6 +63,7 @@ export type Dictionary = {
     balance: string;
     deposit: string;
     damages: string;
+    existingDamages: string;
     observations: string;
     signature: string;
     kmDriven: string;
@@ -154,6 +155,7 @@ const es: Dictionary = {
     balance: "Saldo",
     deposit: "Excedentes / depósito",
     damages: "Daños",
+    existingDamages: "Daños ya registrados",
     observations: "Observaciones",
     signature: "Firma",
     kmDriven: "Kilómetros recorridos",
@@ -260,6 +262,7 @@ const en: Dictionary = {
     balance: "Balance",
     deposit: "Deposit / hold",
     damages: "Damages",
+    existingDamages: "Previously registered damage",
     observations: "Notes",
     signature: "Signature",
     kmDriven: "Kilometers driven",
