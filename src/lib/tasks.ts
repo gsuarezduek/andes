@@ -25,17 +25,13 @@ function todayWindow(now: Date) {
 }
 
 /**
- * Resumen para el home: unión de "mis tareas pendientes" (sin importar la
- * fecha) y "tareas pendientes de cualquiera que vencen hoy o ya vencieron" —
- * cubre tanto la vista personal como la de coordinación del admin.
+ * Resumen para el home: solo tareas asignadas a mí. No entran las sin asignar
+ * ni las de otros, aunque venzan hoy — la notificación es personal, no una
+ * vista de coordinación (para eso está /tasks con todas las pendientes).
  */
-export async function getHomeTasks(userId: string, now = new Date()): Promise<TaskRow[]> {
-  const { tomorrowStart } = todayWindow(now);
+export async function getHomeTasks(userId: string): Promise<TaskRow[]> {
   return prisma.task.findMany({
-    where: {
-      status: "pending",
-      OR: [{ assignedToId: userId }, { dueDate: { lt: tomorrowStart } }],
-    },
+    where: { status: "pending", assignedToId: userId },
     include: ROW_INCLUDE,
     orderBy: ORDER_BY,
   });

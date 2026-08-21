@@ -75,6 +75,17 @@ export const env = {
     return Boolean(optional("WP_REST_URL"));
   },
 
+  /** Host público del WordPress (para armar links al admin de VikRentCar). Deriva del host de WP_REST_URL; ausente si no está configurado. */
+  get wpSiteUrl(): string | undefined {
+    const url = optional("WP_REST_URL");
+    if (!url) return undefined;
+    try {
+      return new URL(url).origin;
+    } catch {
+      return undefined;
+    }
+  },
+
   /** Shared secret guarding the /api/sync endpoint against the Railway cron. */
   get cronSecret(): string {
     return required("CRON_SECRET");

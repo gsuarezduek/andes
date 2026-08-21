@@ -7,6 +7,7 @@ import { TextField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
 import { formatDateTime } from "@/lib/datetime";
 import type { FieldChange } from "@/lib/movement-audit";
+import { DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
 import { saveConditions } from "../actions";
 import { createChecklistItem } from "../../checklist/actions";
 import { ChecklistItemRow } from "./checklist-item-row";
@@ -113,6 +114,24 @@ export default async function GeneralSettingsPage({
               inputMode="decimal"
               placeholder="—"
               defaultValue={conditions?.kmPackPrice?.toString()}
+            />
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Alertas de service (dashboard)</p>
+            <p className="mb-2 text-xs text-foreground/50">
+              Un auto con el service vencido se muestra en ámbar mientras el excedente no supere
+              este % del intervalo de service del auto; por encima, pasa a rojo.
+            </p>
+            <TextField
+              id="serviceOverdueRedPercent"
+              label="% de gracia antes de pasar a rojo"
+              suffix="%"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder={String(DEFAULT_SERVICE_OVERDUE_RED_PERCENT)}
+              defaultValue={conditions?.serviceOverdueRedPercent?.toString()}
             />
           </div>
 
