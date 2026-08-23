@@ -2,10 +2,15 @@
 /**
  * Plugin Name: Andes Pay Stripe (VikRentCar)
  * Description: Agrega "Andes Pay Stripe" como método de pago de VikRentCar Pro. Cobra el total de la reserva con tarjeta usando Stripe Checkout (redirección alojada por Stripe, PCI mínimo). Verifica el pago contra la API de Stripe en el retorno, igual que la pasarela oficial de PayPal Checkout.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: MDZ Rent a Car
  * License: GPL-2.0-or-later
  *
+ * v1.2.1: una sola página de admin (antes eran dos separadas) con pestañas
+ *         Pagos (default) / Configuración; aclaración de que la Secret Key de
+ *         VikRentCar tiene prioridad sobre la del panel. stripeRequest() ahora
+ *         guarda el motivo real del error de Stripe (código HTTP + mensaje) en
+ *         vez de descartarlo — antes el log solo decía "no se pudo".
  * v1.2.0: webhook de respaldo (checkout.session.completed). Si el cliente paga
  *         y cierra la pestaña antes de volver, Stripe avisa server-to-server;
  *         el handler dispara internamente el mismo notify_url que VikRentCar
@@ -315,32 +320,25 @@ function andes_pay_stripe_option($key, $default = '')
     return $default;
 }
 
-// Páginas de admin: Ajustes (claves) y Pagos (log de cobros).
+// Una sola página de admin, con pestañas Pagos (default) / Configuración.
 add_action('admin_menu', function () {
     add_options_page(
         'Andes Pay Stripe',
         'Andes Pay Stripe',
         'manage_options',
         'andes-pay-stripe',
-        'andes_pay_stripe_render_settings_page'
-    );
-    add_options_page(
-        'Andes Pay Stripe — Pagos',
-        'Pagos (Stripe)',
-        'manage_options',
-        'andes-pay-stripe-payments',
-        'andes_pay_stripe_render_payments_page'
+        'andes_pay_stripe_render_admin_page'
     );
 });
 
-/** Links "Pagos"/"Ajustes" en la fila del plugin (Plugins → Andes Pay Stripe). */
+/** Links "Pagos"/"Configuración" en la fila del plugin (Plugins → Andes Pay Stripe). */
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), function ($links) {
-    $payments = admin_url('options-general.php?page=andes-pay-stripe-payments');
-    $settings = admin_url('options-general.php?page=andes-pay-stripe');
+    $payments = admin_url('options-general.php?page=andes-pay-stripe&tab=pagos');
+    $settings = admin_url('options-general.php?page=andes-pay-stripe&tab=config');
     array_unshift(
         $links,
         '<a href="' . esc_url($payments) . '">Pagos</a>',
-        '<a href="' . esc_url($settings) . '">Ajustes</a>'
+        '<a href="' . esc_url($settings) . '">Configuración</a>'
     );
     return $links;
 });
@@ -357,8 +355,12 @@ add_action('admin_init', function () {
         'Claves de Stripe',
         function () {
             echo '<p>Cargá acá tus claves de Stripe. Empezá en <strong>Test</strong> con la clave <code>sk_test_…</code> '
-                . 'y pasá a <strong>Live</strong> cuando esté probado. '
-                . 'Estos valores se usan salvo que el método de pago en VikRentCar tenga su propio campo cargado.</p>';
+                . 'y pasá a <strong>Live</strong> cuando esté probado.</p>'
+                . '<p class="description" style="max-width:700px;"><strong>Si ya cargaste la Secret Key directo en el '
+                . 'método de pago dentro de VikRentCar</strong> (VikRentCar → Pagos → Andes Pay Stripe → Secret Key), '
+                . '<u>no hace falta repetirla acá</u> — ese campo tiene prioridad y estos de abajo se ignoran mientras '
+                . 'esté cargado ahí. Usá los campos de acá solo si preferís centralizar la clave en un solo lugar, o si '
+                . 'el campo de VikRentCar está vacío.</p>';
         },
         'andes-pay-stripe'
     );
@@ -432,26 +434,45 @@ function andes_pay_stripe_sanitize_options($input)
     return $out;
 }
 
-/** Render de la página de ajustes. */
-function andes_pay_stripe_render_settings_page()
+/** Router de la única página de admin: pestañas Pagos (default) / Configuración. */
+function andes_pay_stripe_render_admin_page()
 {
     if (!current_user_can('manage_options')) {
         return;
     }
+
+    $tab     = (isset($_GET['tab']) && $_GET['tab'] === 'config') ? 'config' : 'pagos';
+    $baseUrl = admin_url('options-general.php?page=andes-pay-stripe');
     ?>
     <div class="wrap">
         <h1>Andes Pay Stripe</h1>
-        <p>Método de pago con tarjeta (Stripe Checkout) para VikRentCar. Para que aparezca en el
-            checkout, además de cargar las claves acá tenés que habilitar el método
-            <strong>Andes Pay Stripe</strong> en <em>VikRentCar → Pagos</em>.</p>
-        <form action="options.php" method="post">
-            <?php
-            settings_fields('andes_pay_stripe');
-            do_settings_sections('andes-pay-stripe');
-            submit_button('Guardar claves');
-            ?>
-        </form>
+        <h2 class="nav-tab-wrapper">
+            <a href="<?php echo esc_url(add_query_arg('tab', 'pagos', $baseUrl)); ?>" class="nav-tab <?php echo $tab === 'pagos' ? 'nav-tab-active' : ''; ?>">Pagos</a>
+            <a href="<?php echo esc_url(add_query_arg('tab', 'config', $baseUrl)); ?>" class="nav-tab <?php echo $tab === 'config' ? 'nav-tab-active' : ''; ?>">Configuración</a>
+        </h2>
+        <?php if ($tab === 'config'): ?>
+            <?php andes_pay_stripe_render_settings_tab(); ?>
+        <?php else: ?>
+            <?php andes_pay_stripe_render_payments_tab(); ?>
+        <?php endif; ?>
     </div>
+    <?php
+}
+
+/** Contenido de la pestaña "Configuración". */
+function andes_pay_stripe_render_settings_tab()
+{
+    ?>
+    <p style="margin-top:16px;">Método de pago con tarjeta (Stripe Checkout) para VikRentCar. Para que aparezca en el
+        checkout, además de cargar las claves acá tenés que habilitar el método
+        <strong>Andes Pay Stripe</strong> en <em>VikRentCar → Pagos</em>.</p>
+    <form action="options.php" method="post">
+        <?php
+        settings_fields('andes_pay_stripe');
+        do_settings_sections('andes-pay-stripe');
+        submit_button('Guardar claves');
+        ?>
+    </form>
     <?php
 }
 
@@ -552,13 +573,9 @@ function andes_pay_stripe_dashboard_link($row)
     return null;
 }
 
-/** Render de la página "Pagos" (log local de cobros). */
-function andes_pay_stripe_render_payments_page()
+/** Contenido de la pestaña "Pagos" (log local de cobros). */
+function andes_pay_stripe_render_payments_tab()
 {
-    if (!current_user_can('manage_options')) {
-        return;
-    }
-
     $filters = [
         'status'      => isset($_GET['status']) ? sanitize_text_field(wp_unslash($_GET['status'])) : '',
         'environment' => isset($_GET['environment']) ? sanitize_text_field(wp_unslash($_GET['environment'])) : '',
@@ -573,18 +590,17 @@ function andes_pay_stripe_render_payments_page()
     $total  = $result['total'];
     $pages  = (int) ceil($total / $perPage);
 
-    $baseUrl = admin_url('options-general.php?page=andes-pay-stripe-payments');
+    $baseUrl = admin_url('options-general.php?page=andes-pay-stripe&tab=pagos');
     ?>
-    <div class="wrap">
-        <h1>Andes Pay Stripe — Pagos</h1>
-        <p>Registro local de cada intento de cobro: sesión de Checkout iniciada y
-            resultado de la verificación contra Stripe. Sirve para revisar acá, sin
-            salir de WordPress, qué pasó con un pago puntual — incluidos los avisos
-            de referencia no coincidente y los errores, que hoy sólo quedan en el
-            log interno de VikRentCar.</p>
+    <p style="margin-top:16px;">Registro local de cada intento de cobro: sesión de Checkout iniciada y
+        resultado de la verificación contra Stripe. Sirve para revisar acá, sin
+        salir de WordPress, qué pasó con un pago puntual — incluidos los avisos
+        de referencia no coincidente y los errores, que hoy sólo quedan en el
+        log interno de VikRentCar.</p>
 
         <form method="get" style="margin: 16px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:end;">
-            <input type="hidden" name="page" value="andes-pay-stripe-payments" />
+            <input type="hidden" name="page" value="andes-pay-stripe" />
+            <input type="hidden" name="tab" value="pagos" />
             <label>Estado<br/>
                 <select name="status">
                     <option value="">Todos</option>
@@ -656,7 +672,8 @@ function andes_pay_stripe_render_payments_page()
             <div style="margin-top:14px;">
                 <?php
                 $queryArgs = array_filter([
-                    'page'        => 'andes-pay-stripe-payments',
+                    'page'        => 'andes-pay-stripe',
+                    'tab'         => 'pagos',
                     'status'      => $filters['status'],
                     'environment' => $filters['environment'],
                     'order_id'    => $filters['order_id'] ?: '',
@@ -672,7 +689,6 @@ function andes_pay_stripe_render_payments_page()
                 ?>
             </div>
         <?php endif; ?>
-    </div>
     <?php
 }
 

@@ -30,6 +30,15 @@ class VikRentCarAndesPayStripePayment extends JPayment
     const STRIPE_API = 'https://api.stripe.com';
 
     /**
+     * Diagnóstico del último fallo de stripeRequest() (código HTTP + mensaje
+     * de error de Stripe, o el mensaje de la excepción de red). Se usa para
+     * loguear el motivo real en vez de solo "no se pudo" — antes se descartaba.
+     *
+     * @var string
+     */
+    protected $lastError = '';
+
+    /**
      * @override
      */
     public function __construct($alias, $order, $params = [])
@@ -161,7 +170,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
         $session = $this->stripeRequest('POST', '/v1/checkout/sessions', $secret, $payload);
 
         if (!is_object($session) || empty($session->url)) {
-            $this->logEvent('error', $env, $orderId, '', '', $currency, $total, 'Stripe no devolvió una sesión de Checkout válida.');
+            $this->logEvent('error', $env, $orderId, '', '', $currency, $total, 'Stripe no devolvió una sesión de Checkout válida. ' . $this->lastError);
             echo $this->errorBox('No se pudo iniciar el pago con tarjeta. Probá de nuevo en unos minutos.');
             return true;
         }
@@ -240,7 +249,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
 
         if (!is_object($session) || !isset($session->id)) {
             $status->appendLog('No se pudo recuperar la sesión de Stripe.');
-            $this->logEvent('error', $env, $orderId, $sessionId, '', '', null, 'No se pudo recuperar la sesión de Stripe.');
+            $this->logEvent('error', $env, $orderId, $sessionId, '', '', null, 'No se pudo recuperar la sesión de Stripe. ' . $this->lastError);
             return false;
         }
 
@@ -413,6 +422,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function stripeRequest($method, $path, $secret, array $body = [])
     {
+        $this->lastError = '';
         $http = new JHttp;
 
         $headers = [
@@ -428,15 +438,27 @@ class VikRentCarAndesPayStripePayment extends JPayment
                 $response = $http->get(self::STRIPE_API . $path, $headers);
             }
         } catch (Exception $e) {
+            $this->lastError = 'Excepción al conectar con Stripe: ' . $e->getMessage();
             return null;
         }
 
-        if (!isset($response->code) || $response->code < 200 || $response->code >= 300) {
+        $code    = isset($response->code) ? (int) $response->code : 0;
+        $decoded = isset($response->body) ? json_decode($response->body) : null;
+
+        if ($code < 200 || $code >= 300) {
+            $message = (is_object($decoded) && isset($decoded->error->message))
+                ? $decoded->error->message
+                : 'sin detalle en la respuesta';
+            $this->lastError = "HTTP {$code}: {$message}";
             return null;
         }
 
-        $decoded = json_decode($response->body);
-        return is_object($decoded) ? $decoded : null;
+        if (!is_object($decoded)) {
+            $this->lastError = "HTTP {$code}: la respuesta no fue JSON válido.";
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**
