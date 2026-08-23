@@ -52,12 +52,6 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <CalendarGrid
-        columns={data.columns}
-        rows={data.rows}
-        unassigned={data.unassigned}
-      />
-
       {/* Leyenda de colores de las barras */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
         <span className="flex items-center gap-1.5">
@@ -84,6 +78,12 @@ export default async function CalendarPage({
         Autos ordenados por su orden de calendario (editable en cada ficha).
         Pasá el mouse por una barra para ver las notas de la reserva.
       </p>
+
+      <CalendarGrid
+        columns={data.columns}
+        rows={data.rows}
+        unassigned={data.unassigned}
+      />
     </div>
   );
 }

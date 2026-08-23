@@ -90,8 +90,8 @@ export function Row({
           <div
             key={c.key}
             className={`absolute top-0 h-full border-r border-foreground/5 ${
-              c.isWeekend ? "bg-foreground/[0.03]" : ""
-            } ${c.isToday ? "bg-blue-500/[0.07]" : ""}`}
+              c.isToday ? "bg-blue-500/[0.14]" : c.isWeekend ? "bg-foreground/[0.03]" : ""
+            }`}
             style={{ left: i * colW, width: colW }}
           />
         ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import {
   COL_W_MONTH,
@@ -14,6 +14,10 @@ import {
 import { Row } from "./calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 
+// Altura del header fijo de la app (logo + nav, ver `(app)/layout.tsx`) — el
+// header de fechas del calendario se pega debajo de él, no del todo arriba.
+const APP_HEADER_H = 65;
+
 export function CalendarGrid({
   columns,
   rows,
@@ -24,6 +28,7 @@ export function CalendarGrid({
   unassigned: CalendarRow[];
 }) {
   const [hover, setHover] = useState<Hover>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
   const dense = columns.length <= WEEK_MAX_COLUMNS;
   const colW = dense ? COL_W_WEEK : COL_W_MONTH;
   const rowH = dense ? ROW_H_WEEK : ROW_H_MONTH;
@@ -41,45 +46,61 @@ export function CalendarGrid({
   const activeKey =
     hover?.type === "bar" ? `bar:${hover.bar.rentalId}` : hover?.type === "notes" ? `notes:${hover.title}` : null;
 
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-foreground/10" onClick={hide}>
-      {/* max-h + overflow-auto (no solo overflow-x): el header de fechas es
-          sticky top-0 y necesita que el scroll vertical ocurra DENTRO de este
-          contenedor para engancharse — si solo hubiera overflow-x, el div
-          nunca desarrolla scroll propio en Y (crece libre) y el sticky nunca
-          se activa, aunque la clase esté puesta. */}
-      <div className="max-h-[70vh] overflow-auto">
-        <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
-          {/* Encabezado de días */}
-          <div className="sticky top-0 z-30 flex border-b border-foreground/10 bg-background">
-            <div
-              className={`sticky left-0 z-20 shrink-0 truncate border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50 ${LABEL_W_CLASS}`}
-            >
-              Vehículo
-            </div>
-            {columns.map((c) => (
-              <div
-                key={c.key}
-                className={`relative shrink-0 py-1 text-center ${
-                  c.isWeekend ? "bg-foreground/[0.04]" : ""
-                } ${c.isToday ? "bg-blue-500/10" : ""}`}
-                style={{ width: colW }}
-              >
-                {c.monthLabel ? (
-                  <span className="absolute -top-0 left-1 text-[9px] font-semibold uppercase text-blue-600">
-                    {c.monthLabel}
-                  </span>
-                ) : null}
-                <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
-                  {c.weekday}
-                </div>
-                <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
-                  {c.day}
-                </div>
-              </div>
-            ))}
-          </div>
+  // El header (fechas) y el cuerpo (filas) son dos contenedores con scroll
+  // horizontal propio, sincronizados a mano: un único contenedor con
+  // scroll en ambos ejes rompería el `sticky top` del header contra la
+  // página (overflow-x distinto de "visible" fuerza overflow-y a "auto",
+  // y el header terminaría pegado a ESE contenedor en vez de a la ventana).
+  // Separándolos, el header queda realmente sticky contra el scroll de la
+  // página y la tabla puede crecer tan alta como haga falta sin cortar filas.
+  const syncHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+  };
 
+  return (
+    <div className="relative rounded-xl border border-foreground/10" onClick={hide}>
+      {/* Encabezado de días: sticky contra la página (debajo del header fijo
+          de la app), con scroll horizontal propio pero sin barra visible —
+          se mueve solo cuando se sincroniza con el scroll del cuerpo. */}
+      <div
+        ref={headerScrollRef}
+        className="sticky z-30 overflow-x-hidden rounded-t-xl border-b border-foreground/10 bg-background"
+        style={{ top: APP_HEADER_H }}
+      >
+        <div className="flex" style={{ minWidth: LABEL_W_MOBILE + trackW }}>
+          <div
+            className={`sticky left-0 z-20 shrink-0 truncate border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50 ${LABEL_W_CLASS}`}
+          >
+            Vehículo
+          </div>
+          {columns.map((c) => (
+            <div
+              key={c.key}
+              className={`relative shrink-0 py-1 text-center ${
+                c.isToday ? "bg-blue-500/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
+              }`}
+              style={{ width: colW }}
+            >
+              {c.monthLabel ? (
+                <span className="absolute -top-0 left-1 text-[9px] font-semibold uppercase text-blue-600">
+                  {c.monthLabel}
+                </span>
+              ) : null}
+              <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
+                {c.weekday}
+              </div>
+              <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
+                {c.day}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Cuerpo: scroll horizontal propio (con barra visible), alto libre —
+          crece con la cantidad de autos, sin recortar filas. */}
+      <div className="overflow-x-auto rounded-b-xl" onScroll={syncHeaderScroll}>
+        <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
           {/* Filas de vehículos */}
           {rows.map((row) => (
             <Row
