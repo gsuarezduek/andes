@@ -96,10 +96,12 @@ enum SignatureRequestStatus {
   cancelled
 }
 
-/// Tipo de movimiento de Caja: cobro o pago.
+/// Tipo de movimiento de Caja: cobro, pago, o deuda acumulada con un
+/// proveedor (sin salida de plata todavía — ver `ThirdPartyKind.provider`).
 enum CashMovementType {
   income // cobro
   expense // pago
+  debt // deuda con un proveedor, sin origen (cuenta corriente)
 }
 
 /// Tipo de movimiento de Caja Fuerte: ingreso o retiro de efectivo físico.
@@ -114,6 +116,17 @@ enum SafeMovementType {
 enum PaymentMethodOwnership {
   own // cuenta propia
   third_party // cuenta ajena (proveedor o empleado)
+}
+
+/// Subtipo de una cuenta ajena (`PaymentMethodOwnership.third_party`): solo
+/// `provider` habilita cuenta corriente (deuda acumulada, ver `CashMovementType.debt`
+/// y `src/lib/providers.ts`) — un empleado usado de paso no. `null` en cuentas
+/// propias, y también en cuentas ajenas viejas todavía sin reclasificar (no
+/// se asume "empleado" ni "proveedor" de arranque: lo elige el admin en
+/// Configuración → Medios de pago).
+enum ThirdPartyKind {
+  employee // empleado
+  provider // proveedor (habilita cuenta corriente)
 }
 
 /// Dispositivo detectado por User-Agent al iniciar sesión.
@@ -698,6 +711,8 @@ model PaymentMethod {
   // Cuenta propia (de la empresa) o ajena (proveedor/empleado). Obligatorio:
   // todo medio de pago tiene que estar catalogado como uno u otro.
   ownership         PaymentMethodOwnership @default(own) @map("ownership")
+  // Solo aplica cuando `ownership = third_party` — ver `ThirdPartyKind`.
+  thirdPartyKind    ThirdPartyKind?        @map("third_party_kind")
   // Representa efectivo físico en mano (no en la caja fuerte todavía) — de
   // los movimientos de Caja con este medio sale el saldo de "Billetera"
   // (ver `getWalletBalance` en cash.ts). Normalmente uno solo ("Efectivo").

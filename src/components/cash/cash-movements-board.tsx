@@ -86,7 +86,16 @@ export function CashMovementsBoard({
         (() => {
           const incomeTotals = sumByCurrency(filteredIncomes);
           const expenseTotals = sumByCurrency(filteredExpenses);
-          const netTotals = { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
+          // Para una cuenta ajena (proveedor/empleado), "Ingreso − Egreso" no
+          // significa nada — no es plata que entra/sale de una cuenta
+          // nuestra. Lo que importa ahí es cuánto le llegó en total, sea
+          // porque el cliente le pagó directo (Ingreso) o porque se le pagó
+          // (Egreso): las dos formas terminan en sus manos igual.
+          const isThirdParty = selectedAccount.ownership === "third_party";
+          const thirdLabel = isThirdParty ? "Total entregado" : "Neto";
+          const thirdTotals = isThirdParty
+            ? { ars: incomeTotals.ars + expenseTotals.ars, usd: incomeTotals.usd + expenseTotals.usd }
+            : { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
           return (
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="rounded-lg border border-foreground/10 p-3">
@@ -98,8 +107,10 @@ export function CashMovementsBoard({
                 <CurrencyTotalsDisplay totals={expenseTotals} toneClass="text-red-600" />
               </div>
               <div className="rounded-lg border border-foreground/10 p-3">
-                <p className="text-xs text-foreground/50">Neto · {selectedAccount.name}</p>
-                <CurrencyTotalsDisplay totals={netTotals} />
+                <p className="text-xs text-foreground/50">
+                  {thirdLabel} · {selectedAccount.name}
+                </p>
+                <CurrencyTotalsDisplay totals={thirdTotals} />
               </div>
             </div>
           );

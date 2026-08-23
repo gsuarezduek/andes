@@ -67,14 +67,18 @@ export type CashPeriodDetail = {
 
 async function findMovements(where: Prisma.CashMovementWhereInput): Promise<CashMovementRow[]> {
   const rows = await prisma.cashMovement.findMany({
-    where: { ...where, deletedAt: null },
+    // Nunca trae deudas de proveedor (`type: "debt"`) — esas viven en
+    // `src/lib/providers.ts`, no son un ingreso/egreso de caja real todavía.
+    where: { type: { in: ["income", "expense"] }, ...where, deletedAt: null },
     include: { createdBy: { select: { name: true } }, rental: { select: { clientName: true } } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map(
     (r): CashMovementRow => ({
       id: r.id,
-      type: r.type,
+      // El `where` de arriba ya excluye "debt" — este cast solo estrecha el
+      // tipo para TS (Prisma no puede reflejarlo en el retorno).
+      type: r.type as "income" | "expense",
       description: r.description,
       amount: Number(r.amount),
       currency: r.currency,
@@ -218,11 +222,15 @@ export type CashMovementEditRow = {
   createdAt: Date;
 };
 
-/** Historial de ediciones/borrados de movimientos de Caja, del período visible (por fecha de la edición). */
+/**
+ * Historial de ediciones/borrados de movimientos de Caja (Ingreso/Egreso), del
+ * período visible (por fecha de la edición). Excluye ediciones de deudas de
+ * proveedor (`type: "debt"`) — esas viven en la pestaña Proveedores, no acá.
+ */
 export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMovementEditRow[]> {
   const { start, end } = resolveCashPeriod(period);
   const rows = await prisma.cashMovementEdit.findMany({
-    where: { createdAt: { gte: start, lt: end } },
+    where: { createdAt: { gte: start, lt: end }, cashMovement: { type: { in: ["income", "expense"] } } },
     include: {
       editedBy: { select: { name: true } },
       cashMovement: { select: { description: true, amount: true, currency: true, type: true } },
@@ -237,7 +245,7 @@ export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMoveme
     movementDescription: r.cashMovement.description,
     movementAmount: Number(r.cashMovement.amount),
     movementCurrency: r.cashMovement.currency,
-    movementType: r.cashMovement.type,
+    movementType: r.cashMovement.type as "income" | "expense",
     createdAt: r.createdAt,
   }));
 }

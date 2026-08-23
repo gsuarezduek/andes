@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { PaymentMethodOwnership } from "@prisma/client";
+import { PaymentMethodOwnership, ThirdPartyKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
@@ -24,10 +24,21 @@ function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnershi
   return v === "third_party" ? "third_party" : "own";
 }
 
+/** Subtipo de cuenta ajena (empleado/proveedor) — ver `ThirdPartyKind`.
+ *  `null` para cuenta propia, o para una ajena todavía sin reclasificar. */
+function thirdPartyKindOrNull(
+  ownership: PaymentMethodOwnership,
+  v: FormDataEntryValue | null,
+): ThirdPartyKind | null {
+  if (ownership !== "third_party") return null;
+  return v === "provider" ? "provider" : v === "employee" ? "employee" : null;
+}
+
 export async function createPaymentMethod(formData: FormData) {
   await requireAdmin();
   const name = strOrNull(formData.get("name"));
   if (!name) return;
+  const ownership = ownershipOrDefault(formData.get("ownership"));
   const max = await prisma.paymentMethod.aggregate({ _max: { ordering: true } });
   await prisma.paymentMethod.create({
     data: {
@@ -36,7 +47,8 @@ export async function createPaymentMethod(formData: FormData) {
       reference: strOrNull(formData.get("reference")),
       requiresNote: formData.get("requiresNote") === "on",
       isCash: formData.get("isCash") === "on",
-      ownership: ownershipOrDefault(formData.get("ownership")),
+      ownership,
+      thirdPartyKind: thirdPartyKindOrNull(ownership, formData.get("thirdPartyKind")),
       ordering: (max._max.ordering ?? 0) + 1,
     },
   });
@@ -51,6 +63,7 @@ export type PaymentMethodUpdateInput = {
   requiresNote: boolean;
   isCash: boolean;
   ownership: PaymentMethodOwnership;
+  thirdPartyKind: ThirdPartyKind | null;
 };
 
 /** Guarda de una sola vez los cambios pendientes de varios medios de pago
@@ -71,6 +84,7 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           requiresNote: u.requiresNote,
           isCash: u.isCash,
           ownership: u.ownership,
+          thirdPartyKind: u.ownership === "third_party" ? u.thirdPartyKind : null,
         },
       }),
     ),

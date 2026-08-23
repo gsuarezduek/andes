@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
+import type { PaymentMethod, PaymentMethodOwnership, ThirdPartyKind } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TextField, TextareaField, SelectField, compactControlClass } from "@/components/ui/fields";
@@ -19,6 +19,7 @@ type Draft = {
   adjustmentPercent: string;
   reference: string;
   ownership: PaymentMethodOwnership;
+  thirdPartyKind: ThirdPartyKind | null;
   requiresNote: boolean;
   isCash: boolean;
 };
@@ -29,6 +30,7 @@ function draftFrom(it: PaymentMethod): Draft {
     adjustmentPercent: it.adjustmentPercent?.toString() ?? "",
     reference: it.reference ?? "",
     ownership: it.ownership,
+    thirdPartyKind: it.thirdPartyKind,
     requiresNote: it.requiresNote,
     isCash: it.isCash,
   };
@@ -40,6 +42,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.adjustmentPercent === b.adjustmentPercent &&
     a.reference === b.reference &&
     a.ownership === b.ownership &&
+    a.thirdPartyKind === b.thirdPartyKind &&
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash
   );
@@ -275,6 +278,12 @@ function PaymentMethodRow({
           </form>
         </div>
         <span className="flex-1 text-sm font-medium">{item.name}</span>
+        {draft.ownership === "third_party" && draft.thirdPartyKind === "provider" && (
+          <Badge tone="blue">Proveedor</Badge>
+        )}
+        {draft.ownership === "third_party" && draft.thirdPartyKind === "employee" && (
+          <Badge tone="neutral">Empleado</Badge>
+        )}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
@@ -327,6 +336,21 @@ function PaymentMethodRow({
           <option value="own">Cuenta propia</option>
           <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
         </SelectField>
+        {draft.ownership === "third_party" && (
+          <SelectField
+            id={`thirdPartyKind-${item.id}`}
+            label="Tipo de cuenta ajena"
+            hint="Solo Proveedor habilita cuenta corriente (deuda) en Caja."
+            value={draft.thirdPartyKind ?? ""}
+            onChange={(e) =>
+              setField(item.id, "thirdPartyKind", (e.target.value || null) as ThirdPartyKind | null)
+            }
+          >
+            <option value="">Sin clasificar</option>
+            <option value="employee">Empleado</option>
+            <option value="provider">Proveedor</option>
+          </SelectField>
+        )}
         <label className="flex items-center gap-2 text-sm text-foreground/80">
           <input
             type="checkbox"

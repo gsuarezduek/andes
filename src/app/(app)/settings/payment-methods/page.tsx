@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
+import { TextField, TextareaField } from "@/components/ui/fields";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { createPaymentMethod } from "./actions";
 import { PaymentMethodsEditor } from "./payment-methods-editor";
+import { OwnershipFields } from "./ownership-fields";
 import { WpPaymentMethodsEditor } from "@/components/settings/wp-payment-methods-editor";
 
 export const metadata: Metadata = { title: "Medios de pago — Andes" };
@@ -50,10 +51,7 @@ export default async function PaymentMethodsSettingsPage() {
             />
           </div>
           <TextareaField id="reference" label="Referencia (alias/CVU)" rows={2} placeholder="Ej. Alias: mdzrentacar.mp" />
-          <SelectField id="ownership" label="Cuenta" required defaultValue="own">
-            <option value="own">Cuenta propia</option>
-            <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
-          </SelectField>
+          <OwnershipFields />
           <label className="flex items-center gap-2 text-sm text-foreground/80">
             <input type="checkbox" name="requiresNote" className="h-4 w-4" />
             Requiere aclaración (ej. &quot;Otro&quot;: pide indicar a dónde fue el pago)

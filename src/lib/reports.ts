@@ -298,7 +298,13 @@ export const getReports = unstable_cache(
         // propia/ajena — fuente de datos distinta de `finished` (movimientos
         // de efectivo reales, no el total contractual de la reserva).
         prisma.cashMovement.findMany({
-          where: { createdAt: { gte: periodRange.start, lt: periodRange.end }, deletedAt: null },
+          // Excluye deudas de proveedor (`type: "debt"`) — no son caja real
+          // todavía (ver `src/lib/providers.ts`), no deben entrar acá.
+          where: {
+            type: { in: ["income", "expense"] },
+            createdAt: { gte: periodRange.start, lt: periodRange.end },
+            deletedAt: null,
+          },
           select: { type: true, amount: true, paymentMethod: { select: { ownership: true } } },
         }),
       ]);
@@ -408,11 +414,15 @@ export const getReports = unstable_cache(
       .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
 
     const cashByOwnership = aggregateCashByOwnership(
-      cashMovementsRaw.map((m) => ({
-        type: m.type,
-        amount: Number(m.amount),
-        paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
-      })),
+      // El `where` de la query ya excluye "debt" (deuda de proveedor, no es
+      // caja real) — este filter solo estrecha el tipo para TS.
+      cashMovementsRaw
+        .filter((m): m is typeof m & { type: "income" | "expense" } => m.type !== "debt")
+        .map((m) => ({
+          type: m.type,
+          amount: Number(m.amount),
+          paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
+        })),
     );
     // "Ingresos"/"Neto" del KPI principal son de Caja (dinero real), no del
     // contrato — mismo criterio que `cashByOwnership`, así que van a
