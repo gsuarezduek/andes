@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PaymentMethodOwnership, ThirdPartyKind } from "@prisma/client";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CashMovementForm } from "./cash-movement-form";
 import { SafeMovementForm } from "./safe-movement-form";
@@ -13,7 +13,6 @@ type PaymentMethodOption = {
   name: string;
   requiresNote: boolean;
   ownership: PaymentMethodOwnership;
-  thirdPartyKind: ThirdPartyKind | null;
 };
 type Action = "income" | "expense" | "safe" | "debt" | null;
 
@@ -50,7 +49,7 @@ export function MovementLauncher({
     return (
       <DebtMovementForm
         onCancel={() => setAction(null)}
-        providers={paymentMethods.filter((m) => m.thirdPartyKind === "provider")}
+        providers={paymentMethods.filter((m) => m.ownership === "provider")}
       />
     );
   }

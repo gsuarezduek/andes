@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import type { PaymentMethod, PaymentMethodOwnership, ThirdPartyKind } from "@prisma/client";
+import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TextField, TextareaField, SelectField, compactControlClass } from "@/components/ui/fields";
@@ -19,7 +19,6 @@ type Draft = {
   adjustmentPercent: string;
   reference: string;
   ownership: PaymentMethodOwnership;
-  thirdPartyKind: ThirdPartyKind | null;
   requiresNote: boolean;
   isCash: boolean;
 };
@@ -30,7 +29,6 @@ function draftFrom(it: PaymentMethod): Draft {
     adjustmentPercent: it.adjustmentPercent?.toString() ?? "",
     reference: it.reference ?? "",
     ownership: it.ownership,
-    thirdPartyKind: it.thirdPartyKind,
     requiresNote: it.requiresNote,
     isCash: it.isCash,
   };
@@ -42,7 +40,6 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.adjustmentPercent === b.adjustmentPercent &&
     a.reference === b.reference &&
     a.ownership === b.ownership &&
-    a.thirdPartyKind === b.thirdPartyKind &&
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash
   );
@@ -108,7 +105,9 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
     ? items.filter((it) => it.name.toLowerCase().includes(search.trim().toLowerCase()))
     : items;
   const own = filtered.filter((it) => it.ownership === "own");
-  const thirdParty = filtered.filter((it) => it.ownership === "third_party");
+  const associates = filtered.filter((it) => it.ownership === "associate");
+  const providers = filtered.filter((it) => it.ownership === "provider");
+  const emptyLabel = search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo.";
 
   return (
     <div className={`flex flex-col gap-4 ${dirtyIds.length > 0 ? "pb-16" : ""}`}>
@@ -119,19 +118,20 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
         placeholder="Buscar medio de pago…"
         className={`${compactControlClass} w-full`}
       />
+      <PaymentMethodGroup title="Propias" items={own} drafts={drafts} setField={setField} emptyLabel={emptyLabel} />
       <PaymentMethodGroup
-        title="Propias"
-        items={own}
+        title="Asociados"
+        items={associates}
         drafts={drafts}
         setField={setField}
-        emptyLabel={search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo."}
+        emptyLabel={emptyLabel}
       />
       <PaymentMethodGroup
-        title="Ajenas (Proveedores/Equipo)"
-        items={thirdParty}
+        title="Proveedores"
+        items={providers}
         drafts={drafts}
         setField={setField}
-        emptyLabel={search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo."}
+        emptyLabel={emptyLabel}
       />
 
       {dirtyIds.length > 0 && (
@@ -278,12 +278,8 @@ function PaymentMethodRow({
           </form>
         </div>
         <span className="flex-1 text-sm font-medium">{item.name}</span>
-        {draft.ownership === "third_party" && draft.thirdPartyKind === "provider" && (
-          <Badge tone="blue">Proveedor</Badge>
-        )}
-        {draft.ownership === "third_party" && draft.thirdPartyKind === "employee" && (
-          <Badge tone="neutral">Empleado</Badge>
-        )}
+        {draft.ownership === "provider" && <Badge tone="blue">Proveedor</Badge>}
+        {draft.ownership === "associate" && <Badge tone="neutral">Asociado</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
@@ -329,28 +325,15 @@ function PaymentMethodRow({
         />
         <SelectField
           id={`ownership-${item.id}`}
-          label="Cuenta"
+          label="Tipo de cuenta"
+          hint="Solo Proveedor habilita cuenta corriente (deuda) en Caja."
           value={draft.ownership}
           onChange={(e) => setField(item.id, "ownership", e.target.value as PaymentMethodOwnership)}
         >
-          <option value="own">Cuenta propia</option>
-          <option value="third_party">Cuenta ajena (proveedor/empleado)</option>
+          <option value="own">Propia</option>
+          <option value="associate">Asociado</option>
+          <option value="provider">Proveedor</option>
         </SelectField>
-        {draft.ownership === "third_party" && (
-          <SelectField
-            id={`thirdPartyKind-${item.id}`}
-            label="Tipo de cuenta ajena"
-            hint="Solo Proveedor habilita cuenta corriente (deuda) en Caja."
-            value={draft.thirdPartyKind ?? ""}
-            onChange={(e) =>
-              setField(item.id, "thirdPartyKind", (e.target.value || null) as ThirdPartyKind | null)
-            }
-          >
-            <option value="">Sin clasificar</option>
-            <option value="employee">Empleado</option>
-            <option value="provider">Proveedor</option>
-          </SelectField>
-        )}
         <label className="flex items-center gap-2 text-sm text-foreground/80">
           <input
             type="checkbox"

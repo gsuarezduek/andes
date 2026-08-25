@@ -39,7 +39,7 @@ export function CashMovementForm({
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
 
-  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
+  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
 
   return (
     <form

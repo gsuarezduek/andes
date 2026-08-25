@@ -229,8 +229,9 @@ export function aggregateCashByOwnership(movements: CashMovementForOwnership[]):
       continue;
     }
     if (m.paymentMethodOwnership === "own") result.incomeOwn += m.amount;
-    else if (m.paymentMethodOwnership === "third_party") result.incomeThirdParty += m.amount;
-    else result.incomeUnclassified += m.amount;
+    else if (m.paymentMethodOwnership === "associate" || m.paymentMethodOwnership === "provider") {
+      result.incomeThirdParty += m.amount;
+    } else result.incomeUnclassified += m.amount;
   }
   return result;
 }

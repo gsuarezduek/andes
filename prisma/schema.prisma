@@ -97,7 +97,7 @@ enum SignatureRequestStatus {
 }
 
 /// Tipo de movimiento de Caja: cobro, pago, o deuda acumulada con un
-/// proveedor (sin salida de plata todavía — ver `ThirdPartyKind.provider`).
+/// proveedor (sin salida de plata todavía — ver `PaymentMethodOwnership.provider`).
 enum CashMovementType {
   income // cobro
   expense // pago
@@ -110,23 +110,15 @@ enum SafeMovementType {
   withdrawal // retiro
 }
 
-/// A quién pertenece la cuenta de un medio de pago: propia (de la empresa) o
-/// ajena (de un proveedor o empleado, usada de paso). Todo medio de pago debe
-/// estar catalogado como uno u otro — no hay estado "indiferente".
+/// A quién pertenece la cuenta de un medio de pago. Todo medio de pago debe
+/// estar catalogado en uno de los tres — no hay estado "indiferente". Solo
+/// `provider` habilita cuenta corriente (deuda acumulada, ver
+/// `CashMovementType.debt` y `src/lib/providers.ts`) — un asociado usado de
+/// paso no.
 enum PaymentMethodOwnership {
   own // cuenta propia
-  third_party // cuenta ajena (proveedor o empleado)
-}
-
-/// Subtipo de una cuenta ajena (`PaymentMethodOwnership.third_party`): solo
-/// `provider` habilita cuenta corriente (deuda acumulada, ver `CashMovementType.debt`
-/// y `src/lib/providers.ts`) — un empleado usado de paso no. `null` en cuentas
-/// propias, y también en cuentas ajenas viejas todavía sin reclasificar (no
-/// se asume "empleado" ni "proveedor" de arranque: lo elige el admin en
-/// Configuración → Medios de pago).
-enum ThirdPartyKind {
-  employee // empleado
-  provider // proveedor (habilita cuenta corriente)
+  associate // cuenta ajena de un asociado (empleado/socio), usada de paso
+  provider // cuenta ajena de un proveedor — habilita cuenta corriente
 }
 
 /// Dispositivo detectado por User-Agent al iniciar sesión.
@@ -711,8 +703,6 @@ model PaymentMethod {
   // Cuenta propia (de la empresa) o ajena (proveedor/empleado). Obligatorio:
   // todo medio de pago tiene que estar catalogado como uno u otro.
   ownership         PaymentMethodOwnership @default(own) @map("ownership")
-  // Solo aplica cuando `ownership = third_party` — ver `ThirdPartyKind`.
-  thirdPartyKind    ThirdPartyKind?        @map("third_party_kind")
   // Representa efectivo físico en mano (no en la caja fuerte todavía) — de
   // los movimientos de Caja con este medio sale el saldo de "Billetera"
   // (ver `getWalletBalance` en cash.ts). Normalmente uno solo ("Efectivo").

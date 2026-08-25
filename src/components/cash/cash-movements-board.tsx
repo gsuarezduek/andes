@@ -46,7 +46,8 @@ export function CashMovementsBoard({
     : expenses;
   const selectedAccount = paymentMethods.find((m) => m.id === accountId);
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
-  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
+  const associateMethods = paymentMethods.filter((m) => m.ownership === "associate");
+  const providerMethods = paymentMethods.filter((m) => m.ownership === "provider");
 
   return (
     <div className="flex flex-col gap-4">
@@ -68,9 +69,18 @@ export function CashMovementsBoard({
                 ))}
               </optgroup>
             )}
-            {thirdPartyMethods.length > 0 && (
-              <optgroup label="Ajenas (Proveedores/Equipo)">
-                {thirdPartyMethods.map((m) => (
+            {associateMethods.length > 0 && (
+              <optgroup label="Asociados">
+                {associateMethods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {providerMethods.length > 0 && (
+              <optgroup label="Proveedores">
+                {providerMethods.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
@@ -86,12 +96,12 @@ export function CashMovementsBoard({
         (() => {
           const incomeTotals = sumByCurrency(filteredIncomes);
           const expenseTotals = sumByCurrency(filteredExpenses);
-          // Para una cuenta ajena (proveedor/empleado), "Ingreso − Egreso" no
+          // Para una cuenta ajena (asociado/proveedor), "Ingreso − Egreso" no
           // significa nada — no es plata que entra/sale de una cuenta
           // nuestra. Lo que importa ahí es cuánto le llegó en total, sea
           // porque el cliente le pagó directo (Ingreso) o porque se le pagó
           // (Egreso): las dos formas terminan en sus manos igual.
-          const isThirdParty = selectedAccount.ownership === "third_party";
+          const isThirdParty = selectedAccount.ownership !== "own";
           const thirdLabel = isThirdParty ? "Total entregado" : "Neto";
           const thirdTotals = isThirdParty
             ? { ars: incomeTotals.ars + expenseTotals.ars, usd: incomeTotals.usd + expenseTotals.usd }

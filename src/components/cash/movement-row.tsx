@@ -43,7 +43,7 @@ export function MovementRow({
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
   const isExpense = movement.type === "expense";
-  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership === "third_party");
+  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
 
   if (mode === "confirmDelete") {
     return (

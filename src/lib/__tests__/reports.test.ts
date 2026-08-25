@@ -159,15 +159,16 @@ function vehicle(overrides: Partial<VehicleReport>): VehicleReport {
 }
 
 describe("aggregateCashByOwnership", () => {
-  it("separa ingresos por cuenta propia/ajena y suma egresos en un único total", () => {
+  it("separa ingresos por cuenta propia/ajena (asociado + proveedor) y suma egresos en un único total", () => {
     const result = aggregateCashByOwnership([
       { type: "income", amount: 1000, paymentMethodOwnership: "own" },
       { type: "income", amount: 500, paymentMethodOwnership: "own" },
-      { type: "income", amount: 300, paymentMethodOwnership: "third_party" },
+      { type: "income", amount: 300, paymentMethodOwnership: "associate" },
+      { type: "income", amount: 120, paymentMethodOwnership: "provider" },
       { type: "expense", amount: 200, paymentMethodOwnership: "own" }, // ownership del egreso se ignora, cualquiera sea
-      { type: "expense", amount: 50, paymentMethodOwnership: "third_party" },
+      { type: "expense", amount: 50, paymentMethodOwnership: "provider" },
     ]);
-    expect(result).toEqual({ incomeOwn: 1500, incomeThirdParty: 300, incomeUnclassified: 0, expenseTotal: 250 });
+    expect(result).toEqual({ incomeOwn: 1500, incomeThirdParty: 420, incomeUnclassified: 0, expenseTotal: 250 });
   });
 
   it("un ingreso sin ownership conocido (medio de pago borrado) cae en incomeUnclassified", () => {

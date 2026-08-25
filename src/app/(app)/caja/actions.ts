@@ -60,7 +60,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   if (type === "expense" && recipientPaymentMethodId) {
     const found = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
     if (!found) throw new Error("Destino inválido");
-    if (found.ownership !== "third_party") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
+    if (found.ownership === "own") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
     if (found.requiresNote && !recipientPaymentMethodNote) {
       throw new Error("Este destino requiere indicar a dónde fue.");
     }
@@ -136,7 +136,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   if (existing.type === "expense" && recipientPaymentMethodId) {
     const found = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
     if (!found) throw new Error("Destino inválido");
-    if (found.ownership !== "third_party") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
+    if (found.ownership === "own") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
     if (found.requiresNote && !recipientPaymentMethodNote) {
       throw new Error("Este destino requiere indicar a dónde fue.");
     }

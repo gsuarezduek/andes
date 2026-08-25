@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { PaymentMethodOwnership, ThirdPartyKind } from "@prisma/client";
+import { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
@@ -18,27 +18,16 @@ function percentOrNull(v: FormDataEntryValue | null): number | null {
   return n !== undefined ? n : null;
 }
 
-/** Cuenta propia o ajena: obligatorio, sin estado "indiferente" — el select
- *  del form siempre manda uno de los dos; si algo raro llega, cae en "own". */
+/** Tipo de cuenta: obligatorio, sin estado "indiferente" — el select del
+ *  form siempre manda uno de los tres; si algo raro llega, cae en "own". */
 function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnership {
-  return v === "third_party" ? "third_party" : "own";
-}
-
-/** Subtipo de cuenta ajena (empleado/proveedor) — ver `ThirdPartyKind`.
- *  `null` para cuenta propia, o para una ajena todavía sin reclasificar. */
-function thirdPartyKindOrNull(
-  ownership: PaymentMethodOwnership,
-  v: FormDataEntryValue | null,
-): ThirdPartyKind | null {
-  if (ownership !== "third_party") return null;
-  return v === "provider" ? "provider" : v === "employee" ? "employee" : null;
+  return v === "associate" || v === "provider" ? v : "own";
 }
 
 export async function createPaymentMethod(formData: FormData) {
   await requireAdmin();
   const name = strOrNull(formData.get("name"));
   if (!name) return;
-  const ownership = ownershipOrDefault(formData.get("ownership"));
   const max = await prisma.paymentMethod.aggregate({ _max: { ordering: true } });
   await prisma.paymentMethod.create({
     data: {
@@ -47,8 +36,7 @@ export async function createPaymentMethod(formData: FormData) {
       reference: strOrNull(formData.get("reference")),
       requiresNote: formData.get("requiresNote") === "on",
       isCash: formData.get("isCash") === "on",
-      ownership,
-      thirdPartyKind: thirdPartyKindOrNull(ownership, formData.get("thirdPartyKind")),
+      ownership: ownershipOrDefault(formData.get("ownership")),
       ordering: (max._max.ordering ?? 0) + 1,
     },
   });
@@ -63,7 +51,6 @@ export type PaymentMethodUpdateInput = {
   requiresNote: boolean;
   isCash: boolean;
   ownership: PaymentMethodOwnership;
-  thirdPartyKind: ThirdPartyKind | null;
 };
 
 /** Guarda de una sola vez los cambios pendientes de varios medios de pago
@@ -84,7 +71,6 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           requiresNote: u.requiresNote,
           isCash: u.isCash,
           ownership: u.ownership,
-          thirdPartyKind: u.ownership === "third_party" ? u.thirdPartyKind : null,
         },
       }),
     ),
@@ -117,8 +103,9 @@ export async function deletePaymentMethod(id: string): Promise<void> {
   revalidatePath("/caja");
 }
 
-/** Reordena solo dentro del mismo grupo (propia/ajena) — la lista se muestra
- *  separada por `ownership`, así que "subir"/"bajar" no debe saltar de grupo. */
+/** Reordena solo dentro del mismo grupo (propia/asociado/proveedor) — la
+ *  lista se muestra separada por `ownership`, así que "subir"/"bajar" no debe
+ *  saltar de grupo. */
 export async function movePaymentMethod(id: string, dir: "up" | "down") {
   await requireAdmin();
   const all = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });

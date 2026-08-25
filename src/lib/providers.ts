@@ -14,8 +14,8 @@ export type ProviderBalance = {
 };
 
 /**
- * Saldo de cuenta corriente de cada proveedor (`PaymentMethod.thirdPartyKind
- * = "provider"`), histórico completo — igual que el saldo de Caja fuerte, es
+ * Saldo de cuenta corriente de cada proveedor (`PaymentMethod.ownership =
+ * "provider"`), histórico completo — igual que el saldo de Caja fuerte, es
  * "cuánto se debe hoy", no un corte por período.
  *
  * balance = deudas acumuladas (`CashMovement.type = "debt"`, Destino =
@@ -26,7 +26,7 @@ export type ProviderBalance = {
  */
 export async function getProviderBalances(): Promise<ProviderBalance[]> {
   const providers = await prisma.paymentMethod.findMany({
-    where: { ownership: "third_party", thirdPartyKind: "provider", active: true },
+    where: { ownership: "provider", active: true },
     orderBy: { ordering: "asc" },
     select: { id: true, name: true },
   });

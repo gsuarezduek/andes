@@ -31,7 +31,7 @@ export async function createDebtMovement(formData: FormData) {
   });
 
   const provider = await prisma.paymentMethod.findUnique({ where: { id: providerId } });
-  if (!provider || provider.ownership !== "third_party" || provider.thirdPartyKind !== "provider") {
+  if (!provider || provider.ownership !== "provider") {
     throw new Error("El proveedor elegido no es válido.");
   }
 
