@@ -2,7 +2,7 @@ import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/sett
 import { parseDecimal } from "@/lib/number-input";
 import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, roundMoney, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
-import type { InspectionInput } from "@/lib/inspection-input";
+import type { InspectionInput, PendingEvidenceInput } from "@/lib/inspection-input";
 import type { Draft, InspectionWizardProps } from "./types";
 
 /**
@@ -187,16 +187,16 @@ export function validateStep(
 
 /**
  * Arma el payload final que recibe `saveHandover`/`saveReturn` a partir del
- * draft del wizard. `signatureKey` va aparte (ya resuelto por el caller —
- * puede venir de una subida recién terminada) en vez de leerse de
- * `draft.signatureKey` para dejar explícito que submit ya lo validó antes de
- * llegar acá.
+ * draft del wizard. `signature` va aparte (ya resuelto por el caller) en vez
+ * de leerse de `draft.signatureKey` para dejar explícito que submit ya
+ * validó que hay una firma capturada (subida, o localmente pendiente de
+ * subir — "avanzar sin señal") antes de llegar acá.
  */
 export function buildInspectionPayload(
   draft: Draft,
   props: InspectionWizardProps,
   isHandover: boolean,
-  signatureKey: string,
+  signature: { key?: string; pendingId?: string },
   geo: { lat?: number; lng?: number },
 ): InspectionInput {
   const pricing: ContractPricing = {};
@@ -230,6 +230,32 @@ export function buildInspectionPayload(
     pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.adjustedAmount, 0));
   }
 
+  // holderName en el draft es el id del conductor adicional; al persistir lo
+  // traducimos a su nombre (o undefined = titular).
+  const driverName = (id?: string) =>
+    id ? draft.additionalDrivers.find((dr) => dr.id === id)?.name.trim() || undefined : undefined;
+
+  // "Avanzar sin señal": todo lo que el empleado ya capturó (foto, firma,
+  // documento) pero todavía no terminó de subir a R2 al momento de guardar.
+  // `saveHandover`/`saveReturn` no lo descartan — queda anotado para que
+  // `attachInspectionEvidence` lo adjunte solo, en segundo plano, a medida
+  // que cada ítem termina de subir.
+  const pendingEvidence: PendingEvidenceInput[] = [
+    ...(!signature.key && signature.pendingId ? [{ kind: "signature" as const, localId: signature.pendingId }] : []),
+    ...draft.photos.filter((p) => !p.key).map((p) => ({ kind: "photo" as const, localId: p.id })),
+    ...draft.damages
+      .filter((d) => d.photo && !d.photo.key)
+      .map((d) => ({ kind: "damagePhoto" as const, localId: d.photo!.id, damageId: d.id })),
+    ...draft.documents
+      .filter((doc) => !doc.key)
+      .map((doc) => ({
+        kind: "document" as const,
+        localId: doc.id,
+        docKind: doc.kind,
+        holderName: driverName(doc.holderName),
+      })),
+  ];
+
   return {
     rentalId: props.rentalId,
     vehicleId: draft.vehicleId,
@@ -239,6 +265,7 @@ export function buildInspectionPayload(
     checklist: draft.checklist,
     observations: draft.observations.trim() || undefined,
     newDamages: draft.damages.map((d) => ({
+      id: d.id,
       view: "top" as const,
       posX: d.posX,
       posY: d.posY,
@@ -246,8 +273,9 @@ export function buildInspectionPayload(
       photoKey: d.photo?.key,
     })),
     photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
-    signatureKey,
+    signatureKey: signature.key,
     signerName: draft.signerName.trim(),
+    pendingEvidence: pendingEvidence.length ? pendingEvidence : undefined,
     ...(isHandover
       ? {
           clientName: draft.clientName.trim(),
@@ -258,13 +286,9 @@ export function buildInspectionPayload(
           licenseExpiry: draft.licenseExpiry || undefined,
           pricing: Object.keys(pricing).length ? pricing : undefined,
           documents: (() => {
-            // holderName en el draft es el id del conductor adicional; al
-            // persistir lo traducimos a su nombre (o undefined = titular).
-            const driverName = (id?: string) =>
-              id ? draft.additionalDrivers.find((dr) => dr.id === id)?.name.trim() || undefined : undefined;
             const docs = draft.documents
               .filter((doc) => doc.key)
-              .map((doc) => ({ kind: doc.kind, key: doc.key!, holderName: driverName(doc.holderName) }));
+              .map((doc) => ({ kind: doc.kind, key: doc.key!, localId: doc.id, holderName: driverName(doc.holderName) }));
             return docs.length ? docs : undefined;
           })(),
           additionalDrivers: (() => {

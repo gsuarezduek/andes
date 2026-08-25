@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { getAssignedPendingCount } from "@/lib/tasks";
 import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
+import { EvidenceSync } from "@/components/evidence-sync";
 import { logout } from "./actions";
 import { triggerSync } from "./sync/actions";
 
@@ -32,6 +33,7 @@ export default async function AppLayout({
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
 
       <InactivityLogout />
+      <EvidenceSync />
     </div>
   );
 }

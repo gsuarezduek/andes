@@ -10,6 +10,7 @@ import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
+import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
@@ -42,6 +43,7 @@ const pricingSchema = z
   .optional();
 
 const damageSchema = z.object({
+  id: z.string().optional(),
   view: z.enum(["top", "front", "rear", "left", "right", "interior"]),
   posX: z.number().min(0).max(1),
   posY: z.number().min(0).max(1),
@@ -65,7 +67,9 @@ const saveSchema = z.object({
   newDamages: z.array(damageSchema),
   photoKeys: z.array(z.string()),
   videoKey: z.string().optional(),
-  signatureKey: z.string().min(1, "Falta la firma del cliente"),
+  // Opcional: puede venir sin subir todavía (ver `pendingEvidence`, "avanzar
+  // sin señal"). Se exige alguna de las dos más abajo, fuera del schema.
+  signatureKey: z.string().min(1, "Falta la firma del cliente").optional(),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
   licenseExpiry: z.string().optional(), // "YYYY-MM-DD"
   pricing: pricingSchema,
@@ -74,6 +78,7 @@ const saveSchema = z.object({
       z.object({
         kind: z.enum(["license", "dni", "passport"]),
         key: z.string().min(1),
+        localId: z.string().min(1),
         holderName: z.string().trim().optional(),
       }),
     )
@@ -83,6 +88,7 @@ const saveSchema = z.object({
     .optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  pendingEvidence: pendingEvidenceSchema,
 });
 
 export async function saveHandover(input: InspectionInput): Promise<SaveResult> {
@@ -93,6 +99,12 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
   const data = parsed.data;
+  // La firma tiene que existir de alguna forma: ya subida, o capturada
+  // localmente y pendiente de subir ("avanzar sin señal" — ver `pendingEvidence`).
+  const hasPendingSignature = data.pendingEvidence?.some((e) => e.kind === "signature") ?? false;
+  if (!data.signatureKey && !hasPendingSignature) {
+    return { ok: false, error: "Falta la firma del cliente." };
+  }
 
   const rental = await prisma.rental.findUnique({
     where: { id: data.rentalId },
@@ -128,10 +140,11 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
           fuelLevel: data.fuelLevel,
           checklistResponses: data.checklist,
           observations: data.observations ?? null,
-          signatureUrl: data.signatureKey,
+          signatureUrl: data.signatureKey ?? null,
           signerName: data.signerName,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
+          pendingEvidence: data.pendingEvidence?.length ? data.pendingEvidence : undefined,
           media: {
             create: [
               ...data.photoKeys.map((key) => ({
@@ -146,6 +159,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
           },
           damages: {
             create: data.newDamages.map((d) => ({
+              id: d.id,
               vehicleId: vehicle.id,
               view: d.view,
               posX: d.posX,
@@ -204,9 +218,12 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       }
 
       // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
+      // Solo los que ya subieron; los pendientes llegan después vía
+      // `attachInspectionEvidence` (mismo `localId` como id real de la fila).
       if (data.documents?.length) {
         await tx.rentalDocument.createMany({
           data: data.documents.map((doc) => ({
+            id: doc.localId,
             rentalId: rental.id,
             kind: doc.kind,
             url: doc.key,
@@ -229,14 +246,19 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
     throw e;
   }
 
-  // Post-guardado asíncrono: PDF + emails, sin bloquear la confirmación.
-  after(async () => {
-    try {
-      await generateAndSendActa(inspection.id);
-    } catch (e) {
-      console.error("acta generation failed", e);
-    }
-  });
+  // Post-guardado asíncrono: PDF + emails, sin bloquear la confirmación. Si
+  // quedó evidencia pendiente de subir ("avanzar sin señal"), el acta se
+  // genera recién cuando termine de subirse todo (`attachInspectionEvidence`
+  // dispara este mismo `generateAndSendActa` al completarse).
+  if (!data.pendingEvidence?.length) {
+    after(async () => {
+      try {
+        await generateAndSendActa(inspection.id);
+      } catch (e) {
+        console.error("acta generation failed", e);
+      }
+    });
+  }
 
   revalidatePath(`/rentals/${rental.id}`);
   revalidatePath("/rentals");

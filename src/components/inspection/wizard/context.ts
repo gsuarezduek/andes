@@ -37,6 +37,10 @@ export type StepContext = {
   startRemoteSign: () => Promise<void>;
   cancelRemote: () => void;
   photosPending: boolean;
+  // Ya no bloquea la confirmación (ver "avanzar sin señal"): es solo
+  // informativo, para que el empleado sepa que puede necesitar reintentar
+  // esa foto puntual más tarde.
+  photosFailed: boolean;
   online: boolean;
   queuedSubmit: boolean;
   /** Cambiar la unidad asignada sin perder lo demás cargado (entrega). Ver

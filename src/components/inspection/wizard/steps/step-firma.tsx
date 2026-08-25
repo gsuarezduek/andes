@@ -77,7 +77,9 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
         ) : draft.signaturePendingId ? (
           <p className="text-xs text-amber-600">Firma tomada; se subirá al volver la señal.</p>
         ) : draft.signatureUploadFailed ? (
-          <p className="text-xs text-red-600">No se pudo subir la firma. Volvé a firmar.</p>
+          <p className="text-xs text-amber-600">
+            La firma tuvo un error al subir, pero se puede confirmar igual: se va a reintentar sola. Si preferís, volvé a firmar.
+          </p>
         ) : null}
         <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
       </div>

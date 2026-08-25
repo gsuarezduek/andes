@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { after } from "next/server";
 import type { InspectionInput } from "@/lib/inspection-input";
 
 // --- Mocks (hoisted para poder referenciarlos en vi.mock) ---
@@ -114,8 +115,8 @@ describe("saveHandover", () => {
     const res = await saveHandover({
       ...baseInput,
       documents: [
-        { kind: "license", key: "uploads/d1/documents/a.jpg" },
-        { kind: "dni", key: "uploads/d1/documents/b.jpg" },
+        { kind: "license", key: "uploads/d1/documents/a.jpg", localId: "doc1" },
+        { kind: "dni", key: "uploads/d1/documents/b.jpg", localId: "doc2" },
       ],
     });
 
@@ -140,7 +141,7 @@ describe("saveHandover", () => {
     await saveHandover({
       ...baseInput,
       additionalDrivers: [{ name: "María Gómez" }],
-      documents: [{ kind: "license", key: "uploads/d1/documents/m.jpg", holderName: "María Gómez" }],
+      documents: [{ kind: "license", key: "uploads/d1/documents/m.jpg", localId: "doc3", holderName: "María Gómez" }],
     });
 
     // El nombre queda en el alquiler como conductor autorizado.
@@ -241,6 +242,44 @@ describe("saveHandover", () => {
 
     const inspArg = tx.inspection.create.mock.calls[0][0].data;
     expect(inspArg.damages.create[0]).toMatchObject({ description: "Rayón", reportedById: "user1" });
+  });
+
+  describe("avanzar sin señal (evidencia pendiente)", () => {
+    it("confirma la entrega con la firma todavía sin subir y no dispara el acta todavía", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+      prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+      const res = await saveHandover({
+        ...baseInput,
+        signatureKey: undefined,
+        photoKeys: [],
+        pendingEvidence: [{ kind: "signature", localId: "sig-local-1" }],
+      });
+
+      expect(res).toEqual({ ok: true, inspectionId: "insp1" });
+      const inspArg = tx.inspection.create.mock.calls[0][0].data;
+      expect(inspArg.signatureUrl).toBeNull();
+      expect(inspArg.pendingEvidence).toEqual([{ kind: "signature", localId: "sig-local-1" }]);
+      // El auto igual queda entregado (rental activo, vehículo alquilado): eso
+      // no espera a que termine de subir la evidencia.
+      expect(tx.rental.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "active" }) }));
+      // El acta/email quedan para cuando `attachInspectionEvidence` complete el manifiesto.
+      expect(after).not.toHaveBeenCalled();
+    });
+
+    it("rechaza si no hay firma subida ni pendiente", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+      const res = await saveHandover({ ...baseInput, signatureKey: undefined });
+      expect(res.ok).toBe(false);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("dispara el acta de inmediato cuando no queda evidencia pendiente (comportamiento de siempre)", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+      prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+      await saveHandover(baseInput);
+      expect(after).toHaveBeenCalledOnce();
+    });
   });
 });
 
@@ -401,5 +440,38 @@ describe("saveReturn", () => {
     prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "finished", inspections: [] });
     const res = await saveReturn(returnInput);
     expect(res.ok).toBe(false);
+  });
+
+  describe("avanzar sin señal (evidencia pendiente)", () => {
+    it("cierra la devolución con fotos todavía sin subir y no dispara el acta todavía", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({
+        id: "r1",
+        status: "active",
+        inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+      });
+
+      const res = await saveReturn({
+        ...returnInput,
+        photoKeys: [],
+        pendingEvidence: [{ kind: "photo", localId: "photo-local-1" }],
+      });
+
+      expect(res).toEqual({ ok: true, inspectionId: "insp1" });
+      const inspArg = tx.inspection.create.mock.calls[0][0].data;
+      expect(inspArg.pendingEvidence).toEqual([{ kind: "photo", localId: "photo-local-1" }]);
+      expect(tx.rental.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "finished" }) }));
+      expect(after).not.toHaveBeenCalled();
+    });
+
+    it("rechaza si no hay firma subida ni pendiente", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({
+        id: "r1",
+        status: "active",
+        inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+      });
+      const res = await saveReturn({ ...returnInput, signatureKey: undefined });
+      expect(res.ok).toBe(false);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
   });
 });

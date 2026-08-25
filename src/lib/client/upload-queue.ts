@@ -27,7 +27,11 @@ export type QueueRecord = {
 
 export type QueueEvent =
   | { id: string; status: "uploading" }
-  | { id: string; status: "done"; key: string }
+  // `draftId`/`kind` viajan también acá (no solo en el `QueueRecord`, que ya
+  // se borró para este punto) para que un suscriptor fuera del wizard —
+  // `EvidenceSync`, montado en toda la app — pueda adjuntar el ítem a la
+  // inspección correcta sin tener que conocer de antemano el draft.
+  | { id: string; status: "done"; key: string; draftId: string; kind: UploadKind }
   // Falló pero se va a reintentar (sin red, error transitorio del servidor).
   | { id: string; status: "queued" }
   // Se agotaron los reintentos automáticos: no se va a volver a intentar solo.
@@ -127,7 +131,7 @@ export async function processQueue(): Promise<void> {
         });
         await deleteRecord(rec.id);
         failCounts.delete(rec.id);
-        emit({ id: rec.id, status: "done", key });
+        emit({ id: rec.id, status: "done", key, draftId: rec.draftId, kind: rec.kind });
       } catch {
         const attempts = (failCounts.get(rec.id) ?? 0) + 1;
         failCounts.set(rec.id, attempts);
@@ -150,7 +154,7 @@ export async function enqueueUpload(rec: Omit<QueueRecord, "createdAt">): Promis
     emit({ id: rec.id, status: "uploading" });
     try {
       const key = await uploadMedia({ draftId: rec.draftId, kind: rec.kind, blob: rec.blob, id: rec.id });
-      emit({ id: rec.id, status: "done", key });
+      emit({ id: rec.id, status: "done", key, draftId: rec.draftId, kind: rec.kind });
     } catch {
       emit({ id: rec.id, status: "error" });
     }

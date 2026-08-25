@@ -537,6 +537,19 @@ model Inspection {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  // "Avanzar sin señal": si al confirmar la entrega/devolución había fotos,
+  // firma o documentos todavía sin subir, acá queda el manifiesto ESTÁTICO de
+  // qué se esperaba (nunca se edita — ver `attachInspectionEvidence`, que
+  // resuelve cada ítem comparando contra signatureUrl/media/damages/
+  // documentos reales, no mutando esta lista). Null/vacío = ya estaba toda la
+  // evidencia subida al guardar (el caso de siempre).
+  pendingEvidence Json? @map("pending_evidence")
+  // Se completa una única vez, cuando el último ítem pendiente termina de
+  // subirse — recién ahí se dispara el acta+email demorados. `updateMany`
+  // con `evidenceCompletedAt: null` como guard hace que solo un llamado
+  // concurrente gane la carrera de completarlo.
+  evidenceCompletedAt DateTime? @map("evidence_completed_at")
+
   media   InspectionMedia[]
   damages Damage[]
 

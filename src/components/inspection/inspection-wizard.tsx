@@ -16,6 +16,7 @@ import {
   dropUpload,
   type QueueSlot,
 } from "@/lib/client/upload-queue";
+import { registerPendingInspection } from "@/lib/client/pending-inspections";
 import { getDictionary } from "@/lib/i18n";
 import { computeBalance } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
@@ -203,8 +204,10 @@ export function InspectionWizard(props: InspectionWizardProps) {
     const off = onQueueEvent((e) => {
       setDraft((d) => {
         // La firma se sube por la misma cola: al terminar, fija la clave. Si
-        // se agotaron los reintentos, no se va a resolver sola — hay que
-        // volver a firmar (signatureUploadFailed lo habilita en el paso Firma).
+        // se agotaron los reintentos automáticos, no bloquea la confirmación
+        // (ver "avanzar sin señal") — `signatureUploadFailed` solo lo muestra
+        // como informativo en el paso Firma; el próximo intento de guardar
+        // (`captureSignature`) la vuelve a encolar sola desde el mismo trazo.
         if (d.signaturePendingId === e.id) {
           if (e.status === "done") {
             return { ...d, signatureKey: e.key, signaturePendingId: undefined, signatureUploadFailed: false };
@@ -411,8 +414,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
    * Captura la firma y la encola (misma cola persistente que las fotos): si hay
    * señal sube al toque, si no queda pendiente y sube al reconectar. Devuelve
    * true si hay una firma (nueva, ya subida, o pendiente).
+   *
+   * Si ya hay una firma subida o encolada, no vuelve a capturar: `submitImpl`
+   * (y su reintento automático cada ~15s mientras no hay señal — "avanzar sin
+   * señal") la llama en cada intento, y sin este corte de salida reencolaría
+   * el mismo trazo una y otra vez, acumulando blobs duplicados en la cola.
    */
   async function captureSignature(): Promise<boolean> {
+    if (draft.signatureKey || draft.signaturePendingId) return true;
     const pad = sigRef.current;
     if (pad && !pad.isEmpty()) {
       const dataUrl = pad.toDataURL();
@@ -422,12 +431,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
       void enqueueUpload({ id, draftId: draft.draftId, kind: "signature", slot: "signature", blob });
       return true;
     }
-    return Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId);
+    return false;
   }
 
   function queueSubmitRetry() {
-    // El efecto de más abajo dispara el guardado cuando vuelve la señal y
-    // terminaron de subir fotos y firma.
+    // El efecto de más abajo reintenta la confirmación apenas vuelve la
+    // señal — ya no espera a que fotos/firma terminen de subir.
     setQueuedSubmit(true);
   }
 
@@ -511,22 +520,31 @@ export function InspectionWizard(props: InspectionWizardProps) {
     setRemoteStatus("idle");
   }
 
-  // Reintenta el guardado cuando hay conexión y toda la evidencia ya subió.
-  // También dispara si algo se dio por vencido (foto o firma agotaron los
-  // reintentos automáticos) mientras esperábamos: submit() ya sabe mostrar el
-  // error correspondiente en vez de guardar, así que no se queda esperando en
-  // silencio para siempre.
+  // Reintenta la confirmación (el POST a `saveHandover`/`saveReturn`) cuando
+  // vuelve la señal. Ya no depende de que fotos/firma terminen de subir a
+  // R2 — "avanzar sin señal": alcanza con que la firma esté capturada en el
+  // dispositivo (subida o pendiente); el resto de la evidencia se termina de
+  // subir y adjuntar sola en segundo plano (`EvidenceSync`, fuera de este
+  // componente), sin bloquear la confirmación. Lo único que puede dejar esto
+  // encolado es no lograr completar el propio POST (sin señal en absoluto).
   useEffect(() => {
-    if (!queuedSubmit || saving) return;
-    if (photosFailed || draft.signatureUploadFailed) {
-      void submit();
-      return;
-    }
-    if (online && !photosPending && draft.signatureKey) {
-      void submit();
-    }
+    if (!queuedSubmit || saving || !online) return;
+    void submit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queuedSubmit, online, photosPending, draft.signatureKey, saving, photosFailed, draft.signatureUploadFailed]);
+  }, [queuedSubmit, online, saving]);
+
+  // Respaldo del efecto de arriba: en algunos casos `navigator.onLine` puede
+  // quedar en `true` sin que haya conectividad real al servidor (wifi sin
+  // internet, borde de cobertura) — reintenta cada 15s mientras siga
+  // encolado, igual criterio que el reintento de la cola de subida.
+  useEffect(() => {
+    if (!queuedSubmit) return;
+    const iv = window.setInterval(() => {
+      if (navigator.onLine && !saving) void submit();
+    }, 15000);
+    return () => window.clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedSubmit]);
 
   // Poolea el pedido de firma remota hasta que el cliente firme en su teléfono.
   useEffect(() => {
@@ -567,6 +585,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
     }
   }
 
+  /**
+   * "Avanzar sin señal": confirma la entrega/devolución apenas la firma está
+   * capturada en el dispositivo (subida o pendiente de subir), sin esperar a
+   * que fotos/documentos/firma terminen de subir a R2 — eso sigue en segundo
+   * plano (`EvidenceSync`) y no bloquea al empleado. Lo único que sí requiere
+   * señal es este mismo POST (payload chico: nunca lleva los bytes de fotos o
+   * firma, solo sus claves ya subidas o un marcador de "pendiente"); si no
+   * hay señal en absoluto, queda encolado y se reintenta solo al volver.
+   */
   async function submitImpl() {
     setError(undefined);
     setQueuedSubmit(false);
@@ -577,48 +604,35 @@ export function InspectionWizard(props: InspectionWizardProps) {
     if (!draft.signerName.trim()) return setError("Ingresá la aclaración de la firma.");
     if (!(await captureSignature())) return setError("Falta la firma del cliente.");
 
-    // Si alguna foto o la firma ya agotaron los reintentos automáticos, no
-    // sirve encolar y esperar — no se van a subir solas.
-    if (photosFailed) {
-      return setError("Una foto no se pudo subir. Borrala (✕) y volvé a sacarla, o revisá la conexión.");
-    }
-    if (draft.signatureUploadFailed) {
-      return setError("La firma no se pudo subir. Volvé a firmar.");
-    }
-    // Necesitamos que fotos y firma estén subidas antes de guardar. Si algo
-    // sigue pendiente (típicamente sin señal), encolamos: el efecto reintenta
-    // solo cuando todo subió y hay conexión.
-    if (photosPending || !draft.signatureKey) {
-      if (navigator.onLine && !draft.signatureKey) {
-        // Online pero la firma recién se encoló: se guardará en cuanto suba.
-        queueSubmitRetry();
-        return;
-      }
-      if (!navigator.onLine) {
-        queueSubmitRetry();
-        return;
-      }
-      return setError("Esperá a que terminen de subir las fotos.");
-    }
     setSaving(true);
     try {
-      const signatureKey = draft.signatureKey;
-      if (!signatureKey) {
-        setSaving(false);
-        return setError("Falta la firma del cliente.");
-      }
-      const payload = buildInspectionPayload(draft, props, isHandover, signatureKey, geo.current);
+      const payload = buildInspectionPayload(
+        draft,
+        props,
+        isHandover,
+        { key: draft.signatureKey, pendingId: draft.signaturePendingId },
+        geo.current,
+      );
       const res = await props.save(payload);
       if (!res.ok) {
         setSaving(false);
         return setError(res.error);
       }
-      await clearDraftUploads(draft.draftId);
+      if (payload.pendingEvidence?.length) {
+        // Fotos/firma/documentos siguen subiendo: quedan registrados para que
+        // `EvidenceSync` (montado en el layout, no solo acá) los adjunte a
+        // esta inspección en cuanto terminen — sobrevive a que el empleado
+        // navegue a otra pantalla o cierre y reabra la app.
+        registerPendingInspection(draft.draftId, res.inspectionId);
+      } else {
+        await clearDraftUploads(draft.draftId);
+      }
       localStorage.removeItem(storageKey);
       router.replace(`/rentals/${props.rentalId}?${isHandover ? "entrega" : "devolucion"}=ok`);
     } catch {
-      // Probablemente sin señal (firma o guardado). El borrador queda intacto;
-      // se reintenta solo al reconectar. El guard del servidor evita duplicados.
+      // No se pudo completar el POST — probablemente sin señal en absoluto.
+      // El borrador y la evidencia ya capturada quedan intactos en el
+      // dispositivo; se reintenta solo al reconectar.
       setSaving(false);
       if (!navigator.onLine) {
         queueSubmitRetry();
@@ -667,6 +681,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     startRemoteSign,
     cancelRemote,
     photosPending,
+    photosFailed,
     online,
     queuedSubmit,
     vehicleSwapBusy,
@@ -721,7 +736,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
           <Button type="button" onClick={next} className="flex-1">Siguiente</Button>
         ) : (
           <Button type="button" onClick={submit} disabled={saving || queuedSubmit} className="flex-1">
-            {saving ? "Guardando…" : queuedSubmit ? (online ? "Subiendo evidencia…" : "Esperando señal…") : isHandover ? "Guardar entrega" : "Cerrar devolución"}
+            {saving ? "Guardando…" : queuedSubmit ? (online ? "Confirmando…" : "Esperando señal…") : isHandover ? "Guardar entrega" : "Cerrar devolución"}
           </Button>
         )}
       </div>

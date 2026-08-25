@@ -4,6 +4,10 @@
  * En devolución se ignoran `pricing` y `licenseExpiry`.
  */
 export type InspectionDamageInput = {
+  // Id generado en el cliente (uuid), estable durante todo el wizard. Se
+  // persiste como el id real del `Damage` para poder engancharle la foto más
+  // tarde si no llegó a subir a tiempo (ver `PendingEvidenceInput`).
+  id?: string;
   view: "top" | "front" | "rear" | "left" | "right" | "interior";
   posX: number;
   posY: number;
@@ -20,6 +24,9 @@ export type DocumentKindInput = "license" | "dni" | "passport";
 export type InspectionDocumentInput = {
   kind: DocumentKindInput;
   key: string;
+  // Id generado en el cliente (uuid) — mismo criterio que `InspectionDamageInput.id`,
+  // se persiste como el id real del `RentalDocument`.
+  localId: string;
   // Nombre del titular cuando la foto es la licencia de un conductor adicional.
   holderName?: string;
 };
@@ -28,6 +35,21 @@ export type InspectionDocumentInput = {
 export type AdditionalDriverInput = {
   name: string;
 };
+
+/**
+ * "Avanzar sin señal": describe un ítem de evidencia que el empleado ya
+ * capturó (foto, firma, documento) pero que todavía no terminó de subir a R2
+ * al momento de confirmar la entrega/devolución. `saveHandover`/`saveReturn`
+ * lo guardan tal cual en `Inspection.pendingEvidence`; `attachInspectionEvidence`
+ * (`src/app/(app)/evidence-actions.ts`) lo resuelve solo, en segundo plano,
+ * a medida que cada ítem termina de subir — sin bloquear la confirmación.
+ */
+export type PendingEvidenceInput =
+  | { kind: "signature"; localId: string }
+  | { kind: "photo"; localId: string }
+  | { kind: "video"; localId: string }
+  | { kind: "damagePhoto"; localId: string; damageId: string }
+  | { kind: "document"; localId: string; docKind: DocumentKindInput; holderName?: string };
 
 export type InspectionInput = {
   rentalId: string;
@@ -47,11 +69,14 @@ export type InspectionInput = {
   newDamages: InspectionDamageInput[];
   photoKeys: string[];
   videoKey?: string;
-  signatureKey: string;
+  // Vacío/ausente cuando la firma se capturó pero todavía no subió (ver
+  // `pendingEvidence`, entrada `kind: "signature"`) — "avanzar sin señal".
+  signatureKey?: string;
   signerName: string;
   licenseExpiry?: string;
   pricing?: ContractPricing;
-  // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega.
+  // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega. Solo
+  // los que ya tienen `key` (subidos); los pendientes van en `pendingEvidence`.
   documents?: InspectionDocumentInput[];
   // Conductores adicionales autorizados (solo en la entrega).
   additionalDrivers?: AdditionalDriverInput[];
@@ -59,6 +84,9 @@ export type InspectionInput = {
   settlement?: Settlement;
   latitude?: number;
   longitude?: number;
+  // "Avanzar sin señal": fotos/firma/documentos capturados localmente que
+  // todavía no terminaron de subir a R2. Ver `PendingEvidenceInput`.
+  pendingEvidence?: PendingEvidenceInput[];
 };
 
 export type SaveResult =
