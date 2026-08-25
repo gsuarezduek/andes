@@ -57,7 +57,8 @@ export function SafeSection({
         )}
       </div>
       <p className="-mt-2 text-xs text-foreground/50">
-        Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas de arriba.
+        Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas (pestaña
+        Movimientos).
       </p>
       {walletBalance !== null && (
         <div className="-mt-1 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">

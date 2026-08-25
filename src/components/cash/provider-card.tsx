@@ -113,7 +113,7 @@ export function ProviderCard({
           <DebtMovementForm
             onCancel={() => setFormOpen("none")}
             onSuccess={() => setFormOpen("none")}
-            fixedProvider={provider}
+            provider={provider}
           />
         </div>
       )}

@@ -3,25 +3,31 @@
 import { useState, type ReactNode } from "react";
 import { TabBar } from "@/components/ui/tabs";
 
-const SECTIONS = ["Movimientos", "Proveedores"];
-
 /**
- * Caja partida en pestañas: "Movimientos" (Ingreso/Egreso/Deuda/Caja fuerte,
- * lo que ya había) y "Proveedores" (cuenta corriente, nueva — solo admin, ver
- * `caja/page.tsx`). Ambas ya vienen renderizadas desde el server component;
- * acá solo se elige cuál mostrar (mismo patrón que RentalDetailTabs).
- * `proveedores` es `undefined` para no-admin: en ese caso no hay pestañas,
- * se muestra directo el contenido de Movimientos.
+ * Caja partida en pestañas: "Movimientos" (Ingreso/Egreso), "Proveedores"
+ * (cuenta corriente — solo admin, ver `caja/page.tsx`) y "Caja fuerte"
+ * (efectivo físico, siempre visible). Todas ya vienen renderizadas desde el
+ * server component; acá solo se elige cuál mostrar (mismo patrón que
+ * RentalDetailTabs). `proveedores` es `undefined` para no-admin: en ese caso
+ * la pestaña ni aparece.
  */
-export function CajaTabs({ movimientos, proveedores }: { movimientos: ReactNode; proveedores?: ReactNode }) {
+export function CajaTabs({
+  movimientos,
+  proveedores,
+  cajaFuerte,
+}: {
+  movimientos: ReactNode;
+  proveedores?: ReactNode;
+  cajaFuerte: ReactNode;
+}) {
   const [section, setSection] = useState(0);
 
-  if (proveedores === undefined) return <>{movimientos}</>;
+  const sections = proveedores !== undefined ? ["Movimientos", "Proveedores", "Caja fuerte"] : ["Movimientos", "Caja fuerte"];
+  const panels = proveedores !== undefined ? [movimientos, proveedores, cajaFuerte] : [movimientos, cajaFuerte];
 
-  const panels = [movimientos, proveedores];
   return (
     <div className="flex flex-col gap-4">
-      <TabBar sections={SECTIONS} active={section} onChange={setSection} />
+      <TabBar sections={sections} active={section} onChange={setSection} />
       {panels[section]}
     </div>
   );

@@ -4,8 +4,6 @@ import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CashMovementForm } from "./cash-movement-form";
-import { SafeMovementForm } from "./safe-movement-form";
-import { DebtMovementForm } from "./debt-movement-form";
 import type { RentalPickerOption } from "@/lib/cash";
 
 type PaymentMethodOption = {
@@ -14,12 +12,13 @@ type PaymentMethodOption = {
   requiresNote: boolean;
   ownership: PaymentMethodOwnership;
 };
-type Action = "income" | "expense" | "safe" | "debt" | null;
+type Action = "income" | "expense" | null;
 
 /**
- * Selector de qué movimiento cargar. Desktop: Ingreso y Egreso ocupan 35%
- * del ancho cada uno, Deuda y Caja fuerte 15% cada una. Mobile: los cuatro en
- * grilla 2×2 — Ingreso/Egreso arriba, Deuda/Caja fuerte abajo.
+ * Selector de qué movimiento cargar: Ingreso o Egreso, 50/50. La deuda con un
+ * proveedor se carga desde su tarjeta en la pestaña Proveedores (ya sabe a
+ * quién); la caja fuerte tiene su propio lanzador en su propia pestaña
+ * (ver `SafeLauncher`) — ninguna de las dos vive acá.
  */
 export function MovementLauncher({
   paymentMethods,
@@ -41,47 +40,13 @@ export function MovementLauncher({
     );
   }
 
-  if (action === "safe") {
-    return <SafeMovementForm onCancel={() => setAction(null)} />;
-  }
-
-  if (action === "debt") {
-    return (
-      <DebtMovementForm
-        onCancel={() => setAction(null)}
-        providers={paymentMethods.filter((m) => m.ownership === "provider")}
-      />
-    );
-  }
-
   return (
-    <div className="grid grid-cols-2 gap-3 md:flex">
-      <Button type="button" className="md:basis-[35%] md:flex-none" onClick={() => setAction("income")}>
+    <div className="flex gap-3">
+      <Button type="button" className="flex-1" onClick={() => setAction("income")}>
         + Ingreso
       </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        className="md:basis-[35%] md:flex-none"
-        onClick={() => setAction("expense")}
-      >
+      <Button type="button" variant="secondary" className="flex-1" onClick={() => setAction("expense")}>
         + Egreso
-      </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        className="md:basis-[15%] md:flex-none"
-        onClick={() => setAction("debt")}
-      >
-        + Deuda
-      </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        className="md:basis-[15%] md:flex-none"
-        onClick={() => setAction("safe")}
-      >
-        Caja fuerte
       </Button>
     </div>
   );

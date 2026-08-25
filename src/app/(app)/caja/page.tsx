@@ -17,6 +17,7 @@ import { MovementLauncher } from "@/components/cash/movement-launcher";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { CashOwnList } from "@/components/cash/cash-own-list";
 import { SafeSection } from "@/components/cash/safe-section";
+import { SafeLauncher } from "@/components/cash/safe-launcher";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
@@ -42,42 +43,24 @@ export default async function CajaPage({
   ]);
 
   const movimientos = (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-5">
-        <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
+    <div className="flex flex-col gap-5">
+      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
 
-        <UnconfirmedIncomesSection
-          movements={await getUnconfirmedCashMovements()}
+      <UnconfirmedIncomesSection
+        movements={await getUnconfirmedCashMovements()}
+        paymentMethods={paymentMethods}
+      />
+
+      {user.role === "admin" ? (
+        <CashPeriodDetail
+          data={await getCashPeriodDetail(period)}
+          edits={await getCashPeriodEdits(period)}
           paymentMethods={paymentMethods}
+          period={period}
         />
-
-        {user.role === "admin" ? (
-          <CashPeriodDetail
-            data={await getCashPeriodDetail(period)}
-            edits={await getCashPeriodEdits(period)}
-            paymentMethods={paymentMethods}
-            period={period}
-          />
-        ) : (
-          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
-        )}
-      </div>
-
-      {/* Caja fuerte: efectivo físico, sin relación con las reservas de
-          arriba — divisor + espacio propio para que no se lea como una
-          fila más del libro de ingresos/egresos. */}
-      <div className="border-t border-foreground/10 pt-8">
-        {user.role === "admin" ? (
-          <SafeSection
-            movements={await getAllSafeMovements()}
-            balance={await getSafeBalance()}
-            walletBalance={await getWalletBalance()}
-            edits={await getSafeMovementEdits()}
-          />
-        ) : (
-          <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} walletBalance={null} />
-        )}
-      </div>
+      ) : (
+        <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+      )}
     </div>
   );
 
@@ -90,17 +73,30 @@ export default async function CajaPage({
     proveedores = <ProvidersSection providers={providersWithLedger} paymentMethods={paymentMethods} />;
   }
 
+  const cajaFuerte = (
+    <div className="flex flex-col gap-5">
+      <SafeLauncher />
+      {user.role === "admin" ? (
+        <SafeSection
+          movements={await getAllSafeMovements()}
+          balance={await getSafeBalance()}
+          walletBalance={await getWalletBalance()}
+          edits={await getSafeMovementEdits()}
+        />
+      ) : (
+        <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} walletBalance={null} />
+      )}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
-        <p className="text-sm text-foreground/60">
-          Registrá ingresos y egresos de las reservas. La <strong>caja fuerte</strong> es aparte: es
-          el efectivo físico guardado, sin vínculo con ninguna reserva.
-        </p>
+        <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
       </div>
 
-      <CajaTabs movimientos={movimientos} proveedores={proveedores} />
+      <CajaTabs movimientos={movimientos} proveedores={proveedores} cajaFuerte={cajaFuerte} />
     </div>
   );
 }
