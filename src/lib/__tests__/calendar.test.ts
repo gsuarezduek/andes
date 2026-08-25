@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { assignLanes, centerOffsetDays, type CalendarBar } from "@/lib/calendar";
+import {
+  assignLanes,
+  centerOffsetDays,
+  daysInMonth,
+  normalizeMonth,
+  shiftMonth,
+  type CalendarBar,
+} from "@/lib/calendar";
 
 describe("centerOffsetDays", () => {
   it("31 días (default): 35% antes de hoy, 65% después", () => {
@@ -16,6 +23,50 @@ describe("centerOffsetDays", () => {
 
   it("1 día: no hay ventana alrededor, solo hoy", () => {
     expect(centerOffsetDays(1)).toBe(0);
+  });
+});
+
+describe("normalizeMonth", () => {
+  it("acepta un \"YYYY-MM\" válido", () => {
+    expect(normalizeMonth("2026-09")).toBe("2026-09");
+  });
+
+  it("rechaza mes fuera de rango", () => {
+    expect(normalizeMonth("2026-13")).toBeNull();
+    expect(normalizeMonth("2026-00")).toBeNull();
+  });
+
+  it("rechaza formato inválido o vacío", () => {
+    expect(normalizeMonth("2026-9")).toBeNull();
+    expect(normalizeMonth("no-es-un-mes")).toBeNull();
+    expect(normalizeMonth(undefined)).toBeNull();
+  });
+});
+
+describe("daysInMonth", () => {
+  it("meses de 31/30/28 días", () => {
+    expect(daysInMonth("2026-01")).toBe(31);
+    expect(daysInMonth("2026-04")).toBe(30);
+    expect(daysInMonth("2026-02")).toBe(28);
+  });
+
+  it("febrero bisiesto", () => {
+    expect(daysInMonth("2028-02")).toBe(29);
+  });
+});
+
+describe("shiftMonth", () => {
+  it("suma y resta meses dentro del mismo año", () => {
+    expect(shiftMonth("2026-06", 1)).toBe("2026-07");
+    expect(shiftMonth("2026-06", -1)).toBe("2026-05");
+  });
+
+  it("cruza de diciembre a enero del año siguiente", () => {
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+  });
+
+  it("cruza de enero a diciembre del año anterior", () => {
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
   });
 });
 

@@ -114,6 +114,12 @@ export type CalendarData = {
   nextFrom: string;
   todayFrom: string;
   days: number;
+  /** Mes calendario ("YYYY-MM") si la vista está anclada a un mes específico
+   *  en vez de la ventana rodante (Semana/Mes) — `null` en modo rodante. */
+  month: string | null;
+  prevMonth: string;
+  nextMonth: string;
+  todayMonth: string;
 };
 
 const WEEKDAY_FMT = new Intl.DateTimeFormat("es-AR", {
@@ -139,6 +145,34 @@ function normalizeFrom(raw: string | undefined): string {
 function addDays(from: string, n: number): string {
   const start = mendozaWallTimeToUtc(`${from}T00:00`);
   return formatDateInput(new Date(start.getTime() + n * DAY_MS));
+}
+
+/** Valida un "YYYY-MM" (mes calendario específico); `null` si no es válido —
+ *  a diferencia de `normalizeFrom`, acá no hay fallback: un mes inválido
+ *  simplemente no activa el modo "mes específico" (cae a la ventana rodante). */
+export function normalizeMonth(raw: string | undefined): string | null {
+  if (!raw || !/^\d{4}-\d{2}$/.test(raw)) return null;
+  const month = Number(raw.slice(5, 7));
+  if (month < 1 || month > 12) return null;
+  return raw;
+}
+
+/** Cantidad de días de un mes calendario ("YYYY-MM"). Pura, sin zona horaria
+ *  (es aritmética de calendario, no depende de dónde se mire el reloj). */
+export function daysInMonth(ym: string): number {
+  const year = Number(ym.slice(0, 4));
+  const month = Number(ym.slice(5, 7));
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Mes "YYYY-MM" desplazado `delta` meses (positivo o negativo), cruzando años. */
+export function shiftMonth(ym: string, delta: number): string {
+  const year = Number(ym.slice(0, 4));
+  const month = Number(ym.slice(5, 7));
+  const total = year * 12 + (month - 1) + delta;
+  const newYear = Math.floor(total / 12);
+  const newMonth = (total % 12) + 1;
+  return `${newYear}-${String(newMonth).padStart(2, "0")}`;
 }
 
 type RentalRow = {
@@ -225,23 +259,38 @@ export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCou
 
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
- * más económico), columnas = días, barras = alquileres. Ventana de `days`
- * columnas alrededor de `from` (default hoy) — 35% de los días antes, 65%
- * después (ver `centerOffsetDays`) —, navegable hacia adelante/atrás.
+ * más económico), columnas = días, barras = alquileres. Dos modos de ventana:
+ * - Rodante (Semana/Mes, default): `days` columnas alrededor de `from`
+ *   (default hoy) — 35% de los días antes, 65% después (`centerOffsetDays`).
+ * - Mes específico (`opts.month`, "YYYY-MM"): el mes calendario completo,
+ *   del día 1 al último, ignora `from`/`days`. Navegable mes a mes.
  */
 export async function getCalendarData(opts?: {
   from?: string;
   days?: number;
+  month?: string;
 }): Promise<CalendarData> {
-  const days = opts?.days ?? DEFAULT_CALENDAR_DAYS;
-  const from = normalizeFrom(opts?.from);
-  // `from` no es el inicio de la ventana: se retrocede `centerOffsetDays`
-  // (35% de los días restantes) para que `from` quede corrido hacia atrás,
-  // dejando más columnas para adelante que para atrás.
-  const centerDate = mendozaWallTimeToUtc(`${from}T00:00`);
-  const windowStart = new Date(centerDate.getTime() - centerOffsetDays(days) * DAY_MS);
-  const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
   const todayKey = formatDateInput(new Date());
+  const todayMonth = todayKey.slice(0, 7);
+  const requestedMonth = normalizeMonth(opts?.month);
+
+  let days: number;
+  let from: string;
+  let windowStart: Date;
+  if (requestedMonth) {
+    from = `${requestedMonth}-01`;
+    days = daysInMonth(requestedMonth);
+    windowStart = mendozaWallTimeToUtc(`${from}T00:00`);
+  } else {
+    days = opts?.days ?? DEFAULT_CALENDAR_DAYS;
+    from = normalizeFrom(opts?.from);
+    // `from` no es el inicio de la ventana: se retrocede `centerOffsetDays`
+    // (35% de los días restantes) para que `from` quede corrido hacia atrás,
+    // dejando más columnas para adelante que para atrás.
+    const centerDate = mendozaWallTimeToUtc(`${from}T00:00`);
+    windowStart = new Date(centerDate.getTime() - centerOffsetDays(days) * DAY_MS);
+  }
+  const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
 
   const [vehicles, notes, rentals] = await Promise.all([
     prisma.vehicle.findMany({
@@ -367,5 +416,9 @@ export async function getCalendarData(opts?: {
     nextFrom: addDays(from, days),
     todayFrom: todayKey,
     days,
+    month: requestedMonth,
+    prevMonth: shiftMonth(requestedMonth ?? todayMonth, -1),
+    nextMonth: shiftMonth(requestedMonth ?? todayMonth, 1),
+    todayMonth,
   };
 }

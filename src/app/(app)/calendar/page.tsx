@@ -9,16 +9,19 @@ export const metadata: Metadata = { title: "Calendario — Andes" };
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; days?: string }>;
+  searchParams: Promise<{ from?: string; days?: string; month?: string }>;
 }) {
   await requireUser();
-  const { from, days: rawDays } = await searchParams;
+  const { from, days: rawDays, month } = await searchParams;
   const days = normalizeCalendarDays(rawDays);
-  const data = await getCalendarData({ from, days });
+  const data = await getCalendarData({ from, days, month });
 
   const rangeStart = data.columns[0]?.key;
   const rangeEnd = data.columns[data.columns.length - 1]?.key;
+  // Modo rodante (Semana/Mes): navega por `from`+`days`. Modo mes específico
+  // (`data.month` seteado): navega mes a mes, ignora `from`/`days`.
   const nav = (targetFrom: string) => `/calendar?from=${targetFrom}&days=${data.days}`;
+  const navMonth = (targetMonth: string) => `/calendar?month=${targetMonth}`;
 
   return (
     <div className="ml-[calc(50%-50vw)] flex w-screen flex-col gap-4 px-4">
@@ -26,26 +29,38 @@ export default async function CalendarPage({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
           <p className="text-sm text-foreground/50">
-            {fmtRange(rangeStart, rangeEnd)} · {data.days} días
+            {data.month ? monthLabel(data.month) : `${fmtRange(rangeStart, rangeEnd)} · ${data.days} días`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
-            <ButtonLink href={`/calendar?from=${data.from}&days=${WEEK_DAYS}`} variant={data.days === WEEK_DAYS ? "primary" : "secondary"}>
+            <ButtonLink href={`/calendar?from=${data.from}&days=${WEEK_DAYS}`} variant={!data.month && data.days === WEEK_DAYS ? "primary" : "secondary"}>
               Semana
             </ButtonLink>
-            <ButtonLink href={`/calendar?from=${data.from}&days=${MONTH_DAYS}`} variant={data.days === MONTH_DAYS ? "primary" : "secondary"}>
+            <ButtonLink href={`/calendar?from=${data.from}&days=${MONTH_DAYS}`} variant={!data.month && data.days === MONTH_DAYS ? "primary" : "secondary"}>
               Mes
             </ButtonLink>
           </div>
+          <form className="flex items-center gap-2">
+            <input
+              type="month"
+              name="month"
+              defaultValue={data.month ?? undefined}
+              aria-label="Elegir mes"
+              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            />
+            <button className="h-9 rounded-lg border border-foreground/15 px-3 text-sm font-medium">
+              Ver mes
+            </button>
+          </form>
           <div className="flex items-center gap-2">
-            <ButtonLink href={nav(data.prevFrom)} variant="secondary">
+            <ButtonLink href={data.month ? navMonth(data.prevMonth) : nav(data.prevFrom)} variant="secondary">
               ← Anterior
             </ButtonLink>
-            <ButtonLink href={nav(data.todayFrom)} variant="secondary">
+            <ButtonLink href={data.month ? navMonth(data.todayMonth) : nav(data.todayFrom)} variant="secondary">
               Hoy
             </ButtonLink>
-            <ButtonLink href={nav(data.nextFrom)} variant="secondary">
+            <ButtonLink href={data.month ? navMonth(data.nextMonth) : nav(data.nextFrom)} variant="secondary">
               Siguiente →
             </ButtonLink>
           </div>
@@ -95,4 +110,17 @@ function fmtRange(start?: string, end?: string): string {
     return `${d}/${m}`;
   };
   return `${f(start)} — ${f(end)}`;
+}
+
+const MONTH_LABEL_FMT = new Intl.DateTimeFormat("es-AR", {
+  month: "long",
+  year: "numeric",
+  timeZone: "America/Argentina/Mendoza",
+});
+
+/** "2026-09" → "Septiembre de 2026". */
+function monthLabel(ym: string): string {
+  const [year, month] = ym.split("-").map(Number);
+  const label = MONTH_LABEL_FMT.format(new Date(Date.UTC(year, month - 1, 15, 12)));
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
