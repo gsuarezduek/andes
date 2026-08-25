@@ -3,15 +3,12 @@ import { compactControlClass } from "@/components/ui/fields";
 import { rentalStatusLabels } from "@/lib/labels";
 import { RENTAL_STATUSES, type RentalListFilters } from "@/lib/rental-list-filters";
 
-const SORT_LABELS = { fecha: "Ordenar por fecha", cliente: "Ordenar por cliente", estado: "Ordenar por estado" };
-
 export function RentalFiltersForm({
   query,
   statusFilter,
   confirm,
   desde,
   hasta,
-  sort,
   hasFilters,
 }: RentalListFilters) {
   return (
@@ -48,17 +45,6 @@ export function RentalFiltersForm({
           <option value="all">Confirmación: todas</option>
           <option value="confirmed">Confirmadas</option>
           <option value="unconfirmed">Sin confirmar</option>
-        </select>
-        <select
-          name="sort"
-          defaultValue={sort}
-          className={compactControlClass}
-        >
-          {Object.entries(SORT_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
         </select>
         <label className="flex items-center gap-1 text-xs text-foreground/60">
           Retiro desde

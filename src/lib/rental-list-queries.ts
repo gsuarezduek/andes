@@ -1,7 +1,6 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { RentalSort } from "@/lib/rental-list-filters";
 
 // Notas activas con su texto (no solo el conteo): se muestran inline en el
 // listado para no tener que entrar a cada reserva.
@@ -31,28 +30,22 @@ export type RentalListData = {
 // lista traería todo de una.
 const PAGE_SIZE = 50;
 
-function orderByFor(section: "current" | "past", sort: RentalSort): Prisma.RentalOrderByWithRelationInput {
-  if (sort === "cliente") return { clientName: "asc" };
-  if (sort === "estado") return { status: "asc" };
-  // Default "fecha": en curso primero para Actuales, recién terminados primero para Pasados.
-  return section === "current" ? { startAt: "asc" } : { endAt: "desc" };
-}
-
 /**
  * Listado filtrado/buscado ("hay filtros activos"): Actuales + Pasados tal
  * como funcionaba antes de dividir la vista por defecto en Atrasadas /
  * Alquilados / Próximas — acá el usuario ya pidió algo puntual (fecha,
  * estado, texto), así que se le muestra todo lo que matchea sin curar.
+ * En curso primero para Actuales, recién terminados primero para Pasados.
  */
 export async function getRentalListData(
   currentWhere: Prisma.RentalWhereInput,
   pastWhere: Prisma.RentalWhereInput,
-  { sort, currentPage, pastPage }: { sort: RentalSort; currentPage: number; pastPage: number },
+  { currentPage, pastPage }: { currentPage: number; pastPage: number },
 ): Promise<RentalListData> {
   const [current, currentTotal, past, pastTotal] = await Promise.all([
     prisma.rental.findMany({
       where: currentWhere,
-      orderBy: orderByFor("current", sort),
+      orderBy: { startAt: "asc" },
       include: ROW_INCLUDE,
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -60,7 +53,7 @@ export async function getRentalListData(
     prisma.rental.count({ where: currentWhere }),
     prisma.rental.findMany({
       where: pastWhere,
-      orderBy: orderByFor("past", sort),
+      orderBy: { endAt: "desc" },
       include: ROW_INCLUDE,
       skip: (pastPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,

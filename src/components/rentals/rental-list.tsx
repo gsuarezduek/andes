@@ -13,7 +13,14 @@ function vehicleTitle(r: RentalRow): string {
   return "Sin vehículo asignado";
 }
 
-export function RentalList({ rentals }: { rentals: RentalRow[] }) {
+export function RentalList({
+  rentals,
+  showBookedAt = false,
+}: {
+  rentals: RentalRow[];
+  /** Muestra cuándo entró la reserva (orden "Fecha de Reserva" de Próximas). */
+  showBookedAt?: boolean;
+}) {
   const now = new Date();
   return (
     <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
@@ -50,6 +57,11 @@ export function RentalList({ rentals }: { rentals: RentalRow[] }) {
                 <p className="text-xs text-foreground/50">
                   {formatDateTime(r.startAt)} → {formatDateTime(r.endAt)}
                 </p>
+                {showBookedAt && (
+                  <p className="text-xs text-foreground/50">
+                    Reserva cargada {formatDateTime(r.bookingCreatedAt ?? r.createdAt)}
+                  </p>
+                )}
                 {notes.length > 0 && (
                   <ul className="mt-1 flex flex-col gap-0.5">
                     {notes.map((n) => (

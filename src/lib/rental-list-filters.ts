@@ -2,8 +2,6 @@ import type { Prisma, RentalStatus } from "@prisma/client";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
 export const RENTAL_STATUSES: RentalStatus[] = ["reserved", "active", "finished", "cancelled"];
-export const RENTAL_SORTS = ["fecha", "cliente", "estado"] as const;
-export type RentalSort = (typeof RENTAL_SORTS)[number];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type RentalListSearchParams = {
@@ -12,7 +10,6 @@ export type RentalListSearchParams = {
   confirm?: string;
   desde?: string;
   hasta?: string;
-  sort?: string;
   cp?: string;
   pp?: string;
 };
@@ -23,7 +20,6 @@ export type RentalListFilters = {
   confirm: "all" | "confirmed" | "unconfirmed";
   desde: string;
   hasta: string;
-  sort: RentalSort;
   currentPage: number;
   pastPage: number;
   hasFilters: boolean;
@@ -42,11 +38,10 @@ export function parseRentalListFilters(sp: RentalListSearchParams): RentalListFi
   const confirm = sp.confirm === "confirmed" || sp.confirm === "unconfirmed" ? sp.confirm : "all";
   const desde = sp.desde && DATE_RE.test(sp.desde) ? sp.desde : "";
   const hasta = sp.hasta && DATE_RE.test(sp.hasta) ? sp.hasta : "";
-  const sort = (RENTAL_SORTS as readonly string[]).includes(sp.sort ?? "") ? (sp.sort as RentalSort) : "fecha";
   const currentPage = parsePage(sp.cp);
   const pastPage = parsePage(sp.pp);
   const hasFilters = Boolean(query || statusFilter || confirm !== "all" || desde || hasta);
-  return { query, statusFilter, confirm, desde, hasta, sort, currentPage, pastPage, hasFilters };
+  return { query, statusFilter, confirm, desde, hasta, currentPage, pastPage, hasFilters };
 }
 
 /**

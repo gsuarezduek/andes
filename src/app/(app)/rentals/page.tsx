@@ -11,6 +11,8 @@ import { groupUpcomingByMonth } from "@/lib/rental-list-grouping";
 
 export const metadata: Metadata = { title: "Alquileres — Andes" };
 
+type ProximasOrder = "retiro" | "reserva";
+
 export default async function RentalsPage({
   searchParams,
 }: {
@@ -20,14 +22,15 @@ export default async function RentalsPage({
     confirm?: string;
     desde?: string;
     hasta?: string;
-    sort?: string;
     cp?: string;
     pp?: string;
+    proximas?: string;
   }>;
 }) {
   await requireUser();
   const sp = await searchParams;
   const filters = parseRentalListFilters(sp);
+  const proximasOrder: ProximasOrder = sp.proximas === "reserva" ? "reserva" : "retiro";
 
   return (
     <div className="flex flex-col gap-5">
@@ -43,21 +46,53 @@ export default async function RentalsPage({
       {filters.hasFilters ? (
         <FilteredResults filters={filters} />
       ) : (
-        <DefaultOverview />
+        <DefaultOverview proximasOrder={proximasOrder} />
       )}
+    </div>
+  );
+}
+
+const PROXIMAS_ORDER_LABELS: Record<ProximasOrder, string> = {
+  retiro: "Fecha de retiro",
+  reserva: "Fecha de reserva",
+};
+
+/** Chips de navegación (GET, sin JS) para elegir el orden de "Próximas". */
+function ProximasOrderToggle({ active }: { active: ProximasOrder }) {
+  return (
+    <div className="flex gap-2 text-sm">
+      {(Object.entries(PROXIMAS_ORDER_LABELS) as [ProximasOrder, string][]).map(([value, label]) => (
+        <Link
+          key={value}
+          href={value === "retiro" ? "/rentals" : "/rentals?proximas=reserva"}
+          className={`rounded-lg border px-3 py-1.5 font-medium transition-colors ${
+            value === active
+              ? "border-foreground bg-foreground text-background"
+              : "border-foreground/25 text-foreground/70 hover:bg-foreground/5"
+          }`}
+        >
+          {label}
+        </Link>
+      ))}
     </div>
   );
 }
 
 /**
  * Vista curada por defecto (sin filtros): Atrasadas (si hay) → Alquilados →
- * Próximas, agrupadas por mes (el mes actual, por día). "Pasados" queda
- * completamente afuera — se accede buscando por fecha o estado.
+ * Próximas. "Pasados" queda completamente afuera — se accede buscando por
+ * fecha o estado.
+ *
+ * "Próximas" tiene dos órdenes: **Fecha de retiro** (default) agrupa por mes
+ * de retiro, el mes actual además por día — para planificar qué se viene.
+ * **Fecha de reserva** aplana la lista y ordena por cuándo entró el pedido
+ * (más reciente primero, `bookingCreatedAt` con fallback a `createdAt` para
+ * cargas manuales) — para ver la actividad reciente sin importar cuándo
+ * retira cada una.
  */
-async function DefaultOverview() {
+async function DefaultOverview({ proximasOrder }: { proximasOrder: ProximasOrder }) {
   const now = new Date();
   const { atrasadas, alquilados, proximas } = await getRentalListOverview(now);
-  const proximasMonths = groupUpcomingByMonth(proximas, now);
 
   if (atrasadas.length === 0 && alquilados.length === 0 && proximas.length === 0) {
     return (
@@ -92,10 +127,27 @@ async function DefaultOverview() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
-          Próximas{proximas.length > 0 ? ` (${proximas.length})` : ""}
-        </h2>
-        <ProximasSection months={proximasMonths} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Próximas{proximas.length > 0 ? ` (${proximas.length})` : ""}
+          </h2>
+          <ProximasOrderToggle active={proximasOrder} />
+        </div>
+        {proximas.length === 0 ? (
+          <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
+            No hay reservas próximas.
+          </p>
+        ) : proximasOrder === "reserva" ? (
+          <RentalList
+            rentals={[...proximas].sort(
+              (a, b) =>
+                (b.bookingCreatedAt ?? b.createdAt).getTime() - (a.bookingCreatedAt ?? a.createdAt).getTime(),
+            )}
+            showBookedAt
+          />
+        ) : (
+          <ProximasSection months={groupUpcomingByMonth(proximas, now)} />
+        )}
       </section>
     </>
   );
@@ -106,7 +158,6 @@ async function FilteredResults({ filters }: { filters: ReturnType<typeof parseRe
   const { currentWhere, pastWhere } = buildRentalWhereClauses(filters);
   const { current, currentTotal, currentPage, currentTotalPages, past, pastTotal, pastPage, pastTotalPages } =
     await getRentalListData(currentWhere, pastWhere, {
-      sort: filters.sort,
       currentPage: filters.currentPage,
       pastPage: filters.pastPage,
     });
@@ -119,7 +170,6 @@ async function FilteredResults({ filters }: { filters: ReturnType<typeof parseRe
     if (filters.confirm !== "all") params.set("confirm", filters.confirm);
     if (filters.desde) params.set("desde", filters.desde);
     if (filters.hasta) params.set("hasta", filters.hasta);
-    if (filters.sort !== "fecha") params.set("sort", filters.sort);
     if (section === "cp" && page > 1) params.set("cp", String(page));
     if (section === "cp" && filters.pastPage > 1) params.set("pp", String(filters.pastPage));
     if (section === "pp" && page > 1) params.set("pp", String(page));
