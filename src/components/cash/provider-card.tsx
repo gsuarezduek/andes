@@ -32,8 +32,19 @@ function BalanceLine({ balance }: { balance: ProviderBalance["balance"] }) {
   );
 }
 
-function LedgerRow({ movement, isAdmin }: { movement: ProviderLedgerRow; isAdmin: boolean }) {
+function LedgerRow({
+  movement,
+  isAdmin,
+  principalName,
+}: {
+  movement: ProviderLedgerRow;
+  isAdmin: boolean;
+  principalName: string;
+}) {
   if (movement.kind === "debt") return <DebtRow movement={movement} isAdmin={isAdmin} />;
+  // Si la cuenta real usada es una subcuenta (no la principal), lo aclara —
+  // la vista sigue unificada, pero no se pierde por dónde salió/entró la plata.
+  const viaSubaccount = movement.accountName && movement.accountName !== principalName;
   return (
     <li className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -43,6 +54,7 @@ function LedgerRow({ movement, isAdmin }: { movement: ProviderLedgerRow; isAdmin
       <p className="mt-1 text-xs text-foreground/50">
         {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} ·{" "}
         {movement.createdByName} · {formatDateTime(movement.createdAt)}
+        {viaSubaccount && ` · vía ${movement.accountName}`}
       </p>
     </li>
   );
@@ -106,6 +118,7 @@ export function ProviderCard({
             onCancel={() => setFormOpen("none")}
             onSuccess={() => setFormOpen("none")}
             provider={provider}
+            destinoOptions={[{ id: provider.id, name: provider.name }, ...provider.subaccounts]}
             paymentMethods={paymentMethods}
           />
         </div>
@@ -128,7 +141,7 @@ export function ProviderCard({
           ) : (
             <ul className="flex flex-col gap-2">
               {thisMonthRows.map((m) => (
-                <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} />
+                <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} principalName={provider.name} />
               ))}
             </ul>
           )}
@@ -167,7 +180,7 @@ export function ProviderCard({
                 <h5 className="text-xs font-medium text-foreground/50">{g.label}</h5>
                 <ul className="flex flex-col gap-2">
                   {g.rows.map((m) => (
-                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} />
+                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} principalName={provider.name} />
                   ))}
                 </ul>
               </div>

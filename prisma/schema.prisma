@@ -723,6 +723,19 @@ model PaymentMethod {
   ordering          Int                    @default(0)
   active            Boolean                @default(true)
 
+  // Misma entidad (persona/proveedor) con más de una cuenta real (ej. efectivo
+  // y transferencia) — la subcuenta apunta a la principal. Jerarquía de un
+  // solo nivel a propósito (una subcuenta no puede tener sus propias
+  // subcuentas; se valida en `updatePaymentMethods`). Cada cuenta sigue
+  // pudiéndose elegir individualmente al cargar un pago (para saber por qué
+  // rail salió/entró la plata) — lo único que se agrupa son los cálculos
+  // (saldo de cuenta corriente, "Total entregado", ver `src/lib/providers.ts`
+  // y `CashMovementsBoard`). Si se borra la principal, sus subcuentas quedan
+  // sueltas (vuelven a ser principales) en vez de arrastrarse.
+  parentId String?         @map("parent_id")
+  parent   PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)
+  subaccounts PaymentMethod[] @relation("PaymentMethodSubaccounts")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -733,6 +746,7 @@ model PaymentMethod {
   // nombre de VikRentCar: el sync solo auto-resuelve cuando hay exactamente uno.
   wpPaymentMethods         WpPaymentMethod[] @relation("WpPaymentMethodMapping")
 
+  @@index([parentId])
   @@map("payment_methods")
 }
 

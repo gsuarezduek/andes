@@ -15,6 +15,7 @@ export type PaymentMethodOption = {
   name: string;
   requiresNote?: boolean;
   ownership: PaymentMethodOwnership;
+  parentId?: string | null;
 };
 
 /**
@@ -37,14 +38,28 @@ export function CashMovementsBoard({
 }) {
   const [accountId, setAccountId] = useState("");
 
+  // Elegir una cuenta principal (ver `PaymentMethod.parentId`) suma también
+  // sus subcuentas — misma entidad, no tiene sentido partir el cálculo por
+  // cuenta real. Elegir una subcuenta puntual sigue mostrando solo la suya
+  // (no "sube" a sus hermanas).
+  const subaccountIds = paymentMethods.filter((m) => m.parentId === accountId).map((m) => m.id);
+  const matchIds = accountId ? [accountId, ...subaccountIds] : [];
+
   // Un Egreso puede matchear el filtro por su Origen (cualquier cuenta) o su
   // Destino (cuenta ajena) — el filter no distingue cuál, así que si por algún
   // motivo coincidieran los dos igual se cuenta una sola vez la fila.
-  const filteredIncomes = accountId ? incomes.filter((r) => r.paymentMethodId === accountId) : incomes;
+  const filteredIncomes = accountId
+    ? incomes.filter((r) => r.paymentMethodId && matchIds.includes(r.paymentMethodId))
+    : incomes;
   const filteredExpenses = accountId
-    ? expenses.filter((r) => r.paymentMethodId === accountId || r.recipientPaymentMethodId === accountId)
+    ? expenses.filter(
+        (r) =>
+          (r.paymentMethodId && matchIds.includes(r.paymentMethodId)) ||
+          (r.recipientPaymentMethodId && matchIds.includes(r.recipientPaymentMethodId)),
+      )
     : expenses;
   const selectedAccount = paymentMethods.find((m) => m.id === accountId);
+  const selectedSubaccounts = paymentMethods.filter((m) => subaccountIds.includes(m.id));
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
   const associateMethods = paymentMethods.filter((m) => m.ownership === "associate");
   const providerMethods = paymentMethods.filter((m) => m.ownership === "provider");
@@ -91,6 +106,13 @@ export function CashMovementsBoard({
         </label>
         <CashPeriodPicker period={period} />
       </div>
+
+      {selectedSubaccounts.length > 0 && (
+        <p className="-mt-2 text-xs text-foreground/50">
+          Incluye {selectedSubaccounts.length === 1 ? "su subcuenta" : "sus subcuentas"}:{" "}
+          {selectedSubaccounts.map((m) => m.name).join(", ")}.
+        </p>
+      )}
 
       {selectedAccount &&
         (() => {

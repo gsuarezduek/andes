@@ -51,15 +51,46 @@ export type PaymentMethodUpdateInput = {
   requiresNote: boolean;
   isCash: boolean;
   ownership: PaymentMethodOwnership;
+  // Cuenta principal (misma entidad, otra cuenta real) — ver comentario en el
+  // schema. `null` = cuenta principal (no es subcuenta de nadie).
+  parentId: string | null;
 };
 
-/** Guarda de una sola vez los cambios pendientes de varios medios de pago
- *  (un solo botón "Guardar cambios" en vez de uno por fila). Ignora las
- *  entradas con nombre vacío (no debería pasar: el botón se deshabilita antes). */
+/**
+ * Guarda de una sola vez los cambios pendientes de varios medios de pago (un
+ * solo botón "Guardar cambios" en vez de uno por fila). Ignora las entradas
+ * con nombre vacío (no debería pasar: el botón se deshabilita antes).
+ *
+ * Valida `parentId` contra el estado real en la base (no contra lo que manda
+ * el batch, para no depender del orden): no puede apuntar a sí misma, la
+ * cuenta principal elegida no puede ser a su vez subcuenta de otra (jerarquía
+ * de un solo nivel), tiene que ser del mismo tipo de cuenta, y esta fila no
+ * puede tener ya sus propias subcuentas (si las tiene, hay que desvincularlas
+ * primero — evita que una cadena de 3 niveles quede "escondida").
+ */
 export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) {
   await requireAdmin();
   const valid = updates.filter((u) => u.name.trim() !== "");
   if (valid.length === 0) return;
+
+  const all = await prisma.paymentMethod.findMany({ select: { id: true, parentId: true, ownership: true } });
+  const byId = new Map(all.map((a) => [a.id, a]));
+  const parentIds = new Set(all.filter((a) => a.parentId).map((a) => a.parentId!));
+
+  for (const u of valid) {
+    if (!u.parentId) continue;
+    if (u.parentId === u.id) throw new Error("Una cuenta no puede ser su propia principal.");
+    if (parentIds.has(u.id)) {
+      throw new Error("Esta cuenta ya tiene subcuentas propias — desvinculalas antes de convertirla en subcuenta de otra.");
+    }
+    const parent = byId.get(u.parentId);
+    if (!parent) throw new Error("La cuenta principal elegida no existe.");
+    if (parent.parentId) throw new Error("La cuenta principal elegida ya es una subcuenta de otra — no se pueden anidar.");
+    if (parent.ownership !== u.ownership) {
+      throw new Error("La cuenta principal tiene que ser del mismo tipo de cuenta.");
+    }
+  }
+
   await prisma.$transaction(
     valid.map((u) =>
       prisma.paymentMethod.update({
@@ -71,11 +102,13 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           requiresNote: u.requiresNote,
           isCash: u.isCash,
           ownership: u.ownership,
+          parentId: u.parentId,
         },
       }),
     ),
   );
   revalidatePath("/settings/payment-methods");
+  revalidatePath("/caja");
 }
 
 export async function togglePaymentMethod(id: string) {

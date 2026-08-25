@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EditIcon } from "@/components/ui/icons";
 import { TabBar } from "@/components/ui/tabs";
 import { TextField, TextareaField, SelectField, compactControlClass } from "@/components/ui/fields";
+import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import {
   togglePaymentMethod,
   deletePaymentMethod,
@@ -23,6 +24,7 @@ type Draft = {
   ownership: PaymentMethodOwnership;
   requiresNote: boolean;
   isCash: boolean;
+  parentId: string | null;
 };
 
 function draftFrom(it: PaymentMethod): Draft {
@@ -33,6 +35,7 @@ function draftFrom(it: PaymentMethod): Draft {
     ownership: it.ownership,
     requiresNote: it.requiresNote,
     isCash: it.isCash,
+    parentId: it.parentId,
   };
 }
 
@@ -43,7 +46,8 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.reference === b.reference &&
     a.ownership === b.ownership &&
     a.requiresNote === b.requiresNote &&
-    a.isCash === b.isCash
+    a.isCash === b.isCash &&
+    a.parentId === b.parentId
   );
 }
 
@@ -58,7 +62,9 @@ function draftsEqual(a: Draft, b: Draft): boolean {
  * Movimientos/Proveedores/Caja fuerte en Caja) en vez de tres listas
  * apiladas — con muchos medios de pago, ir a uno puntual significaba mucho
  * scroll. Cada fila arranca colapsada (solo nombre + badges); "Editar" la
- * expande para ver/tocar los campos.
+ * expande para ver/tocar los campos, incluida la "Cuenta principal" (misma
+ * entidad con más de una cuenta real — ver comentario en el schema y
+ * `src/lib/providers.ts`).
  */
 export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
@@ -105,7 +111,7 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
         await updatePaymentMethods(updates);
       } catch (err) {
         unstable_rethrow(err);
-        setError("No se pudieron guardar los cambios. Probá de nuevo.");
+        setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios. Probá de nuevo.");
       }
     });
   }
@@ -136,6 +142,7 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
       />
       <PaymentMethodGroup
         items={groups[activeTab].items}
+        allItems={items}
         drafts={drafts}
         setField={setField}
         emptyLabel={emptyLabel}
@@ -170,11 +177,13 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
 
 function PaymentMethodGroup({
   items,
+  allItems,
   drafts,
   setField,
   emptyLabel,
 }: {
   items: PaymentMethod[];
+  allItems: PaymentMethod[];
   drafts: Record<string, Draft>;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   emptyLabel: string;
@@ -193,6 +202,7 @@ function PaymentMethodGroup({
           <PaymentMethodRow
             key={it.id}
             item={it}
+            allItems={allItems}
             draft={draft}
             setField={setField}
             isFirst={i === 0}
@@ -206,12 +216,14 @@ function PaymentMethodGroup({
 
 function PaymentMethodRow({
   item,
+  allItems,
   draft,
   setField,
   isFirst,
   isLast,
 }: {
   item: PaymentMethod;
+  allItems: PaymentMethod[];
   draft: Draft;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   isFirst: boolean;
@@ -222,6 +234,14 @@ function PaymentMethodRow({
   const [deleting, startDelete] = useTransition();
   const [expanded, setExpanded] = useState(false);
   const isDirty = !draftsEqual(draft, draftFrom(item));
+
+  const children = allItems.filter((i) => i.parentId === item.id);
+  const parentName = draft.parentId ? allItems.find((i) => i.id === draft.parentId)?.name : undefined;
+  // Candidatas a "cuenta principal": mismo tipo de cuenta, no es ella misma,
+  // y no es a su vez una subcuenta (jerarquía de un solo nivel).
+  const parentCandidates = allItems.filter(
+    (i) => i.ownership === draft.ownership && i.id !== item.id && !i.parentId,
+  );
 
   function handleDelete() {
     setDeleteError(null);
@@ -300,6 +320,18 @@ function PaymentMethodRow({
           <EditIcon />
         </button>
       </div>
+      {parentName && (
+        <p className="text-xs text-foreground/50">
+          Subcuenta de <span className="font-medium text-foreground/70">{parentName}</span> — sus cálculos se
+          suman ahí.
+        </p>
+      )}
+      {children.length > 0 && (
+        <p className="text-xs text-foreground/50">
+          Cuenta principal de {children.length === 1 ? "1 subcuenta" : `${children.length} subcuentas`}:{" "}
+          {children.map((c) => c.name).join(", ")}.
+        </p>
+      )}
 
       {expanded && (
         <>
@@ -355,6 +387,22 @@ function PaymentMethodRow({
               <option value="associate">Asociado</option>
               <option value="provider">Proveedor</option>
             </SelectField>
+            {children.length > 0 ? (
+              <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
+                Ya es cuenta principal de {children.length === 1 ? "otra cuenta" : "otras cuentas"} — desvinculalas
+                primero para poder convertir esta en subcuenta de otra.
+              </p>
+            ) : (
+              <PaymentMethodPicker
+                id={`parentId-${item.id}`}
+                label="Cuenta principal"
+                hint="Opcional — para unificar los cálculos con otra cuenta de la misma entidad (ej. dos cuentas del mismo proveedor)."
+                options={parentCandidates}
+                value={draft.parentId ?? ""}
+                onChange={(id) => setField(item.id, "parentId", id || null)}
+                placeholder="Sin cuenta principal — buscar…"
+              />
+            )}
             <label className="flex items-center gap-2 text-sm text-foreground/80">
               <input
                 type="checkbox"

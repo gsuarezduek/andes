@@ -12,25 +12,31 @@ type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 /**
  * Alta de un pago a un proveedor puntual — es un Egreso normal (mismo
- * `createCashMovement`, Destino = este proveedor), solo que el Destino ya se
- * sabe (viene fijo, sin buscador) y el formulario se reduce a Detalle +
- * Monto + Origen. Aparece en Caja/Movimientos y en el saldo de cuenta
- * corriente de este proveedor igual que si se hubiera cargado desde ahí.
- * Tras guardar, `onSuccess` cierra el form de vuelta a los dos botones para
- * que se vea el saldo actualizado.
+ * `createCashMovement`, Destino = una cuenta de este proveedor), solo que el
+ * Destino ya viene acotado a las cuentas de esta entidad (la principal +
+ * subcuentas, si tiene — ver `PaymentMethod.parentId`), preseleccionada en la
+ * principal, así se sabe por cuál rail salió sin tener que buscarla entre
+ * todas las cuentas. El formulario se reduce a Detalle + Monto + Origen +
+ * Destino. Aparece en Caja/Movimientos y en el saldo de cuenta corriente de
+ * este proveedor igual que si se hubiera cargado desde ahí. Tras guardar,
+ * `onSuccess` cierra el form de vuelta a los dos botones para que se vea el
+ * saldo actualizado.
  */
 export function ProviderPaymentForm({
   onCancel,
   onSuccess,
   provider,
+  destinoOptions,
   paymentMethods,
 }: {
   onCancel: () => void;
   onSuccess?: () => void;
   provider: { id: string; name: string };
+  destinoOptions: { id: string; name: string }[];
   paymentMethods: PaymentMethodOption[];
 }) {
   const [originId, setOriginId] = useState("");
+  const [destinoId, setDestinoId] = useState(provider.id);
   const [currency, setCurrency] = useState<Currency>("ars");
   const selectedOrigin = paymentMethods.find((m) => m.id === originId);
 
@@ -41,7 +47,12 @@ export function ProviderPaymentForm({
 
   return (
     <form action={submit} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
-      <input type="hidden" name="recipientPaymentMethodId" value={provider.id} />
+      {/* Con una sola cuenta posible (sin subcuentas) va fijo por hidden input;
+          con varias, el picker de abajo ya manda su propio hidden input con
+          este mismo name — no duplicar el campo. */}
+      {destinoOptions.length <= 1 && (
+        <input type="hidden" name="recipientPaymentMethodId" value={destinoId} />
+      )}
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Nuevo pago — {provider.name}</h4>
         <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
@@ -73,6 +84,16 @@ export function ProviderPaymentForm({
           label="¿A dónde fue?"
           hint="Obligatorio para este medio de pago"
           required
+        />
+      )}
+      {destinoOptions.length > 1 && (
+        <PaymentMethodPicker
+          id="recipientPaymentMethodId"
+          label="Cuenta"
+          hint={`Por cuál cuenta de ${provider.name} salió este pago.`}
+          options={destinoOptions}
+          value={destinoId}
+          onChange={setDestinoId}
         />
       )}
       <SubmitButton pendingLabel="Guardando…" disabled={!originId}>
