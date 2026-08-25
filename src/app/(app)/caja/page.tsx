@@ -87,7 +87,7 @@ export default async function CajaPage({
     const providersWithLedger = await Promise.all(
       balances.map(async (p) => ({ ...p, ledger: await getProviderLedger(p.id) })),
     );
-    proveedores = <ProvidersSection providers={providersWithLedger} />;
+    proveedores = <ProvidersSection providers={providersWithLedger} paymentMethods={paymentMethods} />;
   }
 
   return (
