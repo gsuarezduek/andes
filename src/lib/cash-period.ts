@@ -12,6 +12,20 @@ function nextMonth(ym: string): string {
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
+/** Mes anterior a `ym` ("YYYY-MM"), maneja el cambio de año. */
+function previousMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+const MONTH_FORMATTER = new Intl.DateTimeFormat("es-AR", { month: "long", timeZone: "America/Argentina/Mendoza" });
+
+/** Nombre del mes en español, capitalizado (ej. "Julio"). */
+function monthName(ym: string): string {
+  const label = MONTH_FORMATTER.format(mendozaWallTimeToUtc(`${ym}-15T12:00`));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 /** Rango [start, end) en UTC de un mes ("YYYY-MM") en hora Mendoza. */
 export function monthRangeUtc(ym: string): { start: Date; end: Date } {
   return {
@@ -54,16 +68,18 @@ export type CashPeriod =
   | { kind: "today" }
   | { kind: "week" }
   | { kind: "month" }
+  | { kind: "previous_month" }
   // Rango de fechas ("YYYY-MM-DD" hora Mendoza, ambos inclusive). Un solo
   // día es un caso particular con from === to.
   | { kind: "date"; from: string; to: string };
 
 export const DEFAULT_CASH_PERIOD: CashPeriod = { kind: "today" };
 
-export const CASH_PERIOD_OPTIONS: { value: "today" | "week" | "month" | "date"; label: string }[] = [
+export const CASH_PERIOD_OPTIONS: { value: "today" | "week" | "month" | "previous_month" | "date"; label: string }[] = [
   { value: "today", label: "Hoy" },
   { value: "week", label: "Esta semana" },
   { value: "month", label: "Este mes" },
+  { value: "previous_month", label: "Mes anterior" },
   { value: "date", label: "Rango de fechas" },
 ];
 
@@ -77,6 +93,7 @@ export function parseCashPeriod(
 ): CashPeriod {
   if (rawPeriod === "week") return { kind: "week" };
   if (rawPeriod === "month") return { kind: "month" };
+  if (rawPeriod === "previous_month") return { kind: "previous_month" };
   if (rawPeriod === "date" && rawFrom && YMD_RE.test(rawFrom)) {
     const to = rawTo && YMD_RE.test(rawTo) ? rawTo : rawFrom;
     // Si "hasta" quedó antes que "desde" (fechas invertidas a mano en la URL),
@@ -115,6 +132,10 @@ export function resolveCashPeriod(period: CashPeriod, now: Date = new Date()): {
   }
   if (period.kind === "month") {
     return { ...monthRangeUtc(todayYmd.slice(0, 7)), label: "Este mes" };
+  }
+  if (period.kind === "previous_month") {
+    const prevYm = previousMonth(todayYmd.slice(0, 7));
+    return { ...monthRangeUtc(prevYm), label: `Mes anterior (${monthName(prevYm)})` };
   }
   return {
     start: mendozaWallTimeToUtc(`${period.from}T00:00`),

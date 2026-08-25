@@ -37,9 +37,10 @@ describe("parseCashPeriod / cashPeriodSearch", () => {
     expect(parseCashPeriod("cualquier-cosa", undefined)).toEqual({ kind: "today" });
   });
 
-  it("\"week\" y \"month\" se parsean directo", () => {
+  it("\"week\", \"month\" y \"previous_month\" se parsean directo", () => {
     expect(parseCashPeriod("week", undefined)).toEqual({ kind: "week" });
     expect(parseCashPeriod("month", undefined)).toEqual({ kind: "month" });
+    expect(parseCashPeriod("previous_month", undefined)).toEqual({ kind: "previous_month" });
   });
 
   it("\"date\" con from/to válidos se parsea como rango", () => {
@@ -77,6 +78,7 @@ describe("parseCashPeriod / cashPeriodSearch", () => {
       { kind: "today" },
       { kind: "week" },
       { kind: "month" },
+      { kind: "previous_month" },
       { kind: "date", from: "2026-08-13", to: "2026-08-13" },
       { kind: "date", from: "2026-08-10", to: "2026-08-13" },
     ] as const) {
@@ -111,6 +113,21 @@ describe("resolveCashPeriod", () => {
     expect(start.toISOString()).toBe("2026-08-01T03:00:00.000Z");
     expect(end.toISOString()).toBe("2026-09-01T03:00:00.000Z");
     expect(label).toBe("Este mes");
+  });
+
+  it("mes anterior: 1º del mes previo a 1º del actual, con el nombre del mes en el label", () => {
+    const { start, end, label } = resolveCashPeriod({ kind: "previous_month" }, now);
+    expect(start.toISOString()).toBe("2026-07-01T03:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-08-01T03:00:00.000Z");
+    expect(label).toBe("Mes anterior (Julio)");
+  });
+
+  it("mes anterior maneja el cruce de año (\"now\" en enero → diciembre del año previo)", () => {
+    const nowJanuary = new Date("2026-01-13T15:00:00Z");
+    const { start, end, label } = resolveCashPeriod({ kind: "previous_month" }, nowJanuary);
+    expect(start.toISOString()).toBe("2025-12-01T03:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-01-01T03:00:00.000Z");
+    expect(label).toBe("Mes anterior (Diciembre)");
   });
 
   it("fecha puntual (from === to): ese día completo, sin depender de `now`", () => {
