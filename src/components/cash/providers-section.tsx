@@ -7,14 +7,18 @@ type ProviderWithLedger = ProviderBalance & { ledger: ProviderLedgerRow[] };
 /**
  * Cuenta corriente por proveedor: una `ProviderCard` por cada uno (saldo,
  * alta de pago/deuda inline, historial del mes + "ver todos" paginado — ver
- * ese componente). Solo admin (la página ya filtra quién la recibe).
+ * ese componente). Visible para cualquier rol; `isAdmin` solo gatea poder
+ * editar/borrar una deuda ya cargada (`DebtRow`) — cargar pago/deuda nueva es
+ * para cualquiera.
  */
 export function ProvidersSection({
   providers,
   paymentMethods,
+  isAdmin,
 }: {
   providers: ProviderWithLedger[];
   paymentMethods: PaymentMethodOption[];
+  isAdmin: boolean;
 }) {
   if (providers.length === 0) {
     return (
@@ -30,7 +34,7 @@ export function ProvidersSection({
   return (
     <div className="flex flex-col gap-3">
       {providers.map((p) => (
-        <ProviderCard key={p.id} provider={p} paymentMethods={paymentMethods} now={now} />
+        <ProviderCard key={p.id} provider={p} paymentMethods={paymentMethods} now={now} isAdmin={isAdmin} />
       ))}
     </div>
   );

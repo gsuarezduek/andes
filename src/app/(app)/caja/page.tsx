@@ -11,7 +11,7 @@ import {
   getWalletBalance,
   parseCashPeriod,
 } from "@/lib/cash";
-import { getAllSafeMovements, getOwnSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
+import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
 import { getProviderBalances, getProviderLedger } from "@/lib/providers";
 import { MovementLauncher } from "@/components/cash/movement-launcher";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
@@ -64,14 +64,20 @@ export default async function CajaPage({
     </div>
   );
 
-  let proveedores: React.ReactNode | undefined;
-  if (user.role === "admin") {
-    const balances = await getProviderBalances();
-    const providersWithLedger = await Promise.all(
-      balances.map(async (p) => ({ ...p, ledger: await getProviderLedger(p.id) })),
-    );
-    proveedores = <ProvidersSection providers={providersWithLedger} paymentMethods={paymentMethods} />;
-  }
+  // Proveedores (cuenta corriente) es visible para cualquier rol — a
+  // diferencia de Caja fuerte, no es info sensible: es operativo (a quién le
+  // debemos, cargar un pago/deuda) y cualquiera puede necesitarlo.
+  const providerBalances = await getProviderBalances();
+  const providersWithLedger = await Promise.all(
+    providerBalances.map(async (p) => ({ ...p, ledger: await getProviderLedger(p.id) })),
+  );
+  const proveedores = (
+    <ProvidersSection
+      providers={providersWithLedger}
+      paymentMethods={paymentMethods}
+      isAdmin={user.role === "admin"}
+    />
+  );
 
   const cajaFuerte = (
     <div className="flex flex-col gap-5">
@@ -84,7 +90,7 @@ export default async function CajaPage({
           edits={await getSafeMovementEdits()}
         />
       ) : (
-        <SafeSection movements={await getOwnSafeMovements(user.id)} balance={null} walletBalance={null} />
+        <SafeSection movements={null} balance={null} walletBalance={null} />
       )}
     </div>
   );

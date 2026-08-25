@@ -23,13 +23,12 @@ function InlineCurrencyTotals({ totals }: { totals: CurrencyTotals }) {
 }
 
 /**
- * Historial de caja fuerte. `balance` es `null` para no-admin: el saldo
- * acumulado es info sensible y no se manda ni se muestra; el historial
- * (fecha + quién) sí es visible para cualquier rol, pero cada uno solo ve
- * sus propios movimientos (`movements` ya viene filtrado desde la página).
- * Editar/borrar (`SafeMovementRow`) solo aparece cuando hay `balance`
- * (admin) — mismo criterio que Ingresos/Egresos. Los saldos van separados
- * por moneda (ver `src/lib/currency.ts`) — nunca sumados entre sí.
+ * Caja fuerte: saldo, billetera e historial son solo para admin (`null` para
+ * no-admin, que sigue pudiendo cargar un ingreso/retiro desde `SafeLauncher`
+ * pero no ve nada de esto — a diferencia del resto de Caja, acá ni el propio
+ * historial es visible: es efectivo físico real). Editar/borrar
+ * (`SafeMovementRow`) va con el resto de lo admin-only. Los saldos van
+ * separados por moneda (ver `src/lib/currency.ts`) — nunca sumados entre sí.
  */
 export function SafeSection({
   movements,
@@ -37,14 +36,12 @@ export function SafeSection({
   walletBalance,
   edits,
 }: {
-  movements: SafeMovementRowData[];
+  movements: SafeMovementRowData[] | null;
   balance: CurrencyTotals | null;
-  /** Saldo de "Billetera" (ver `getWalletBalance`) — efectivo en mano que
-   *  todavía no se depositó acá. `null` para no-admin, mismo criterio que `balance`. */
   walletBalance: CurrencyTotals | null;
   edits?: SafeMovementEditRow[];
 }) {
-  const isAdmin = balance !== null;
+  const isAdmin = movements !== null;
 
   return (
     <section className="flex flex-col gap-3">
@@ -74,32 +71,19 @@ export function SafeSection({
         </div>
       )}
 
-      {movements.length === 0 ? (
+      {movements === null ? (
+        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
+          El saldo y el historial de caja fuerte son visibles solo para administradores.
+        </p>
+      ) : movements.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
           Sin movimientos.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {movements.map((m) =>
-            isAdmin ? (
-              <SafeMovementRow key={`${m.id}:${m.description}:${m.amount}`} movement={m} />
-            ) : (
-              <li key={m.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 whitespace-pre-wrap">{m.description}</p>
-                  <p
-                    className={`shrink-0 font-semibold ${m.type === "deposit" ? "text-emerald-600" : "text-red-600"}`}
-                  >
-                    {m.type === "deposit" ? "+" : "-"}
-                    {formatMoney(m.amount, m.currency)}
-                  </p>
-                </div>
-                <p className="mt-1 text-xs text-foreground/50">
-                  {m.type === "deposit" ? "Ingreso" : "Retiro"} · {formatDateTime(m.createdAt)}
-                </p>
-              </li>
-            ),
-          )}
+          {movements.map((m) => (
+            <SafeMovementRow key={`${m.id}:${m.description}:${m.amount}`} movement={m} />
+          ))}
         </ul>
       )}
 

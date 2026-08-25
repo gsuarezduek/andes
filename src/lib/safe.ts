@@ -34,14 +34,15 @@ async function findSafeMovements(where: Prisma.SafeMovementWhereInput): Promise<
   }));
 }
 
-/** Historial completo de movimientos de caja fuerte (todos los usuarios) — solo admin. */
+/**
+ * Historial completo de movimientos de caja fuerte — solo admin (a
+ * diferencia de Movimientos/Proveedores, acá ni siquiera se ve el propio: es
+ * efectivo físico real, más sensible que el resto de Caja). Cualquier rol
+ * puede seguir cargando un ingreso/retiro (`createSafeMovement`), solo que no
+ * ve el historial ni el saldo.
+ */
 export async function getAllSafeMovements(): Promise<SafeMovementRow[]> {
   return findSafeMovements({});
-}
-
-/** Historial propio de movimientos de caja fuerte — cualquier rol ve el suyo. */
-export async function getOwnSafeMovements(userId: string): Promise<SafeMovementRow[]> {
-  return findSafeMovements({ createdById: userId });
 }
 
 /**

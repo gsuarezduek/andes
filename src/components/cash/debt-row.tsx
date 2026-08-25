@@ -14,11 +14,12 @@ import type { Currency } from "@/lib/currency";
 
 /**
  * Fila de una deuda dentro del historial de un proveedor — editable/borrable
- * (admin, mismo patrón que MovementRow), pero sin Origen/Destino: el
- * proveedor queda fijo al cargarla (ver `updateDebtMovement`). Los pagos que
- * la saldan (Ingreso/Egreso) se editan desde la pestaña Movimientos, no acá.
+ * solo por admin (mismo patrón que MovementRow: cualquiera carga, solo admin
+ * corrige/borra), pero sin Origen/Destino: el proveedor queda fijo al
+ * cargarla (ver `updateDebtMovement`). Los pagos que la saldan (Ingreso/
+ * Egreso) se editan desde la pestaña Movimientos, no acá.
  */
-export function DebtRow({ movement }: { movement: ProviderLedgerRow }) {
+export function DebtRow({ movement, isAdmin }: { movement: ProviderLedgerRow; isAdmin: boolean }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
 
@@ -87,17 +88,19 @@ export function DebtRow({ movement }: { movement: ProviderLedgerRow }) {
       <p className="mt-1 text-xs text-foreground/50">
         Deuda · {movement.createdByName} · {formatDateTime(movement.createdAt)}
       </p>
-      <div className="mt-1.5 flex items-center">
-        <button
-          type="button"
-          onClick={() => setMode("edit")}
-          title="Editar"
-          aria-label="Editar"
-          className="text-foreground/50 hover:text-foreground/80"
-        >
-          <EditIcon />
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="mt-1.5 flex items-center">
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            title="Editar"
+            aria-label="Editar"
+            className="text-foreground/50 hover:text-foreground/80"
+          >
+            <EditIcon />
+          </button>
+        </div>
+      )}
     </li>
   );
 }

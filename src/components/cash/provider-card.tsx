@@ -32,8 +32,8 @@ function BalanceLine({ balance }: { balance: ProviderBalance["balance"] }) {
   );
 }
 
-function LedgerRow({ movement }: { movement: ProviderLedgerRow }) {
-  if (movement.kind === "debt") return <DebtRow movement={movement} />;
+function LedgerRow({ movement, isAdmin }: { movement: ProviderLedgerRow; isAdmin: boolean }) {
+  if (movement.kind === "debt") return <DebtRow movement={movement} isAdmin={isAdmin} />;
   return (
     <li className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -59,10 +59,12 @@ export function ProviderCard({
   provider,
   paymentMethods,
   now,
+  isAdmin,
 }: {
   provider: ProviderBalance & { ledger: ProviderLedgerRow[] };
   paymentMethods: PaymentMethodOption[];
   now: Date;
+  isAdmin: boolean;
 }) {
   const [formOpen, setFormOpen] = useState<"none" | "payment" | "debt">("none");
   const [view, setView] = useState<"month" | "all">("month");
@@ -126,7 +128,7 @@ export function ProviderCard({
           ) : (
             <ul className="flex flex-col gap-2">
               {thisMonthRows.map((m) => (
-                <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} />
+                <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} />
               ))}
             </ul>
           )}
@@ -165,7 +167,7 @@ export function ProviderCard({
                 <h5 className="text-xs font-medium text-foreground/50">{g.label}</h5>
                 <ul className="flex flex-col gap-2">
                   {g.rows.map((m) => (
-                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} />
+                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} />
                   ))}
                 </ul>
               </div>
