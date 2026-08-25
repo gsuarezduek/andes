@@ -2,16 +2,16 @@ import { describe, it, expect } from "vitest";
 import { assignLanes, centerOffsetDays, type CalendarBar } from "@/lib/calendar";
 
 describe("centerOffsetDays", () => {
-  it("31 días (default): 15 antes de hoy, hoy exacto al medio, 15 después", () => {
-    expect(centerOffsetDays(31)).toBe(15);
+  it("31 días (default): 35% antes de hoy, 65% después", () => {
+    expect(centerOffsetDays(31)).toBe(11); // 11 antes + hoy + 19 después
   });
 
-  it("7 días (semana): 3 antes, hoy, 3 después", () => {
-    expect(centerOffsetDays(7)).toBe(3);
+  it("7 días (semana): 35% antes, 65% después", () => {
+    expect(centerOffsetDays(7)).toBe(2); // 2 antes + hoy + 4 después
   });
 
-  it("cantidad par: un día más después que antes", () => {
-    expect(centerOffsetDays(30)).toBe(14); // 14 antes + hoy + 15 después
+  it("cantidad par: redondea al entero más cercano", () => {
+    expect(centerOffsetDays(30)).toBe(10); // 10 antes + hoy + 19 después
   });
 
   it("1 día: no hay ventana alrededor, solo hoy", () => {

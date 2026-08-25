@@ -7,8 +7,8 @@ import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Ventana por defecto (columnas de día) que muestra el calendario: 15 antes
- *  de hoy + hoy + 15 después = 31, con hoy exactamente en el medio. */
+/** Ventana por defecto (columnas de día) que muestra el calendario: 31 días,
+ *  con hoy corrido hacia atrás (35% antes / 65% después, ver `centerOffsetDays`). */
 export const DEFAULT_CALENDAR_DAYS = 31;
 
 /** Presets de rango que ofrece el filtro Semana/Mes. */
@@ -22,15 +22,19 @@ export function normalizeCalendarDays(raw: string | undefined): number {
   return n;
 }
 
+/** Fracción de los días "no-hoy" de la ventana que se muestran ANTES de hoy
+ *  (el resto, después) — pedido del dueño: se prioriza ver más para
+ *  adelante que para atrás, no un centrado simétrico. */
+const BACKWARD_RATIO = 0.35;
+
 /**
- * Cuántos días quedan ANTES del centro en una ventana de `days` columnas
- * centrada (el resto, `days - 1 - offset`, queda después). Con `days` impar
- * el centro cae exacto al medio (ej. 31 → 15 antes, 15 después); con `days`
- * par queda un día más después que antes (ej. 30 → 14 antes, 15 después).
- * Pura y testeable — separada de `getCalendarData` (que además pega a la DB).
+ * Cuántos días quedan ANTES de hoy en una ventana de `days` columnas: el 35%
+ * de los días restantes (`days - 1`) van antes, el 65% después (ej. 31 días →
+ * 11 antes + hoy + 19 después). Pura y testeable — separada de
+ * `getCalendarData` (que además pega a la DB).
  */
 export function centerOffsetDays(days: number): number {
-  return Math.floor((days - 1) / 2);
+  return Math.round((days - 1) * BACKWARD_RATIO);
 }
 
 /** Un tramo alquilado de un auto dentro de la ventana visible. */
@@ -222,8 +226,8 @@ export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCou
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
  * más económico), columnas = días, barras = alquileres. Ventana de `days`
- * columnas CENTRADA en `from` (default hoy) — la mitad de los días quedan
- * antes y la otra mitad después —, navegable hacia adelante/atrás.
+ * columnas alrededor de `from` (default hoy) — 35% de los días antes, 65%
+ * después (ver `centerOffsetDays`) —, navegable hacia adelante/atrás.
  */
 export async function getCalendarData(opts?: {
   from?: string;
@@ -231,9 +235,9 @@ export async function getCalendarData(opts?: {
 }): Promise<CalendarData> {
   const days = opts?.days ?? DEFAULT_CALENDAR_DAYS;
   const from = normalizeFrom(opts?.from);
-  // `from` es el centro de la ventana, no el inicio: se retrocede la mitad de
-  // los días (redondeando para abajo) para que `from` quede en la columna del
-  // medio — con `days` impar, exactamente al medio.
+  // `from` no es el inicio de la ventana: se retrocede `centerOffsetDays`
+  // (35% de los días restantes) para que `from` quede corrido hacia atrás,
+  // dejando más columnas para adelante que para atrás.
   const centerDate = mendozaWallTimeToUtc(`${from}T00:00`);
   const windowStart = new Date(centerDate.getTime() - centerOffsetDays(days) * DAY_MS);
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
