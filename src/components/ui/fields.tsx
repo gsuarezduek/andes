@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, WheelEvent } from "react";
 
 const inputBase =
   "h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40";
@@ -40,6 +40,15 @@ function FieldShell({
   );
 }
 
+// El browser cambia el valor de un <input type="number"> enfocado al girar
+// la rueda del mouse encima — un usuario que solo quiere scrollear la
+// página termina modificando un monto sin darse cuenta. Sacarle el foco al
+// input en el primer evento de wheel evita el cambio de valor sin bloquear
+// el scroll de la página (que sigue funcionando normal una vez desenfocado).
+function blurOnWheel(e: WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur();
+}
+
 export function TextField({
   label,
   hint,
@@ -57,6 +66,7 @@ export function TextField({
   prefix?: ReactNode;
   suffix?: ReactNode;
 }) {
+  const onWheel = props.type === "number" ? blurOnWheel : undefined;
   return (
     <FieldShell label={label} htmlFor={id} hint={hint} error={error}>
       {prefix != null || suffix != null ? (
@@ -71,6 +81,7 @@ export function TextField({
             name={id}
             aria-invalid={error ? true : undefined}
             className={`${inputBase} ${prefix != null ? "pl-7" : ""} ${suffix != null ? "pr-10" : ""} ${error ? inputErrorClass : ""} ${className}`}
+            onWheel={onWheel}
             {...props}
           />
           {suffix != null && (
@@ -85,6 +96,7 @@ export function TextField({
           name={id}
           aria-invalid={error ? true : undefined}
           className={`${inputBase} ${error ? inputErrorClass : ""} ${className}`}
+          onWheel={onWheel}
           {...props}
         />
       )}

@@ -11,32 +11,32 @@ import type { Currency } from "@/lib/currency";
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 /**
- * Alta de un pago a un proveedor puntual — es un Egreso normal (mismo
- * `createCashMovement`, Destino = una cuenta de este proveedor), solo que el
- * Destino ya viene acotado a las cuentas de esta entidad (la principal +
- * subcuentas, si tiene — ver `PaymentMethod.parentId`), preseleccionada en la
- * principal, así se sabe por cuál rail salió sin tener que buscarla entre
- * todas las cuentas. El formulario se reduce a Detalle + Monto + Origen +
- * Destino. Aparece en Caja/Movimientos y en el saldo de cuenta corriente de
- * este proveedor igual que si se hubiera cargado desde ahí. Tras guardar,
- * `onSuccess` cierra el form de vuelta a los dos botones para que se vea el
- * saldo actualizado.
+ * Alta de un pago a una cuenta ajena puntual (proveedor o asociado) — es un
+ * Egreso normal (mismo `createCashMovement`, Destino = una cuenta de esta
+ * entidad), solo que el Destino ya viene acotado a las cuentas de esta
+ * entidad (la principal + subcuentas, si tiene — ver `PaymentMethod.parentId`),
+ * preseleccionada en la principal, así se sabe por cuál rail salió sin tener
+ * que buscarla entre todas las cuentas. El formulario se reduce a Detalle +
+ * Monto + Origen + Destino. Aparece en Caja/Movimientos y en el resumen de
+ * esta cuenta (Proveedores/Asociados) igual que si se hubiera cargado desde
+ * ahí. Tras guardar, `onSuccess` cierra el form de vuelta a los dos botones
+ * para que se vea el total actualizado.
  */
 export function ProviderPaymentForm({
   onCancel,
   onSuccess,
-  provider,
+  account,
   destinoOptions,
   paymentMethods,
 }: {
   onCancel: () => void;
   onSuccess?: () => void;
-  provider: { id: string; name: string };
+  account: { id: string; name: string };
   destinoOptions: { id: string; name: string }[];
   paymentMethods: PaymentMethodOption[];
 }) {
   const [originId, setOriginId] = useState("");
-  const [destinoId, setDestinoId] = useState(provider.id);
+  const [destinoId, setDestinoId] = useState(account.id);
   const [currency, setCurrency] = useState<Currency>("ars");
   const selectedOrigin = paymentMethods.find((m) => m.id === originId);
 
@@ -54,7 +54,7 @@ export function ProviderPaymentForm({
         <input type="hidden" name="recipientPaymentMethodId" value={destinoId} />
       )}
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Nuevo pago — {provider.name}</h4>
+        <h4 className="text-sm font-semibold">Nuevo pago — {account.name}</h4>
         <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
           Cancelar
         </button>
@@ -90,7 +90,7 @@ export function ProviderPaymentForm({
         <PaymentMethodPicker
           id="recipientPaymentMethodId"
           label="Cuenta"
-          hint={`Por cuál cuenta de ${provider.name} salió este pago.`}
+          hint={`Por cuál cuenta de ${account.name} salió este pago.`}
           options={destinoOptions}
           value={destinoId}
           onChange={setDestinoId}

@@ -51,6 +51,9 @@ export type CashMovementRow = {
   needsConfirmation: boolean;
   rentalId: string | null;
   rentalClientName: string | null;
+  // Nº de orden de VikRentCar de la reserva vinculada (si tiene) — para poder
+  // buscar un movimiento por número de reserva (ver `getCashSearchIndex`).
+  rentalBookingId: string | null;
   createdByName: string;
   createdAt: Date;
 };
@@ -65,13 +68,20 @@ export type CashPeriodDetail = {
   net: CurrencyTotals;
 };
 
-async function findMovements(where: Prisma.CashMovementWhereInput): Promise<CashMovementRow[]> {
+async function findMovements(
+  where: Prisma.CashMovementWhereInput,
+  opts?: { take?: number },
+): Promise<CashMovementRow[]> {
   const rows = await prisma.cashMovement.findMany({
     // Nunca trae deudas de proveedor (`type: "debt"`) — esas viven en
     // `src/lib/providers.ts`, no son un ingreso/egreso de caja real todavía.
     where: { type: { in: ["income", "expense"] }, ...where, deletedAt: null },
-    include: { createdBy: { select: { name: true } }, rental: { select: { clientName: true } } },
+    include: {
+      createdBy: { select: { name: true } },
+      rental: { select: { clientName: true, wpBookingId: true } },
+    },
     orderBy: { createdAt: "desc" },
+    ...(opts?.take ? { take: opts.take } : {}),
   });
   return rows.map(
     (r): CashMovementRow => ({
@@ -91,6 +101,7 @@ async function findMovements(where: Prisma.CashMovementWhereInput): Promise<Cash
       needsConfirmation: r.needsConfirmation,
       rentalId: r.rentalId,
       rentalClientName: r.rental?.clientName ?? null,
+      rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
       createdByName: r.createdBy?.name ?? "—",
       createdAt: r.createdAt,
     }),
@@ -128,6 +139,20 @@ export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPerio
 export async function getOwnCashMovements(userId: string, month: string): Promise<CashMovementRow[]> {
   const { start, end } = monthRangeUtc(month);
   return findMovements({ createdById: userId, createdAt: { gte: start, lt: end } });
+}
+
+const SEARCH_INDEX_LIMIT = 500;
+
+/**
+ * Movimientos recientes (histórico, sin acotar al período visible de Caja)
+ * para el buscador por cliente/N° de reserva/detalle — filtrado client-side
+ * en `CashMovementSearch` (mismo patrón que `RentalPicker`/`PaymentMethodPicker`:
+ * traer una lista acotada una vez, filtrar en el navegador mientras se
+ * escribe). `includeExpenses` decide si entran los egresos — un empleado no
+ * admin busca solo entre ingresos (misma restricción que el resto de Caja).
+ */
+export async function getCashSearchIndex(includeExpenses: boolean): Promise<CashMovementRow[]> {
+  return findMovements(includeExpenses ? {} : { type: "income" }, { take: SEARCH_INDEX_LIMIT });
 }
 
 export type RentalPickerOption = {

@@ -5,6 +5,7 @@ import {
   currentMonth,
   getCashPeriodDetail,
   getCashPeriodEdits,
+  getCashSearchIndex,
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
@@ -13,13 +14,17 @@ import {
 } from "@/lib/cash";
 import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
 import { getProviderBalances, getProviderLedger } from "@/lib/providers";
+import { getAssociateBalances, getAssociateLedger } from "@/lib/associates";
 import { MovementLauncher } from "@/components/cash/movement-launcher";
+import { CashMovementSearch } from "@/components/cash/cash-movement-search";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
+import { IncomesBoard } from "@/components/cash/incomes-board";
 import { CashOwnList } from "@/components/cash/cash-own-list";
 import { SafeSection } from "@/components/cash/safe-section";
 import { SafeLauncher } from "@/components/cash/safe-launcher";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
+import { AssociatesSection } from "@/components/cash/associates-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
@@ -42,8 +47,13 @@ export default async function CajaPage({
     getRentalPickerOptions(),
   ]);
 
+  const isAdmin = user.role === "admin";
+  const periodDetail = await getCashPeriodDetail(period);
+
   const movimientos = (
     <div className="flex flex-col gap-5">
+      <CashMovementSearch index={await getCashSearchIndex(isAdmin)} />
+
       <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
 
       <UnconfirmedIncomesSection
@@ -51,38 +61,47 @@ export default async function CajaPage({
         paymentMethods={paymentMethods}
       />
 
-      {user.role === "admin" ? (
+      {isAdmin ? (
         <CashPeriodDetail
-          data={await getCashPeriodDetail(period)}
+          data={periodDetail}
           edits={await getCashPeriodEdits(period)}
           paymentMethods={paymentMethods}
           period={period}
         />
       ) : (
-        <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+        <>
+          {/* Los ingresos se ven completos, sin restricción, para cualquier
+              rol — a diferencia de los egresos, que un no-admin sigue viendo
+              solo entre "Mis movimientos" (más abajo). */}
+          <IncomesBoard incomes={periodDetail.incomes} totalIncome={periodDetail.totalIncome} period={period} />
+          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+        </>
       )}
     </div>
   );
 
-  // Proveedores (cuenta corriente) es visible para cualquier rol — a
-  // diferencia de Caja fuerte, no es info sensible: es operativo (a quién le
-  // debemos, cargar un pago/deuda) y cualquiera puede necesitarlo.
+  // Proveedores (cuenta corriente) y Asociados (resumen) son visibles para
+  // cualquier rol — a diferencia de Caja fuerte, no es info sensible: es
+  // operativo (a quién le debemos, cargar un pago/ingreso/egreso) y
+  // cualquiera puede necesitarlo.
   const providerBalances = await getProviderBalances();
   const providersWithLedger = await Promise.all(
     providerBalances.map(async (p) => ({ ...p, ledger: await getProviderLedger(p.id) })),
   );
   const proveedores = (
-    <ProvidersSection
-      providers={providersWithLedger}
-      paymentMethods={paymentMethods}
-      isAdmin={user.role === "admin"}
-    />
+    <ProvidersSection providers={providersWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
   );
+
+  const associateBalances = await getAssociateBalances();
+  const associatesWithLedger = await Promise.all(
+    associateBalances.map(async (a) => ({ ...a, ledger: await getAssociateLedger(a.id) })),
+  );
+  const asociados = <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} />;
 
   const cajaFuerte = (
     <div className="flex flex-col gap-5">
       <SafeLauncher />
-      {user.role === "admin" ? (
+      {isAdmin ? (
         <SafeSection
           movements={await getAllSafeMovements()}
           balance={await getSafeBalance()}
@@ -102,7 +121,7 @@ export default async function CajaPage({
         <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
       </div>
 
-      <CajaTabs movimientos={movimientos} proveedores={proveedores} cajaFuerte={cajaFuerte} />
+      <CajaTabs movimientos={movimientos} asociados={asociados} proveedores={proveedores} cajaFuerte={cajaFuerte} />
     </div>
   );
 }
