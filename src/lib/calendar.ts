@@ -4,6 +4,7 @@ import type { Rental, RentalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
+import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/rates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -80,7 +81,14 @@ export type CalendarNote = {
 export type CalendarRow = {
   id: string;
   plate: string | null;
+  /** Apodo cargado en la ficha del auto — cuando existe, es la referencia
+   *  principal de la fila (por delante de patente y marca/modelo). */
+  name: string | null;
   label: string;
+  /** Tarifa de referencia (1 día), traída de VikRentCar (`Vehicle.dailyRate`).
+   *  `null` si el modelo no tiene tarifa cargada, o la fila es una reserva sin
+   *  unidad asignada. */
+  dailyRate: number | null;
   /** Auto en service / fuera de servicio → fila resaltada en rosa claro. */
   outOfService: boolean;
   bars: CalendarBar[];
@@ -90,6 +98,14 @@ export type CalendarRow = {
   laneCount: number;
   /** Notas del equipo sin resolver → notificación roja sobre la patente. */
   activeNotes: CalendarNote[];
+};
+
+/** Temporada de VikRentCar (`SeasonRate`) vigente un día puntual del calendario. */
+export type CalendarColumnSeason = {
+  diffPercent: number;
+  /** Rango completo de la temporada ("YYYY-MM-DD"), no solo este día — para el tooltip. */
+  from: string;
+  to: string;
 };
 
 export type CalendarColumn = {
@@ -102,6 +118,9 @@ export type CalendarColumn = {
   monthLabel: string | null;
   isToday: boolean;
   isWeekend: boolean;
+  /** Temporadas con aumento vigentes ese día (todos los modelos afectados
+   *  se resumen acá — el aumento se aplica a toda la flota al mismo tiempo). */
+  seasons: CalendarColumnSeason[];
 };
 
 export type CalendarData = {
@@ -257,6 +276,24 @@ export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCou
   return { bars: withLanes, laneCount: Math.max(1, laneLastEnd.length) };
 }
 
+/** Fila cruda de `SeasonRate` tal como llega de la base (sin el `id`/`carIds`,
+ *  que acá no hacen falta: el marcador es por columna, para toda la flota). */
+type SeasonRateRow = { fromSeconds: number; toSeconds: number; year: number | null; diffPercent: number };
+
+/**
+ * Temporadas vigentes un día puntual, a partir de las filas crudas de
+ * `SeasonRate`. Pura y testeable — separada de `getCalendarData`.
+ */
+export function seasonsForDay(seasonRates: SeasonRateRow[], day: Date): CalendarColumnSeason[] {
+  const { year } = secondsIntoYear(day);
+  return seasonRates
+    .filter((s) => isSeasonActiveOn({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day))
+    .map((s) => {
+      const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, year);
+      return { diffPercent: Number(s.diffPercent), from: range.start, to: range.end };
+    });
+}
+
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
  * más económico), columnas = días, barras = alquileres. Dos modos de ventana:
@@ -292,12 +329,12 @@ export async function getCalendarData(opts?: {
   }
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
 
-  const [vehicles, notes, rentals] = await Promise.all([
+  const [vehicles, notes, rentals, seasonRates] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
       orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-      select: { id: true, plate: true, brand: true, model: true, status: true },
+      select: { id: true, plate: true, name: true, brand: true, model: true, status: true, dailyRate: true },
     }),
     prisma.vehicleNote.findMany({
       where: { resolvedAt: null },
@@ -339,7 +376,16 @@ export async function getCalendarData(opts?: {
       },
       orderBy: { startAt: "asc" },
     }),
+    prisma.seasonRate.findMany({
+      select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true },
+    }),
   ]);
+  const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({
+    fromSeconds: s.fromSeconds,
+    toSeconds: s.toSeconds,
+    year: s.year,
+    diffPercent: Number(s.diffPercent),
+  }));
 
   // Columnas de día.
   const columns: CalendarColumn[] = [];
@@ -359,6 +405,7 @@ export async function getCalendarData(opts?: {
       monthLabel,
       isToday: key === todayKey,
       isWeekend: weekday === "sáb" || weekday === "dom" || dow === 0 || dow === 6,
+      seasons: seasonsForDay(seasonRows, dayDate),
     });
   }
 
@@ -385,6 +432,8 @@ export async function getCalendarData(opts?: {
       unassigned.push({
         id: r.id,
         plate: null,
+        name: null,
+        dailyRate: null,
         label: bar.bookingModel ? `${bar.bookingModel} · sin unidad` : "Sin unidad asignada",
         outOfService: false,
         bars: [bar],
@@ -399,6 +448,8 @@ export async function getCalendarData(opts?: {
     return {
       id: v.id,
       plate: v.plate,
+      name: v.name,
+      dailyRate: v.dailyRate == null ? null : Number(v.dailyRate),
       label: `${v.brand} ${v.model}`,
       outOfService: v.status === "out_of_service",
       bars,

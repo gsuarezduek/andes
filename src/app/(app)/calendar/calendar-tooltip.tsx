@@ -1,11 +1,12 @@
-import type { CalendarBar, CalendarNote } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumnSeason, CalendarNote } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
 import { chipClasses, statusLabel } from "./bar-style";
 
 export type HoverContent =
   | { type: "bar"; bar: CalendarBar }
-  | { type: "notes"; title: string; notes: CalendarNote[] };
+  | { type: "notes"; title: string; notes: CalendarNote[] }
+  | { type: "season"; seasons: CalendarColumnSeason[] };
 export type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
@@ -18,7 +19,13 @@ export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
       className="pointer-events-none fixed z-50 w-72 rounded-lg border border-foreground/15 bg-background p-3 text-xs shadow-xl"
       style={{ left, top }}
     >
-      {hover.type === "notes" ? <NotesTooltipBody title={hover.title} notes={hover.notes} /> : <BarTooltipBody bar={hover.bar} />}
+      {hover.type === "notes" ? (
+        <NotesTooltipBody title={hover.title} notes={hover.notes} />
+      ) : hover.type === "season" ? (
+        <SeasonTooltipBody seasons={hover.seasons} />
+      ) : (
+        <BarTooltipBody bar={hover.bar} />
+      )}
     </div>
   );
 }
@@ -58,6 +65,33 @@ function BarTooltipBody({ bar }: { bar: CalendarBar }) {
           Sin notas de la reserva.
         </p>
       )}
+    </>
+  );
+}
+
+/** "2026-07-18" → "18/07". */
+function fmtShortDate(s: string): string {
+  const [, m, d] = s.split("-");
+  return `${d}/${m}`;
+}
+
+function SeasonTooltipBody({ seasons }: { seasons: CalendarColumnSeason[] }) {
+  return (
+    <>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-purple-500" />
+        <span>Temporada con aumento</span>
+      </p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {seasons.map((s, i) => (
+          <li key={i} className="text-foreground/80">
+            +{s.diffPercent}% · {fmtShortDate(s.from)} al {fmtShortDate(s.to)}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">
+        Tarifa de VikRentCar — aplica a toda la flota.
+      </p>
     </>
   );
 }

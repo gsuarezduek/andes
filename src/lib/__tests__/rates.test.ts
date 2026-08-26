@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDailyRate, parseIdCars } from "@/lib/sync/rates";
+import { computeDailyRate, parseIdCars, isSeasonActiveOn, seasonDateRange } from "@/lib/sync/rates";
 import type { RawSeason } from "@/lib/sync/types";
 
 // Temporadas de ejemplo (espejan la forma real de VikRentCar):
@@ -54,5 +54,51 @@ describe("parseIdCars", () => {
   it("vacío o null → []", () => {
     expect(parseIdCars("")).toEqual([]);
     expect(parseIdCars(null)).toEqual([]);
+  });
+});
+
+describe("isSeasonActiveOn", () => {
+  const withYear = { from: 17_107_200, to: 18_403_200, year: 2026 }; // 18-jul → 2-ago 2026
+  const recurring = { from: 23_587_200, to: 26_179_200, year: null }; // octubre, todos los años
+
+  it("dentro del rango y año correcto → vigente", () => {
+    expect(isSeasonActiveOn(withYear, at("2026-07-20"))).toBe(true);
+  });
+
+  it("fuera del rango → no vigente", () => {
+    expect(isSeasonActiveOn(withYear, at("2026-07-15"))).toBe(false);
+  });
+
+  it("mismo rango pero año distinto → no vigente", () => {
+    expect(isSeasonActiveOn(withYear, at("2027-07-20"))).toBe(false);
+  });
+
+  it("recurrente (year null) → vigente en cualquier año", () => {
+    expect(isSeasonActiveOn(recurring, at("2027-10-15"))).toBe(true);
+    expect(isSeasonActiveOn(recurring, at("2030-10-15"))).toBe(true);
+  });
+
+  it("los bordes del rango son inclusive", () => {
+    expect(isSeasonActiveOn(withYear, at("2026-07-18"))).toBe(true);
+    expect(isSeasonActiveOn(withYear, at("2026-08-02"))).toBe(true);
+    expect(isSeasonActiveOn(withYear, at("2026-08-03"))).toBe(false);
+  });
+});
+
+describe("seasonDateRange", () => {
+  it("traduce segundos-del-año a fechas reales", () => {
+    // 18-jul → 2-ago (verificado en docs/wordpress-mapping.md: 18-jul → 17107200).
+    expect(seasonDateRange({ from: 17_107_200, to: 18_403_200 }, 2026)).toEqual({
+      start: "2026-07-18",
+      end: "2026-08-02",
+    });
+  });
+
+  it("respeta años bisiestos (el corrimiento post-febrero no se rompe)", () => {
+    // Mismo `from`/`to` (oct-ish), en un año bisiesto (2028) vs. no bisiesto.
+    const range2027 = seasonDateRange({ from: 23_587_200, to: 26_179_200 }, 2027);
+    const range2028 = seasonDateRange({ from: 23_587_200, to: 26_179_200 }, 2028);
+    expect(range2027).toEqual({ start: "2027-10-01", end: "2027-10-31" });
+    expect(range2028).toEqual({ start: "2028-09-30", end: "2028-10-30" });
   });
 });

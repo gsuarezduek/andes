@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import { formatTime } from "@/lib/datetime";
+import { formatArs } from "@/lib/contract";
 import { barClasses, paymentBorderClasses } from "./bar-style";
 import { LABEL_W_CLASS } from "./calendar-constants";
 
@@ -36,9 +37,11 @@ export function Row({
   const totalH = rowH * row.laneCount;
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
-      {/* Etiqueta del auto (fija a la izquierda). En filas de vehículo la
-          patente es lo principal y el modelo el secundario, y linkea al perfil
-          del auto. Las filas sin unidad (plate null) no tienen perfil. */}
+      {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
+          Si el auto tiene un apodo cargado, es lo principal (con
+          patente+modelo de secundario); si no, la patente es lo principal y
+          el modelo el secundario, como antes. Las filas sin unidad (plate
+          null) no tienen perfil. */}
       {row.plate ? (
         <Link
           href={`/vehicles/${row.id}`}
@@ -47,13 +50,13 @@ export function Row({
         >
           {hasNotes && (
             <span
-              onMouseEnter={(e) => onEnterNote(row.plate!, row.activeNotes, e)}
+              onMouseEnter={(e) => onEnterNote(row.name ?? row.plate!, row.activeNotes, e)}
               onMouseMove={onMove}
               onMouseLeave={onLeave}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onEnterNote(row.plate!, row.activeNotes, e);
+                onEnterNote(row.name ?? row.plate!, row.activeNotes, e);
               }}
               className="absolute -right-1.5 -top-1.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold leading-none text-white shadow-sm"
               title={`${row.activeNotes.length} nota(s) sin resolver`}
@@ -61,15 +64,22 @@ export function Row({
               {row.activeNotes.length}
             </span>
           )}
-          {/* Mobile: sólo los últimos 3 de la patente, sin modelo (columna angosta).
-              Desktop (sm+): patente completa + modelo. */}
+          {/* Mobile: apodo si tiene, si no los últimos 3 de la patente (columna
+              angosta). Desktop (sm+): apodo o patente completa + secundario. */}
           <span className="truncate text-sm font-semibold leading-tight sm:hidden">
-            {row.plate.slice(-3)}
+            {row.name ?? row.plate.slice(-3)}
           </span>
           <span className="hidden truncate text-sm font-semibold leading-tight sm:block">
-            {row.plate}
+            {row.name ?? row.plate}
           </span>
-          <span className="hidden truncate text-[11px] text-foreground/45 sm:block">{row.label}</span>
+          <span className="hidden truncate text-[11px] text-foreground/45 sm:block">
+            {row.name ? `${row.plate} · ${row.label}` : row.label}
+          </span>
+          {row.dailyRate != null ? (
+            <span className="hidden truncate text-[11px] font-medium text-foreground/60 sm:block">
+              {formatArs(row.dailyRate)}/día
+            </span>
+          ) : null}
         </Link>
       ) : (
         <div
@@ -85,12 +95,20 @@ export function Row({
         className={`relative ${row.outOfService ? "bg-rose-500/10" : ""}`}
         style={{ width: trackW, height: totalH }}
       >
-        {/* Líneas de grilla / resaltados por columna */}
+        {/* Líneas de grilla / resaltados por columna. Temporada con aumento
+            (ver leyenda) se remarca aparte, encima del resto — es la que más
+            importa detectar de un vistazo bajando por las filas. */}
         {columns.map((c, i) => (
           <div
             key={c.key}
             className={`absolute top-0 h-full border-r border-foreground/5 ${
-              c.isToday ? "bg-blue-500/[0.14]" : c.isWeekend ? "bg-foreground/[0.03]" : ""
+              c.seasons.length > 0
+                ? "bg-purple-500/[0.08]"
+                : c.isToday
+                  ? "bg-blue-500/[0.14]"
+                  : c.isWeekend
+                    ? "bg-foreground/[0.03]"
+                    : ""
             }`}
             style={{ left: i * colW, width: colW }}
           />

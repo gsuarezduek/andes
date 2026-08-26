@@ -38,6 +38,8 @@ export function CalendarGrid({
     setHover({ type: "bar", bar, x: e.clientX, y: e.clientY });
   const showNotes = (title: string, notes: CalendarNote[], e: React.MouseEvent) =>
     setHover({ type: "notes", title, notes, x: e.clientX, y: e.clientY });
+  const showSeason = (seasons: CalendarColumn["seasons"], e: React.MouseEvent) =>
+    setHover({ type: "season", seasons, x: e.clientX, y: e.clientY });
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -71,29 +73,53 @@ export function CalendarGrid({
           <div
             className={`sticky left-0 z-20 shrink-0 truncate border-r border-foreground/10 bg-background px-3 py-2 text-xs font-semibold text-foreground/50 ${LABEL_W_CLASS}`}
           >
-            Vehículo
+            <span className="sm:hidden">Vehículo</span>
+            <span className="hidden sm:inline">Vehículo/Precio</span>
           </div>
-          {columns.map((c) => (
-            <div
-              key={c.key}
-              className={`relative shrink-0 py-1 text-center ${
-                c.isToday ? "bg-blue-500/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
-              }`}
-              style={{ width: colW }}
-            >
-              {c.monthLabel ? (
-                <span className="absolute -top-0 left-1 text-[9px] font-semibold uppercase text-blue-600">
-                  {c.monthLabel}
-                </span>
-              ) : null}
-              <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
-                {c.weekday}
+          {columns.map((c) => {
+            const hasSeason = c.seasons.length > 0;
+            return (
+              <div
+                key={c.key}
+                className={`relative shrink-0 py-1 text-center ${
+                  c.isToday ? "bg-blue-500/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
+                }`}
+                style={{ width: colW }}
+              >
+                {c.monthLabel ? (
+                  <span className="absolute -top-0 left-1 text-[9px] font-semibold uppercase text-blue-600">
+                    {c.monthLabel}
+                  </span>
+                ) : null}
+                <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
+                  {c.weekday}
+                </div>
+                <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
+                  {c.day}
+                </div>
+                {hasSeason ? (
+                  <span
+                    onMouseEnter={(e) => {
+                      e.stopPropagation();
+                      showSeason(c.seasons, e);
+                    }}
+                    onMouseMove={(e) => {
+                      e.stopPropagation();
+                      move(e);
+                    }}
+                    onMouseLeave={hide}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      showSeason(c.seasons, e);
+                    }}
+                    className="absolute inset-x-1 bottom-0.5 h-1 cursor-help rounded-full bg-purple-500"
+                    title={`Temporada con aumento: +${c.seasons[0]!.diffPercent}%`}
+                  />
+                ) : null}
               </div>
-              <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
-                {c.day}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

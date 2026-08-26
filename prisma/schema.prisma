@@ -288,6 +288,26 @@ model Vehicle {
 }
 
 // ---------------------------------------------------------------------------
+// Temporadas de ajuste de tarifa (`wp_vikrentcar_seasons`, solo porcentuales),
+// espejadas tal cual desde VikRentCar en cada sync (se borra y se recrea
+// entera — no hay id propio del lado de WP para upsert). Antes se calculaban
+// y se descartaban (solo quedaba `Vehicle.dailyRate` con la tarifa de "hoy");
+// ahora se persisten para poder marcar en el Calendario los días con un
+// incremento vigente. Ver src/lib/sync/rates.ts y src/lib/calendar.ts.
+// ---------------------------------------------------------------------------
+model SeasonRate {
+  id          String   @id @default(cuid())
+  fromSeconds Int      @map("from_seconds") // "segundos dentro del año" (día del año − 1) × 86400
+  toSeconds   Int      @map("to_seconds")
+  year        Int? // null = recurrente todos los años
+  diffPercent Decimal  @map("diff_percent") @db.Decimal(6, 2)
+  carIds      Int[]    @map("car_ids") // wp_car_id de los modelos a los que aplica
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("season_rates")
+}
+
+// ---------------------------------------------------------------------------
 // Notas del equipo sobre un vehículo (mensajería interna, no el campo `notes`
 // libre de la ficha). Sirven para avisarse situaciones a tener en cuenta entre
 // compañeros. Mientras no se resuelven, se marcan como "notificación" (círculo

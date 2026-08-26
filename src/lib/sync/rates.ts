@@ -6,7 +6,7 @@
  * apliquen a ese modelo. Las temporadas guardan `from`/`to` como segundos dentro
  * del año (día del año × 86400) y opcionalmente fijan un `year`.
  */
-import { APP_TIME_ZONE } from "@/lib/datetime";
+import { APP_TIME_ZONE, mendozaWallTimeToUtc, formatDateInput } from "@/lib/datetime";
 import type { RawSeason } from "./types";
 
 /** Parsea el formato de VikRentCar `-8-,-25-,-5-,` → [8, 25, 5]. */
@@ -64,4 +64,32 @@ export function computeDailyRate(
     multiplier *= 1 + s.diffPercent / 100;
   }
   return Math.round(base * multiplier);
+}
+
+/** Ventana mínima de una temporada para chequear vigencia / convertir a fechas. */
+type SeasonWindow = { from: number; to: number; year: number | null };
+
+/** ¿Está vigente `season` el día `now` (cualquier año si `season.year` es null)? */
+export function isSeasonActiveOn(season: SeasonWindow, now: Date): boolean {
+  const { year, seconds } = secondsIntoYear(now);
+  if (season.year != null && season.year !== year) return false;
+  return seconds >= season.from && seconds <= season.to;
+}
+
+/**
+ * Traduce el rango `from`/`to` (segundos dentro del año) de una temporada a
+ * fechas calendario reales ("YYYY-MM-DD", hora de Mendoza) para un año
+ * concreto — el inverso de `secondsIntoYear`. Como `from`/`to` son siempre
+ * límites de día completo, sumar los segundos a la medianoche del 1° de enero
+ * cae directo en el día correcto (sin lidiar con años bisiestos a mano: el
+ * propio avance de fechas ya contempla el 29 de febrero).
+ */
+export function seasonDateRange(
+  season: Pick<SeasonWindow, "from" | "to">,
+  year: number,
+): { start: string; end: string } {
+  const jan1 = mendozaWallTimeToUtc(`${year}-01-01T00:00`);
+  const start = formatDateInput(new Date(jan1.getTime() + season.from * 1000));
+  const end = formatDateInput(new Date(jan1.getTime() + season.to * 1000));
+  return { start, end };
 }

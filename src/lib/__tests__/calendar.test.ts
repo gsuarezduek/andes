@@ -4,9 +4,12 @@ import {
   centerOffsetDays,
   daysInMonth,
   normalizeMonth,
+  seasonsForDay,
   shiftMonth,
   type CalendarBar,
 } from "@/lib/calendar";
+
+const at = (iso: string) => new Date(`${iso}T12:00:00Z`); // 09:00 Mendoza, evita bordes de medianoche
 
 describe("centerOffsetDays", () => {
   it("31 días (default): 35% antes de hoy, 65% después", () => {
@@ -125,5 +128,35 @@ describe("assignLanes", () => {
     expect(byId.a).toBe(0);
     expect(byId.b).toBe(1);
     expect(byId.c).toBe(0);
+  });
+});
+
+describe("seasonsForDay", () => {
+  // 18-jul → 2-ago 2026, +15% (mismos valores verificados en rates.test.ts).
+  const SEASONS = [{ fromSeconds: 17_107_200, toSeconds: 18_403_200, year: 2026, diffPercent: 15 }];
+
+  it("día fuera de la temporada → []", () => {
+    expect(seasonsForDay(SEASONS, at("2026-07-15"))).toEqual([]);
+  });
+
+  it("día dentro de la temporada → la devuelve con el rango real", () => {
+    expect(seasonsForDay(SEASONS, at("2026-07-20"))).toEqual([
+      { diffPercent: 15, from: "2026-07-18", to: "2026-08-02" },
+    ]);
+  });
+
+  it("mismo rango pero otro año (temporada con year fijo) → []", () => {
+    expect(seasonsForDay(SEASONS, at("2027-07-20"))).toEqual([]);
+  });
+
+  it("dos temporadas activas el mismo día → devuelve ambas", () => {
+    const overlapping = [
+      { fromSeconds: 17_107_200, toSeconds: 18_403_200, year: 2026, diffPercent: 15 },
+      { fromSeconds: 17_107_200, toSeconds: 18_403_200, year: null, diffPercent: 30 },
+    ];
+    expect(seasonsForDay(overlapping, at("2026-07-20"))).toEqual([
+      { diffPercent: 15, from: "2026-07-18", to: "2026-08-02" },
+      { diffPercent: 30, from: "2026-07-18", to: "2026-08-02" },
+    ]);
   });
 });

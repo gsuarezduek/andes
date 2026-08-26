@@ -90,11 +90,15 @@ export default async function CalendarPage({
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio (fila)
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" /> Temporada con aumento (día)
+        </span>
       </div>
 
       <p className="text-xs text-foreground/40">
         Autos ordenados por su orden de calendario (editable en cada ficha).
-        Pasá el mouse por una barra para ver las notas de la reserva.
+        Pasá el mouse por una barra para ver las notas de la reserva; el precio de cada auto
+        (desktop) y los días con temporada especial se traen de VikRentCar.
       </p>
 
       <CalendarGrid
