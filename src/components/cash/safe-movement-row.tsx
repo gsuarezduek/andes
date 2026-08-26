@@ -82,7 +82,7 @@ export function SafeMovementRow({ movement }: { movement: SafeMovementRowData })
         </p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
-        {movement.type === "deposit" ? "Ingreso" : "Retiro"} · {movement.createdByName} ·{" "}
+        {movement.type === "deposit" ? "Ingreso" : "Retiro"} · Cargado por: {movement.createdByName} ·{" "}
         {formatDateTime(movement.createdAt)}
       </p>
       <div className="mt-1.5 flex items-center">

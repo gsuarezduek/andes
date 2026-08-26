@@ -87,7 +87,7 @@ export function DebtRow({ movement, isAdmin }: { movement: ThirdPartyLedgerRow; 
         </p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
-        Deuda · {movement.createdByName} · {formatDateTime(movement.createdAt)}
+        Deuda · Cargado por: {movement.createdByName} · {formatDateTime(movement.createdAt)}
       </p>
       {isAdmin && (
         <div className="mt-1.5 flex items-center">

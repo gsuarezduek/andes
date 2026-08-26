@@ -25,11 +25,14 @@ export function CashOwnList({ items }: { items: CashMovementRow[] }) {
                 </p>
               </div>
               <p className="mt-1 text-xs text-foreground/50">
-                {r.paymentMethodName}
+                {r.type === "income" ? "Cuenta destino" : "Origen"}: {r.paymentMethodName}
                 {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
-                {r.recipientPaymentMethodName ? ` → ${r.recipientPaymentMethodName}` : ""}
-                {r.recipientPaymentMethodNote ? ` (${r.recipientPaymentMethodNote})` : ""}
-                {r.rentalClientName ? ` · ${r.rentalClientName}` : ""} · {formatDateTime(r.createdAt)}
+                {r.recipientPaymentMethodName
+                  ? ` → Destino: ${r.recipientPaymentMethodName}${
+                      r.recipientPaymentMethodNote ? ` (${r.recipientPaymentMethodNote})` : ""
+                    }`
+                  : ""}
+                {r.rentalClientName ? ` · Cliente: ${r.rentalClientName}` : ""} · {formatDateTime(r.createdAt)}
               </p>
             </li>
           ))}

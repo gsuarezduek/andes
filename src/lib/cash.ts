@@ -28,6 +28,15 @@ function monthOf(date: Date): string {
   return formatDateInput(date).slice(0, 7);
 }
 
+/**
+ * `createdById` nulo en un CashMovement solo pasa por un único camino: el
+ * import automático de la seña desde VikRentCar (`importBookingPayment` en
+ * `sync/booking-upsert.ts`, el único `cashMovement.create` del código que no
+ * pasa `createdById`). Nunca es "no sabemos quién lo cargó" — mostrar esto en
+ * vez de un "—" ambiguo evita que se lea como un dato faltante.
+ */
+export const AUTO_IMPORT_CREATOR_LABEL = "Web (VikRentCar)";
+
 export function currentMonth(): string {
   return monthOf(new Date());
 }
@@ -102,7 +111,7 @@ async function findMovements(
       rentalId: r.rentalId,
       rentalClientName: r.rental?.clientName ?? null,
       rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
-      createdByName: r.createdBy?.name ?? "—",
+      createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
       createdAt: r.createdAt,
     }),
   );

@@ -29,7 +29,7 @@ export function LedgerRow({
         <p className="shrink-0 font-semibold text-emerald-600">−{formatMoney(movement.amount, movement.currency)}</p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
-        {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} ·{" "}
+        {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} · Cargado por:{" "}
         {movement.createdByName} · {formatDateTime(movement.createdAt)}
         {viaSubaccount && ` · vía ${movement.accountName}`}
       </p>

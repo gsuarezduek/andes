@@ -56,9 +56,9 @@ export function CashMovementSearch({ index }: { index: CashMovementRow[] }) {
                   </p>
                 </div>
                 <p className="mt-1 text-xs text-foreground/50">
-                  {m.paymentMethodName}
-                  {m.rentalClientName ? ` · ${m.rentalClientName}` : ""}
-                  {m.rentalBookingId ? ` · #${m.rentalBookingId}` : ""} · {m.createdByName} ·{" "}
+                  {m.type === "income" ? "Cuenta destino" : "Origen"}: {m.paymentMethodName}
+                  {m.rentalClientName ? ` · Cliente: ${m.rentalClientName}` : ""}
+                  {m.rentalBookingId ? ` · #${m.rentalBookingId}` : ""} · Cargado por: {m.createdByName} ·{" "}
                   {formatDateTime(m.createdAt)}
                 </p>
               </li>

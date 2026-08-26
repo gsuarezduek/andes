@@ -8,8 +8,8 @@ import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
+import { MovementMetaLine } from "@/components/cash/movement-meta-line";
 import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
 import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
 import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
@@ -146,14 +146,7 @@ export function MovementRow({
           {formatMoney(movement.amount, movement.currency)}
         </p>
       </div>
-      <p className="mt-1 text-xs text-foreground/50">
-        {movement.paymentMethodName}
-        {movement.paymentMethodNote ? ` (${movement.paymentMethodNote})` : ""}
-        {movement.recipientPaymentMethodName ? ` → ${movement.recipientPaymentMethodName}` : ""}
-        {movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""}
-        {movement.rentalClientName ? ` · ${movement.rentalClientName}` : ""} · {movement.createdByName} ·{" "}
-        {formatDateTime(movement.createdAt)}
-      </p>
+      <MovementMetaLine movement={movement} />
       <div className="mt-1.5 flex items-center">
         <button
           type="button"

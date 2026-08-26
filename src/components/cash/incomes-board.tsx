@@ -1,8 +1,8 @@
 import { SectionTitle } from "@/components/ui/section-title";
 import { CashPeriodPicker } from "./cash-period-picker";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
+import { MovementMetaLine } from "./movement-meta-line";
 import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
 import type { CashPeriod } from "@/lib/cash-period";
 import type { CurrencyTotals } from "@/lib/currency";
@@ -46,12 +46,7 @@ export function IncomesBoard({
                 <p className="min-w-0 whitespace-pre-wrap">{r.description}</p>
                 <p className="shrink-0 font-semibold text-emerald-600">{formatMoney(r.amount, r.currency)}</p>
               </div>
-              <p className="mt-1 text-xs text-foreground/50">
-                {r.paymentMethodName}
-                {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
-                {r.rentalClientName ? ` · ${r.rentalClientName}` : ""} · {r.createdByName} ·{" "}
-                {formatDateTime(r.createdAt)}
-              </p>
+              <MovementMetaLine movement={r} />
             </li>
           ))}
         </ul>

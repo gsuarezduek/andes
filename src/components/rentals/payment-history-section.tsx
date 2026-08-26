@@ -1,5 +1,6 @@
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
+import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 import { ConfirmPaymentInline } from "@/components/rentals/confirm-payment-inline";
 import type { ConfirmablePaymentMethod } from "@/components/cash/confirm-payment-method-form";
 
@@ -33,11 +34,11 @@ export function PaymentHistorySection({
           <li key={m.id} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
             <div>
               <p>
-                {m.paymentMethodName}
+                Cuenta destino: {m.paymentMethodName}
                 {m.paymentMethodNote ? ` (${m.paymentMethodNote})` : ""}
               </p>
               <p className="text-xs text-foreground/50">
-                {m.createdByName ?? "—"} · {formatDateTime(m.createdAt)}
+                Cargado por: {m.createdByName ?? AUTO_IMPORT_CREATOR_LABEL} · {formatDateTime(m.createdAt)}
               </p>
               {m.needsConfirmation && (
                 <div className="mt-1 flex flex-col items-start gap-1">

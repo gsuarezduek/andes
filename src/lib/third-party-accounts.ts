@@ -1,6 +1,7 @@
 import "server-only";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 import { emptyCurrencyTotals, type Currency, type CurrencyTotals } from "@/lib/currency";
 
 /**
@@ -148,7 +149,7 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     amount: Number(r.amount),
     currency: r.currency,
     accountName: (r.type === "income" ? r.paymentMethodName : r.recipientPaymentMethodName) ?? "",
-    createdByName: r.createdBy?.name ?? "—",
+    createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
   }));
 }
