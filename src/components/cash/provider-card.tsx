@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
-import { CURRENCIES } from "@/lib/currency";
 import { filterThisMonth, groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
-import { DebtRow } from "./debt-row";
+import { BalanceLine } from "./balance-line";
+import { LedgerRow } from "./ledger-row";
 import { DebtMovementForm } from "./debt-movement-form";
 import { ProviderPaymentForm } from "./provider-payment-form";
 import type { ProviderBalance, ProviderLedgerRow } from "@/lib/providers";
@@ -13,52 +11,6 @@ import type { ProviderBalance, ProviderLedgerRow } from "@/lib/providers";
 const PAGE_SIZE = 10;
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
-
-/** "Le debemos $X" / "A favor $X" por moneda con saldo — nada si está en cero. */
-function BalanceLine({ balance }: { balance: ProviderBalance["balance"] }) {
-  const entries = CURRENCIES.filter((c) => balance[c] !== 0);
-  if (entries.length === 0) {
-    return <span className="text-sm text-foreground/50">Sin saldo pendiente</span>;
-  }
-  return (
-    <span className="flex flex-col items-end gap-0.5 text-sm font-semibold">
-      {entries.map((c) => (
-        <span key={c} className={balance[c] > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-600"}>
-          {balance[c] > 0 ? "Le debemos " : "A favor "}
-          {formatMoney(Math.abs(balance[c]), c)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function LedgerRow({
-  movement,
-  isAdmin,
-  principalName,
-}: {
-  movement: ProviderLedgerRow;
-  isAdmin: boolean;
-  principalName: string;
-}) {
-  if (movement.kind === "debt") return <DebtRow movement={movement} isAdmin={isAdmin} />;
-  // Si la cuenta real usada es una subcuenta (no la principal), lo aclara —
-  // la vista sigue unificada, pero no se pierde por dónde salió/entró la plata.
-  const viaSubaccount = movement.accountName && movement.accountName !== principalName;
-  return (
-    <li className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 whitespace-pre-wrap">{movement.description}</p>
-        <p className="shrink-0 font-semibold text-emerald-600">−{formatMoney(movement.amount, movement.currency)}</p>
-      </div>
-      <p className="mt-1 text-xs text-foreground/50">
-        {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} ·{" "}
-        {movement.createdByName} · {formatDateTime(movement.createdAt)}
-        {viaSubaccount && ` · vía ${movement.accountName}`}
-      </p>
-    </li>
-  );
-}
 
 /**
  * Tarjeta de un proveedor: nombre + saldo, botones para cargar un pago o una
@@ -128,7 +80,7 @@ export function ProviderCard({
           <DebtMovementForm
             onCancel={() => setFormOpen("none")}
             onSuccess={() => setFormOpen("none")}
-            provider={provider}
+            account={provider}
           />
         </div>
       )}

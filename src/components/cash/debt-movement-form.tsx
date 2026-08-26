@@ -8,22 +8,23 @@ import { createDebtMovement } from "@/app/(app)/caja/debt-actions";
 import type { Currency } from "@/lib/currency";
 
 /**
- * Alta de una deuda con un proveedor puntual: el proveedor hizo el trabajo
- * (service, arreglo, etc.) sin que se le pague en el momento — queda anotada
- * a cuenta corriente (sin Origen, no sale plata todavía) y se salda después
- * con un pago o cuando el cliente le paga directo a él (ver
- * `src/lib/providers.ts`). Vive inline en la tarjeta de ese proveedor
- * (`ProviderCard`), así que el proveedor ya viene fijo — no hay buscador.
- * `onSuccess` cierra el form de vuelta a los dos botones tras guardar.
+ * Alta de una deuda con una cuenta ajena puntual (proveedor o asociado):
+ * alguien pagó o hizo algo que le correspondía a la empresa sin que se le
+ * devuelva en el momento — queda anotada a cuenta corriente (sin Origen, no
+ * sale plata todavía) y se salda después con un pago o cuando el cliente le
+ * paga directo (ver `src/lib/third-party-accounts.ts`). Vive inline en la
+ * tarjeta de esa cuenta (`ProviderCard`/`AssociateCard`), así que ya viene
+ * fija — no hay buscador. `onSuccess` cierra el form de vuelta a los botones
+ * tras guardar.
  */
 export function DebtMovementForm({
   onCancel,
   onSuccess,
-  provider,
+  account,
 }: {
   onCancel: () => void;
   onSuccess?: () => void;
-  provider: { id: string; name: string };
+  account: { id: string; name: string };
 }) {
   const [currency, setCurrency] = useState<Currency>("ars");
 
@@ -34,16 +35,17 @@ export function DebtMovementForm({
 
   return (
     <form action={submit} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
-      <input type="hidden" name="providerId" value={provider.id} />
+      <input type="hidden" name="accountId" value={account.id} />
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Nueva deuda — {provider.name}</h4>
+        <h4 className="text-sm font-semibold">Nueva deuda — {account.name}</h4>
         <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
           Cancelar
         </button>
       </div>
       <p className="-mt-1 text-xs text-foreground/50">
-        Para cuando el proveedor hace el trabajo sin que se le pague en el momento — queda a
-        cuenta corriente y se salda después con un pago o cuando el cliente le paga directo.
+        Para cuando pagan o hacen algo que le correspondía a la empresa, sin que se les devuelva en
+        el momento — queda a cuenta corriente y se salda después con un pago o cuando el cliente le
+        paga directo.
       </p>
       <TextareaField
         id="description"

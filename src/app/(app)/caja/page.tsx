@@ -96,7 +96,9 @@ export default async function CajaPage({
   const associatesWithLedger = await Promise.all(
     associateBalances.map(async (a) => ({ ...a, ledger: await getAssociateLedger(a.id) })),
   );
-  const asociados = <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} />;
+  const asociados = (
+    <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
+  );
 
   const cajaFuerte = (
     <div className="flex flex-col gap-5">

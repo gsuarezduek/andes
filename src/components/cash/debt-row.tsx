@@ -9,17 +9,18 @@ import { EditIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateDebtMovement, deleteDebtMovement } from "@/app/(app)/caja/debt-actions";
-import type { ProviderLedgerRow } from "@/lib/providers";
+import type { ThirdPartyLedgerRow } from "@/lib/third-party-accounts";
 import type { Currency } from "@/lib/currency";
 
 /**
- * Fila de una deuda dentro del historial de un proveedor — editable/borrable
- * solo por admin (mismo patrón que MovementRow: cualquiera carga, solo admin
- * corrige/borra), pero sin Origen/Destino: el proveedor queda fijo al
- * cargarla (ver `updateDebtMovement`). Los pagos que la saldan (Ingreso/
- * Egreso) se editan desde la pestaña Movimientos, no acá.
+ * Fila de una deuda dentro del historial de una cuenta ajena (proveedor o
+ * asociado) — editable/borrable solo por admin (mismo patrón que
+ * MovementRow: cualquiera carga, solo admin corrige/borra), pero sin Origen/
+ * Destino: la cuenta queda fija al cargarla (ver `updateDebtMovement`). Los
+ * pagos que la saldan (Ingreso/Egreso) se editan desde la pestaña
+ * Movimientos, no acá.
  */
-export function DebtRow({ movement, isAdmin }: { movement: ProviderLedgerRow; isAdmin: boolean }) {
+export function DebtRow({ movement, isAdmin }: { movement: ThirdPartyLedgerRow; isAdmin: boolean }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
 

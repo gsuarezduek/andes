@@ -12,27 +12,27 @@ const createDebtSchema = z.object({
   description: z.string().trim().min(1).max(500),
   amount: z.coerce.number().positive(),
   currency: z.enum(["ars", "usd"]).default("ars"),
-  providerId: z.string().min(1),
+  accountId: z.string().min(1),
 });
 
-// Deuda con un proveedor: cargo a cuenta corriente sin salida de plata
-// todavía (CashMovement con type="debt", sin Origen — ver `src/lib/providers.ts`).
-// Cualquier rol puede cargarla, igual que un Ingreso/Egreso; ver el saldo
-// acumulado (ProvidersSection) es solo para admin. El proveedor (Destino)
-// queda fijo al cargarla — si está mal, se borra y se carga de nuevo (mismo
-// criterio que tipo/reserva en CashMovement).
+// Deuda con una cuenta ajena (proveedor o asociado): cargo a cuenta
+// corriente sin salida de plata todavía (CashMovement con type="debt", sin
+// Origen — ver `src/lib/third-party-accounts.ts`). Cualquier rol puede
+// cargarla, igual que un Ingreso/Egreso. La cuenta (Destino) queda fija al
+// cargarla — si está mal, se borra y se carga de nuevo (mismo criterio que
+// tipo/reserva en CashMovement).
 export async function createDebtMovement(formData: FormData) {
   const user = await requireUser();
-  const { description, amount, currency, providerId } = createDebtSchema.parse({
+  const { description, amount, currency, accountId } = createDebtSchema.parse({
     description: formData.get("description"),
     amount: formData.get("amount"),
     currency: formData.get("currency") || undefined,
-    providerId: formData.get("providerId"),
+    accountId: formData.get("accountId"),
   });
 
-  const provider = await prisma.paymentMethod.findUnique({ where: { id: providerId } });
-  if (!provider || provider.ownership !== "provider") {
-    throw new Error("El proveedor elegido no es válido.");
+  const account = await prisma.paymentMethod.findUnique({ where: { id: accountId } });
+  if (!account || (account.ownership !== "provider" && account.ownership !== "associate")) {
+    throw new Error("La cuenta elegida no es válida.");
   }
 
   await prisma.cashMovement.create({
@@ -42,8 +42,8 @@ export async function createDebtMovement(formData: FormData) {
       amount,
       currency,
       paymentMethodName: "",
-      recipientPaymentMethodId: provider.id,
-      recipientPaymentMethodName: provider.name,
+      recipientPaymentMethodId: account.id,
+      recipientPaymentMethodName: account.name,
       createdById: user.id,
     },
   });
@@ -57,8 +57,8 @@ const updateDebtSchema = z.object({
   currency: z.enum(["ars", "usd"]).default("ars"),
 });
 
-// Corrección de un error de carga (detalle, monto, moneda). Solo admin. El
-// proveedor no se edita (ver arriba). Cada cambio real queda auditado en
+// Corrección de un error de carga (detalle, monto, moneda). Solo admin. La
+// cuenta no se edita (ver arriba). Cada cambio real queda auditado en
 // CashMovementEdit; si no cambió nada, no se registra nada.
 export async function updateDebtMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
@@ -87,7 +87,7 @@ export async function updateDebtMovement(id: string, formData: FormData) {
   revalidatePath("/caja");
 }
 
-// Borrado de una deuda mal cargada (proveedor equivocado, monto mal, etc.).
+// Borrado de una deuda mal cargada (cuenta equivocada, monto mal, etc.).
 // Solo admin. Soft delete, mismo criterio que el resto de Caja.
 export async function deleteDebtMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
