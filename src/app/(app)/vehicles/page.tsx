@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { vehicleStatusLabels } from "@/lib/labels";
-import { vehicleStatusTone } from "@/lib/vehicle-ui";
+import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { formatArs } from "@/lib/contract";
 import { VehicleFilters } from "./vehicle-filters";
 
@@ -122,7 +122,7 @@ export default async function VehiclesPage({
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate font-medium">
-                    {v.brand} {v.model}
+                    {vehicleDisplayName(v)}
                     {v.teamNotes.length > 0 && (
                       <span
                         title={`${v.teamNotes.length} nota(s) sin resolver`}
@@ -133,7 +133,7 @@ export default async function VehiclesPage({
                     )}
                   </p>
                   <p className="truncate text-sm text-foreground/60">
-                    {v.plate} · {v.currentKm.toLocaleString("es-AR")} km
+                    {v.name ? `${v.brand} ${v.model} · ${v.plate}` : v.plate} · {v.currentKm.toLocaleString("es-AR")} km
                     {v.dailyRate != null ? ` · ${formatArs(Number(v.dailyRate))}/día` : ""}
                   </p>
                   {v.teamNotes.length > 0 && (

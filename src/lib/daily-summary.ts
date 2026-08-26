@@ -1,6 +1,7 @@
 import "server-only";
 import { formatDateTime } from "@/lib/datetime";
 import { getDashboardData } from "@/lib/dashboard";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 
 type DashboardAlerts = Awaited<ReturnType<typeof getDashboardData>>["alerts"];
 type OverdueReturn = DashboardAlerts["overdueReturns"][number];
@@ -31,7 +32,7 @@ export function buildDailySummary(
         overdueReturns
           .map(
             (r) =>
-              `<li>${r.clientName} — ${r.vehicle?.plate ?? "sin unidad"} (vencía ${formatDateTime(r.endAt)})</li>`,
+              `<li>${r.clientName} — ${r.vehicle ? vehicleLabelWithPlate(r.vehicle) : "sin unidad"} (vencía ${formatDateTime(r.endAt)})</li>`,
           )
           .join("") +
         `</ul>`,
@@ -43,7 +44,7 @@ export function buildDailySummary(
         overdueServices
           .map(
             (v) =>
-              `<li>${v.brand} ${v.model} — ${v.plate} (${v.currentKm - v.nextServiceKm!} km pasado)</li>`,
+              `<li>${vehicleLabelWithPlate(v)} (${v.currentKm - v.nextServiceKm!} km pasado)</li>`,
           )
           .join("") +
         `</ul>`,

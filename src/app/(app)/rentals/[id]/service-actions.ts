@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 const optNum = z.preprocess(
   (v) => (v === "" || v == null ? undefined : Number(v)),
@@ -142,7 +143,7 @@ export async function returnVehicleFromService(
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { plate: true, currentKm: true, serviceIntervalKm: true },
+    select: { plate: true, name: true, brand: true, model: true, currentKm: true, serviceIntervalKm: true },
   });
   if (!vehicle) throw new Error("El vehículo no existe.");
 
@@ -169,7 +170,7 @@ export async function returnVehicleFromService(
     }
   }
 
-  const cmDescription = `${maintenanceTypeLabels[log.type]} — ${vehicle.plate}: ${log.description}`;
+  const cmDescription = `${maintenanceTypeLabels[log.type]} — ${vehicleDisplayName(vehicle)}: ${log.description}`;
 
   await prisma.$transaction([
     prisma.maintenanceLog.update({

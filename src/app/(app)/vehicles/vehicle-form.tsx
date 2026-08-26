@@ -52,6 +52,12 @@ export function VehicleForm({
         <TextField id="brand" label="Marca" required defaultValue={vehicle?.brand} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
         <TextField id="model" label="Modelo" required defaultValue={vehicle?.model} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
       </div>
+      <TextField
+        id="name"
+        label="Nombre"
+        hint="Opcional — un apodo para el auto (ej. «El rojo»). Si está cargado, pasa a ser la referencia principal en reservas, calendario, caja, etc."
+        defaultValue={vehicle?.name ?? ""}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="year" label="Año" type="number" inputMode="numeric" defaultValue={vehicle?.year ?? ""} min={1950} max={2100} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
         <TextField id="color" label="Color" defaultValue={vehicle?.color ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />

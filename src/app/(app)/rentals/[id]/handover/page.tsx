@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
 import type { RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveHandover } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
 
@@ -40,7 +41,7 @@ export default async function HandoverPage({
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       orderBy: [{ brand: "asc" }, { model: "asc" }],
-      select: { id: true, plate: true, brand: true, model: true },
+      select: { id: true, plate: true, name: true, brand: true, model: true },
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.paymentMethod.findMany({
@@ -143,7 +144,7 @@ export default async function HandoverPage({
           rental.vehicle
             ? {
                 id: rental.vehicle.id,
-                label: `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}`,
+                label: vehicleLabelWithPlate(rental.vehicle),
                 currentKm: rental.vehicle.currentKm,
               }
             : null
@@ -151,7 +152,7 @@ export default async function HandoverPage({
         maxFuel={rental.vehicle?.fuelLevels}
         vehicleOptions={vehicles.map((v) => ({
           id: v.id,
-          label: `${v.plate} · ${v.brand} ${v.model}`,
+          label: vehicleLabelWithPlate(v),
         }))}
         checklistItems={checklistItems}
         existingDamages={existingDamages}

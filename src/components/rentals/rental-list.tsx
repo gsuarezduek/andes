@@ -4,11 +4,13 @@ import { rentalStatusDisplay, rentalRowBorderClass, isRentalOverdue } from "@/li
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { formatDateTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { RentalRow } from "@/lib/rental-list-queries";
 
-// Fila del listado: patente (o modelo) primero, luego el nombre del cliente.
+// Fila del listado: referencia del auto (apodo, o patente + modelo) primero,
+// luego el nombre del cliente.
 function vehicleTitle(r: RentalRow): string {
-  if (r.vehicle) return `${r.vehicle.plate} · ${r.vehicle.brand} ${r.vehicle.model}`;
+  if (r.vehicle) return vehicleLabelWithPlate(r.vehicle);
   if (r.bookingModel) return `${r.bookingModel} · sin unidad asignada`;
   return "Sin vehículo asignado";
 }

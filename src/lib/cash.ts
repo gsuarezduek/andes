@@ -7,6 +7,7 @@ import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
 import { getSafeBalance } from "@/lib/safe";
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -169,6 +170,8 @@ export type RentalPickerOption = {
   clientName: string;
   bookingId: string | null;
   plate: string | null;
+  /** Apodo del vehículo (si tiene) — se puede buscar por él, igual que por patente. */
+  vehicleName: string | null;
   label: string;
 };
 
@@ -200,7 +203,7 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
       clientName: true,
       startAt: true,
       wpBookingId: true,
-      vehicle: { select: { plate: true } },
+      vehicle: { select: { plate: true, name: true, brand: true, model: true } },
     },
   });
 
@@ -211,7 +214,8 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
       clientName: r.clientName,
       bookingId,
       plate: r.vehicle?.plate ?? null,
-      label: `${r.clientName} — ${r.vehicle?.plate ?? "sin unidad"} (${formatDateInput(r.startAt)})${
+      vehicleName: r.vehicle?.name ?? null,
+      label: `${r.clientName} — ${r.vehicle ? vehicleDisplayName(r.vehicle) : "sin unidad"} (${formatDateInput(r.startAt)})${
         bookingId ? ` · #${bookingId}` : ""
       }`,
     };

@@ -9,10 +9,11 @@ import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
 import { formatDate, formatDateTime, formatDateInput } from "@/lib/datetime";
 import { completeTask, updateTask, deleteTask } from "@/app/(app)/tasks/actions";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { TaskRow as TaskRowData } from "@/lib/tasks";
 
 type UserOption = { id: string; name: string };
-type VehicleOption = { id: string; brand: string; model: string; plate: string };
+type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
 
 /**
  * Fila de una tarea pendiente en /tasks. Tres modos como MovementRow
@@ -79,7 +80,7 @@ export function TaskRow({
               <option value="">Sin vehículo</option>
               {vehicles.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.brand} {v.model} · {v.plate}
+                  {vehicleLabelWithPlate(v)}
                 </option>
               ))}
             </SelectField>
@@ -128,7 +129,7 @@ export function TaskRow({
             <>
               {" · "}
               <Link href={`/vehicles/${task.vehicle.id}`} className="underline">
-                {task.vehicle.brand} {task.vehicle.model} · {task.vehicle.plate}
+                {vehicleLabelWithPlate(task.vehicle)}
               </Link>
             </>
           ) : null}

@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
 import { QrCard } from "@/components/vehicle/qr-card";
 import { vehicleDeepLink, qrSvg } from "@/lib/qr";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 export const metadata: Metadata = { title: "QR del vehículo — Andes" };
 
@@ -34,8 +35,8 @@ export default async function VehicleQrPage({
 
       <QrCard
         svg={svg}
-        title={`${vehicle.brand} ${vehicle.model}`}
-        subtitle={vehicle.plate}
+        title={vehicleDisplayName(vehicle)}
+        subtitle={vehicle.name ? `${vehicle.brand} ${vehicle.model} · ${vehicle.plate}` : vehicle.plate}
       />
 
       <p className="no-print text-xs text-foreground/50">

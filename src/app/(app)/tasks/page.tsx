@@ -7,6 +7,7 @@ import { TaskForm } from "@/components/tasks/task-form";
 import { TaskRow } from "@/components/tasks/task-row";
 import { getPendingTasks, getCompletedTasksPage, isTaskOverdue, isTaskDueToday, type TaskFilters } from "@/lib/tasks";
 import { groupCompletedTasksByDay } from "@/lib/task-grouping";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 
 export const metadata: Metadata = { title: "Tareas — Andes" };
 
@@ -33,7 +34,7 @@ export default async function TasksPage({
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       orderBy: [{ brand: "asc" }, { model: "asc" }],
-      select: { id: true, brand: true, model: true, plate: true },
+      select: { id: true, name: true, brand: true, model: true, plate: true },
     }),
   ]);
 
@@ -74,7 +75,7 @@ export default async function TasksPage({
             <option value="">Todos los vehículos</option>
             {vehicles.map((v) => (
               <option key={v.id} value={v.id}>
-                {v.brand} {v.model} · {v.plate}
+                {vehicleLabelWithPlate(v)}
               </option>
             ))}
           </select>
@@ -144,7 +145,7 @@ export default async function TasksPage({
                           {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
                           {" · creada por "}
                           {task.createdBy?.name ?? "—"}
-                          {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
+                          {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
                         </p>
                       </li>
                     ))}

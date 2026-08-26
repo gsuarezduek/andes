@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Row } from "@/components/ui/row";
 import { EditDetailsForm } from "@/app/(app)/rentals/[id]/edit-details-form";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { RentalDetail } from "@/lib/rental-detail-queries";
 
 export function ClientInfoSection({
@@ -10,7 +11,7 @@ export function ClientInfoSection({
 }: {
   rental: RentalDetail;
   canStartHandover: boolean;
-  editableVehicles: { id: string; plate: string; brand: string; model: string }[];
+  editableVehicles: { id: string; plate: string; name: string | null; brand: string; model: string }[];
 }) {
   if (canStartHandover) {
     return (
@@ -24,7 +25,7 @@ export function ClientInfoSection({
         vehicleId={rental.vehicleId ?? ""}
         vehicles={editableVehicles.map((v) => ({
           id: v.id,
-          label: `${v.plate} · ${v.brand} ${v.model}`,
+          label: vehicleLabelWithPlate(v),
         }))}
       />
     );
@@ -40,7 +41,7 @@ export function ClientInfoSection({
         value={
           rental.vehicle ? (
             <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
-              {rental.vehicle.brand} {rental.vehicle.model} · {rental.vehicle.plate}
+              {vehicleLabelWithPlate(rental.vehicle)}
             </Link>
           ) : rental.bookingModel ? (
             <span>

@@ -12,6 +12,7 @@ import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const optNum = z.number().nonnegative().optional();
@@ -298,7 +299,7 @@ export async function fetchHandoverVehicle(
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { id: true, plate: true, brand: true, model: true, currentKm: true, fuelLevels: true, archivedAt: true },
+    select: { id: true, plate: true, name: true, brand: true, model: true, currentKm: true, fuelLevels: true, archivedAt: true },
   });
   if (!vehicle) return { ok: false, error: "El vehículo no existe." };
   if (vehicle.archivedAt) return { ok: false, error: "Ese vehículo está archivado." };
@@ -315,7 +316,7 @@ export async function fetchHandoverVehicle(
     ok: true,
     vehicle: {
       id: vehicle.id,
-      label: `${vehicle.brand} ${vehicle.model} · ${vehicle.plate}`,
+      label: vehicleLabelWithPlate(vehicle),
       currentKm: vehicle.currentKm,
       maxFuel: vehicle.fuelLevels,
     },

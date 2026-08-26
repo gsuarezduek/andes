@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import type { ContractPricing } from "@/lib/contract";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveReturn } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
 
@@ -69,7 +70,7 @@ export default async function ReturnPage({
         datesLabel={`${formatDateTime(rental.startAt)} → ${formatDateTime(rental.endAt)}`}
         vehicle={{
           id: rental.vehicle.id,
-          label: `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}`,
+          label: vehicleLabelWithPlate(rental.vehicle),
           currentKm: rental.vehicle.currentKm,
         }}
         vehicleOptions={[]}

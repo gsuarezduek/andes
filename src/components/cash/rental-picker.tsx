@@ -14,7 +14,12 @@ export function RentalPicker({ options }: { options: RentalPickerOption[] }) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return options
-      .filter((o) => o.clientName.toLowerCase().includes(q) || (o.bookingId?.includes(q) ?? false))
+      .filter(
+        (o) =>
+          o.clientName.toLowerCase().includes(q) ||
+          (o.bookingId?.includes(q) ?? false) ||
+          (o.vehicleName?.toLowerCase().includes(q) ?? false),
+      )
       .slice(0, MAX_MATCHES);
   }, [query, options]);
 
@@ -47,7 +52,7 @@ export function RentalPicker({ options }: { options: RentalPickerOption[] }) {
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder="Nombre del cliente o N° de reserva…"
+            placeholder="Cliente, auto o N° de reserva…"
             className="h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
           />
           {open && matches.length > 0 && (

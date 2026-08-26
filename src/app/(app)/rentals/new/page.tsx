@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { RentalForm } from "../rental-form";
 import { createRental } from "../actions/create";
 
@@ -12,12 +13,12 @@ export default async function NewRentalPage() {
   const vehicles = await prisma.vehicle.findMany({
     where: { archivedAt: null },
     orderBy: [{ brand: "asc" }, { model: "asc" }],
-    select: { id: true, plate: true, brand: true, model: true },
+    select: { id: true, plate: true, name: true, brand: true, model: true },
   });
 
   const options = vehicles.map((v) => ({
     id: v.id,
-    label: `${v.plate} · ${v.brand} ${v.model}`,
+    label: vehicleLabelWithPlate(v),
   }));
 
   return (

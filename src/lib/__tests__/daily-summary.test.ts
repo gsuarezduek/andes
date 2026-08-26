@@ -14,7 +14,7 @@ function overdueReturn(overrides: Partial<OverdueReturn>): OverdueReturn {
   return {
     clientName: "Juan Pérez",
     endAt: new Date("2026-08-01T12:00:00Z"),
-    vehicle: { plate: "AA123BB" },
+    vehicle: { plate: "AA123BB", name: null, brand: "Fiat", model: "Cronos" },
     ...overrides,
   } as OverdueReturn;
 }
@@ -71,5 +71,18 @@ describe("buildDailySummary", () => {
   it("usa 'sin unidad' cuando la reserva no tiene vehículo asignado", () => {
     const summary = buildDailySummary([overdueReturn({ vehicle: null })], []);
     expect(summary!.html).toContain("sin unidad");
+  });
+
+  it("usa el apodo del auto (si tiene) como referencia principal, con la patente al lado", () => {
+    const summary = buildDailySummary(
+      [
+        overdueReturn({
+          vehicle: { plate: "AA123BB", name: "El Rojo", brand: "Fiat", model: "Cronos" } as OverdueReturn["vehicle"],
+        }),
+      ],
+      [],
+    );
+    expect(summary!.html).toContain("El Rojo · AA123BB");
+    expect(summary!.html).not.toContain("Fiat Cronos");
   });
 });

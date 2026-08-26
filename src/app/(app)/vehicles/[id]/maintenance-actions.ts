@@ -7,6 +7,7 @@ import { requireAdmin, requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 const optInt = z.preprocess(
   (v) => (v === "" || v == null ? undefined : Number(v)),
@@ -58,7 +59,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { plate: true, currentKm: true, serviceIntervalKm: true },
+    select: { plate: true, name: true, brand: true, model: true, currentKm: true, serviceIntervalKm: true },
   });
   if (!vehicle) throw new Error("El vehículo no existe.");
 
@@ -92,7 +93,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
           prisma.cashMovement.create({
             data: {
               type: "expense",
-              description: `${maintenanceTypeLabels[parsed.data.type]} — ${vehicle.plate}: ${parsed.data.description}`,
+              description: `${maintenanceTypeLabels[parsed.data.type]} — ${vehicleDisplayName(vehicle)}: ${parsed.data.description}`,
               amount: cost!,
               paymentMethodId: method.id,
               paymentMethodName: method.name,

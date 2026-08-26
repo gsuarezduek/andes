@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
 import { QrCard } from "@/components/vehicle/qr-card";
 import { vehicleDeepLink, qrSvg } from "@/lib/qr";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 export const metadata: Metadata = { title: "QR de la flota — Andes" };
 
@@ -16,8 +17,8 @@ export default async function FleetQrPage() {
   const cards = await Promise.all(
     vehicles.map(async (v) => ({
       id: v.id,
-      title: `${v.brand} ${v.model}`,
-      subtitle: v.plate,
+      title: vehicleDisplayName(v),
+      subtitle: v.name ? `${v.brand} ${v.model} · ${v.plate}` : v.plate,
       svg: await qrSvg(vehicleDeepLink(v.id)),
     })),
   );

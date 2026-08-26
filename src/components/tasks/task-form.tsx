@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { createTask } from "@/app/(app)/tasks/actions";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 
 type UserOption = { id: string; name: string };
-type VehicleOption = { id: string; brand: string; model: string; plate: string };
+type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
 
 /** Form de alta, colapsado detrás de "+ Nueva tarea" (mismo criterio que MovementLauncher en Caja). */
 export function TaskForm({ users, vehicles }: { users: UserOption[]; vehicles: VehicleOption[] }) {
@@ -50,7 +51,7 @@ export function TaskForm({ users, vehicles }: { users: UserOption[]; vehicles: V
           <option value="">Sin vehículo</option>
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.brand} {v.model} · {v.plate}
+              {vehicleLabelWithPlate(v)}
             </option>
           ))}
         </SelectField>

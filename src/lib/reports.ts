@@ -22,6 +22,7 @@ import type { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import type { ContractPricing } from "@/lib/contract";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 export type MonthPoint = { month: string; rentals: number; km: number };
 
@@ -269,7 +270,7 @@ export const getReports = unstable_cache(
         // historial de ingresos/costos del período, aunque ya no esté en la
         // flota operativa.
         prisma.vehicle.findMany({
-          select: { id: true, plate: true, brand: true, model: true, status: true, archivedAt: true },
+          select: { id: true, plate: true, name: true, brand: true, model: true, status: true, archivedAt: true },
         }),
         // Primer alquiler finalizado (cualquiera): tope real del gráfico "por
         // mes" cuando el período elegido es un mes puntual (ver chartMonthCount).
@@ -347,7 +348,7 @@ export const getReports = unstable_cache(
         v.id,
         {
           id: v.id,
-          label: `${v.brand} ${v.model}`,
+          label: vehicleDisplayName(v),
           plate: v.plate,
           rentals: 0,
           days: 0,

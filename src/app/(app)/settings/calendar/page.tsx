@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { formatArs } from "@/lib/contract";
+import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { OrderManager, type OrderRow } from "./order-manager";
 
 export const metadata: Metadata = { title: "Calendario — Andes" };
@@ -14,12 +15,12 @@ export default async function CalendarSettingsPage() {
   const vehicles = await prisma.vehicle.findMany({
     where: { archivedAt: null },
     orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-    select: { id: true, plate: true, brand: true, model: true, dailyRate: true },
+    select: { id: true, plate: true, name: true, brand: true, model: true, dailyRate: true },
   });
 
   const rows: OrderRow[] = vehicles.map((v) => ({
     id: v.id,
-    label: `${v.plate} · ${v.brand} ${v.model}`,
+    label: vehicleLabelWithPlate(v),
     rateLabel: v.dailyRate != null ? `${formatArs(Number(v.dailyRate))} / día` : "Sin tarifa",
   }));
 

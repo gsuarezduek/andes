@@ -224,6 +224,10 @@ model PasswordResetToken {
 model Vehicle {
   id                String        @id @default(cuid())
   plate             String        @unique // patente
+  // Apodo interno para referirse al auto (ej. "El rojo", "Wagon 2"). Cuando
+  // está cargado, pasa a ser la referencia principal del auto en toda la app
+  // (reservas, calendario, caja, etc.), por delante de marca/modelo/patente.
+  name              String?
   brand             String // marca
   model             String // modelo
   year              Int?

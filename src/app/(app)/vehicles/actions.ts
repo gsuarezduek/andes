@@ -37,6 +37,8 @@ const operationalSchema = z.object({
   nextServiceKm: optionalInt,
   serviceIntervalKm: optionalInt,
   notes: optionalStr,
+  // Apodo interno (no es dato legal/identidad), cualquier empleado lo puede cargar.
+  name: optionalStr,
 });
 
 // Identidad y datos legales del vehículo: sensibles y difíciles de auditar
@@ -70,6 +72,7 @@ function parseOperational(formData: FormData) {
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),
+    name: formData.get("name"),
   });
 }
 
@@ -81,6 +84,7 @@ function parse(formData: FormData) {
     nextServiceKm: formData.get("nextServiceKm"),
     serviceIntervalKm: formData.get("serviceIntervalKm"),
     notes: formData.get("notes"),
+    name: formData.get("name"),
     plate: formData.get("plate"),
     brand: formData.get("brand"),
     model: formData.get("model"),

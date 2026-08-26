@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { vehicleStatusLabels } from "@/lib/labels";
-import { vehicleStatusTone } from "@/lib/vehicle-ui";
+import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { formatDateTime } from "@/lib/datetime";
 
 export const metadata: Metadata = { title: "Vehículo — Andes" };
@@ -52,9 +52,11 @@ export default async function VehicleQrLanding({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            {vehicle.brand} {vehicle.model}
+            {vehicleDisplayName(vehicle)}
           </h1>
-          <p className="text-sm text-foreground/60">{vehicle.plate}</p>
+          <p className="text-sm text-foreground/60">
+            {vehicle.name ? `${vehicle.brand} ${vehicle.model} · ${vehicle.plate}` : vehicle.plate}
+          </p>
         </div>
         <Badge tone={vehicleStatusTone[vehicle.status]}>{vehicleStatusLabels[vehicle.status]}</Badge>
       </div>

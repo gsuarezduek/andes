@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/datetime";
+import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 export async function getRentalDetail(id: string) {
   return prisma.rental.findUnique({
@@ -38,7 +39,7 @@ export async function getEditableVehicles() {
   return prisma.vehicle.findMany({
     where: { archivedAt: null },
     orderBy: [{ brand: "asc" }, { model: "asc" }],
-    select: { id: true, plate: true, brand: true, model: true },
+    select: { id: true, plate: true, name: true, brand: true, model: true },
   });
 }
 
@@ -72,7 +73,7 @@ export async function getMergeCandidates(excludeId: string): Promise<MergeCandid
       id: true,
       clientName: true,
       startAt: true,
-      vehicle: { select: { plate: true } },
+      vehicle: { select: { plate: true, name: true, brand: true, model: true } },
     },
   });
 
@@ -81,6 +82,6 @@ export async function getMergeCandidates(excludeId: string): Promise<MergeCandid
     clientName: r.clientName,
     startAt: r.startAt,
     vehiclePlate: r.vehicle?.plate ?? null,
-    label: `${r.clientName} · ${formatDate(r.startAt)}${r.vehicle ? ` · ${r.vehicle.plate}` : ""}`,
+    label: `${r.clientName} · ${formatDate(r.startAt)}${r.vehicle ? ` · ${vehicleDisplayName(r.vehicle)}` : ""}`,
   }));
 }

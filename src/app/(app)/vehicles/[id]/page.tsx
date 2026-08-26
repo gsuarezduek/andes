@@ -15,7 +15,7 @@ import { RentalHistorySection } from "@/components/vehicle/rental-history-sectio
 import { InspectionHistorySection } from "@/components/vehicle/inspection-history-section";
 import { MaintenanceSection } from "@/components/vehicle/maintenance-section";
 import { vehicleStatusLabels } from "@/lib/labels";
-import { vehicleStatusTone } from "@/lib/vehicle-ui";
+import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { formatDate } from "@/lib/datetime";
 import { getVehicleDetail } from "@/lib/vehicle-detail-queries";
 
@@ -52,9 +52,11 @@ export default async function VehicleDetailPage({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {vehicle.brand} {vehicle.model}
+              {vehicleDisplayName(vehicle)}
             </h1>
-            <p className="text-sm text-foreground/60">{vehicle.plate}</p>
+            <p className="text-sm text-foreground/60">
+              {vehicle.name ? `${vehicle.brand} ${vehicle.model} · ${vehicle.plate}` : vehicle.plate}
+            </p>
           </div>
           <div className="flex flex-col items-end gap-1">
             <Badge tone={vehicleStatusTone[vehicle.status]}>{vehicleStatusLabels[vehicle.status]}</Badge>

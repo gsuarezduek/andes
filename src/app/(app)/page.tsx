@@ -9,6 +9,7 @@ import { HomeSearch } from "@/components/home-search";
 import { formatDateTime, formatDate } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
+import { vehicleDisplayName, vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 
 const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
@@ -106,7 +107,7 @@ export default async function HomePage() {
               <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
                 <span className="font-medium text-red-700 dark:text-red-400">Devolución vencida</span>
                 <span className="text-right text-foreground/70">
-                  {r.clientName}{r.vehicle ? ` · ${r.vehicle.plate}` : ""} · venció {formatDateTime(r.endAt)}
+                  {r.clientName}{r.vehicle ? ` · ${vehicleDisplayName(r.vehicle)}` : ""} · venció {formatDateTime(r.endAt)}
                 </span>
               </Link>
             ))}
@@ -120,7 +121,7 @@ export default async function HomePage() {
                   {v.overdue ? "Service vencido" : "Service próximo"}
                 </span>
                 <span className="text-right text-foreground/70">
-                  {v.brand} {v.model} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
+                  {vehicleDisplayName(v)} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
                 </span>
               </Link>
             ))}
@@ -148,7 +149,7 @@ export default async function HomePage() {
                   key={rental.id}
                   href={`/rentals/${rental.id}`}
                   title={rental.clientName}
-                  subtitle={rental.vehicle ? `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}` : "Sin vehículo asignado"}
+                  subtitle={rental.vehicle ? vehicleLabelWithPlate(rental.vehicle) : "Sin vehículo asignado"}
                   time={`Retiro ${formatDateTime(rental.startAt)}`}
                   state={state}
                   unconfirmed={!rental.bookingConfirmed}
@@ -169,7 +170,7 @@ export default async function HomePage() {
                   key={rental.id}
                   href={`/rentals/${rental.id}`}
                   title={rental.clientName}
-                  subtitle={rental.vehicle ? `${rental.vehicle.brand} ${rental.vehicle.model} · ${rental.vehicle.plate}` : "Sin vehículo"}
+                  subtitle={rental.vehicle ? vehicleLabelWithPlate(rental.vehicle) : "Sin vehículo"}
                   time={`Devolución ${formatDateTime(rental.endAt)}`}
                   state={state}
                   unconfirmed={!rental.bookingConfirmed}
@@ -205,7 +206,7 @@ export default async function HomePage() {
                     </p>
                     <p className="text-sm text-foreground/60">
                       {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
-                      {task.vehicle ? ` · ${task.vehicle.brand} ${task.vehicle.model} · ${task.vehicle.plate}` : ""}
+                      {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
                     </p>
                   </div>
                   {task.dueDate ? (
@@ -246,7 +247,7 @@ export default async function HomePage() {
                     className={`flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-foreground/[0.03] ${paymentBorderClass(paymentAccent(r.status, r.bookingConfirmed, computeRentalPayments(r)))}`}
                   >
                     <span className="font-medium">
-                      {r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model} · ${r.vehicle.plate}` : "—"}
+                      {r.vehicle ? vehicleLabelWithPlate(r.vehicle) : "—"}
                     </span>
                     <span className="text-right text-foreground/60">
                       {r.clientName} · vuelve {formatDateTime(r.endAt)}

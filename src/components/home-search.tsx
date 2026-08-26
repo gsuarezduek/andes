@@ -25,7 +25,8 @@ export function HomeSearch({ options }: { options: RentalPickerOption[] }) {
         (o) =>
           o.clientName.toLowerCase().includes(q) ||
           (o.bookingId?.includes(q) ?? false) ||
-          (o.plate?.toLowerCase().includes(q) ?? false),
+          (o.plate?.toLowerCase().includes(q) ?? false) ||
+          (o.vehicleName?.toLowerCase().includes(q) ?? false),
       )
       .slice(0, MAX_MATCHES);
   }, [query, options]);
@@ -41,7 +42,7 @@ export function HomeSearch({ options }: { options: RentalPickerOption[] }) {
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Buscar por cliente, patente u orden #…"
+        placeholder="Buscar por cliente, patente, nombre del auto u orden #…"
         className="h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
       />
       {open && matches.length > 0 && (
