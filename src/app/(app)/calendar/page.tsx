@@ -85,7 +85,10 @@ export default async function CalendarPage({
           <span className="inline-block h-3 w-3 rounded bg-slate-400/90" /> Finalizado
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio
+          <span className="inline-block h-3 w-3 rounded bg-blue-600/90" /> En service
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio (fila)
         </span>
       </div>
 

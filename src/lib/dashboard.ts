@@ -32,9 +32,10 @@ export async function getDashboardData() {
     unassigned,
     conditionSettings,
   ] = await Promise.all([
-    // Entregas programadas hoy (por fecha de retiro).
+    // Entregas programadas hoy (por fecha de retiro). Excluye canceladas y
+    // los placeholders "en service" (no son entregas reales a un cliente).
     prisma.rental.findMany({
-      where: { status: { not: "cancelled" }, startAt: { gte: dayStart, lt: dayEnd } },
+      where: { status: { notIn: ["cancelled", "out_of_service"] }, startAt: { gte: dayStart, lt: dayEnd } },
       include: { vehicle: true, inspections: { select: { type: true } } },
       orderBy: { startAt: "asc" },
     }),
@@ -42,7 +43,7 @@ export async function getDashboardData() {
     // aún no iniciadas en la app: si WordPress dice que el auto vuelve hoy, se
     // muestra aunque la entrega no se haya cargado en Andes.
     prisma.rental.findMany({
-      where: { status: { not: "cancelled" }, endAt: { gte: dayStart, lt: dayEnd } },
+      where: { status: { notIn: ["cancelled", "out_of_service"] }, endAt: { gte: dayStart, lt: dayEnd } },
       include: { vehicle: true, inspections: { select: { type: true } } },
       orderBy: { endAt: "asc" },
     }),

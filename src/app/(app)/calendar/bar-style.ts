@@ -17,6 +17,8 @@ export function barClasses(bar: CalendarBar): string {
       return "bg-emerald-600/90 text-white hover:bg-emerald-600 hover:ring-emerald-300";
     case "finished":
       return "bg-slate-400/90 text-white hover:ring-slate-300";
+    case "out_of_service":
+      return "bg-blue-600/90 text-white hover:bg-blue-600 hover:ring-blue-300";
     default: // reserved
       return bar.confirmed
         ? "bg-amber-400 text-amber-950 hover:bg-amber-400/90 hover:ring-amber-300" // Confirmado (pagado)
@@ -38,6 +40,8 @@ export function chipClasses(bar: CalendarBar): string {
       return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400";
     case "finished":
       return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
+    case "out_of_service":
+      return "bg-blue-500/20 text-blue-700 dark:text-blue-400";
     default: // reserved
       return bar.confirmed
         ? "bg-amber-500/20 text-amber-700 dark:text-amber-500"

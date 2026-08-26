@@ -3,9 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/datetime";
 
 /**
- * Busca una reserva/alquiler vigente (reserved/active — no cancelado ni
- * finalizado) del mismo vehículo cuyas fechas se solapen con [startAt, endAt).
- * Excluye `excludeRentalId` (la propia reserva, al reasignar su vehículo).
+ * Busca una reserva/alquiler vigente (reserved/active/out_of_service — no
+ * cancelado ni finalizado) del mismo vehículo cuyas fechas se solapen con
+ * [startAt, endAt). `out_of_service` cuenta: un auto en el taller no se puede
+ * asignar a otra reserva superpuesta. Excluye `excludeRentalId` (la propia
+ * reserva, al reasignar su vehículo).
  */
 export async function findOverlappingRental(
   vehicleId: string,
@@ -16,7 +18,7 @@ export async function findOverlappingRental(
   return prisma.rental.findFirst({
     where: {
       vehicleId,
-      status: { in: ["reserved", "active"] },
+      status: { in: ["reserved", "active", "out_of_service"] },
       startAt: { lt: endAt },
       endAt: { gt: startAt },
       ...(excludeRentalId ? { id: { not: excludeRentalId } } : {}),

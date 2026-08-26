@@ -62,7 +62,9 @@ export async function getMergeCandidates(excludeId: string): Promise<MergeCandid
     where: {
       id: { not: excludeId },
       wpBookingId: null,
-      status: { not: "cancelled" },
+      // Ni canceladas ni un placeholder de service: ninguna de las dos es un
+      // destino válido para fusionar la orden real de un cliente.
+      status: { notIn: ["cancelled", "out_of_service"] },
     },
     orderBy: { updatedAt: "desc" },
     take: 150,

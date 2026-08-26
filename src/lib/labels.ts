@@ -31,6 +31,7 @@ export const rentalStatusLabels: Record<RentalStatus, string> = {
   active: "Activo",
   finished: "Finalizado",
   cancelled: "Cancelado",
+  out_of_service: "Fuera de servicio",
 };
 
 export const rentalOriginLabels: Record<RentalOrigin, string> = {

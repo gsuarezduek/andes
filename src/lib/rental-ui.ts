@@ -22,6 +22,8 @@ export function rentalStatusDisplay(
       return { label: "Activo", tone: "emerald" };
     case "finished":
       return { label: "Finalizado", tone: "neutral" };
+    case "out_of_service":
+      return { label: "En service", tone: "blue" };
     default: // reserved
       return bookingConfirmed
         ? { label: "Confirmado", tone: "amber" }

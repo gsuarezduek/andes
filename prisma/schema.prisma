@@ -40,6 +40,10 @@ enum RentalStatus {
   active
   finished
   cancelled
+  // Reserva placeholder que bloqueaba el auto para un service/arreglo; el
+  // auto vuelve a "disponible" y esta reserva pasa a `cancelled` cuando se
+  // marca "de vuelta en servicio". Ver MaintenanceLog.rentalId.
+  out_of_service
 }
 
 /// Idioma de cara al cliente (acta, emails, firma). Ver src/lib/i18n.
@@ -374,31 +378,31 @@ model Rental {
   // Datos económicos importados de VikRentCar (referencia; el empleado los usa
   // para precargar/confirmar las condiciones). Ver docs/wordpress-mapping.md:
   // `days` 100%, `custdata` 100% (texto libre), `order_total` ~95%, `car_cost` ~24%.
-  bookingCreatedAt         DateTime? @map("booking_created_at") // ts: cuándo se cargó la reserva en VikRentCar
-  bookingDays              Int?      @map("booking_days") // days de la orden
-  bookingPricePerDay       Decimal?  @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
-  bookingTotal             Decimal?  @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
-  bookingPaid              Decimal?  @map("booking_paid") @db.Decimal(12, 2) // totpaid: pagado/anticipo de la reserva (precarga "Seña")
-  bookingNote              String?   @map("booking_note") @db.Text // custdata: info de la reserva (staff)
+  bookingCreatedAt          DateTime? @map("booking_created_at") // ts: cuándo se cargó la reserva en VikRentCar
+  bookingDays               Int?      @map("booking_days") // days de la orden
+  bookingPricePerDay        Decimal?  @map("booking_price_per_day") @db.Decimal(12, 2) // car_cost/days (si viene)
+  bookingTotal              Decimal?  @map("booking_total") @db.Decimal(12, 2) // order_total (con extras)
+  bookingPaid               Decimal?  @map("booking_paid") @db.Decimal(12, 2) // totpaid: pagado/anticipo de la reserva (precarga "Seña")
+  bookingNote               String?   @map("booking_note") @db.Text // custdata: info de la reserva (staff)
   // Modelo de VikRentCar (cars.name vía idcar): se muestra cuando la reserva
   // llegó sin unidad física asignada (carindex NULL).
-  bookingModel             String?   @map("booking_model")
-  bookingPickupPlace       String?   @map("booking_pickup_place") // idplace → places.name
-  bookingReturnPlace       String?   @map("booking_return_place") // idreturnplace → places.name
+  bookingModel              String?   @map("booking_model")
+  bookingPickupPlace        String?   @map("booking_pickup_place") // idplace → places.name
+  bookingReturnPlace        String?   @map("booking_return_place") // idreturnplace → places.name
   // Opcionales de VikRentCar (wp_vikrentcar_optionals). Los packs de km → accesorios
   // (descripción + importe precalculado); la "Mejora de Seguro" → flag que baja la
   // franquicia. Precargan las condiciones; el sync nunca pisa `pricing`.
-  bookingAccessories       String?   @map("booking_accessories") @db.Text
-  bookingAccessoriesAmount Decimal?  @map("booking_accessories_amount") @db.Decimal(12, 2)
-  bookingInsuranceUpgrade  Boolean   @default(false) @map("booking_insurance_upgrade")
+  bookingAccessories        String?   @map("booking_accessories") @db.Text
+  bookingAccessoriesAmount  Decimal?  @map("booking_accessories_amount") @db.Decimal(12, 2)
+  bookingInsuranceUpgrade   Boolean   @default(false) @map("booking_insurance_upgrade")
   // Método de pago de VikRentCar (orders.idpayment, ej. "Transferencia de Banco",
   // "Stripe", "Mercado Pago"). Solo el nombre; el `paymentlog` (datos de tarjeta)
   // NO se importa. ~25% de cobertura.
-  bookingPaymentMethod     String?   @map("booking_payment_method")
+  bookingPaymentMethod      String?   @map("booking_payment_method")
   // Cuánto de `bookingPaid` ya se importó como ingreso a Caja (ver
   // `importBookingPayment` en booking-upsert.ts): permite importar solo la
   // diferencia si `totpaid` sigue creciendo entre corridas, sin duplicar.
-  bookingPaidImportedAmount Decimal? @map("booking_paid_imported_amount") @db.Decimal(12, 2)
+  bookingPaidImportedAmount Decimal?  @map("booking_paid_imported_amount") @db.Decimal(12, 2)
 
   // ¿La reserva está confirmada en VikRentCar? Las `standby` entran sin confirmar
   // (bookingConfirmed=false) y se marcan en naranja; el sync la pasa a true si el
@@ -418,6 +422,7 @@ model Rental {
   signatureRequests SignatureRequest[]
   teamNotes         RentalNote[]
   cashMovements     CashMovement[]
+  maintenanceLogs   MaintenanceLog[]
 
   @@index([status])
   @@index([startAt])
@@ -543,7 +548,7 @@ model Inspection {
   // resuelve cada ítem comparando contra signatureUrl/media/damages/
   // documentos reales, no mutando esta lista). Null/vacío = ya estaba toda la
   // evidencia subida al guardar (el caso de siempre).
-  pendingEvidence Json? @map("pending_evidence")
+  pendingEvidence     Json?     @map("pending_evidence")
   // Se completa una única vez, cuando el último ítem pendiente termina de
   // subirse — recién ahí se dispara el acta+email demorados. `updateMany`
   // con `evidenceCompletedAt: null` como guard hace que solo un llamado
@@ -629,6 +634,12 @@ model MaintenanceLog {
   vehicleId String  @map("vehicle_id")
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
 
+  // Reserva placeholder que bloqueaba el auto (VikRentCar) cuando este
+  // registro se creó desde "Marcar service/arreglo" en el detalle de una
+  // reserva. Null para los cargados directo desde la ficha del vehículo.
+  rentalId String? @map("rental_id")
+  rental   Rental? @relation(fields: [rentalId], references: [id])
+
   type        MaintenanceType
   date        DateTime
   km          Int?
@@ -639,6 +650,7 @@ model MaintenanceLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([vehicleId])
+  @@index([rentalId])
   @@map("maintenance_logs")
 }
 
@@ -732,15 +744,15 @@ model PaymentMethod {
   // (saldo de cuenta corriente, "Total entregado", ver `src/lib/providers.ts`
   // y `CashMovementsBoard`). Si se borra la principal, sus subcuentas quedan
   // sueltas (vuelven a ser principales) en vez de arrastrarse.
-  parentId String?         @map("parent_id")
-  parent   PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId    String?         @map("parent_id")
+  parent      PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)
   subaccounts PaymentMethod[] @relation("PaymentMethodSubaccounts")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  cashMovements            CashMovement[] @relation("CashMovementMethod")
-  cashMovementsAsRecipient CashMovement[] @relation("CashMovementRecipient")
+  cashMovements            CashMovement[]    @relation("CashMovementMethod")
+  cashMovementsAsRecipient CashMovement[]    @relation("CashMovementRecipient")
   // Nombres de medio de pago de VikRentCar que corresponden a este medio de
   // Andes (ver WpPaymentMethod). Puede haber más de un medio de Andes por
   // nombre de VikRentCar: el sync solo auto-resuelve cuando hay exactamente uno.

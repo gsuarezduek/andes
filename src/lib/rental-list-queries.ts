@@ -78,6 +78,8 @@ export type RentalListOverview = {
   atrasadas: RentalRow[];
   /** `status === "active"`: el auto está afuera ahora mismo. */
   alquilados: RentalRow[];
+  /** `status === "out_of_service"`: placeholder de service/arreglo en curso. */
+  enService: RentalRow[];
   /** "reserved" que todavía no arrancó, o "cancelled" a futuro (se sigue
    *  mostrando para no perder de vista que ese hueco de calendario existió). */
   proximas: RentalRow[];
@@ -92,11 +94,12 @@ const OVERVIEW_CAP = 300;
 /**
  * Vista "curada" por defecto de /rentals (sin filtros activos): separa lo
  * que requiere atención — atrasadas primero, después lo que está afuera
- * ahora, y por último lo que viene — dejando "Pasados" completamente afuera
- * (se accede buscando por fecha o estado, ver rental-list-filters.ts).
+ * ahora (alquilado o en service), y por último lo que viene — dejando
+ * "Pasados" completamente afuera (se accede buscando por fecha o estado, ver
+ * rental-list-filters.ts).
  */
 export async function getRentalListOverview(now: Date): Promise<RentalListOverview> {
-  const [atrasadas, alquilados, proximas] = await Promise.all([
+  const [atrasadas, alquilados, enService, proximas] = await Promise.all([
     prisma.rental.findMany({
       where: { status: "reserved", startAt: { lt: now }, endAt: { gte: now } },
       orderBy: { startAt: "asc" },
@@ -106,6 +109,12 @@ export async function getRentalListOverview(now: Date): Promise<RentalListOvervi
     prisma.rental.findMany({
       where: { status: "active" },
       orderBy: { endAt: "asc" },
+      include: ROW_INCLUDE,
+      take: OVERVIEW_CAP,
+    }),
+    prisma.rental.findMany({
+      where: { status: "out_of_service" },
+      orderBy: { startAt: "asc" },
       include: ROW_INCLUDE,
       take: OVERVIEW_CAP,
     }),
@@ -122,5 +131,5 @@ export async function getRentalListOverview(now: Date): Promise<RentalListOvervi
     }),
   ]);
 
-  return { atrasadas, alquilados, proximas };
+  return { atrasadas, alquilados, enService, proximas };
 }

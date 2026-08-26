@@ -9,6 +9,7 @@ export type RentalFlags = {
   canStartReturn: boolean;
   canStartHandoverNow: boolean;
   canMarkService: boolean;
+  canCloseService: boolean;
   canEditReturn: boolean;
   returnManagedInWp: boolean;
 };
@@ -23,6 +24,10 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
   // Marcar service/arreglo en vez de entregar: para alquileres cargados solo
   // para bloquear el auto (reservado, con unidad, sin entrega hecha).
   const canMarkService = canStartHandover && Boolean(rental.vehicleId);
+  // "Volver a poner en servicio": mismo ícono/reserva que marcó el service,
+  // disponible mientras el auto siga afuera — sin importar si tardó más o
+  // menos de lo estimado.
+  const canCloseService = rental.status === "out_of_service";
   // Extensión: modificar fecha/lugar de devolución mientras no esté cerrado.
   // La edición de fechas solo se permite en reservas manuales. Las de VikRentCar
   // se gestionan desde la web (fuente de verdad) y se sincronizan solas: editarlas
@@ -34,5 +39,13 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
     rental.origin === "vikrentcar" &&
     (rental.status === "reserved" || rental.status === "active");
 
-  return { canStartHandover, canStartReturn, canStartHandoverNow, canMarkService, canEditReturn, returnManagedInWp };
+  return {
+    canStartHandover,
+    canStartReturn,
+    canStartHandoverNow,
+    canMarkService,
+    canCloseService,
+    canEditReturn,
+    returnManagedInWp,
+  };
 }

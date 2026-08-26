@@ -1,7 +1,13 @@
 import type { Prisma, RentalStatus } from "@prisma/client";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
-export const RENTAL_STATUSES: RentalStatus[] = ["reserved", "active", "finished", "cancelled"];
+export const RENTAL_STATUSES: RentalStatus[] = [
+  "reserved",
+  "active",
+  "out_of_service",
+  "finished",
+  "cancelled",
+];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type RentalListSearchParams = {

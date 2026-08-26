@@ -13,23 +13,28 @@ export type MaintenanceTypeOption = { value: string; label: string };
  * veces (ficha del vehículo, acceso rápido del header de la reserva, y el
  * bloque que daba de baja el auto) con un className hecho a mano en cada
  * una. `types` deja elegir qué opciones ofrece el <select> (el acceso
- * rápido de la reserva solo ofrece Service/Arreglo).
+ * rápido de la reserva solo ofrece Service/Arreglo). `showCost=false`
+ * (formulario de "marcar service" desde una reserva) oculta costo/medio de
+ * pago — ahí muchas veces todavía no se sabe cuánto va a salir; se carga
+ * al cerrar el service, con `returnVehicleFromService`.
  */
 export function MaintenanceFormFields({
   types,
   defaultType,
   currentKm,
   paymentMethods,
+  showCost = true,
 }: {
   types: MaintenanceTypeOption[];
   defaultType?: string;
   currentKm?: number | null;
   paymentMethods: PaymentMethodOption[];
+  showCost?: boolean;
 }) {
   const [cost, setCost] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
-  const hasCost = cost.trim() !== "" && Number(cost) > 0;
+  const hasCost = showCost && cost.trim() !== "" && Number(cost) > 0;
 
   return (
     <>
@@ -43,15 +48,17 @@ export function MaintenanceFormFields({
         </SelectField>
         <TextField id="date" label="Fecha" type="date" required defaultValue={formatDateInput(new Date())} />
         <TextField id="km" label="Km" type="number" inputMode="numeric" defaultValue={currentKm ?? ""} />
-        <TextField
-          id="cost"
-          label="Costo"
-          type="text"
-          inputMode="decimal"
-          prefix="$"
-          value={cost}
-          onChange={(e) => setCost(e.target.value)}
-        />
+        {showCost && (
+          <TextField
+            id="cost"
+            label="Costo"
+            type="text"
+            inputMode="decimal"
+            prefix="$"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
+        )}
       </div>
       <TextField id="place" label="Lugar / taller" placeholder="Opcional" />
       <TextareaField id="description" label="Descripción" required rows={2} placeholder="Ej. cambio de aceite y filtros" />

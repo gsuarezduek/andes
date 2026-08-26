@@ -47,10 +47,10 @@ export default async function RentalDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ entrega?: string; devolucion?: string; fusion?: string }>;
+  searchParams: Promise<{ entrega?: string; devolucion?: string; fusion?: string; service?: string }>;
 }) {
   const { id } = await params;
-  const { entrega, devolucion, fusion } = await searchParams;
+  const { entrega, devolucion, fusion, service } = await searchParams;
   const user = await requireUser();
   const isAdmin = user.role === "admin";
 
@@ -65,6 +65,7 @@ export default async function RentalDetailPage({
     canStartReturn,
     canStartHandoverNow,
     canMarkService,
+    canCloseService,
     canEditReturn,
     returnManagedInWp,
   } = computeRentalFlags(rental);
@@ -94,7 +95,7 @@ export default async function RentalDetailPage({
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true },
+    select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, ownership: true },
   });
   const paymentMethods = rawPaymentMethods.map((m) => ({
     id: m.id,
@@ -103,10 +104,18 @@ export default async function RentalDetailPage({
     reference: m.reference ?? undefined,
     requiresNote: m.requiresNote,
   }));
+  // Para "volver a poner en servicio": cuenta propia (pago ahora) o
+  // proveedor/asociado (queda a deber, cuenta corriente de Caja).
+  const serviceAccounts = rawPaymentMethods.map((m) => ({
+    id: m.id,
+    name: m.name,
+    requiresNote: m.requiresNote,
+    ownership: m.ownership,
+  }));
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
-      <StatusBanners entrega={entrega} devolucion={devolucion} fusion={fusion} />
+      <StatusBanners entrega={entrega} devolucion={devolucion} fusion={fusion} service={service} />
 
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -122,7 +131,16 @@ export default async function RentalDetailPage({
               rentalId={rental.id}
               vehicleId={rental.vehicleId!}
               currentKm={rental.vehicle?.currentKm ?? null}
-              paymentMethods={paymentMethods}
+              mode="open"
+            />
+          )}
+          {canCloseService && (
+            <AddServiceButton
+              rentalId={rental.id}
+              vehicleId={rental.vehicleId!}
+              currentKm={rental.vehicle?.currentKm ?? null}
+              mode="close"
+              accounts={serviceAccounts}
             />
           )}
           {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
@@ -148,6 +166,13 @@ export default async function RentalDetailPage({
           })()}
         </div>
       </div>
+
+      {rental.status === "out_of_service" && (
+        <p className="rounded-lg bg-blue-500/10 px-4 py-2 text-xs font-medium text-blue-700 dark:text-blue-400">
+          Auto en service/arreglo. Usá el ícono de arriba para volver a ponerlo en servicio cuando
+          esté listo — sin importar cuánto tarde.
+        </p>
+      )}
 
       {!rental.bookingConfirmed && (
         <p className="rounded-lg bg-orange-500/10 px-4 py-2 text-xs font-medium text-orange-700 dark:text-orange-400">

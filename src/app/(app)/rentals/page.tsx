@@ -103,9 +103,9 @@ function bookedAt(r: RentalRow): Date {
  */
 async function DefaultOverview({ order }: { order: RentalListOrder }) {
   const now = new Date();
-  const { atrasadas, alquilados, proximas } = await getRentalListOverview(now);
+  const { atrasadas, alquilados, enService, proximas } = await getRentalListOverview(now);
 
-  if (atrasadas.length === 0 && alquilados.length === 0 && proximas.length === 0) {
+  if (atrasadas.length === 0 && alquilados.length === 0 && enService.length === 0 && proximas.length === 0) {
     return (
       <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
         Todavía no hay alquileres.
@@ -114,7 +114,7 @@ async function DefaultOverview({ order }: { order: RentalListOrder }) {
   }
 
   if (order === "reserva") {
-    const ultimas = [...atrasadas, ...alquilados, ...proximas].sort(
+    const ultimas = [...atrasadas, ...alquilados, ...enService, ...proximas].sort(
       (a, b) => bookedAt(b).getTime() - bookedAt(a).getTime(),
     );
     return (
@@ -150,6 +150,15 @@ async function DefaultOverview({ order }: { order: RentalListOrder }) {
           <RentalList rentals={alquilados} />
         )}
       </section>
+
+      {enService.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+            En service ({enService.length})
+          </h2>
+          <RentalList rentals={enService} />
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
