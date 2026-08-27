@@ -126,4 +126,13 @@ export const env = {
       admin: required("ADMIN_EMAIL"),
     };
   },
+
+  /** Claude (Anthropic) para normalización de categorías y extracción de
+   *  respaldo en precios de competencia (src/lib/competitor-prices). */
+  get llm() {
+    return { apiKey: required("ANTHROPIC_API_KEY") };
+  },
+  get hasLlm(): boolean {
+    return Boolean(optional("ANTHROPIC_API_KEY"));
+  },
 } as const;

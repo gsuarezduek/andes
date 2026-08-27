@@ -140,6 +140,24 @@ enum Currency {
   usd
 }
 
+/// Confiabilidad de un precio de competencia (ver CompetitorPriceCheck).
+/// `verified` = revisado/confirmado a mano; `auto_found` = extraído solo con
+/// confianza suficiente (selectores, o LLM con grounding verificado);
+/// `needs_review` = extraído pero con dudas; `unavailable` = no se pudo
+/// obtener (sitio caído, bloqueo, sin resultados) — nunca se inventa un precio.
+enum CompetitorPriceStatus {
+  verified
+  auto_found
+  needs_review
+  unavailable
+}
+
+/// Quién disparó una corrida de precios de competencia.
+enum CompetitorRunTrigger {
+  manual
+  cron
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -272,6 +290,13 @@ model Vehicle {
   // Mapeo a la unidad de VikRentCar (idcar, carindex). Ver docs/wordpress-mapping.md.
   wpCarId    Int? @map("wp_car_id")
   wpCarIndex Int? @map("wp_car_index")
+
+  // Categoría de mercado para comparar contra precios de la competencia (ej.
+  // Económico/SUV). Independiente de PROD-03 (plantillas de condiciones
+  // económicas por segmento, todavía sin decidir) — no unificar sin que medie
+  // una decisión de producto nueva. Ver CompetitorCategory.
+  competitorCategoryId String?             @map("competitor_category_id")
+  competitorCategory   CompetitorCategory? @relation(fields: [competitorCategoryId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1074,4 +1099,206 @@ model SyncLog {
   createdAt DateTime   @default(now()) @map("created_at")
 
   @@map("sync_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Precios de la competencia (rentadoras de Mendoza): scraping + LLM, con
+// normalización de categorías e historial. Ver el plan de diseño para el
+// contexto completo (modelo append-only + tabla de "actual" denormalizada,
+// mismo patrón que Vehicle.dailyRate/SeasonRate).
+// ---------------------------------------------------------------------------
+
+/// Una rentadora competidora a trackear. `adapterKey` identifica qué módulo
+/// de src/lib/competitor-prices/adapters la maneja (cada sitio tiene su
+/// propio flujo/selectores — no es 100% genérico por config). `active=false`
+/// saca al competidor de las corridas sin borrar su historial (ej. si no se
+/// encuentra una fuente confiable, como puede pasar con Cactus).
+model Competitor {
+  id         String  @id @default(cuid())
+  name       String
+  url        String
+  active     Boolean @default(true)
+  adapterKey String  @map("adapter_key")
+  config     Json? // parámetros propios del adaptador (sucursal, ids de formulario, etc.)
+  notes      String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  categoryMappings CompetitorCategoryMapping[]
+  priceChecks      CompetitorPriceCheck[]
+  currentPrices    CompetitorCurrentPrice[]
+
+  @@map("competitors")
+}
+
+/// Catálogo fijo de categorías de mercado para comparar contra la
+/// competencia (Económico/Compacto/Intermedio/SUV/...). Independiente de
+/// PROD-03 (plantillas de condiciones económicas por segmento, todavía sin
+/// decidir) — comentario a propósito: no unificar sin que medie una
+/// decisión de producto nueva, y por eso se evita la palabra "segmento" acá.
+model CompetitorCategory {
+  id       String @id @default(cuid())
+  label    String @unique
+  ordering Int    @default(0)
+
+  suggestedInMappings CompetitorCategoryMapping[] @relation("CompetitorCategoryMappingSuggested")
+  confirmedInMappings CompetitorCategoryMapping[] @relation("CompetitorCategoryMappingConfirmed")
+  priceChecks         CompetitorPriceCheck[]
+  currentPrices       CompetitorCurrentPrice[]
+  vehicles            Vehicle[]
+
+  @@map("competitor_categories")
+}
+
+/// Normalización: qué categoría interna corresponde a un rótulo crudo visto
+/// en el sitio de un competidor (ej. "Corolla Sedan" → Intermedio). El LLM
+/// propone `suggestedCategoryId` la primera vez que aparece un `rawLabel`
+/// nuevo, pero `categoryId` (el que cuenta para la tabla comparativa) queda
+/// null hasta que un humano lo confirma en la cola de revisión — es la
+/// única pieza donde una clasificación mal hecha sesgaría todo en silencio,
+/// y como los rawLabel nuevos son raros, exigir confirmación sale barato.
+model CompetitorCategoryMapping {
+  id String @id @default(cuid())
+
+  competitorId String     @map("competitor_id")
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+
+  rawLabel String @map("raw_label")
+
+  suggestedCategoryId String?             @map("suggested_category_id")
+  suggestedCategory   CompetitorCategory? @relation("CompetitorCategoryMappingSuggested", fields: [suggestedCategoryId], references: [id])
+
+  categoryId String?             @map("category_id")
+  category   CompetitorCategory? @relation("CompetitorCategoryMappingConfirmed", fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([competitorId, rawLabel])
+  @@map("competitor_category_mappings")
+}
+
+/// Log histórico APPEND-ONLY de cada precio consultado (nunca se actualiza,
+/// solo se inserta) — alimenta el detalle/tendencia. La tabla comparativa
+/// NO lee de acá directo (ver CompetitorCurrentPrice); esto es el archivo.
+/// `price`/`currency`/`status=unavailable` conviven: un intento fallido
+/// igual queda registrado, con `errorReason`, para trazabilidad y alertas.
+model CompetitorPriceCheck {
+  id String @id @default(cuid())
+
+  competitorId String     @map("competitor_id")
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+
+  // Categoría resuelta (null si el rawLabel todavía no está confirmado) +
+  // el rótulo crudo tal cual vino de la fuente, para trazabilidad aunque el
+  // mapeo cambie después.
+  categoryId String?             @map("category_id")
+  category   CompetitorCategory? @relation(fields: [categoryId], references: [id])
+  rawLabel   String?             @map("raw_label")
+
+  price    Decimal?  @db.Decimal(12, 2)
+  currency Currency?
+
+  checkedAt  DateTime @map("checked_at")
+  // DateTime normal, NO @db.Date: son el instante UTC de la medianoche de
+  // Mendoza (mendozaWallTimeToUtc), mismo patrón que Task.dueDate. Un
+  // @db.Date acá trunca a la fecha calendario en UTC y, al mostrarla de
+  // vuelta con un formateador Mendoza-aware, corre un día para atrás
+  // (bug real encontrado y corregido: verificado con Playwright, "Retiro"
+  // mostraba el día anterior a las 21:00).
+  pickupDate DateTime @map("pickup_date")
+  returnDate DateTime @map("return_date")
+  days       Int
+
+  includesTax       Boolean? @map("includes_tax")
+  includesInsurance Boolean? @map("includes_insurance")
+  conditionsNote    String?  @map("conditions_note") @db.Text
+
+  sourceUrl String? @map("source_url") @db.Text
+
+  status      CompetitorPriceStatus
+  errorReason String?               @map("error_reason") @db.Text
+
+  // String citado tal cual por el LLM (grounding: se verifica que aparezca
+  // literal en el texto crudo antes de confiar en él) — para auditar qué
+  // extrajo y por qué se descartó algo mientras se calibra el pipeline.
+  // Null cuando el precio salió de selectores, sin pasar por el LLM.
+  llmCitation String? @map("llm_citation") @db.Text
+
+  runId String             @map("run_id")
+  run   CompetitorCheckRun @relation(fields: [runId], references: [id])
+
+  currentPriceRef CompetitorCurrentPrice?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([competitorId, categoryId, pickupDate])
+  @@index([runId])
+  @@map("competitor_price_checks")
+}
+
+/// Último precio válido por (competidor, categoría, ventana de fecha) —
+/// tabla chica y denormalizada, la que lee la pantalla de comparación.
+/// El orquestador hace upsert acá después de cada check exitoso; si el
+/// check más reciente da `unavailable`, esta fila simplemente no se pisa
+/// (el precio anterior sigue siendo el "último válido", solo se ve
+/// desactualizado por `lastCheckedAt`).
+model CompetitorCurrentPrice {
+  id String @id @default(cuid())
+
+  competitorId String     @map("competitor_id")
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+
+  categoryId String             @map("category_id")
+  category   CompetitorCategory @relation(fields: [categoryId], references: [id])
+
+  // Offset de días (0/30/60/...) desde el momento del check, no la fecha de
+  // retiro en sí — así la celda de la comparación es estable sin importar
+  // cuándo se corrió el check. Ver CompetitorPriceSettings.offsetsDays.
+  pickupOffsetDays Int @map("pickup_offset_days")
+
+  priceCheckId String               @unique @map("price_check_id")
+  priceCheck   CompetitorPriceCheck @relation(fields: [priceCheckId], references: [id])
+
+  lastCheckedAt DateTime @map("last_checked_at")
+
+  @@unique([competitorId, categoryId, pickupOffsetDays])
+  @@map("competitor_current_prices")
+}
+
+/// Una corrida de actualización de precios (mirror de SyncLog). `result`
+/// null mientras está en curso (`finishedAt` también null) — sirve de guard
+/// de concurrencia: no arrancar una corrida nueva si ya hay una sin
+/// terminar.
+model CompetitorCheckRun {
+  id String @id @default(cuid())
+
+  triggeredBy CompetitorRunTrigger @map("triggered_by")
+
+  startedAt  DateTime  @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  result     SyncResult? // reusa el mismo enum que SyncLog (success/partial/error)
+
+  competitorsChecked Int     @default(0) @map("competitors_checked")
+  pricesFound        Int     @default(0) @map("prices_found")
+  errors             Int     @default(0)
+  message            String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  priceChecks CompetitorPriceCheck[]
+
+  @@map("competitor_check_runs")
+}
+
+/// Singleton (mismo patrón que ConditionSettings) — ventanas de fecha y
+/// duración configurables sin tocar código. Default: hoy/+30/+60, 3 días.
+model CompetitorPriceSettings {
+  id                 Int      @id @default(1)
+  offsetsDays        Int[]    @default([0, 30, 60]) @map("offsets_days")
+  rentalDurationDays Int      @default(3) @map("rental_duration_days")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("competitor_price_settings")
 }

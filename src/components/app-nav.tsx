@@ -46,7 +46,15 @@ export function AppNav({
   const menuItems: Item[] = [
     { href: "/profile", label: "Perfil" },
     { href: "/sync", label: "Sincronización" },
-    ...(isAdmin ? [{ href: "/settings", label: "Configuración" }] : []),
+    // "Competencia" queda en el menú de cuenta (no en la barra principal) a
+    // propósito, mientras se sigue puliendo — pasa a la barra principal más
+    // adelante.
+    ...(isAdmin
+      ? [
+          { href: "/competitor-prices", label: "Competencia" },
+          { href: "/settings", label: "Configuración" },
+        ]
+      : []),
   ];
 
   const isActive = (href: string) =>

@@ -17,6 +17,7 @@
     "db:checklist": "node --env-file=.env prisma/sync-checklist.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@aws-sdk/client-s3": "^3.1085.0",
     "@aws-sdk/s3-request-presigner": "^3.1085.0",
     "@prisma/client": "^6.19.3",
