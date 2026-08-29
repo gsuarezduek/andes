@@ -33,6 +33,29 @@ export async function toggleCompetitorActive(id: string): Promise<void> {
   revalidatePath("/competitor-prices");
 }
 
+/**
+ * Borra un competidor y todo su historial (mappings, checks, precio
+ * actual) — a diferencia de "Desactivar", esto no se puede deshacer. Pensado
+ * para limpiar un competidor cargado por error o con datos de prueba (ej.
+ * adaptador `mock`), no para el uso normal (ahí alcanza con desactivar). Sin
+ * `onDelete: Cascade` en el schema (a propósito: un `delete` accidental de
+ * un competidor con datos reales no debería poder tirar abajo su historial
+ * sin pasar por acá), así que se borra a mano en el orden correcto dentro de
+ * una transacción.
+ */
+export async function deleteCompetitor(id: string): Promise<void> {
+  await requireAdmin();
+  await prisma.$transaction([
+    prisma.competitorCurrentPrice.deleteMany({ where: { competitorId: id } }),
+    prisma.competitorPriceCheck.deleteMany({ where: { competitorId: id } }),
+    prisma.competitorCategoryMapping.deleteMany({ where: { competitorId: id } }),
+    prisma.competitor.delete({ where: { id } }),
+  ]);
+  revalidatePath("/competitor-prices/competitors");
+  revalidatePath("/competitor-prices/categories");
+  revalidatePath("/competitor-prices");
+}
+
 /** Confirma (o corrige) a mano la categoría de un rótulo crudo de competidor — recién ahí cuenta para la tabla comparativa. */
 export async function confirmCategoryMapping(mappingId: string, formData: FormData): Promise<void> {
   await requireAdmin();
