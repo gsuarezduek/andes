@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
-import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS } from "@/lib/calendar";
+import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
 import { ButtonLink } from "@/components/ui/button";
 import { CalendarGrid } from "./calendar-grid";
 
@@ -39,6 +39,9 @@ export default async function CalendarPage({
             </ButtonLink>
             <ButtonLink href={`/calendar?from=${data.from}&days=${MONTH_DAYS}`} variant={!data.month && data.days === MONTH_DAYS ? "primary" : "secondary"}>
               Mes
+            </ButtonLink>
+            <ButtonLink href={`/calendar?from=${data.from}&days=${WIDE_DAYS}`} variant={!data.month && data.days === WIDE_DAYS ? "primary" : "secondary"}>
+              90 días
             </ButtonLink>
           </div>
           <form className="flex items-center gap-2">
@@ -96,7 +99,8 @@ export default async function CalendarPage({
       </div>
 
       <p className="text-xs text-foreground/40">
-        Autos ordenados por su orden de calendario (editable en cada ficha).
+        Autos ordenados por su orden de calendario (editable en cada ficha). En 90 días se puede
+        desplazar la grilla hacia los costados para moverse en el tiempo, sin usar Anterior/Siguiente.
         Pasá el mouse por una barra para ver las notas de la reserva; el precio de cada auto
         (desktop) y los días con temporada especial se traen de VikRentCar.
       </p>

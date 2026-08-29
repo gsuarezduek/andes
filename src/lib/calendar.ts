@@ -8,13 +8,18 @@ import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/r
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Ventana por defecto (columnas de día) que muestra el calendario: 31 días,
- *  con hoy corrido hacia atrás (35% antes / 65% después, ver `centerOffsetDays`). */
-export const DEFAULT_CALENDAR_DAYS = 31;
-
-/** Presets de rango que ofrece el filtro Semana/Mes. */
+/** Presets de rango que ofrece el filtro Semana/Mes/90 días. */
 export const WEEK_DAYS = 7;
 export const MONTH_DAYS = 31;
+// Con `centerOffsetDays` (35%/65%) da 31 atrás + hoy + 58 adelante — el
+// "~30 atrás / ~60 adelante" pedido, navegable con el scroll horizontal de
+// la grilla en vez de tener que ir clickeando Anterior/Siguiente.
+export const WIDE_DAYS = 90;
+
+/** Ventana por defecto (columnas de día) que muestra el calendario al entrar
+ *  sin filtros: la más amplia (`WIDE_DAYS`), con hoy corrido hacia atrás
+ *  (35% antes / 65% después, ver `centerOffsetDays`). */
+export const DEFAULT_CALENDAR_DAYS = WIDE_DAYS;
 
 /** Valida el parámetro `days` de la URL; cualquier otra cosa cae al default. */
 export function normalizeCalendarDays(raw: string | undefined): number {

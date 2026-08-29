@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
 import {
   COL_W_MONTH,
@@ -29,10 +29,27 @@ export function CalendarGrid({
 }) {
   const [hover, setHover] = useState<Hover>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
   const dense = columns.length <= WEEK_MAX_COLUMNS;
   const colW = dense ? COL_W_WEEK : COL_W_MONTH;
   const rowH = dense ? ROW_H_WEEK : ROW_H_MONTH;
   const trackW = columns.length * colW;
+
+  // Con ventanas anchas (90 días) "hoy" puede quedar bien a la derecha del
+  // recorte inicial de la pantalla — sin esto, entrar a la vista arranca
+  // mostrando el pasado lejano en vez de arrancar cerca de hoy. Deja un par
+  // de columnas de contexto antes en vez de pegar "hoy" al borde izquierdo.
+  // Si la ventana no incluye hoy (se navegó lejos con Anterior/Siguiente),
+  // arranca al principio en vez de heredar el scroll de la navegación previa.
+  // Sólo corre cuando cambia la ventana (nueva navegación desde el server),
+  // no hay scroll automático mientras el usuario navega la grilla a mano.
+  useEffect(() => {
+    if (!bodyScrollRef.current) return;
+    const todayIndex = columns.findIndex((c) => c.isToday);
+    const left = todayIndex >= 0 ? Math.max(0, (todayIndex - 3) * colW) : 0;
+    bodyScrollRef.current.scrollLeft = left;
+    if (headerScrollRef.current) headerScrollRef.current.scrollLeft = left;
+  }, [columns, colW]);
 
   const show = (bar: CalendarBar, e: React.MouseEvent) =>
     setHover({ type: "bar", bar, x: e.clientX, y: e.clientY });
@@ -125,7 +142,7 @@ export function CalendarGrid({
 
       {/* Cuerpo: scroll horizontal propio (con barra visible), alto libre —
           crece con la cantidad de autos, sin recortar filas. */}
-      <div className="overflow-x-auto rounded-b-xl" onScroll={syncHeaderScroll}>
+      <div ref={bodyScrollRef} className="overflow-x-auto rounded-b-xl" onScroll={syncHeaderScroll}>
         <div style={{ minWidth: LABEL_W_MOBILE + trackW }}>
           {/* Filas de vehículos */}
           {rows.map((row) => (
