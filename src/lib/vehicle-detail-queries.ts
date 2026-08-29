@@ -5,6 +5,7 @@ export async function getVehicleDetail(id: string) {
   return prisma.vehicle.findUnique({
     where: { id },
     include: {
+      competitorCategory: { select: { label: true } },
       rentals: {
         orderBy: { startAt: "desc" },
         include: { inspections: { select: { type: true, km: true } } },

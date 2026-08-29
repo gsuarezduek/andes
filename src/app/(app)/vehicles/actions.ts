@@ -60,6 +60,10 @@ const adminOnlySchema = z.object({
   chassisNumber: optionalStr,
   insurancePolicyNumber: optionalStr,
   insuranceCompany: optionalStr,
+  // Categoría interna para comparar contra "Precios de la competencia"
+  // (columna "Nosotros"). No es un dato legal, pero vive junto a los demás
+  // campos admin-only por consistencia con el resto de esa sección.
+  competitorCategoryId: optionalStr,
 });
 
 const vehicleSchema = operationalSchema.merge(adminOnlySchema);
@@ -94,6 +98,7 @@ function parse(formData: FormData) {
     chassisNumber: formData.get("chassisNumber"),
     insurancePolicyNumber: formData.get("insurancePolicyNumber"),
     insuranceCompany: formData.get("insuranceCompany"),
+    competitorCategoryId: formData.get("competitorCategoryId"),
   });
 }
 

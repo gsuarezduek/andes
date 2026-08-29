@@ -15,6 +15,7 @@ export function VehicleForm({
   vehicle,
   cancelHref,
   isAdmin,
+  competitorCategories,
 }: {
   action: Action;
   // Sin dailyRate: es un Decimal, no se puede pasar de Server a Client
@@ -22,6 +23,8 @@ export function VehicleForm({
   vehicle?: Omit<Vehicle, "dailyRate">;
   cancelHref: string;
   isAdmin: boolean;
+  /** Catálogo de "Precios de la competencia" para el selector "Nosotros". */
+  competitorCategories: { id: string; label: string }[];
 }) {
   const [state, formAction] = useActionState(action, {});
 
@@ -89,6 +92,24 @@ export function VehicleForm({
         <TextField id="insuranceCompany" label="Empresa de seguro" defaultValue={vehicle?.insuranceCompany ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
         <TextField id="insurancePolicyNumber" label="Número de póliza" defaultValue={vehicle?.insurancePolicyNumber ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
       </div>
+      <SelectField
+        id="competitorCategoryId"
+        label="Categoría de competencia"
+        hint={
+          adminLockedHint ??
+          "Para comparar contra otras rentadoras en Precios de la competencia (columna «Nosotros»). Opcional."
+        }
+        defaultValue={vehicle?.competitorCategoryId ?? ""}
+        className={adminLockedClass}
+        {...adminLockedProps}
+      >
+        <option value="">Sin categoría</option>
+        {competitorCategories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label}
+          </option>
+        ))}
+      </SelectField>
       <TextareaField id="notes" label="Notas" defaultValue={vehicle?.notes ?? ""} />
 
       <FormError>{state.error}</FormError>
