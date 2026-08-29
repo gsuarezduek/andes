@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { vikRentCarUnixToUtc } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
-import { roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
+import { computeBalance, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
 import type { RawBooking, RawOptional } from "./types";
 import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
@@ -142,13 +142,16 @@ async function upsertWpPaymentMethodCatalog(name: string | null): Promise<void> 
  */
 async function resolveWpPaymentMethod(
   name: string | null,
-): Promise<{ id: string; name: string } | null> {
+): Promise<{ id: string; name: string; adjustmentPercent: number | null } | null> {
   if (!name) return null;
   const wp = await prisma.wpPaymentMethod.findUnique({
     where: { name },
-    include: { paymentMethods: { select: { id: true, name: true } } },
+    include: { paymentMethods: { select: { id: true, name: true, adjustmentPercent: true } } },
   });
-  if (wp?.paymentMethods.length === 1) return wp.paymentMethods[0];
+  if (wp?.paymentMethods.length === 1) {
+    const m = wp.paymentMethods[0];
+    return { id: m.id, name: m.name, adjustmentPercent: m.adjustmentPercent != null ? Number(m.adjustmentPercent) : null };
+  }
   return null;
 }
 
@@ -196,17 +199,30 @@ export async function importBookingPayment(
 
     const rental = await tx.rental.findUnique({ where: { id: rentalId }, select: { pricing: true } });
     const pricing = (rental?.pricing ?? {}) as ContractPricing;
+    // `delta` es lo realmente cobrado (adjustedAmount, ya reflejado en el
+    // CashMovement de arriba). Si el medio resuelto tiene % (ej. recargo de
+    // tarjeta), la base se calcula hacia atrás — es lo que cuenta para
+    // "Paga"/Saldo, ver `RentalPayment` en contract.ts. Sin medio resuelto
+    // (needsConfirmation) no hay % que aplicar todavía: base = delta, y se
+    // recalcula cuando alguien confirme el medio real (ver
+    // `confirmCashMovementPaymentMethod`).
+    const pct = resolved?.adjustmentPercent ?? null;
+    const amount = pct ? roundMoney(delta / (1 + pct / 100)) : delta;
     const payment: RentalPayment = {
       methodId: resolved?.id,
       methodName,
-      amount: delta,
+      adjustmentPercent: pct ?? undefined,
+      amount,
       adjustedAmount: delta,
       cashMovementId: movement.id,
       unconfirmed: needsConfirmation,
     };
     const nextPayments = [...(pricing.payments ?? []), payment];
-    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.adjustedAmount, 0));
+    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
     const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
+    if (pricing.total != null) {
+      nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
+    }
 
     await tx.rental.update({
       where: { id: rentalId },

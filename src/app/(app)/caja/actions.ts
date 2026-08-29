@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
-import type { ContractPricing } from "@/lib/contract";
+import { computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
 
 const createMovementSchema = z.object({
@@ -229,6 +229,13 @@ const confirmMethodSchema = z.object({
  * completa, solo admin, vía `updateCashMovement`). Si la reserva sigue con la
  * línea correspondiente en `pricing.payments`, también se actualiza ahí para
  * que el wizard de entrega la vea ya resuelta.
+ *
+ * Al importar, el monto crudo de VikRentCar (`totpaid`) queda como base Y
+ * como ajustado por igual — recién acá se sabe el medio real, así que si
+ * tiene % (ej. recargo de tarjeta) se recalcula la base hacia atrás a partir
+ * de lo realmente cobrado (que no cambia — ya es lo que entró a Caja): si el
+ * cliente pagó $53 con una tarjeta de +6%, la base pasa a ser $50, y eso —no
+ * $53— es lo que cuenta para "Paga"/Saldo (ver `RentalPayment` en contract.ts).
  */
 export async function confirmCashMovementPaymentMethod(id: string, formData: FormData) {
   const user = await requireUser();
@@ -269,14 +276,31 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
       const rental = await tx.rental.findUnique({ where: { id: existing.rentalId }, select: { pricing: true } });
       const pricing = (rental?.pricing ?? {}) as ContractPricing;
       if (pricing.payments?.some((p) => p.cashMovementId === id)) {
-        const nextPayments = pricing.payments.map((p) =>
-          p.cashMovementId === id
-            ? { ...p, methodId: method.id, methodName: method.name, note: nextNote ?? undefined, unconfirmed: false }
-            : p,
-        );
+        const pct = method.adjustmentPercent != null ? Number(method.adjustmentPercent) : null;
+        const nextPayments = pricing.payments.map((p) => {
+          if (p.cashMovementId !== id) return p;
+          // adjustedAmount es lo realmente cobrado — no cambia. La base se
+          // recalcula hacia atrás con el % del medio recién confirmado (sin
+          // %, base = lo cobrado, igual que antes de confirmar).
+          const amount = pct ? roundMoney(p.adjustedAmount / (1 + pct / 100)) : p.adjustedAmount;
+          return {
+            ...p,
+            methodId: method.id,
+            methodName: method.name,
+            adjustmentPercent: pct ?? undefined,
+            amount,
+            note: nextNote ?? undefined,
+            unconfirmed: false,
+          };
+        });
+        const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
+        const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
+        if (pricing.total != null) {
+          nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
+        }
         await tx.rental.update({
           where: { id: existing.rentalId! },
-          data: { pricing: { ...pricing, payments: nextPayments } },
+          data: { pricing: nextPricing },
         });
       }
     }

@@ -227,7 +227,7 @@ export function buildInspectionPayload(
   if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
   if (draft.payments.length) {
     pricing.payments = draft.payments;
-    pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.adjustedAmount, 0));
+    pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.amount, 0));
   }
 
   // holderName en el draft es el id del conductor adicional; al persistir lo

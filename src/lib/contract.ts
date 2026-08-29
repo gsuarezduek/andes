@@ -45,7 +45,7 @@ export type ContractPricing = {
   deposit?: number; // garantía tomada en la entrega (= deductible); cubre daños en la devolución
   guaranteeForm?: string; // forma de la garantía (efectivo, tarjeta, etc.) — entrega
   // Medios de pago con los que se cobró "Paga" (entrega). `paid` es la suma de
-  // `adjustedAmount` de estas líneas — dejó de tipearse a mano.
+  // `amount` (importe base) de estas líneas — dejó de tipearse a mano.
   payments?: RentalPayment[];
 };
 
@@ -53,13 +53,23 @@ export type ContractPricing = {
  * Una línea de pago cargada en la entrega (medio de pago elegido + importe).
  * Snapshot al momento de cargarla: si el medio de pago cambia de nombre o %
  * después, esta línea no se ve afectada (la inspección es inmutable).
+ *
+ * `amount` (base) es lo que cuenta para "Paga"/Saldo — es la porción del
+ * total que esta línea salda. `adjustedAmount` es lo que realmente entró
+ * (con el recargo/descuento del medio ya aplicado) — es el importe real
+ * cargado en Caja y el que se muestra en el acta por línea, para que las
+ * cuentas cierren contra lo que efectivamente ingresó al banco. Un recargo
+ * de tarjeta, por ejemplo, no reduce el saldo del cliente más de lo que
+ * corresponde: si debía $50 y por pagar con tarjeta terminó abonando $53,
+ * el saldo baja $50 (no $53) — el resto es el costo de la tarjeta, no parte
+ * del alquiler.
  */
 export type RentalPayment = {
   methodId?: string; // referencia informativa al PaymentMethod (puede haber sido borrado)
   methodName: string;
   adjustmentPercent?: number; // % al momento de cargar el pago (+ recargo, − descuento)
-  amount: number; // importe base cargado por el empleado
-  adjustedAmount: number; // amount ajustado por el %; es lo que suma a "Paga"
+  amount: number; // importe base — es lo que suma a "Paga"
+  adjustedAmount: number; // amount ajustado por el %; lo realmente cobrado (Caja, acta)
   // Aclaración libre, obligatoria cuando el medio elegido tenía `requiresNote`
   // (ej. "Otro"): indica a dónde fue el pago.
   note?: string;

@@ -5,7 +5,7 @@ import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
-import { formatArs, paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
+import { formatArs, paymentAdjustedAmount, roundMoney, type RentalPayment } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 
 type PaymentMethodOption = {
@@ -41,7 +41,12 @@ export function PaymentsEditor({
   const [payAmount, setPayAmount] = useState("");
   const [payNote, setPayNote] = useState("");
 
-  const paidTotal = payments.reduce((a, p) => a + p.adjustedAmount, 0);
+  // Suma el importe base (lo que cuenta para el saldo) — no lo realmente
+  // cobrado (`adjustedAmount`, que cada línea sigue mostrando aparte). Ver
+  // el comentario de `RentalPayment` en contract.ts.
+  const paidTotal = payments.reduce((a, p) => a + p.amount, 0);
+  const chargedTotal = payments.reduce((a, p) => a + p.adjustedAmount, 0);
+  const surcharge = roundMoney(chargedTotal - paidTotal);
   const selectedMethod = paymentMethods.find((m) => m.id === payMethodId);
 
   function openPayModal() {
@@ -73,6 +78,12 @@ export function PaymentsEditor({
         <span className="text-sm font-medium text-foreground/80">{totalLabel}</span>
         <span className="text-sm font-semibold text-foreground">{formatArs(paidTotal)}</span>
       </div>
+      {Math.abs(surcharge) > 0.01 && (
+        <p className="text-xs text-foreground/50">
+          Cobrado realmente: {formatArs(chargedTotal)} — {formatArs(Math.abs(surcharge))}{" "}
+          {surcharge > 0 ? "de recargo" : "de descuento"} por medios de pago, no se descuenta del saldo.
+        </p>
+      )}
       {payments.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {payments.map((p, i) => (

@@ -107,4 +107,36 @@ describe("importBookingPayment", () => {
     expect(data.needsConfirmation).toBe(true);
     expect(data.paymentMethodName).toContain("Stripe");
   });
+
+  it("si el medio resuelto tiene % de recargo, calcula la base hacia atrás — solo la base cuenta para Paga", async () => {
+    prismaMock.wpPaymentMethod.findUnique.mockResolvedValue({
+      name: "Tarjeta",
+      paymentMethods: [{ id: "pm1", name: "Tarjeta (+6%)", adjustmentPercent: 6 }],
+    });
+
+    // El cliente debía $50 pero por el recargo de tarjeta terminó pagando $53
+    // (lo que realmente llegó a la cuenta, `totpaid` de VikRentCar).
+    await importBookingPayment("r1", null, 53_000, "Tarjeta", 2997, "Juan Pérez");
+
+    // Caja/CashMovement.amount sigue siendo lo real cobrado — nunca se toca.
+    const cashData = tx.cashMovement.create.mock.calls[0][0].data;
+    expect(cashData.amount).toBe(53_000);
+
+    const pricing = tx.rental.update.mock.calls[0][0].data.pricing;
+    expect(pricing.payments[0]).toMatchObject({ amount: 50_000, adjustedAmount: 53_000, adjustmentPercent: 6 });
+    // "Paga" cuenta la base, no lo cobrado con recargo.
+    expect(pricing.paid).toBe(50_000);
+  });
+
+  it("sin % en el medio resuelto, base = adjustedAmount (sin split)", async () => {
+    prismaMock.wpPaymentMethod.findUnique.mockResolvedValue({
+      name: "Efectivo",
+      paymentMethods: [{ id: "pm1", name: "Efectivo" }],
+    });
+
+    await importBookingPayment("r1", null, 20_000, "Efectivo", 2997, "Juan Pérez");
+
+    const pricing = tx.rental.update.mock.calls[0][0].data.pricing;
+    expect(pricing.payments[0]).toMatchObject({ amount: 20_000, adjustedAmount: 20_000 });
+  });
 });

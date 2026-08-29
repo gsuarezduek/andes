@@ -42,7 +42,7 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
     });
     const paymentWithRef: RentalPayment = { ...payment, cashMovementId: movement.id };
     const nextPayments = [...(pricing.payments ?? []), paymentWithRef];
-    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.adjustedAmount, 0));
+    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
     const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
     if (pricing.total != null) {
       nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;

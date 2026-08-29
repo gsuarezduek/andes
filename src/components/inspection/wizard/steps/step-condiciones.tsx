@@ -58,11 +58,6 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
         : null
       : null;
 
-  // El recargo/descuento de cada línea de pago (adjustedAmount − amount)
-  // también se suma/resta del "Total a pagar", para que el Saldo cierre en
-  // $0 en vez de quedar negativo cuando se cobra con un medio con recargo.
-  const paymentsSurcharge = draft.payments.reduce((a, p) => a + (p.adjustedAmount - p.amount), 0);
-
   // Alerta si el Saldo tipeado a mano quedó desalineado de Total − Seña −
   // Paga (el campo se autocompleta al agregar/quitar un pago, pero sigue
   // siendo editable — un valor viejo puede quedar pisado por error).
@@ -77,15 +72,16 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
       ? { currentBalance, computedBalance }
       : null;
 
-  // Aplica en un solo `patch` el nuevo array de pagos + el ajuste de Total y
-  // Paga (y recalcula Saldo) — dos `setPay` seguidos pisarían el pricing del
-  // otro porque ambos parten del mismo snapshot de `draft.pricing`.
-  function applyPayments(nextPayments: RentalPayment[], totalDelta: number) {
-    const currentTotal = parseDecimal(draft.pricing.total as string | undefined) ?? 0;
-    const nextPaid = roundMoney(nextPayments.reduce((a, p) => a + p.adjustedAmount, 0));
+  // Aplica en un solo `patch` el nuevo array de pagos + Paga (y recalcula
+  // Saldo) — dos `setPay` seguidos pisarían el pricing del otro porque ambos
+  // parten del mismo snapshot de `draft.pricing`. Paga suma el importe base
+  // de cada línea (no lo realmente cobrado con recargo/descuento — ver
+  // comentario de `RentalPayment` en contract.ts), así que "Total a pagar"
+  // no necesita ajustarse por el medio de pago elegido.
+  function applyPayments(nextPayments: RentalPayment[]) {
+    const nextPaid = roundMoney(nextPayments.reduce((a, p) => a + p.amount, 0));
     const nextPricing: Record<string, string> = {
       ...draft.pricing,
-      total: String(roundMoney(currentTotal + totalDelta)),
       paid: nextPayments.length ? String(nextPaid) : "",
     };
     const bal = computeBalance({
@@ -97,12 +93,10 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
     patch({ payments: nextPayments, pricing: nextPricing });
   }
   function addPayment(payment: RentalPayment) {
-    applyPayments([...draft.payments, payment], payment.adjustedAmount - payment.amount);
+    applyPayments([...draft.payments, payment]);
   }
   function removePayment(index: number) {
-    const removed = draft.payments[index];
-    const next = draft.payments.filter((_, i) => i !== index);
-    applyPayments(next, -(removed.adjustedAmount - removed.amount));
+    applyPayments(draft.payments.filter((_, i) => i !== index));
   }
 
   return (
@@ -205,11 +199,6 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
             <TextField id="pricing_total" label="Total a pagar" type="text" inputMode="decimal" prefix="$" value={priceStr("total")} onChange={(e) => setPay("total", e.target.value)} />
             <TextField id="pricing_sena" label="Seña" type="text" inputMode="decimal" prefix="$" value={priceStr("sena")} onChange={(e) => setPay("sena", e.target.value)} />
           </div>
-          {Math.abs(paymentsSurcharge) > 0.001 && (
-            <p className="text-xs text-foreground/50">
-              Incluye {formatArs(paymentsSurcharge)} de {paymentsSurcharge > 0 ? "recargo" : "descuento"} por medios de pago.
-            </p>
-          )}
           {totalDiffWarning && (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
               ⚠ El total cargado ({formatArs(totalDiffWarning.currentTotal)}) difiere bastante del total de la
