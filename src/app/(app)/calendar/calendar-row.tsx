@@ -38,10 +38,11 @@ export function Row({
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
       {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
-          Si el auto tiene un apodo cargado, es lo principal (con
-          patente+modelo de secundario); si no, la patente es lo principal y
-          el modelo el secundario, como antes. Las filas sin unidad (plate
-          null) no tienen perfil. */}
+          Si el auto tiene un apodo cargado, es lo principal y alcanza (sin
+          patente/modelo de secundario, para no duplicar la referencia en un
+          espacio chico) — el precio va debajo. Sin apodo, la patente es lo
+          principal y el modelo el secundario, como antes. Las filas sin
+          unidad (plate null) no tienen perfil. */}
       {row.plate ? (
         <Link
           href={`/vehicles/${row.id}`}
@@ -72,9 +73,11 @@ export function Row({
           <span className="hidden truncate text-sm font-semibold leading-tight sm:block">
             {row.name ?? row.plate}
           </span>
-          <span className="hidden truncate text-[11px] text-foreground/45 sm:block">
-            {row.name ? `${row.plate} · ${row.label}` : row.label}
-          </span>
+          {row.name ? null : (
+            <span className="hidden truncate text-[11px] text-foreground/45 sm:block">
+              {row.label}
+            </span>
+          )}
           {row.dailyRate != null ? (
             <span className="hidden truncate text-[11px] font-medium text-foreground/60 sm:block">
               {formatArs(row.dailyRate)}/día
