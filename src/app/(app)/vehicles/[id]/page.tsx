@@ -9,6 +9,7 @@ import { TeamNotesSection } from "@/components/team-notes-section";
 import { addVehicleNote, resolveVehicleNote } from "./notes-actions";
 import { VehicleInfo } from "@/components/vehicle/vehicle-info";
 import { VehicleActionsBar } from "@/components/vehicle/vehicle-actions-bar";
+import { VehicleDetailTabs } from "@/components/vehicle/vehicle-detail-tabs";
 import { ActiveDamagesSection } from "@/components/vehicle/active-damages-section";
 import { DamageHistorySection } from "@/components/vehicle/damage-history-section";
 import { RentalHistorySection } from "@/components/vehicle/rental-history-section";
@@ -47,8 +48,8 @@ export default async function VehicleDetailPage({
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8">
-      <div className="flex flex-col gap-5">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -64,6 +65,16 @@ export default async function VehicleDetailPage({
           </div>
         </div>
 
+        {/* Editar/QR/Volver/Archivar: a la altura del título, no después de
+            todo el bloque de info general (donde quedaban perdidos a mitad
+            de pantalla). */}
+        <VehicleActionsBar
+          vehicleId={vehicle.id}
+          isAdmin={isAdmin}
+          archived={vehicle.archivedAt != null}
+          hasActiveRental={hasActiveRental}
+        />
+
         {/* Notas del equipo: mensajes internos entre compañeros sobre alguna
             situación a tener en cuenta. Mientras no se resuelven, alertan en
             el Calendario sobre la patente de este auto. */}
@@ -74,37 +85,42 @@ export default async function VehicleDetailPage({
           resolveNote={(noteId) => resolveVehicleNote.bind(null, vehicle.id, noteId)}
           placeholder="Ej: quedó con poca nafta, avisar al próximo turno…"
         />
-
-        <VehicleInfo vehicle={vehicle} />
-
-        <VehicleActionsBar
-          vehicleId={vehicle.id}
-          isAdmin={isAdmin}
-          archived={vehicle.archivedAt != null}
-          hasActiveRental={hasActiveRental}
-        />
       </div>
 
-      {/* Evolución de km */}
-      <section className="flex flex-col gap-2">
-        <SectionTitle>Evolución del kilometraje</SectionTitle>
-        <KmChart data={kmData} />
-      </section>
-
-      <ActiveDamagesSection vehicleId={vehicle.id} isAdmin={isAdmin} activeDamages={activeDamages} />
-
-      <DamageHistorySection damages={vehicle.damages} />
-
-      <RentalHistorySection rentals={vehicle.rentals} />
-
-      <InspectionHistorySection inspections={vehicle.inspections} />
-
-      <MaintenanceSection
-        vehicleId={vehicle.id}
-        isAdmin={isAdmin}
-        currentKm={vehicle.currentKm}
-        logs={vehicle.maintenanceLogs}
-        paymentMethods={paymentMethods}
+      {/* El resto (info general, daños, alquileres, mantenimiento) crecía
+          indefinido en un solo scroll — partido en pestañas, mismo patrón que
+          el detalle de la reserva (RentalDetailTabs). */}
+      <VehicleDetailTabs
+        general={
+          <div className="flex flex-col gap-6">
+            <section className="flex flex-col gap-2">
+              <SectionTitle>Evolución del kilometraje</SectionTitle>
+              <KmChart data={kmData} />
+            </section>
+            <VehicleInfo vehicle={vehicle} />
+          </div>
+        }
+        danos={
+          <div className="flex flex-col gap-6">
+            <ActiveDamagesSection vehicleId={vehicle.id} isAdmin={isAdmin} activeDamages={activeDamages} />
+            <DamageHistorySection damages={vehicle.damages} />
+          </div>
+        }
+        alquileres={
+          <div className="flex flex-col gap-6">
+            <RentalHistorySection rentals={vehicle.rentals} />
+            <InspectionHistorySection inspections={vehicle.inspections} />
+          </div>
+        }
+        mantenimiento={
+          <MaintenanceSection
+            vehicleId={vehicle.id}
+            isAdmin={isAdmin}
+            currentKm={vehicle.currentKm}
+            logs={vehicle.maintenanceLogs}
+            paymentMethods={paymentMethods}
+          />
+        }
       />
     </div>
   );
