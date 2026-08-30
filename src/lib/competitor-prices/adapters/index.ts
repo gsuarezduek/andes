@@ -2,11 +2,13 @@ import type { CompetitorPriceAdapter } from "../types";
 import { mockAdapter } from "./mock";
 import { invernaliaAdapter } from "./invernalia";
 import { rentautoAdapter } from "./rentauto";
+import { futuraAdapter } from "./futura";
 
 const registry: Record<string, CompetitorPriceAdapter> = {
   mock: mockAdapter,
   invernalia: invernaliaAdapter,
   rentauto: rentautoAdapter,
+  futura: futuraAdapter,
 };
 
 /** Claves válidas para `Competitor.adapterKey` — para poblar el `<select>` del ABM y no permitir crear un competidor con un adaptador inexistente. */
