@@ -64,6 +64,10 @@ const adminOnlySchema = z.object({
   // (columna "Nosotros"). No es un dato legal, pero vive junto a los demás
   // campos admin-only por consistencia con el resto de esa sección.
   competitorCategoryId: optionalStr,
+  // Camioneta vs auto: define qué precio de pack de KM se precarga en la
+  // entrega (ConditionSettings.kmPackPrice vs .kmPackPriceTruck). Afecta
+  // dinero, mismo criterio admin-only que el resto de esta sección.
+  isTruck: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 const vehicleSchema = operationalSchema.merge(adminOnlySchema);
@@ -99,6 +103,7 @@ function parse(formData: FormData) {
     insurancePolicyNumber: formData.get("insurancePolicyNumber"),
     insuranceCompany: formData.get("insuranceCompany"),
     competitorCategoryId: formData.get("competitorCategoryId"),
+    isTruck: formData.get("isTruck"),
   });
 }
 

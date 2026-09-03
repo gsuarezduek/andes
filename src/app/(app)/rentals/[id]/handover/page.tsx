@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
-import type { RentalPayment } from "@/lib/contract";
+import { kmPackPriceFor, type RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveHandover } from "./actions";
@@ -74,7 +74,13 @@ export default async function HandoverPage({
   preset("kmPerDay", conditions?.kmPerDay);
   preset("extraKmRate", conditions?.extraKmRate ? Number(conditions.extraKmRate) : null);
   preset("extraHourPercent", conditions?.extraHourPercent);
-  preset("kmPackPrice", conditions?.kmPackPrice ? Number(conditions.kmPackPrice) : null);
+  preset(
+    "kmPackPrice",
+    kmPackPriceFor(rental.vehicle?.isTruck ?? false, {
+      kmPackPrice: conditions?.kmPackPrice ? Number(conditions.kmPackPrice) : null,
+      kmPackPriceTruck: conditions?.kmPackPriceTruck ? Number(conditions.kmPackPriceTruck) : null,
+    }),
+  );
   // Accesorios (packs de km de VikRentCar) → importe.
   preset("accessoriesAmount", rental.bookingAccessoriesAmount ? Number(rental.bookingAccessoriesAmount) : null);
   // Franquicia: la reducida si la reserva trae mejora de seguro; si no, la estándar.

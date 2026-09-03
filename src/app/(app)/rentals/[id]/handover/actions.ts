@@ -13,6 +13,7 @@ import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { kmPackPriceFor } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const optNum = z.number().nonnegative().optional();
@@ -269,7 +270,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
 export type FetchHandoverVehicleResult =
   | {
       ok: true;
-      vehicle: { id: string; label: string; currentKm: number; maxFuel?: number };
+      vehicle: { id: string; label: string; currentKm: number; maxFuel?: number; kmPackPrice: number | null };
       existingDamages: { posX: number; posY: number; description: string | null }[];
     }
   | { ok: false; error: string };
@@ -299,7 +300,17 @@ export async function fetchHandoverVehicle(
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { id: true, plate: true, name: true, brand: true, model: true, currentKm: true, fuelLevels: true, archivedAt: true },
+    select: {
+      id: true,
+      plate: true,
+      name: true,
+      brand: true,
+      model: true,
+      currentKm: true,
+      fuelLevels: true,
+      archivedAt: true,
+      isTruck: true,
+    },
   });
   if (!vehicle) return { ok: false, error: "El vehículo no existe." };
   if (vehicle.archivedAt) return { ok: false, error: "Ese vehículo está archivado." };
@@ -307,10 +318,16 @@ export async function fetchHandoverVehicle(
   const clash = await findOverlappingRental(vehicle.id, rental.startAt, rental.endAt, rental.id);
   if (clash) return { ok: false, error: overlapErrorMessage(clash) };
 
-  const existingDamages = await prisma.damage.findMany({
-    where: { vehicleId: vehicle.id, repaired: false, view: "top" },
-    select: { posX: true, posY: true, description: true },
-  });
+  const [existingDamages, conditions] = await Promise.all([
+    prisma.damage.findMany({
+      where: { vehicleId: vehicle.id, repaired: false, view: "top" },
+      select: { posX: true, posY: true, description: true },
+    }),
+    prisma.conditionSettings.findUnique({
+      where: { id: 1 },
+      select: { kmPackPrice: true, kmPackPriceTruck: true },
+    }),
+  ]);
 
   return {
     ok: true,
@@ -319,6 +336,10 @@ export async function fetchHandoverVehicle(
       label: vehicleLabelWithPlate(vehicle),
       currentKm: vehicle.currentKm,
       maxFuel: vehicle.fuelLevels,
+      kmPackPrice: kmPackPriceFor(vehicle.isTruck, {
+        kmPackPrice: conditions?.kmPackPrice ? Number(conditions.kmPackPrice) : null,
+        kmPackPriceTruck: conditions?.kmPackPriceTruck ? Number(conditions.kmPackPriceTruck) : null,
+      }),
     },
     existingDamages,
   };

@@ -14,13 +14,20 @@ const CONDITION_LABELS = {
   extraHourPercent: "Hora extra (%)",
   deductible: "Franquicia/Garantía estándar",
   deductibleReduced: "Franquicia/Garantía con mejora de seguro",
-  kmPackPrice: "Precio por pack de KM",
+  kmPackPrice: "Precio por pack de KM (autos)",
+  kmPackPriceTruck: "Precio por pack de KM (camionetas)",
   sendHandoverActa: "Enviar Acta de Entrega",
   sendReturnActa: "Enviar Acta de Devolución",
   serviceOverdueRedPercent: "Service vencido: % de gracia antes de pasar a rojo",
 } as const;
 
-const CONDITION_MONEY_FIELDS = new Set(["extraKmRate", "deductible", "deductibleReduced", "kmPackPrice"]);
+const CONDITION_MONEY_FIELDS = new Set([
+  "extraKmRate",
+  "deductible",
+  "deductibleReduced",
+  "kmPackPrice",
+  "kmPackPriceTruck",
+]);
 
 function formatConditionValue(key: string | number | symbol, v: unknown): string {
   if (v == null || v === "") return "—";
@@ -57,6 +64,7 @@ export async function saveConditions(formData: FormData) {
     deductible: moneyOrNull(formData.get("deductible")),
     deductibleReduced: moneyOrNull(formData.get("deductibleReduced")),
     kmPackPrice: moneyOrNull(formData.get("kmPackPrice")),
+    kmPackPriceTruck: moneyOrNull(formData.get("kmPackPriceTruck")),
     sendHandoverActa: formData.get("sendHandoverActa") === "on",
     sendReturnActa: formData.get("sendReturnActa") === "on",
     serviceOverdueRedPercent: intOrNull(formData.get("serviceOverdueRedPercent")),
@@ -75,6 +83,7 @@ export async function saveConditions(formData: FormData) {
           deductible: existing.deductible != null ? Number(existing.deductible) : null,
           deductibleReduced: existing.deductibleReduced != null ? Number(existing.deductibleReduced) : null,
           kmPackPrice: existing.kmPackPrice != null ? Number(existing.kmPackPrice) : null,
+          kmPackPriceTruck: existing.kmPackPriceTruck != null ? Number(existing.kmPackPriceTruck) : null,
           sendHandoverActa: existing.sendHandoverActa,
           sendReturnActa: existing.sendReturnActa,
           serviceOverdueRedPercent: existing.serviceOverdueRedPercent,

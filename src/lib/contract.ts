@@ -112,6 +112,20 @@ export function kmPackKm(p: Pick<ContractPricing, "kmPacks">): number {
 }
 
 /**
+ * Precio de referencia del pack de KM para un vehículo puntual: el de
+ * camionetas si `isTruck`, si no el de autos (default). VikRentCar tiene dos
+ * precios distintos en "Opciones del Vehículo" — este helper es la única
+ * fuente de esa regla (precarga de la entrega y al reasignar el auto en el
+ * wizard).
+ */
+export function kmPackPriceFor(
+  isTruck: boolean,
+  conditions: { kmPackPrice: number | null; kmPackPriceTruck: number | null },
+): number | null {
+  return (isTruck ? conditions.kmPackPriceTruck : conditions.kmPackPrice) ?? null;
+}
+
+/**
  * Importe final de una línea de pago tras aplicar el % del medio (+ recargo,
  * − descuento). Sin condición (`percent` null/undefined/0) devuelve el mismo
  * importe.
@@ -123,8 +137,9 @@ export function paymentAdjustedAmount(amount: number, percent?: number | null): 
 
 /**
  * Importe total de los packs de KM (packs × precio del pack). `null` si no
- * hay packs cargados o falta el precio (el precio no se edita en el wizard:
- * se precarga de Configuración → Condiciones y viaja oculto en `pricing`).
+ * hay packs cargados o falta el precio. El precio se precarga de
+ * Configuración → Condiciones (autos o camionetas, ver `kmPackPriceFor`) pero
+ * el empleado lo puede corregir a mano en el modal "Pack de KM" del wizard.
  */
 export function kmPackAmount(p: Pick<ContractPricing, "kmPacks" | "kmPackPrice">): number | null {
   const packs = Math.max(0, Math.round(p.kmPacks ?? 0));

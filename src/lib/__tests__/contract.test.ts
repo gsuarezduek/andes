@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { extraHourAmount, formatArs, formatMoney, computeBalance, kmPackKm, kmPackAmount, paymentAdjustedAmount } from "@/lib/contract";
+import {
+  extraHourAmount,
+  formatArs,
+  formatMoney,
+  computeBalance,
+  kmPackKm,
+  kmPackAmount,
+  kmPackPriceFor,
+  paymentAdjustedAmount,
+} from "@/lib/contract";
 
 describe("computeBalance", () => {
   it("saldo = total − seña − paga", () => {
@@ -56,6 +65,23 @@ describe("kmPackAmount", () => {
   it("null si no hay packs o falta el precio", () => {
     expect(kmPackAmount({ kmPacks: 0, kmPackPrice: 20_000 })).toBeNull();
     expect(kmPackAmount({ kmPacks: 3, kmPackPrice: undefined })).toBeNull();
+  });
+});
+
+describe("kmPackPriceFor", () => {
+  const conditions = { kmPackPrice: 20_000, kmPackPriceTruck: 30_000 };
+
+  it("usa el precio de autos por default", () => {
+    expect(kmPackPriceFor(false, conditions)).toBe(20_000);
+  });
+
+  it("usa el precio de camionetas si isTruck", () => {
+    expect(kmPackPriceFor(true, conditions)).toBe(30_000);
+  });
+
+  it("null si el precio correspondiente no está configurado", () => {
+    expect(kmPackPriceFor(true, { kmPackPrice: 20_000, kmPackPriceTruck: null })).toBeNull();
+    expect(kmPackPriceFor(false, { kmPackPrice: null, kmPackPriceTruck: 30_000 })).toBeNull();
   });
 });
 

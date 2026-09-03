@@ -239,6 +239,17 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
           value={packQty}
           onChange={(e) => setPackQty(e.target.value)}
         />
+        <TextField
+          id="pack_price"
+          label="Precio por pack"
+          hint="Autos y camionetas tienen precios distintos — ajustá si no coincide."
+          type="text"
+          inputMode="decimal"
+          prefix="$"
+          className="mt-3"
+          value={priceStr("kmPackPrice")}
+          onChange={(e) => setPrice("kmPackPrice", e.target.value)}
+        />
         <p className="mt-3 text-sm text-foreground/70">
           {(() => {
             const qty = Math.max(0, Math.round(parseDecimal(packQty) ?? 0));

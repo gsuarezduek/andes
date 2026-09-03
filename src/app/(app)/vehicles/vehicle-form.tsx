@@ -61,6 +61,20 @@ export function VehicleForm({
         hint="Opcional — un apodo para el auto (ej. «El rojo»). Si está cargado, pasa a ser la referencia principal en reservas, calendario, caja, etc."
         defaultValue={vehicle?.name ?? ""}
       />
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="isTruck"
+          defaultChecked={vehicle?.isTruck ?? false}
+          className="size-4"
+          disabled={!isAdmin}
+          aria-disabled={!isAdmin || undefined}
+        />
+        Es camioneta
+        <span className="text-xs text-foreground/50">
+          — usa el precio de pack de KM para camionetas (Configuración → Condiciones)
+        </span>
+      </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="year" label="Año" type="number" inputMode="numeric" defaultValue={vehicle?.year ?? ""} min={1950} max={2100} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
         <TextField id="color" label="Color" defaultValue={vehicle?.color ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />

@@ -74,7 +74,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
   // falla): reemplaza `props.vehicle`/`props.existingDamages` una vez
   // confirmado por el servidor (disponibilidad + datos del auto nuevo).
   const [vehicleOverride, setVehicleOverride] = useState<{
-    vehicle: { id: string; label: string; currentKm: number; maxFuel?: number };
+    vehicle: { id: string; label: string; currentKm: number; maxFuel?: number; kmPackPrice?: number | null };
     existingDamages: { posX: number; posY: number; description: string | null }[];
   } | null>(null);
   const [vehicleSwapBusy, setVehicleSwapBusy] = useState(false);
@@ -463,6 +463,12 @@ export function InspectionWizard(props: InspectionWizardProps) {
         fuelLevel: 0,
         checklist: {},
         damages: [],
+        // Precio del pack de KM: autos vs camionetas tienen tarifas distintas
+        // (ver kmPackPriceFor) — el precargado del auto anterior ya no aplica.
+        pricing: {
+          ...draft.pricing,
+          kmPackPrice: res.vehicle.kmPackPrice != null ? String(res.vehicle.kmPackPrice) : "",
+        },
       });
     } catch {
       setError("No se pudo cambiar la unidad. Reintentá.");

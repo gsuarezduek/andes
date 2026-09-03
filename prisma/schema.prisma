@@ -262,6 +262,11 @@ model Vehicle {
   serviceIntervalKm Int?          @map("service_interval_km")
   photoUrl          String?       @map("photo_url")
   notes             String?
+  // Camioneta vs auto: VikRentCar tiene dos precios distintos de "Opciones
+  // del Vehículo" para el pack de km extra (uno para autos, otro más caro
+  // para camionetas). Alimenta qué precio de referencia (`ConditionSettings
+  // .kmPackPrice` vs `.kmPackPriceTruck`) se precarga en la entrega.
+  isTruck           Boolean       @default(false) @map("is_truck")
 
   // Identificación y seguro (opcionales, se cargan a mano en la ficha).
   engineNumber          String? @map("engine_number") // número de motor
@@ -1046,7 +1051,11 @@ model ConditionSettings {
   deductibleReduced        Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
   // Pack de KM adicional (200 km c/u, de 1 a 20 packs por alquiler): precio de
   // referencia por pack, precargado en el paso "Condiciones" de la entrega.
+  // Autos vs camionetas tienen precios distintos en VikRentCar (Opciones del
+  // Vehículo) — `kmPackPrice` es el de autos (default), `kmPackPriceTruck` el
+  // de camionetas; se precarga uno u otro según `Vehicle.isTruck`.
   kmPackPrice              Decimal? @map("km_pack_price") @db.Decimal(12, 2)
+  kmPackPriceTruck         Decimal? @map("km_pack_price_truck") @db.Decimal(12, 2)
   // Envío del acta al cliente por email (el admin siempre la recibe). Apagar
   // para dejar de mandarle al cliente el acta de entrega o de devolución.
   sendHandoverActa         Boolean  @default(true) @map("send_handover_acta")

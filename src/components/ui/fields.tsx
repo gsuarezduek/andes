@@ -1,3 +1,5 @@
+"use client";
+
 import type { ComponentProps, ReactNode, WheelEvent } from "react";
 
 const inputBase =

@@ -107,13 +107,23 @@ export default async function GeneralSettingsPage({
               />
               <TextField
                 id="kmPackPrice"
-                label="Precio por pack de KM"
+                label="Precio por pack de KM (autos)"
                 prefix="$"
                 hint="200 km c/u, de 1 a 20 packs"
                 type="text"
                 inputMode="decimal"
                 placeholder="—"
                 defaultValue={conditions?.kmPackPrice?.toString()}
+              />
+              <TextField
+                id="kmPackPriceTruck"
+                label="Precio por pack de KM (camionetas)"
+                prefix="$"
+                hint="Para autos marcados «Es camioneta» en su ficha"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.kmPackPriceTruck?.toString()}
               />
             </div>
           </div>
