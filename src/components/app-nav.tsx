@@ -15,7 +15,7 @@ import type { Item } from "@/components/nav/types";
  *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra. Tareas muestra un
  *   contador rojo con las tareas pendientes asignadas al usuario logueado (`taskCount`).
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
- *   Perfil, Sincronización, Configuración (solo admin) y Salir — ajustes/administración
+ *   Perfil, Sincronización, GPS, Configuración (solo admin) y Salir — ajustes/administración
  *   menos frecuentes que la navegación operativa de la barra principal.
  * - En mobile todo colapsa en un menú hamburguesa.
  */
@@ -46,6 +46,10 @@ export function AppNav({
   const menuItems: Item[] = [
     { href: "/profile", label: "Perfil" },
     { href: "/sync", label: "Sincronización" },
+    // GPS es tarea operativa de cualquier empleado (instalan/mueven los
+    // dispositivos), pero poco frecuente — no amerita un lugar en la barra
+    // principal, vive acá igual que Sincronización.
+    { href: "/gps", label: "GPS" },
     // "Competencia" queda en el menú de cuenta (no en la barra principal) a
     // propósito, mientras se sigue puliendo — pasa a la barra principal más
     // adelante.

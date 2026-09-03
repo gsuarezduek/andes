@@ -307,9 +307,35 @@ model Vehicle {
   maintenanceLogs MaintenanceLog[]
   teamNotes       VehicleNote[]
   tasks           Task[]
+  gpsDevice       GpsDevice?
 
   @@unique([wpCarId, wpCarIndex])
   @@map("vehicles")
+}
+
+// ---------------------------------------------------------------------------
+// GPS de rastreo instalados en la flota: solo la asignación ACTUAL (qué auto
+// tiene instalado cada dispositivo), sin historial de reasignaciones ni
+// integración con ninguna plataforma externa (sin mapa, sin ubicación en
+// vivo) — decisión del dueño. Alta y asignación las hace cualquier empleado
+// (son ellos quienes gestionan los dispositivos); borrar el catálogo es
+// admin-only. Ver /gps.
+// ---------------------------------------------------------------------------
+model GpsDevice {
+  id String @id @default(cuid())
+
+  identifier String @unique // número de serie / IMEI del dispositivo
+
+  vehicleId   String?   @unique @map("vehicle_id")
+  vehicle     Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  installedAt DateTime? @map("installed_at")
+
+  notes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("gps_devices")
 }
 
 // ---------------------------------------------------------------------------
@@ -1276,8 +1302,8 @@ model CompetitorCheckRun {
 
   triggeredBy CompetitorRunTrigger @map("triggered_by")
 
-  startedAt  DateTime  @map("started_at")
-  finishedAt DateTime? @map("finished_at")
+  startedAt  DateTime    @map("started_at")
+  finishedAt DateTime?   @map("finished_at")
   result     SyncResult? // reusa el mismo enum que SyncLog (success/partial/error)
 
   competitorsChecked Int     @default(0) @map("competitors_checked")

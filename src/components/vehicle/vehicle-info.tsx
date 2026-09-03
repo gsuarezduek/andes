@@ -36,6 +36,7 @@ export function VehicleInfo({ vehicle }: { vehicle: VehicleDetail }) {
               }
             />
             <Row label="Categoría de competencia" value={vehicle.competitorCategory?.label} />
+            <Row label="GPS instalado" value={vehicle.gpsDevice?.identifier} />
             <Row label="Notas" value={vehicle.notes} />
           </div>
         </div>

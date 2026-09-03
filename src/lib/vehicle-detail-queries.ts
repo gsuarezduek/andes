@@ -33,6 +33,7 @@ export async function getVehicleDetail(id: string) {
         },
       },
       maintenanceLogs: { orderBy: { date: "desc" } },
+      gpsDevice: { select: { identifier: true } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
         include: {
