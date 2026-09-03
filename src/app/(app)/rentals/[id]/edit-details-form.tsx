@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { TextField, SelectField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { updateRentalDetails } from "../actions/update-details";
@@ -35,6 +35,17 @@ export function EditDetailsForm({
   const [state, formAction] = useActionState<FormState, FormData>(updateRentalDetails, {});
   const fieldErrors = state.fieldErrors ?? {};
 
+  // Si el guardado se rechaza por el auto elegido (archivado, ya reservado en
+  // esas fechas, etc.), el <select> ya se resalta en rojo con el motivo — pero
+  // en una pantalla chica podía quedar arriba, fuera de vista, si el empleado
+  // scrolleó para llegar al botón "Guardar". Esto lo trae de vuelta a la vista.
+  const vehicleFieldRef = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (fieldErrors.vehicleId) {
+      vehicleFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [fieldErrors.vehicleId]);
+
   return (
     <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-foreground/10 p-4">
       <p className="text-sm font-medium text-foreground/80">Datos del cliente y vehículo</p>
@@ -54,6 +65,7 @@ export function EditDetailsForm({
       />
       <TextField id="clientAddress" label="Domicilio en Mendoza" defaultValue={clientAddress} error={fieldErrors.clientAddress} />
       <SelectField
+        ref={vehicleFieldRef}
         id="vehicleId"
         label="Vehículo"
         defaultValue={vehicleId}

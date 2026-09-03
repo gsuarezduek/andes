@@ -38,18 +38,26 @@ export async function createRental(
     return { error: "La devolución debe ser posterior al retiro." };
   }
 
-  // Validar que el vehículo exista si se asignó.
+  // Validar que el vehículo exista si se asignó. Mismo criterio que
+  // updateRentalDetails: el rechazo va también en `fieldErrors.vehicleId`
+  // para resaltar el <select> en vez de solo mostrar el cartel genérico.
   if (parsed.data.vehicleId) {
     const exists = await prisma.vehicle.findUnique({
       where: { id: parsed.data.vehicleId },
       select: { id: true },
     });
-    if (!exists) return { error: "El vehículo seleccionado no existe." };
+    if (!exists) {
+      const msg = "El vehículo seleccionado no existe.";
+      return { error: msg, fieldErrors: { vehicleId: msg } };
+    }
 
     // No permitir asignar un auto que ya tiene otra reserva/alquiler vigente
     // en fechas que se pisan.
     const clash = await findOverlappingRental(parsed.data.vehicleId, startAt, endAt);
-    if (clash) return { error: overlapErrorMessage(clash) };
+    if (clash) {
+      const msg = overlapErrorMessage(clash);
+      return { error: msg, fieldErrors: { vehicleId: msg } };
+    }
   }
 
   const rental = await prisma.rental.create({

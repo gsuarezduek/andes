@@ -44,14 +44,24 @@ export async function updateRentalDetails(
     return { error: "No se puede editar: el alquiler ya tiene la entrega registrada." };
   }
 
-  // Validar que el vehículo exista y no esté archivado si se asignó.
+  // Validar que el vehículo exista y no esté archivado si se asignó. Estos
+  // tres rechazos van también en `fieldErrors.vehicleId` (no solo en
+  // `error`) para que el <select> se resalte en rojo con el motivo justo
+  // debajo — antes solo se veía el cartel genérico al pie del formulario,
+  // fácil de no notar, y el <select> volvía en silencio al valor anterior.
   if (parsed.data.vehicleId) {
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: parsed.data.vehicleId },
       select: { id: true, archivedAt: true },
     });
-    if (!vehicle) return { error: "El vehículo seleccionado no existe." };
-    if (vehicle.archivedAt) return { error: "El vehículo seleccionado está archivado." };
+    if (!vehicle) {
+      const msg = "El vehículo seleccionado no existe.";
+      return { error: msg, fieldErrors: { vehicleId: msg } };
+    }
+    if (vehicle.archivedAt) {
+      const msg = "El vehículo seleccionado está archivado.";
+      return { error: msg, fieldErrors: { vehicleId: msg } };
+    }
 
     // No permitir reasignar un auto que ya tiene otra reserva/alquiler
     // vigente en fechas que se pisan con esta.
@@ -61,7 +71,10 @@ export async function updateRentalDetails(
       rental.endAt,
       rental.id,
     );
-    if (clash) return { error: overlapErrorMessage(clash) };
+    if (clash) {
+      const msg = overlapErrorMessage(clash);
+      return { error: msg, fieldErrors: { vehicleId: msg } };
+    }
   }
 
   await prisma.rental.update({

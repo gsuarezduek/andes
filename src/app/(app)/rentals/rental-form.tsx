@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { TextField, SelectField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ButtonLink } from "@/components/ui/button";
@@ -21,6 +21,17 @@ export function RentalForm({
   const [state, formAction] = useActionState(action, {});
   const fieldErrors = state.fieldErrors ?? {};
 
+  // Mismo criterio que EditDetailsForm: si el auto elegido se rechaza (ya
+  // reservado en esas fechas, etc.), traer el <select> a la vista además de
+  // resaltarlo en rojo — puede quedar arriba, fuera de pantalla, al llegar
+  // scrolleando hasta el botón "Crear alquiler".
+  const vehicleFieldRef = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (fieldErrors.vehicleId) {
+      vehicleFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [fieldErrors.vehicleId]);
+
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <TextField id="clientName" label="Nombre del cliente" required error={fieldErrors.clientName} />
@@ -31,7 +42,7 @@ export function RentalForm({
       <TextField id="clientDocNumber" label="Nro. de documento" hint="Opcional" error={fieldErrors.clientDocNumber} />
       <TextField id="clientAddress" label="Domicilio en Mendoza" hint="Opcional" error={fieldErrors.clientAddress} />
 
-      <SelectField id="vehicleId" label="Vehículo" hint="Se puede asignar más tarde" error={fieldErrors.vehicleId}>
+      <SelectField ref={vehicleFieldRef} id="vehicleId" label="Vehículo" hint="Se puede asignar más tarde" error={fieldErrors.vehicleId}>
         <option value="">Sin asignar</option>
         {vehicles.map((v) => (
           <option key={v.id} value={v.id}>
