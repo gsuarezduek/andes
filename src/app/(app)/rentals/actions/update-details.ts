@@ -63,17 +63,32 @@ export async function updateRentalDetails(
       return { error: msg, fieldErrors: { vehicleId: msg } };
     }
 
-    // No permitir reasignar un auto que ya tiene otra reserva/alquiler
-    // vigente en fechas que se pisan con esta.
-    const clash = await findOverlappingRental(
-      parsed.data.vehicleId,
-      rental.startAt,
-      rental.endAt,
-      rental.id,
-    );
-    if (clash) {
-      const msg = overlapErrorMessage(clash);
-      return { error: msg, fieldErrors: { vehicleId: msg } };
+    // Choque de fechas con otra reserva/alquiler vigente del mismo auto: no
+    // es un bloqueo duro — el empleado puede haber hablado con el cliente
+    // actual y saber que el auto va a estar libre a tiempo. Se avisa, pero si
+    // ya confirmó ESTE vehículo puntual (`confirmOverlapFor` == `overlapKey`)
+    // se deja pasar; las fechas de la reserva no son editables acá, así que
+    // el vehículo solo ya identifica el choque (ver create.ts para el caso
+    // con fechas editables).
+    const overlapKey = parsed.data.vehicleId;
+    const alreadyConfirmed = formData.get("confirmOverlapFor") === overlapKey;
+    if (!alreadyConfirmed) {
+      const clash = await findOverlappingRental(
+        parsed.data.vehicleId,
+        rental.startAt,
+        rental.endAt,
+        rental.id,
+      );
+      if (clash) {
+        const msg = overlapErrorMessage(clash);
+        return {
+          error: msg,
+          fieldErrors: { vehicleId: msg },
+          overlapConfirm: true,
+          attemptedVehicleId: parsed.data.vehicleId,
+          overlapKey,
+        };
+      }
     }
   }
 
