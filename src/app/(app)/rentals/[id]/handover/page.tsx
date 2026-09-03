@@ -65,9 +65,13 @@ export default async function HandoverPage({
   };
   preset("dailyRate", rental.bookingPricePerDay ? Number(rental.bookingPricePerDay) : null);
   preset("days", rental.bookingDays);
-  // totpaid de VikRentCar = lo ya pagado/anticipado (p. ej. cobro online con
-  // Andes Pay Stripe) → precarga la "Seña"; el saldo se autocalcula.
-  preset("sena", rental.bookingPaid ? Number(rental.bookingPaid) : null);
+  // OJO: "Seña" NO se precarga desde bookingPaid (totpaid de VikRentCar) a
+  // propósito. Ese monto ya entra solo como cobro de Caja vinculado a la
+  // reserva (`importBookingPayment`, corre en el sync) y queda reflejado en
+  // `initialPayments`/"Paga" más abajo — precargarlo también acá duplicaba la
+  // misma plata en el saldo (`Total − Seña − Paga` restaba dos veces el mismo
+  // pago). "Seña" queda libre para un adelanto real que NO haya pasado por
+  // Caja (poco común desde que los pagos se unificaron).
   // order_total de VikRentCar = total con extras (incluye accesorios y, si
   // corresponde, el extra por combinación de lugar de retiro/devolución).
   preset("total", rental.bookingTotal ? Number(rental.bookingTotal) : null);
