@@ -61,6 +61,48 @@ export async function createUser(
   redirect("/users");
 }
 
+/**
+ * Borra un usuario definitivamente (a diferencia de desactivarlo, que ya
+ * existía). Requiere que ya esté inactivo — mismo criterio que archivar un
+ * vehículo: primero se saca de circulación, después se puede borrar. Los
+ * eventos puramente operativos sin valor legal (logins, tokens de
+ * recuperación) se borran junto con el usuario — no hace falta conservarlos
+ * una vez que la cuenta ya no existe. Si tiene actividad evidencial real
+ * (inspecciones firmadas, ediciones de condiciones económicas), Postgres
+ * rechaza el borrado por la FK requerida — se devuelve un mensaje claro en
+ * vez de un 500; en ese caso, dejarlo inactivo sigue siendo la opción.
+ */
+export async function deleteUser(id: string): Promise<void> {
+  const admin = await requireAdmin();
+  if (id === admin.id) {
+    throw new Error("No podés borrar tu propio usuario.");
+  }
+
+  const user = await prisma.user.findUnique({ where: { id }, select: { active: true } });
+  if (!user) return;
+  if (user.active) {
+    throw new Error("Primero desactivá el usuario — recién ahí se puede borrar.");
+  }
+
+  try {
+    await prisma.$transaction([
+      prisma.loginEvent.deleteMany({ where: { userId: id } }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
+      throw new Error(
+        "No se puede borrar: tiene inspecciones u otra actividad registrada en el sistema. Dejalo inactivo en su lugar.",
+      );
+    }
+    throw e;
+  }
+
+  revalidatePath("/users");
+  redirect("/users");
+}
+
 export async function updateUser(
   id: string,
   _prev: FormState,
