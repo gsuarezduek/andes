@@ -72,16 +72,18 @@ export async function createUser(
  * rechaza el borrado por la FK requerida — se devuelve un mensaje claro en
  * vez de un 500; en ese caso, dejarlo inactivo sigue siendo la opción.
  */
-export async function deleteUser(id: string): Promise<void> {
+export type DeleteUserState = { error?: string };
+
+export async function deleteUser(id: string): Promise<DeleteUserState> {
   const admin = await requireAdmin();
   if (id === admin.id) {
-    throw new Error("No podés borrar tu propio usuario.");
+    return { error: "No podés borrar tu propio usuario." };
   }
 
   const user = await prisma.user.findUnique({ where: { id }, select: { active: true } });
-  if (!user) return;
+  if (!user) return {};
   if (user.active) {
-    throw new Error("Primero desactivá el usuario — recién ahí se puede borrar.");
+    return { error: "Primero desactivá el usuario — recién ahí se puede borrar." };
   }
 
   try {
@@ -92,9 +94,10 @@ export async function deleteUser(id: string): Promise<void> {
     ]);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
-      throw new Error(
-        "No se puede borrar: tiene inspecciones u otra actividad registrada en el sistema. Dejalo inactivo en su lugar.",
-      );
+      return {
+        error:
+          "No se puede borrar: tiene inspecciones u otra actividad registrada en el sistema. Dejalo inactivo en su lugar.",
+      };
     }
     throw e;
   }

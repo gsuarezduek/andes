@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { unstable_rethrow } from "next/navigation";
 import { deleteUser } from "./actions";
 
 export function UserDeleteButton({
@@ -20,12 +19,10 @@ export function UserDeleteButton({
   function handleDelete() {
     setError(null);
     startTransition(async () => {
-      try {
-        await deleteUser(userId);
-      } catch (err) {
-        unstable_rethrow(err);
+      const result = await deleteUser(userId);
+      if (result?.error) {
         setConfirming(false);
-        setError(err instanceof Error ? err.message : "No se pudo borrar.");
+        setError(result.error);
       }
     });
   }
