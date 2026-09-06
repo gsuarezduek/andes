@@ -1422,10 +1422,15 @@ model WhatsAppConversation {
   lastMessageAt DateTime? @map("last_message_at")
   lastInboundAt DateTime? @map("last_inbound_at")
 
+  // El bot responde mientras esté true. Se apaga solo al escalar a un
+  // humano (ver WhatsAppBotEscalation) o a mano desde el hilo.
+  botEnabled Boolean @default(true) @map("bot_enabled")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  messages WhatsAppMessage[]
+  messages    WhatsAppMessage[]
+  escalations WhatsAppBotEscalation[]
 
   @@index([lastMessageAt])
   @@index([customerId])
@@ -1459,6 +1464,10 @@ model WhatsAppMessage {
   // único que Meta factura como "conversación iniciada por el negocio").
   viaTemplate  Boolean @default(false) @map("via_template")
   templateName String? @map("template_name")
+
+  // Distingue una respuesta automática del bot de una escrita por el
+  // equipo — ambas comparten `direction: out` y `sentById: null`.
+  sentByBot Boolean @default(false) @map("sent_by_bot")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1501,4 +1510,74 @@ model WhatsAppTemplate {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("whatsapp_templates")
+}
+
+/// Configuración del bot de IA que responde automáticamente en WhatsApp.
+/// Singleton id = 1, mismo patrón que el resto de las settings de la app.
+model WhatsAppBotConfig {
+  id Int @id @default(1)
+
+  enabled              Boolean @default(false)
+  prompt               String  @default("") @db.Text
+  onlyNewConversations Boolean @default(false) @map("only_new_conversations") // deja de responder apenas un humano contesta esa conversación
+
+  // Doble capa de seguridad (instrucción al modelo + chequeo programático):
+  // `escalationWords` se revisan ANTES de llamar a Claude contra el último
+  // mensaje del cliente (deriva directo, sin gastar el llamado);
+  // `blockedWords` se revisan DESPUÉS contra la respuesta generada (1
+  // reintento pidiendo reformular, si persiste se escala).
+  blockedWords    Json @default("[]") @map("blocked_words")
+  escalationWords Json @default("[]") @map("escalation_words")
+
+  // Ejemplos few-shot { question, answer } — guían tono/estilo, no son
+  // respuestas fijas a copiar literal.
+  examples Json @default("[]")
+
+  handoffMessage String? @map("handoff_message") @db.Text
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_bot_config")
+}
+
+/// Documento de la base de conocimiento del bot (PDF/DOCX/TXT). El texto se
+/// extrae una sola vez al subir y es lo que se inyecta al prompt —
+/// contexto simple concatenado, no RAG con embeddings (alcanza para pocos
+/// documentos tipo brochure/FAQ, sin la infraestructura que requeriría RAG
+/// real si el volumen creciera mucho).
+model WhatsAppBotDocument {
+  id String @id @default(cuid())
+
+  fileName String @map("file_name")
+  mimeType String @map("mime_type")
+  sizeBytes Int   @map("size_bytes")
+
+  storageKey String @map("storage_key") // bytes originales, mismo storage() que el resto de la app
+
+  extractedText String  @db.Text @map("extracted_text")
+  truncated     Boolean @default(false) // se cortó a lo bruto (fallback si el resumen con IA también falló/se pasó)
+  summarized    Boolean @default(false) // se resumió con IA porque el texto extraído superaba el tope
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("whatsapp_bot_documents")
+}
+
+/// Registro de cada vez que el bot pasó una conversación a un humano —
+/// panel de calidad para revisar casos reales en vez de ajustar el prompt a
+/// ciegas.
+model WhatsAppBotEscalation {
+  id String @id @default(cuid())
+
+  conversationId String               @map("conversation_id")
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
+
+  trigger       String // 'confidence' | 'escalation_word' | 'blocked_word'
+  reason        String? @db.Text
+  clientMessage String? @db.Text @map("client_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@map("whatsapp_bot_escalations")
 }

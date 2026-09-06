@@ -11,8 +11,11 @@ async function requireAccount() {
   return account;
 }
 
-/** Mensaje de texto libre. Solo dentro de la ventana de 24hs desde el último mensaje del cliente. */
-export async function sendTextMessage(conversationId: string, text: string, userId: string) {
+async function sendOutboundText(
+  conversationId: string,
+  text: string,
+  sender: { sentById?: string; sentByBot?: boolean },
+) {
   const conversation = await prisma.whatsAppConversation.findUniqueOrThrow({ where: { id: conversationId } });
   const withinWindow =
     conversation.lastInboundAt && Date.now() - conversation.lastInboundAt.getTime() < SESSION_WINDOW_MS;
@@ -27,10 +30,27 @@ export async function sendTextMessage(conversationId: string, text: string, user
 
   await prisma.$transaction([
     prisma.whatsAppMessage.create({
-      data: { conversationId, waMessageId, direction: "out", body: text, sentById: userId },
+      data: {
+        conversationId,
+        waMessageId,
+        direction: "out",
+        body: text,
+        sentById: sender.sentById,
+        sentByBot: sender.sentByBot ?? false,
+      },
     }),
     prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } }),
   ]);
+}
+
+/** Mensaje de texto libre de un miembro del equipo. Solo dentro de la ventana de 24hs. */
+export async function sendTextMessage(conversationId: string, text: string, userId: string) {
+  await sendOutboundText(conversationId, text, { sentById: userId });
+}
+
+/** Respuesta automática del bot de IA. Mismas reglas de ventana que un mensaje humano. */
+export async function sendBotTextMessage(conversationId: string, text: string) {
+  await sendOutboundText(conversationId, text, { sentByBot: true });
 }
 
 /** Retoma la conversación con una plantilla aprobada — la única forma fuera de la ventana de 24hs. */

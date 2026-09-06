@@ -5,10 +5,12 @@ import type { LlmCitation } from "./grounding";
 
 // Haiku alcanza y sale barato para clasificación/extracción acotada — no
 // hace falta un modelo más grande para "¿a qué categoría se parece este
-// rótulo?" o "citame el precio tal cual aparece en este texto".
-const MODEL = "claude-haiku-4-5-20251001";
+// rótulo?" o "citame el precio tal cual aparece en este texto". Exportado
+// para que otros usos de Claude en la app (ej. el bot de WhatsApp) compartan
+// el mismo modelo sin repetir el string.
+export const MODEL = "claude-haiku-4-5-20251001";
 
-function client(): Anthropic {
+export function client(): Anthropic {
   return new Anthropic({ apiKey: env.llm.apiKey });
 }
 

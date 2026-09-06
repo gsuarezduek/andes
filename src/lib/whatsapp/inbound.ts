@@ -8,9 +8,11 @@
 
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 import { getDecryptedAccount, getDecryptedWebhookSecret } from "@/lib/whatsapp/settings";
+import { maybeRespondWithBot } from "@/lib/whatsapp/bot/respond";
 import {
   verifyWebhookSignature,
   parseInboundEvent,
@@ -111,4 +113,8 @@ async function handleInboundMessage(account: ChakraAccount, event: InboundMessag
       createdAt: event.timestamp,
     },
   });
+
+  // Fire-and-forget: no bloquea el 200 que espera el BSP (reintenta agresivo
+  // si tarda). Un fallo del bot no debe romper la confirmación del webhook.
+  after(() => maybeRespondWithBot(conversation.id).catch((err) => console.error("whatsapp bot failed", err)));
 }

@@ -99,6 +99,15 @@ export default async function WhatsAppSettingsPage({
         <code className="break-all rounded-lg bg-foreground/5 px-3 py-2 text-sm">{webhookUrl}</code>
       </section>
 
+      <section className="flex flex-col gap-2 border-t border-foreground/10 pt-6">
+        <SectionHeading description="Personalidad, reglas de seguridad, base de conocimiento y calidad de las respuestas automáticas.">
+          Bot de IA
+        </SectionHeading>
+        <ButtonLink href="/settings/whatsapp/bot" variant="secondary" className="self-start">
+          Configurar el bot →
+        </ButtonLink>
+      </section>
+
       <section className="flex flex-col gap-4 border-t border-foreground/10 pt-6">
         <SectionHeading description="La única forma de retomar una conversación pasadas las 24hs de silencio del cliente.">
           Plantillas

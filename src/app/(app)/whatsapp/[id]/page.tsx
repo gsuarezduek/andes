@@ -13,6 +13,7 @@ import { SendForm } from "@/components/whatsapp/send-form";
 import { ReopenForm } from "@/components/whatsapp/reopen-form";
 import { AssignForm } from "@/components/whatsapp/assign-form";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
+import { BotToggle } from "@/components/whatsapp/bot-toggle";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
@@ -47,6 +48,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           <h1 className="text-xl font-bold tracking-tight">{conversation.customer?.name || conversation.phoneE164}</h1>
           <p className="text-sm text-foreground/60">{conversation.phoneE164}</p>
         </div>
+        <BotToggle conversationId={conversation.id} botEnabled={conversation.botEnabled} />
       </div>
 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">

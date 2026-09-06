@@ -51,6 +51,12 @@ export async function reopenConversation(
   return {};
 }
 
+export async function toggleConversationBot(conversationId: string, botEnabled: boolean) {
+  await requireUser();
+  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { botEnabled } });
+  revalidatePath(`/whatsapp/${conversationId}`);
+}
+
 export async function assignConversation(conversationId: string, formData: FormData) {
   await requireUser();
   const assignedToId = String(formData.get("assignedToId") ?? "").trim() || null;

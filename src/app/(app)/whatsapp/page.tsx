@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { listConversations } from "@/lib/whatsapp/conversations";
 import { formatDateTime } from "@/lib/datetime";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
@@ -38,7 +39,10 @@ export default async function WhatsAppPage() {
                 className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03]"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">{c.customer?.name || c.phoneE164}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
+                    {!c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
+                  </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1 text-right">
