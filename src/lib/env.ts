@@ -135,4 +135,11 @@ export const env = {
   get hasLlm(): boolean {
     return Boolean(optional("ANTHROPIC_API_KEY"));
   },
+
+  /** Clave de cifrado (AES-256-GCM) para credenciales guardadas en la base,
+   *  ej. el access token de WhatsApp (src/lib/encryption.ts). Hex de 64
+   *  caracteres (32 bytes): `openssl rand -hex 32`. */
+  get encryptionKey(): string {
+    return required("ENCRYPTION_KEY");
+  },
 } as const;

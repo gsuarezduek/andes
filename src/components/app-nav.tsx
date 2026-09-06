@@ -9,8 +9,8 @@ import type { Item } from "@/components/nav/types";
 /**
  * Navegación de la app.
  *
- * - Menú principal (siempre visible en desktop): Alquileres, Calendario, Vehículos, Caja, Tareas,
- *   y para admin además Reportes — antes vivía enterrado en el submenú de cuenta, tan
+ * - Menú principal (siempre visible en desktop): Alquileres, WhatsApp, Calendario, Vehículos,
+ *   Caja, Tareas, y para admin además Reportes — antes vivía enterrado en el submenú de cuenta, tan
  *   frecuente para un admin como el resto de la barra principal. Usuarios vive dentro de
  *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra. Tareas muestra un
  *   contador rojo con las tareas pendientes asignadas al usuario logueado (`taskCount`).
@@ -36,6 +36,7 @@ export function AppNav({
 
   const mainItems: Item[] = [
     { href: "/rentals", label: "Alquileres" },
+    { href: "/whatsapp", label: "WhatsApp" },
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
     { href: "/caja", label: "Caja" },

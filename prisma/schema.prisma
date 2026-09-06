@@ -158,6 +158,21 @@ enum CompetitorRunTrigger {
   cron
 }
 
+/// Sentido de un mensaje de WhatsApp respecto del negocio.
+enum WhatsAppDirection {
+  in // del cliente hacia Andes
+  out // de Andes hacia el cliente
+}
+
+/// Tipo de adjunto multimedia de un mensaje de WhatsApp.
+enum WhatsAppMediaKind {
+  image
+  audio
+  video
+  document
+  sticker
+}
+
 // ---------------------------------------------------------------------------
 // Usuarios y autenticación
 // ---------------------------------------------------------------------------
@@ -193,6 +208,8 @@ model User {
   createdTasks           Task[]                  @relation("TaskCreator")
   assignedTasks          Task[]                  @relation("TaskAssignee")
   completedTasks         Task[]                  @relation("TaskCompleter")
+  assignedWhatsappConversations WhatsAppConversation[]
+  sentWhatsappMessages          WhatsAppMessage[]
 
   @@map("users")
 }
@@ -1336,4 +1353,152 @@ model CompetitorPriceSettings {
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("competitor_price_settings")
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp — mensajería con clientes vía Chakra (BSP → WhatsApp Cloud API)
+// ---------------------------------------------------------------------------
+//
+// Single-tenant: no hay concepto de workspace, así que la cuenta conectada es
+// un singleton (mismo patrón que ConditionSettings/EmailSettings) y el
+// webhook no necesita resolver a qué "tenant" pertenece un evento entrante.
+
+/// Credenciales de la cuenta de WhatsApp Business conectada vía Chakra.
+/// Singleton id = 1. `accessTokenEnc`/`webhookSecretEnc` se guardan cifrados
+/// (AES-256-GCM, ver src/lib/encryption.ts) — nunca en texto plano.
+model WhatsAppSettings {
+  id Int @id @default(1)
+
+  provider String @default("chakra") // por si algún día se suma otro BSP
+
+  wabaId        String @map("waba_id") // WhatsApp Business Account id (Meta)
+  phoneNumberId String @map("phone_number_id") // Phone Number id (Meta)
+  pluginId      String @map("plugin_id") // id propio de Chakra, necesario para enviar
+
+  accessTokenEnc   String  @db.Text @map("access_token_enc")
+  webhookSecretEnc String? @db.Text @map("webhook_secret_enc") // sin esto no se verifica la firma del webhook
+
+  connectedAt DateTime @default(now()) @map("connected_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_settings")
+}
+
+/// Un cliente identificado por su teléfono de WhatsApp. Independiente de
+/// `Rental` (que denormaliza los datos del cliente por alquiler): permite ver
+/// la conversación de una persona a través de varios alquileres sin tocar el
+/// modelo de Rental, ya extenso y con lógica crítica de facturación/evidencia
+/// legal. El cruce con reservas existentes se hace en vivo por teléfono
+/// (best-effort, ver src/lib/whatsapp/conversations.ts), sin FK.
+model Customer {
+  id String @id @default(cuid())
+
+  phone String  @unique // E.164, ej. +5492611234567
+  name  String?
+  email String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  conversations WhatsAppConversation[]
+
+  @@map("customers")
+}
+
+/// Una conversación por número de teléfono. `lastInboundAt` es el ancla de
+/// la ventana de 24hs de Meta: pasado ese lapso sin que el cliente escriba,
+/// solo se puede retomar mandando una plantilla aprobada.
+model WhatsAppConversation {
+  id String @id @default(cuid())
+
+  phoneE164 String @unique @map("phone_e164")
+
+  customerId String?   @map("customer_id")
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  assignedToId String? @map("assigned_to_id")
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  lastMessageAt DateTime? @map("last_message_at")
+  lastInboundAt DateTime? @map("last_inbound_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages WhatsAppMessage[]
+
+  @@index([lastMessageAt])
+  @@index([customerId])
+  @@index([assignedToId])
+  @@map("whatsapp_conversations")
+}
+
+/// Un mensaje individual, entrante o saliente. `waMessageId` es el id que
+/// asigna Meta/Chakra — único, evita duplicar un mensaje si el webhook
+/// reintenta la misma entrega.
+model WhatsAppMessage {
+  id String @id @default(cuid())
+
+  conversationId String               @map("conversation_id")
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
+
+  waMessageId String?           @unique @map("wa_message_id")
+  direction   WhatsAppDirection
+
+  // Solo en salientes: quién lo mandó desde Andes. Null en entrantes (los
+  // manda el cliente, no un User).
+  sentById String? @map("sent_by_id")
+  sentBy   User?   @relation(fields: [sentById], references: [id])
+
+  body String? @db.Text
+
+  mediaId String?        @unique @map("media_id")
+  media   WhatsAppMedia? @relation(fields: [mediaId], references: [id])
+
+  // Si el mensaje reabrió la conversación con una plantilla aprobada (lo
+  // único que Meta factura como "conversación iniciada por el negocio").
+  viaTemplate  Boolean @default(false) @map("via_template")
+  templateName String? @map("template_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("whatsapp_messages")
+}
+
+/// Adjunto multimedia de un mensaje. Los bytes viven en el storage
+/// compartido de la app (R2/local, ver src/lib/storage.ts) bajo `storageKey`
+/// — no hace falta un almacenamiento dual propio, Andes ya resuelve
+/// R2-vs-local en un solo lugar.
+model WhatsAppMedia {
+  id String @id @default(uuid()) // no adivinable: se sirve por esta id sin sesión
+
+  storageKey String            @map("storage_key")
+  mimeType   String            @map("mime_type")
+  kind       WhatsAppMediaKind
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message WhatsAppMessage?
+
+  @@map("whatsapp_media")
+}
+
+/// Caché de solo lectura de las plantillas aprobadas en Meta/Chakra,
+/// sincronizada a mano desde Configuración → WhatsApp. Es lo único que
+/// permite retomar una conversación fuera de la ventana de 24hs.
+model WhatsAppTemplate {
+  id String @id @default(cuid())
+
+  externalId String @unique @map("external_id") // id de Meta/Chakra
+  name       String
+  language   String
+  status     String // valor crudo de Meta: APPROVED | PENDING | REJECTED | ...
+  bodyText   String @db.Text @map("body_text")
+
+  variableCount Int @default(0) @map("variable_count")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_templates")
 }

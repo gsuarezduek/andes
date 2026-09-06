@@ -26,6 +26,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Textos de los correos al cliente y casilla desde donde se envían.",
   },
   {
+    href: "/settings/whatsapp",
+    title: "WhatsApp",
+    description: "Cuenta conectada (Chakra), webhook y plantillas aprobadas.",
+  },
+  {
     href: "/users",
     title: "Usuarios",
     description: "Alta, edición y desactivación de empleados y administradores.",

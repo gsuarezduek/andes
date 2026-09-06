@@ -16,6 +16,9 @@ export const config = {
     // `forgot-password` / `reset-password` también son públicas por
     // definición (recuperar contraseña sin sesión); se validan por token
     // no adivinable + expiración + un solo uso (mismo criterio que la firma).
-    "/((?!api/auth|api/sync|api/daily-summary|api/competitor-prices|sign|api/sign|forgot-password|reset-password|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
+    // `api/webhooks/whatsapp` también se excluye: lo llama Chakra sin sesión,
+    // se autentica por firma HMAC dentro del propio handler (ver
+    // src/lib/whatsapp/chakra.ts).
+    "/((?!api/auth|api/sync|api/daily-summary|api/competitor-prices|api/webhooks/whatsapp|sign|api/sign|forgot-password|reset-password|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)",
   ],
 };

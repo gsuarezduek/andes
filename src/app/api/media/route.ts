@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const key = req.nextUrl.searchParams.get("key") ?? "";
   // Solo prefijos conocidos, sin traversal.
-  if (!/^(uploads|actas)\/[a-zA-Z0-9_/.-]+$/.test(key) || key.includes("..")) {
+  if (!/^(uploads|actas|whatsapp)\/[a-zA-Z0-9_/.-]+$/.test(key) || key.includes("..")) {
     return NextResponse.json({ error: "clave inválida" }, { status: 400 });
   }
 
