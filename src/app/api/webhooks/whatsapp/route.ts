@@ -15,7 +15,12 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-chakra-signature-256");
 
+  // TODO(temporal): sacar este log en cuanto confirmemos el shape real del
+  // payload de Chakra contra una cuenta real — ver CLAUDE.md v19.
+  console.log("[WA_DEBUG] raw webhook body:", rawBody.slice(0, 3000));
+
   const verdict = await processWhatsAppWebhook(rawBody, signature);
+  console.log("[WA_DEBUG] verdict:", JSON.stringify(verdict));
 
   if (verdict.status === "not_configured") {
     return NextResponse.json({ error: "no hay cuenta de WhatsApp conectada" }, { status: 503 });
