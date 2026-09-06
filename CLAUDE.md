@@ -399,6 +399,16 @@ Responde automáticamente los mensajes entrantes de WhatsApp con Claude, sobre e
 - **Gotcha real encontrado en la verificación:** un archivo `"use server"` no puede exportar una constante (`MAX_BOT_DOCUMENTS = MAX_DOCUMENTS`) — solo funciones async y tipos. El build de producción NO lo detectó (recién explotó corriendo la app de verdad), así que quedó como recordatorio de que probar en el navegador encuentra cosas que `next build` solo a veces no.
 - **Fuera de alcance a propósito**: el bot no ve pricing/pagos del alquiler (decisión del dueño); sin tracking de costo/uso de tokens (Andes es single-tenant, no factura por uso como el proyecto hermano); sin RAG con embeddings en la base de conocimiento (concatenación simple, alcanza para pocos documentos).
 
+## v19 — Corrección de la integración con Chakra contra su documentación real
+
+Al arrancar la configuración real (v17/v18 se habían construido sin acceso a una cuenta de Chakra, basándose en una integración hermana no verificada), se buscó la documentación pública de Chakra (apidocs.chakrahq.com) y aparecieron varios supuestos equivocados en `src/lib/whatsapp/chakra.ts` — corregidos acá, todavía **sin probar contra una llamada real**:
+
+- **Faltaba el prefijo `/v1/ext`** en las rutas de mensajería y plantillas (`https://api.chakrahq.com/v1/ext/plugin/whatsapp/...`) — sin esto, todo pedido de envío/sync de plantillas hubiera dado 404. La ruta de media (`/v2/whatsapp/.../media/.../show`) NO lleva ese prefijo — es sobre `api.chakrahq.com` directo.
+- **La respuesta al enviar un mensaje** es `{ _data: { whatsappMessageId } }`, no el shape nativo de Meta (`{ messages: [{ id }] }`) que se había asumido.
+- **El webhook entrante NO es pass-through del formato nativo de Meta** — es el formato propio de Chakra: `{ event: "message", payload: { messageId, timestamp (milisegundos, no segundos), message: { from, type, text|image|... }, contacts } }`. Esto era el error más serio: con el parser viejo, el webhook real hubiera respondido 200 "processed: 0" siempre, sin fallar visiblemente — nunca se hubiera creado un solo mensaje entrante. `parseInboundEvent` se reescribió para este formato real; los tests en `chakra.test.ts` también.
+- El envío de plantilla necesita `language: { policy: "deterministic", code }`, no solo `{ code }`.
+- **Cómo se consigue cada dato** (confirmado en la documentación/guías de Chakra): el **Plugin ID** está en la página de WhatsApp Setup de Chakra Chat, ícono de 3 puntos junto al botón Guardar (arriba a la derecha) → "Copy Plugin Id". El **secreto del webhook** (HMAC) NO se configura junto a la URL del webhook — es un secreto de **equipo**, en Chakra → Admin → Team → Secrets. La URL del webhook se pega en WhatsApp Setup → pestaña "More" → toggle "Enable pass through webhook" (el campo puede aparecer con distinto texto según la versión de su UI, ej. "Additional Pass-through webhooks urls for all Meta events" — es el mismo mecanismo: ese webhook recibe TODOS los eventos de Meta —mensajes, status, billing—, `parseInboundEvent` ya filtra y solo procesa `event:"message"`).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

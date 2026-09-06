@@ -1,24 +1,28 @@
 /**
  * Adaptador hacia Chakra (chakrahq.com), el BSP (Business Solution Provider)
- * que actúa de intermediario hacia la WhatsApp Cloud API de Meta. El cuerpo
- * de los requests de mensajería es el formato NATIVO de la Cloud API — Chakra
- * es transparente ahí; solo cambia la URL base y cómo se resuelve/descarga
- * media.
+ * que actúa de intermediario hacia la WhatsApp Cloud API de Meta.
  *
- * ⚠️ Base URL, rutas exactas y esquema de autenticación están tomados de una
- * integración hermana (mismo proveedor, otro proyecto) pero NO están
- * verificados contra una cuenta real de Chakra todavía — mismo criterio que
- * "Fase 0" con VikRentCar: verificar contra el dashboard/docs de Chakra antes
- * de dar por buena la integración en producción, y ajustar acá si algo no
- * coincide (es el único archivo que necesita tocarse).
+ * Verificado contra la documentación pública de Chakra (apidocs.chakrahq.com)
+ * el 2026-09-06 — corrigió varios supuestos equivocados de una primera
+ * versión basada en una integración hermana no verificada: falta el prefijo
+ * `/v1/ext` en las rutas de mensajería/plantillas, la respuesta al enviar es
+ * `{ _data: { whatsappMessageId } }` (no el shape nativo de Meta), y el
+ * **webhook entrante NO es pass-through del formato nativo de Meta** — es un
+ * formato propio de Chakra (`{ event, payload: { messageId, timestamp en
+ * MILISEGUNDOS, message: {...} } }`), aunque el BODY que uno manda para
+ * enviar un mensaje sí es el formato nativo de la Cloud API. Sigue sin
+ * probarse contra una llamada real (solo contra la documentación) — si algo
+ * no coincide en producción, este es el único archivo que debería necesitar
+ * ajustes.
  */
 
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { WhatsAppMediaKind } from "@prisma/client";
 
-const BASE_URL = "https://api.chakrahq.com";
-const API_VERSION = "v20.0"; // versión de la Cloud API que Chakra pasa a Meta
+const API_ROOT = "https://api.chakrahq.com";
+const EXT_BASE = `${API_ROOT}/v1/ext`; // mensajería y plantillas
+const API_VERSION = "v22.0"; // versión de la Cloud API que Chakra pasa a Meta
 const REQUEST_TIMEOUT_MS = 15_000; // sin esto, un Chakra caído/lento cuelga la acción del usuario sin límite
 
 export interface ChakraAccount {
@@ -38,12 +42,12 @@ export class ChakraApiError extends Error {
 }
 
 async function chakraRequest<T>(
-  path: string,
+  fullUrl: string,
   init: { method?: string; body?: unknown; accessToken: string },
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(fullUrl, {
       method: init.method ?? "GET",
       headers: {
         Authorization: `Bearer ${init.accessToken}`,
@@ -68,14 +72,20 @@ interface SendResult {
   waMessageId: string;
 }
 
+// Chakra envuelve la respuesta en `_data` en vez de devolver el shape nativo
+// de Meta (`{ messages: [{ id }] }`).
+interface ChakraSendResponse {
+  _data: { whatsappMessageId: string };
+}
+
 /** Manda un mensaje de texto libre. Solo válido dentro de la ventana de 24hs. */
 export async function sendSessionTextMessage(
   account: ChakraAccount,
   toE164: string,
   text: string,
 ): Promise<SendResult> {
-  const res = await chakraRequest<{ messages: { id: string }[] }>(
-    `/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/messages`,
+  const res = await chakraRequest<ChakraSendResponse>(
+    `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/messages`,
     {
       method: "POST",
       accessToken: account.accessToken,
@@ -87,7 +97,7 @@ export async function sendSessionTextMessage(
       },
     },
   );
-  return { waMessageId: res.messages[0].id };
+  return { waMessageId: res._data.whatsappMessageId };
 }
 
 /** Manda una plantilla aprobada — la única forma de retomar fuera de la ventana de 24hs. */
@@ -97,8 +107,8 @@ export async function sendTemplateMessage(
   template: { name: string; language: string },
   variables: string[],
 ): Promise<SendResult> {
-  const res = await chakraRequest<{ messages: { id: string }[] }>(
-    `/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/messages`,
+  const res = await chakraRequest<ChakraSendResponse>(
+    `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/messages`,
     {
       method: "POST",
       accessToken: account.accessToken,
@@ -108,7 +118,7 @@ export async function sendTemplateMessage(
         type: "template",
         template: {
           name: template.name,
-          language: { code: template.language },
+          language: { policy: "deterministic", code: template.language },
           ...(variables.length > 0
             ? { components: [{ type: "body", parameters: variables.map((text) => ({ type: "text", text })) }] }
             : {}),
@@ -116,7 +126,7 @@ export async function sendTemplateMessage(
       },
     },
   );
-  return { waMessageId: res.messages[0].id };
+  return { waMessageId: res._data.whatsappMessageId };
 }
 
 // --- Plantillas ----------------------------------------------------------
@@ -141,7 +151,7 @@ export async function listTemplates(
 ): Promise<ChakraTemplate[]> {
   const res = await chakraRequest<{
     data: { id: string; name: string; language: string; status: string; components: { type: string; text?: string }[] }[];
-  }>(`/plugin/whatsapp/api/${API_VERSION}/${account.wabaId}/message_templates`, {
+  }>(`${EXT_BASE}/plugin/whatsapp/api/${API_VERSION}/${account.wabaId}/message_templates`, {
     accessToken: account.accessToken,
   });
   return res.data.map((t) => {
@@ -167,12 +177,13 @@ const MEDIA_KIND_BY_TYPE: Record<string, WhatsAppMediaKind> = {
   sticker: "sticker",
 };
 
-/** Descarga los bytes de un adjunto entrante. Chakra resuelve en un solo paso. */
+/** Descarga los bytes de un adjunto entrante. Chakra resuelve en un solo paso.
+ *  Ojo: esta ruta NO lleva el prefijo `/v1/ext` (a diferencia de mensajería/plantillas). */
 export async function downloadMedia(
   account: ChakraAccount,
   mediaId: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
-  const res = await fetch(`${BASE_URL}/v2/whatsapp/${API_VERSION}/media/${mediaId}/show`, {
+  const res = await fetch(`${API_ROOT}/v2/whatsapp/${API_VERSION}/media/${mediaId}/show`, {
     headers: { Authorization: `Bearer ${account.accessToken}` },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -187,9 +198,10 @@ export async function downloadMedia(
 // --- Webhook: verificación de firma + parseo --------------------------------
 
 /**
- * Verifica la firma HMAC-SHA256 del webhook sobre el body crudo. Chakra manda
- * el header `X-Chakra-Signature-256` sin el prefijo "sha256=" que sí usa el
- * webhook nativo de Meta — se tolera con o sin prefijo por robustez.
+ * Verifica la firma HMAC-SHA256 del webhook sobre el body crudo, con el
+ * secreto de equipo (Chakra → Admin → Team → Secrets). El header
+ * `X-Chakra-Signature-256` NUNCA lleva el prefijo "sha256=" (a diferencia del
+ * webhook nativo de Meta) — se tolera igual por robustez si algún día cambia.
  */
 export function verifyWebhookSignature(rawBody: string, signatureHeader: string | null, secret: string): boolean {
   if (!signatureHeader) return false;
@@ -210,10 +222,8 @@ export interface InboundMessageEvent {
   media?: { mediaId: string; mimeType: string | null; kind: WhatsAppMediaKind };
 }
 
-interface MetaMessage {
-  id: string;
+interface ChakraInboundMessage {
   from: string;
-  timestamp: string;
   type: string;
   text?: { body: string };
   image?: { id: string; mime_type: string; caption?: string };
@@ -223,47 +233,50 @@ interface MetaMessage {
   sticker?: { id: string; mime_type: string };
 }
 
+interface ChakraWebhookPayload {
+  event: string;
+  payload?: {
+    messageId: string;
+    timestamp: number; // milisegundos, no segundos
+    message: ChakraInboundMessage;
+    contacts?: { profile?: { name?: string } }[];
+  };
+}
+
 /**
- * Normaliza el payload crudo del webhook (formato nativo de la Cloud API,
- * pass-through de Chakra) a una lista de mensajes entrantes. Devuelve `[]`
- * para cualquier otro tipo de evento (status de entrega, reacciones, etc.) —
- * fuera de alcance del inbox por ahora, se ignoran sin romper el webhook.
+ * Normaliza un evento del webhook de Chakra (su propio formato, NO el
+ * pass-through de Meta) a una lista de mensajes entrantes. Devuelve `[]` para
+ * cualquier evento que no sea `event:"message"` (status de entrega,
+ * facturación, etc.) — fuera de alcance del inbox, se ignoran sin romper el
+ * webhook. Cada request de Chakra trae UN evento, no un batch — el array de
+ * salida es por compatibilidad con el llamador, nunca tiene más de 1 elemento.
  */
-export function parseInboundEvent(payload: unknown): InboundMessageEvent[] {
-  const events: InboundMessageEvent[] = [];
-  const entries = (payload as { entry?: unknown[] })?.entry;
-  if (!Array.isArray(entries)) return events;
+export function parseInboundEvent(raw: unknown): InboundMessageEvent[] {
+  const event = raw as ChakraWebhookPayload | null;
+  if (!event || event.event !== "message" || !event.payload?.message) return [];
 
-  for (const entry of entries) {
-    const changes = (entry as { changes?: unknown[] })?.changes;
-    if (!Array.isArray(changes)) continue;
-    for (const change of changes) {
-      const value = (change as { value?: { messages?: MetaMessage[]; contacts?: { profile?: { name?: string }; wa_id?: string }[] } })
-        ?.value;
-      const messages = value?.messages;
-      if (!Array.isArray(messages)) continue;
-      const contactName = value?.contacts?.[0]?.profile?.name;
+  const { payload } = event;
+  const m = payload.message;
+  const base = {
+    waMessageId: payload.messageId,
+    fromE164: `+${m.from}`,
+    timestamp: new Date(payload.timestamp),
+    contactName: payload.contacts?.[0]?.profile?.name,
+  };
 
-      for (const m of messages) {
-        const base = {
-          waMessageId: m.id,
-          fromE164: `+${m.from}`,
-          timestamp: new Date(Number(m.timestamp) * 1000),
-          contactName,
-        };
-        const mediaField = m.image ?? m.audio ?? m.video ?? m.document ?? m.sticker;
-        if (m.type === "text" && m.text) {
-          events.push({ ...base, text: m.text.body });
-        } else if (mediaField && m.type in MEDIA_KIND_BY_TYPE) {
-          events.push({
-            ...base,
-            text: (mediaField as { caption?: string }).caption,
-            media: { mediaId: mediaField.id, mimeType: mediaField.mime_type ?? null, kind: MEDIA_KIND_BY_TYPE[m.type] },
-          });
-        }
-        // Otros tipos (location, contacts, button, interactive, reaction, unsupported) se ignoran a propósito.
-      }
-    }
+  if (m.type === "text" && m.text) {
+    return [{ ...base, text: m.text.body }];
   }
-  return events;
+  const mediaField = m.image ?? m.audio ?? m.video ?? m.document ?? m.sticker;
+  if (mediaField && m.type in MEDIA_KIND_BY_TYPE) {
+    return [
+      {
+        ...base,
+        text: (mediaField as { caption?: string }).caption,
+        media: { mediaId: mediaField.id, mimeType: mediaField.mime_type ?? null, kind: MEDIA_KIND_BY_TYPE[m.type] },
+      },
+    ];
+  }
+  // Otros tipos (location, contacts, button, interactive, reaction, unsupported) se ignoran a propósito.
+  return [];
 }
