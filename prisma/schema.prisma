@@ -514,12 +514,13 @@ model Rental {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  inspections       Inspection[]
-  documents         RentalDocument[]
-  signatureRequests SignatureRequest[]
-  teamNotes         RentalNote[]
-  cashMovements     CashMovement[]
-  maintenanceLogs   MaintenanceLog[]
+  inspections           Inspection[]
+  documents             RentalDocument[]
+  signatureRequests     SignatureRequest[]
+  teamNotes             RentalNote[]
+  cashMovements         CashMovement[]
+  maintenanceLogs       MaintenanceLog[]
+  whatsAppConversations WhatsAppConversation[]
 
   @@index([status])
   @@index([startAt])
@@ -1416,6 +1417,14 @@ model WhatsAppConversation {
   customerId String?   @map("customer_id")
   customer   Customer? @relation(fields: [customerId], references: [id])
 
+  // Vínculo manual a la reserva de la que trata esta conversación — a
+  // diferencia de `findRelatedRentals` (coincidencia automática por
+  // teléfono, siempre en vivo, nunca persistida), esto es una elección
+  // explícita del equipo, útil cuando el cliente escribe desde otro número
+  // o cuando hay varias reservas candidatas y hace falta desambiguar.
+  rentalId String? @map("rental_id")
+  rental   Rental? @relation(fields: [rentalId], references: [id])
+
   assignedToId String? @map("assigned_to_id")
   assignedTo   User?   @relation(fields: [assignedToId], references: [id])
 
@@ -1442,6 +1451,7 @@ model WhatsAppConversation {
   @@index([lastMessageAt])
   @@index([customerId])
   @@index([assignedToId])
+  @@index([rentalId])
   @@map("whatsapp_conversations")
 }
 

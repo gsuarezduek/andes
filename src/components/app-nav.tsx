@@ -15,8 +15,10 @@ import type { Item } from "@/components/nav/types";
  *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra. Tareas muestra un
  *   contador rojo con las tareas pendientes asignadas al usuario logueado (`taskCount`).
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
- *   Perfil, Sincronización, GPS, Configuración (solo admin) y Salir — ajustes/administración
- *   menos frecuentes que la navegación operativa de la barra principal.
+ *   Perfil, Sincronización, GPS, Configuración (solo admin), "Ver como empleado"
+ *   (solo si `isRealAdmin` — deja probar la vista de un usuario normal sin salir
+ *   de la sesión de admin) y Salir — ajustes/administración menos frecuentes que
+ *   la navegación operativa de la barra principal.
  * - En mobile todo colapsa en un menú hamburguesa.
  */
 export function AppNav({
@@ -25,18 +27,37 @@ export function AppNav({
   logout,
   sync,
   taskCount,
+  whatsappUnread,
+  isRealAdmin,
+  viewingAsEmployee,
+  enableEmployeeView,
+  disableEmployeeView,
 }: {
   isAdmin: boolean;
   userName?: string | null;
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
   taskCount?: number;
+  /** Conversaciones de WhatsApp pendientes de respuesta — mismo criterio visual que `taskCount`. */
+  whatsappUnread?: number;
+  /** Rol real de la sesión (no el efectivo tras "Ver como empleado"). */
+  isRealAdmin?: boolean;
+  viewingAsEmployee?: boolean;
+  enableEmployeeView?: () => Promise<void>;
+  disableEmployeeView?: () => Promise<void>;
 }) {
   const pathname = usePathname();
 
+  const viewToggle =
+    isRealAdmin && enableEmployeeView && disableEmployeeView
+      ? viewingAsEmployee
+        ? { label: "Volver a vista admin", action: disableEmployeeView, active: true }
+        : { label: "Ver como empleado", action: enableEmployeeView, active: false }
+      : undefined;
+
   const mainItems: Item[] = [
     { href: "/rentals", label: "Alquileres" },
-    { href: "/whatsapp", label: "WhatsApp" },
+    { href: "/whatsapp", label: "WhatsApp", badge: whatsappUnread },
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
     { href: "/caja", label: "Caja" },
@@ -74,6 +95,7 @@ export function AppNav({
         userName={userName}
         logout={logout}
         sync={sync}
+        viewToggle={viewToggle}
       />
       <MobileNav
         mainItems={mainItems}
@@ -82,6 +104,7 @@ export function AppNav({
         userName={userName}
         logout={logout}
         sync={sync}
+        viewToggle={viewToggle}
       />
     </>
   );

@@ -27,6 +27,31 @@ export async function markConversationRead(conversationId: string) {
   await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastReadAt: new Date() } });
 }
 
+/**
+ * Cantidad de conversaciones pendientes de respuesta — para el badge de
+ * WhatsApp en el menú de navegación (mismo criterio que `taskCount`).
+ * Se acota a conversaciones con algún entrante (`needsReply` siempre da
+ * `false` sin eso) para no traer toda la tabla.
+ */
+export async function countNeedsReply(): Promise<number> {
+  const rows = await prisma.whatsAppConversation.findMany({
+    where: { lastInboundAt: { not: null } },
+    select: { lastInboundAt: true, lastOutboundAt: true, lastReadAt: true },
+  });
+  return rows.filter(needsReply).length;
+}
+
+/**
+ * Vincula (o desvincula, con `rentalId: null`) esta conversación a una
+ * reserva puntual — elección explícita del equipo, a diferencia de
+ * `findRelatedRentals` (coincidencia automática por teléfono, nunca
+ * persistida). Útil para desambiguar cuando hay varias reservas candidatas o
+ * el cliente escribe desde un número distinto al cargado en la reserva.
+ */
+export async function setConversationRental(conversationId: string, rentalId: string | null) {
+  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { rentalId } });
+}
+
 export async function listConversations() {
   const conversations = await prisma.whatsAppConversation.findMany({
     orderBy: { lastMessageAt: "desc" },
@@ -41,12 +66,23 @@ export async function listConversations() {
     .sort((a, b) => Number(b.needsReply) - Number(a.needsReply));
 }
 
+/** Mismo select que `findRelatedRentals` — así ambos bloques (vinculada / candidatas automáticas) renderizan igual. */
+const RENTAL_CARD_SELECT = {
+  id: true,
+  clientName: true,
+  status: true,
+  bookingConfirmed: true,
+  startAt: true,
+  endAt: true,
+} as const;
+
 export async function getConversation(id: string) {
   return prisma.whatsAppConversation.findUnique({
     where: { id },
     include: {
       customer: true,
       assignedTo: { select: { id: true, name: true } },
+      rental: { select: RENTAL_CARD_SELECT },
       messages: {
         orderBy: { createdAt: "asc" },
         include: { media: true, sentBy: { select: { id: true, name: true } } },
@@ -66,6 +102,6 @@ export async function findRelatedRentals(phoneE164: string) {
     where: { clientPhone: { in: phoneVariants(phoneE164) } },
     orderBy: { createdAt: "desc" },
     take: 5,
-    select: { id: true, clientName: true, status: true, bookingConfirmed: true, startAt: true, endAt: true },
+    select: RENTAL_CARD_SELECT,
   });
 }

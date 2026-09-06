@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getConversation, findRelatedRentals, isSessionWindowOpen, markConversationRead } from "@/lib/whatsapp/conversations";
+import { getRentalPickerOptions } from "@/lib/cash";
 import { formatDate } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import { ReopenForm } from "@/components/whatsapp/reopen-form";
 import { AssignForm } from "@/components/whatsapp/assign-form";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
 import { BotToggle } from "@/components/whatsapp/bot-toggle";
+import { RentalLinkPicker } from "@/components/whatsapp/rental-link-picker";
+import { linkRental } from "@/app/(app)/whatsapp/actions";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
@@ -31,9 +34,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 
-  const [users, relatedRentals, approvedTemplates] = await Promise.all([
+  const [users, relatedRentals, rentalOptions, approvedTemplates] = await Promise.all([
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    findRelatedRentals(conversation.phoneE164),
+    conversation.rental ? Promise.resolve([]) : findRelatedRentals(conversation.phoneE164),
+    conversation.rental ? Promise.resolve([]) : getRentalPickerOptions(),
     windowOpen
       ? Promise.resolve([])
       : prisma.whatsAppTemplate.findMany({
@@ -66,28 +70,56 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             email={conversation.customer.email}
           />
         ) : null}
-        {relatedRentals.length > 0 ? (
-          <div className="flex flex-col gap-1.5 border-t border-foreground/10 pt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
-              Alquileres relacionados (por teléfono)
-            </p>
-            {relatedRentals.map((r) => {
-              const { label, tone } = rentalStatusDisplay(r.status, r.bookingConfirmed);
+        <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">Reserva vinculada</p>
+          {conversation.rental ? (
+            (() => {
+              const { label, tone } = rentalStatusDisplay(conversation.rental.status, conversation.rental.bookingConfirmed);
               return (
-                <Link
-                  key={r.id}
-                  href={`/rentals/${r.id}`}
-                  className="flex items-center justify-between gap-2 text-sm hover:underline"
-                >
-                  <span>
-                    {r.clientName} · {formatDate(r.startAt)}
-                  </span>
-                  <Badge tone={tone}>{label}</Badge>
-                </Link>
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/rentals/${conversation.rental.id}`} className="text-sm hover:underline">
+                    {conversation.rental.clientName} · {formatDate(conversation.rental.startAt)}
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={tone}>{label}</Badge>
+                    <form action={linkRental.bind(null, conversation.id, null)}>
+                      <button type="submit" className="text-xs text-foreground/40 hover:text-red-600">
+                        Quitar vínculo
+                      </button>
+                    </form>
+                  </div>
+                </div>
               );
-            })}
-          </div>
-        ) : null}
+            })()
+          ) : (
+            <>
+              {relatedRentals.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs text-foreground/50">Coincidencias automáticas por teléfono:</p>
+                  {relatedRentals.map((r) => {
+                    const { label, tone } = rentalStatusDisplay(r.status, r.bookingConfirmed);
+                    return (
+                      <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
+                        <Link href={`/rentals/${r.id}`} className="hover:underline">
+                          {r.clientName} · {formatDate(r.startAt)}
+                        </Link>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge tone={tone}>{label}</Badge>
+                          <form action={linkRental.bind(null, conversation.id, r.id)}>
+                            <button type="submit" className="text-xs font-medium underline">
+                              Vincular
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <RentalLinkPicker conversationId={conversation.id} options={rentalOptions} />
+            </>
+          )}
+        </div>
       </section>
 
       <section className="flex flex-1 flex-col gap-3 rounded-xl border border-foreground/10 p-4">

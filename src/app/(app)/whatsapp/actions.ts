@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
+import { setConversationRental } from "@/lib/whatsapp/conversations";
 
 export type MessageActionState = { error?: string };
 
@@ -63,6 +64,13 @@ export async function assignConversation(conversationId: string, formData: FormD
   await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { assignedToId } });
   revalidatePath(`/whatsapp/${conversationId}`);
   revalidatePath("/whatsapp");
+}
+
+/** Vincula (o desvincula, `rentalId: null`) la conversación a una reserva. Ligado con `.bind()` desde botones y el buscador. */
+export async function linkRental(conversationId: string, rentalId: string | null) {
+  await requireUser();
+  await setConversationRental(conversationId, rentalId);
+  revalidatePath(`/whatsapp/${conversationId}`);
 }
 
 export async function updateCustomer(customerId: string, conversationId: string, formData: FormData) {

@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssignedPendingCount } from "@/lib/tasks";
+import { countNeedsReply } from "@/lib/whatsapp/conversations";
 import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
 import { EvidenceSync } from "@/components/evidence-sync";
-import { logout } from "./actions";
+import { logout, enableEmployeeView, disableEmployeeView } from "./actions";
 import { triggerSync } from "./sync/actions";
 
 export default async function AppLayout({
@@ -15,7 +16,9 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
-  const taskCount = await getAssignedPendingCount(user.id);
+  const isRealAdmin = user.realRole === "admin";
+  const viewingAsEmployee = isRealAdmin && !isAdmin;
+  const [taskCount, whatsappUnread] = await Promise.all([getAssignedPendingCount(user.id), countNeedsReply()]);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -26,7 +29,18 @@ export default async function AppLayout({
             <span className="text-base font-bold tracking-tight">Andes</span>
           </Link>
 
-          <AppNav isAdmin={isAdmin} userName={user.name} logout={logout} sync={triggerSync} taskCount={taskCount} />
+          <AppNav
+            isAdmin={isAdmin}
+            userName={user.name}
+            logout={logout}
+            sync={triggerSync}
+            taskCount={taskCount}
+            whatsappUnread={whatsappUnread}
+            isRealAdmin={isRealAdmin}
+            viewingAsEmployee={viewingAsEmployee}
+            enableEmployeeView={enableEmployeeView}
+            disableEmployeeView={disableEmployeeView}
+          />
         </div>
       </header>
 

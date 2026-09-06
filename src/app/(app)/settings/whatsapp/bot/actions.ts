@@ -13,6 +13,23 @@ async function getOrCreateConfig() {
   return prisma.whatsAppBotConfig.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
 }
 
+/** Estos forms/paneles se reusan en dos páginas (Configuración y el inbox de WhatsApp) — revalidar ambas. */
+function revalidateBotPages() {
+  revalidatePath("/settings/whatsapp/bot");
+  revalidatePath("/whatsapp");
+}
+
+/** Prender/apagar el bot sin tocar el resto de la config — el switch rápido de `/whatsapp`. */
+export async function toggleGlobalBot(enabled: boolean) {
+  await requireAdmin();
+  await prisma.whatsAppBotConfig.upsert({
+    where: { id: 1 },
+    create: { id: 1, enabled },
+    update: { enabled },
+  });
+  revalidateBotPages();
+}
+
 export async function savePersonality(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
   const enabled = formData.get("enabled") === "on";
@@ -24,7 +41,7 @@ export async function savePersonality(_prev: ActionState, formData: FormData): P
     create: { id: 1, enabled, onlyNewConversations, prompt },
     update: { enabled, onlyNewConversations, prompt },
   });
-  revalidatePath("/settings/whatsapp/bot");
+  revalidateBotPages();
   return { ok: true };
 }
 
@@ -45,7 +62,7 @@ export async function saveSecurity(_prev: ActionState, formData: FormData): Prom
 
   await getOrCreateConfig();
   await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { blockedWords, escalationWords, handoffMessage } });
-  revalidatePath("/settings/whatsapp/bot");
+  revalidateBotPages();
   return { ok: true };
 }
 
@@ -66,7 +83,7 @@ export async function saveExamples(_prev: ActionState, formData: FormData): Prom
 
   await getOrCreateConfig();
   await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples } });
-  revalidatePath("/settings/whatsapp/bot");
+  revalidateBotPages();
   return { ok: true };
 }
 
@@ -81,7 +98,7 @@ export async function uploadBotDocument(_prev: ActionState, formData: FormData):
   } catch (err) {
     return { error: err instanceof Error ? err.message : "No se pudo subir el documento." };
   }
-  revalidatePath("/settings/whatsapp/bot");
+  revalidateBotPages();
   return { ok: true };
 }
 
@@ -90,7 +107,7 @@ export async function deleteBotDocument(id: string) {
   const doc = await prisma.whatsAppBotDocument.findUnique({ where: { id } });
   if (!doc) return;
   await prisma.whatsAppBotDocument.delete({ where: { id } });
-  revalidatePath("/settings/whatsapp/bot");
+  revalidateBotPages();
 }
 
 export type PlaygroundResult = {
