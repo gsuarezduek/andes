@@ -1,15 +1,15 @@
 name: Sync VikRentCar
 
-# Dispara la sincronización de reservas llamando al endpoint de Andes.
-# Corre cada 10 minutos (GitHub puede atrasarse unos minutos; alcanza de sobra)
-# y también se puede lanzar a mano desde la pestaña Actions.
+# Disparo MANUAL de respaldo para la sincronización de reservas (botón "Run workflow"
+# en la pestaña Actions). El disparo periódico real vive en Railway (servicio
+# "sync-cron", cron nativo cada 15 min) — el trigger `schedule` de GitHub Actions
+# se sacó de acá porque es "best-effort" y demostró atrasos de horas en producción
+# (ver sync_logs: corridas separadas por 1h30-4h con "*/10 * * * *" configurado).
 #
 # Requiere un único secret del repo:  CRON_SECRET  (el mismo valor que en Railway).
 # Settings → Secrets and variables → Actions → New repository secret.
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 # Si una corrida se solapa con la anterior, cancela la vieja.
