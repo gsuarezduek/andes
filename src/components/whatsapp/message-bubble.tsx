@@ -8,6 +8,7 @@ export type MessageData = {
   viaTemplate: boolean;
   templateName: string | null;
   sentByBot: boolean;
+  sentViaApp: boolean;
   createdAt: Date;
   sentBy: { name: string } | null;
   media: { storageKey: string; mimeType: string; kind: string } | null;
@@ -32,7 +33,13 @@ export function MessageBubble({ message }: { message: MessageData }) {
       </div>
       <span className="mt-1 px-1 text-xs text-foreground/40">
         {formatDateTime(message.createdAt)}
-        {out && message.sentByBot ? " · 🤖 Bot" : out && message.sentBy ? ` · ${message.sentBy.name}` : ""}
+        {out && message.sentByBot
+          ? " · 🤖 Bot"
+          : out && message.sentViaApp
+            ? " · 📱 WhatsApp"
+            : out && message.sentBy
+              ? ` · ${message.sentBy.name}`
+              : ""}
       </span>
     </div>
   );

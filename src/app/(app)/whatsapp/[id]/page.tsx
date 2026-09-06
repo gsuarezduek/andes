@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { getConversation, findRelatedRentals, isSessionWindowOpen } from "@/lib/whatsapp/conversations";
+import { getConversation, findRelatedRentals, isSessionWindowOpen, markConversationRead } from "@/lib/whatsapp/conversations";
 import { formatDate } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -23,6 +24,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const conversation = await getConversation(id);
   if (!conversation) notFound();
+
+  // Fire-and-forget: no bloquea el render, y no hace falta esperar a
+  // confirmarlo para mostrar la página.
+  after(() => markConversationRead(id).catch(() => {}));
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 

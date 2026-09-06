@@ -9,6 +9,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
+import type { WhatsAppMediaKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 import { getDecryptedAccount, getDecryptedWebhookSecret } from "@/lib/whatsapp/settings";
@@ -16,9 +17,11 @@ import { maybeRespondWithBot } from "@/lib/whatsapp/bot/respond";
 import {
   verifyWebhookSignature,
   parseInboundEvent,
+  parseOutboundEchoEvents,
   downloadMedia,
   type ChakraAccount,
   type InboundMessageEvent,
+  type OutboundEchoEvent,
 } from "@/lib/whatsapp/chakra";
 
 const EXTENSION_BY_MIME: Record<string, string> = {
@@ -60,7 +63,29 @@ export async function processWhatsAppWebhook(
   for (const event of events) {
     await handleInboundMessage(account, event);
   }
-  return { status: "processed", count: events.length };
+  const echoes = parseOutboundEchoEvents(payload);
+  for (const echo of echoes) {
+    await handleOutboundEcho(account, echo);
+  }
+  return { status: "processed", count: events.length + echoes.length };
+}
+
+/** Descarga best-effort un adjunto y lo persiste en `WhatsAppMedia`. Un fallo no debe tirar abajo el mensaje en sí. */
+async function downloadAndStoreMedia(
+  account: ChakraAccount,
+  media: { mediaId: string; mimeType: string | null; kind: WhatsAppMediaKind },
+): Promise<string | undefined> {
+  try {
+    const { buffer, mimeType } = await downloadMedia(account, media.mediaId);
+    const resolvedMime = mimeType || media.mimeType || "application/octet-stream";
+    const id = randomUUID();
+    const key = `whatsapp/${id}.${extensionForMime(resolvedMime)}`;
+    await storage().put(key, buffer, resolvedMime);
+    await prisma.whatsAppMedia.create({ data: { id, storageKey: key, mimeType: resolvedMime, kind: media.kind } });
+    return id;
+  } catch {
+    return undefined;
+  }
 }
 
 async function handleInboundMessage(account: ChakraAccount, event: InboundMessageEvent) {
@@ -86,22 +111,7 @@ async function handleInboundMessage(account: ChakraAccount, event: InboundMessag
     update: { lastMessageAt: event.timestamp, lastInboundAt: event.timestamp, customerId: customer.id },
   });
 
-  let mediaId: string | undefined;
-  if (event.media) {
-    try {
-      const { buffer, mimeType } = await downloadMedia(account, event.media.mediaId);
-      const resolvedMime = mimeType || event.media.mimeType || "application/octet-stream";
-      const id = randomUUID();
-      const key = `whatsapp/${id}.${extensionForMime(resolvedMime)}`;
-      await storage().put(key, buffer, resolvedMime);
-      await prisma.whatsAppMedia.create({
-        data: { id, storageKey: key, mimeType: resolvedMime, kind: event.media.kind },
-      });
-      mediaId = id;
-    } catch {
-      // Best-effort: si falla la descarga, el mensaje queda igual sin adjunto.
-    }
-  }
+  const mediaId = event.media ? await downloadAndStoreMedia(account, event.media) : undefined;
 
   await prisma.whatsAppMessage.create({
     data: {
@@ -117,4 +127,43 @@ async function handleInboundMessage(account: ChakraAccount, event: InboundMessag
   // Fire-and-forget: no bloquea el 200 que espera el BSP (reintenta agresivo
   // si tarda). Un fallo del bot no debe romper la confirmación del webhook.
   after(() => maybeRespondWithBot(conversation.id).catch((err) => console.error("whatsapp bot failed", err)));
+}
+
+/**
+ * Un mensaje mandado a mano desde la app de WhatsApp Business / WhatsApp Web
+ * (Coexistence) — no pasó por Andes, así que no hay `sentById` (nadie del
+ * equipo lo tipeó acá). Cuenta igual como respuesta: actualiza
+ * `lastOutboundAt`, que es lo que saca a la conversación de "pendiente"
+ * (ver needsReply en src/lib/whatsapp/conversations.ts). No dispara el bot
+ * — no es un mensaje del cliente.
+ */
+async function handleOutboundEcho(account: ChakraAccount, event: OutboundEchoEvent) {
+  const existing = await prisma.whatsAppMessage.findUnique({ where: { waMessageId: event.waMessageId } });
+  if (existing) return;
+
+  const customer = await prisma.customer.upsert({
+    where: { phone: event.toE164 },
+    create: { phone: event.toE164 },
+    update: {},
+  });
+
+  const conversation = await prisma.whatsAppConversation.upsert({
+    where: { phoneE164: event.toE164 },
+    create: { phoneE164: event.toE164, customerId: customer.id, lastMessageAt: event.timestamp, lastOutboundAt: event.timestamp },
+    update: { lastMessageAt: event.timestamp, lastOutboundAt: event.timestamp, customerId: customer.id },
+  });
+
+  const mediaId = event.media ? await downloadAndStoreMedia(account, event.media) : undefined;
+
+  await prisma.whatsAppMessage.create({
+    data: {
+      conversationId: conversation.id,
+      waMessageId: event.waMessageId,
+      direction: "out",
+      body: event.text,
+      mediaId,
+      sentViaApp: true,
+      createdAt: event.timestamp,
+    },
+  });
 }

@@ -41,6 +41,7 @@ export default async function WhatsAppPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
+                    {c.needsReply ? <Badge tone="amber">Pendiente</Badge> : null}
                     {!c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
                   </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
@@ -49,11 +50,7 @@ export default async function WhatsAppPage() {
                   {c.lastMessageAt ? (
                     <span className="text-xs text-foreground/50">{formatDateTime(c.lastMessageAt)}</span>
                   ) : null}
-                  {c.assignedTo ? (
-                    <span className="text-xs text-foreground/50">{c.assignedTo.name}</span>
-                  ) : (
-                    <span className="text-xs text-foreground/30">Sin asignar</span>
-                  )}
+                  {c.assignedTo ? <span className="text-xs text-foreground/50">{c.assignedTo.name}</span> : null}
                 </div>
               </Link>
             </li>

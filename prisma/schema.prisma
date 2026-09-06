@@ -1419,8 +1419,15 @@ model WhatsAppConversation {
   assignedToId String? @map("assigned_to_id")
   assignedTo   User?   @relation(fields: [assignedToId], references: [id])
 
-  lastMessageAt DateTime? @map("last_message_at")
-  lastInboundAt DateTime? @map("last_inbound_at")
+  lastMessageAt  DateTime? @map("last_message_at")
+  lastInboundAt  DateTime? @map("last_inbound_at")
+  // Última salida en cualquier dirección: desde Andes, el bot, o un eco de
+  // la app/WhatsApp Web (Coexistence, ver WhatsAppMessage.sentViaApp).
+  lastOutboundAt DateTime? @map("last_outbound_at")
+  // Última vez que alguien del equipo abrió este hilo en Andes (ver
+  // markConversationRead). Junto con lastOutboundAt define "pendiente de
+  // respuesta": ver needsReply en src/lib/whatsapp/conversations.ts.
+  lastReadAt     DateTime? @map("last_read_at")
 
   // El bot responde mientras esté true. Se apaga solo al escalar a un
   // humano (ver WhatsAppBotEscalation) o a mano desde el hilo.
@@ -1468,6 +1475,12 @@ model WhatsAppMessage {
   // Distingue una respuesta automática del bot de una escrita por el
   // equipo — ambas comparten `direction: out` y `sentById: null`.
   sentByBot Boolean @default(false) @map("sent_by_bot")
+
+  // Mandado a mano desde la app de WhatsApp Business o WhatsApp Web
+  // vinculado al mismo número (Coexistence), no desde Andes — llega como
+  // eco del webhook de Meta, no por una acción del equipo acá. También
+  // `direction: out` y `sentById: null`.
+  sentViaApp Boolean @default(false) @map("sent_via_app")
 
   createdAt DateTime @default(now()) @map("created_at")
 

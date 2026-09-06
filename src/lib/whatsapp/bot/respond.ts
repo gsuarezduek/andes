@@ -22,11 +22,12 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
   const conversation = await prisma.whatsAppConversation.findUnique({ where: { id: conversationId } });
   if (!conversation || !conversation.botEnabled) return;
 
-  // Un humano ya intervino en esta conversación puntual: el bot no vuelve a
-  // meterse aunque nadie haya tocado el toggle a mano.
+  // Un humano ya intervino en esta conversación puntual (desde Andes o a
+  // mano desde la app/WhatsApp Web): el bot no vuelve a meterse aunque nadie
+  // haya tocado el toggle a mano.
   if (config.onlyNewConversations) {
     const humanReplied = await prisma.whatsAppMessage.findFirst({
-      where: { conversationId, sentById: { not: null } },
+      where: { conversationId, OR: [{ sentById: { not: null } }, { sentViaApp: true }] },
     });
     if (humanReplied) return;
   }

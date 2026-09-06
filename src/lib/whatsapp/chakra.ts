@@ -287,3 +287,66 @@ export function parseInboundEvent(payload: unknown): InboundMessageEvent[] {
   }
   return events;
 }
+
+export interface OutboundEchoEvent {
+  waMessageId: string;
+  toE164: string;
+  timestamp: Date;
+  text?: string;
+  media?: { mediaId: string; mimeType: string | null; kind: WhatsAppMediaKind };
+}
+
+interface MetaMessageEcho extends Omit<MetaMessage, "from"> {
+  from: string; // número del negocio — no se usa, la conversación se resuelve por `to`
+  to: string; // número del contacto
+}
+
+/**
+ * Normaliza el webhook `field:"smb_message_echoes"` — mensajes que alguien
+ * del equipo mandó a mano desde la app de WhatsApp Business o WhatsApp Web
+ * vinculado al mismo número (Coexistence), no vía Andes. Forma tomada de la
+ * referencia oficial de Meta (developers.facebook.com/documentation/
+ * business-messaging/whatsapp/webhooks/reference/smb_message_echoes) — a
+ * diferencia de `parseInboundEvent`, **todavía no se verificó contra un
+ * payload real** (esta cuenta no tiene Coexistence probado). Si los mensajes
+ * contestados desde la app no aparecen como respondidos en Andes, revisar
+ * los logs de Railway para confirmar la forma real del payload antes de
+ * seguir ajustando esto a ciegas (mismo método que se usó para
+ * `parseInboundEvent`, ver CLAUDE.md v20).
+ *
+ * `type: "edit"` y `"revoke"` (el usuario editó o borró un mensaje ya
+ * mandado desde la app) se ignoran a propósito — fuera de alcance del MVP,
+ * el mensaje original queda como se guardó.
+ */
+export function parseOutboundEchoEvents(payload: unknown): OutboundEchoEvent[] {
+  const events: OutboundEchoEvent[] = [];
+  const entries = (payload as { entry?: unknown[] })?.entry;
+  if (!Array.isArray(entries)) return events;
+
+  for (const entry of entries) {
+    const changes = (entry as { changes?: unknown[] })?.changes;
+    if (!Array.isArray(changes)) continue;
+    for (const change of changes) {
+      const { field, value } = change as { field?: string; value?: { message_echoes?: MetaMessageEcho[] } };
+      if (field !== "smb_message_echoes") continue;
+      const echoes = value?.message_echoes;
+      if (!Array.isArray(echoes)) continue;
+
+      for (const m of echoes) {
+        if (m.type === "edit" || m.type === "revoke") continue;
+        const base = { waMessageId: m.id, toE164: `+${m.to}`, timestamp: new Date(Number(m.timestamp) * 1000) };
+        const mediaField = m.image ?? m.audio ?? m.video ?? m.document ?? m.sticker;
+        if (m.type === "text" && m.text) {
+          events.push({ ...base, text: m.text.body });
+        } else if (mediaField && m.type in MEDIA_KIND_BY_TYPE) {
+          events.push({
+            ...base,
+            text: (mediaField as { caption?: string }).caption,
+            media: { mediaId: mediaField.id, mimeType: mediaField.mime_type ?? null, kind: MEDIA_KIND_BY_TYPE[m.type] },
+          });
+        }
+      }
+    }
+  }
+  return events;
+}

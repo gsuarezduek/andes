@@ -9,6 +9,7 @@ import {
   REPORT_PERIOD_OPTIONS,
   DEFAULT_VEHICLE_SORT,
   type MonthPoint,
+  type WhatsAppMonthPoint,
   type VehicleSortKey,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
@@ -41,7 +42,8 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership } = await getReports(period);
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, whatsapp } =
+    await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
   /** href de un encabezado de columna: si ya se ordena por esa columna, invierte la dirección. */
@@ -125,6 +127,18 @@ export default async function ReportsPage({
           </a>
         </div>
         <MonthBars data={byMonth} highlightMonth={highlightMonth} />
+      </section>
+
+      {/* WhatsApp */}
+      <section className="flex flex-col gap-3">
+        <SectionHeading description="Conversaciones con al menos un mensaje (entrante o saliente) en el período.">
+          WhatsApp
+        </SectionHeading>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Kpi label="Conversaciones únicas (período)" value={String(whatsapp.conversationsInPeriod)} />
+        </div>
+        <p className="text-xs font-medium text-foreground/60">Conversaciones únicas por mes</p>
+        <WhatsAppMonthBars data={whatsapp.byMonth} />
       </section>
 
       {/* Por vehículo */}
@@ -237,6 +251,40 @@ function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMont
                 <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.6}>{d.rentals}</text>
               )}
               <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.45}>
+                {d.month.slice(5)}/{d.month.slice(2, 4)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** Mismo gráfico de barras que `MonthBars`, pero para conversaciones de WhatsApp por mes (verde, sin mes destacado). */
+function WhatsAppMonthBars({ data }: { data: WhatsAppMonthPoint[] }) {
+  const w = 720;
+  const h = 180;
+  const pad = 24;
+  const max = Math.max(1, ...data.map((d) => d.conversations));
+  const bw = (w - 2 * pad) / data.length;
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full min-w-[420px] text-emerald-500" role="img" aria-label="Conversaciones de WhatsApp por mes">
+        {data.map((d, i) => {
+          const barH = (d.conversations / max) * (h - 2 * pad);
+          const x = pad + i * bw;
+          const y = h - pad - barH;
+          return (
+            <g key={d.month}>
+              <rect x={x + bw * 0.15} y={y} width={bw * 0.7} height={barH} fill="currentColor" fillOpacity="0.7" rx="2" />
+              {d.conversations > 0 && (
+                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill="currentColor" fillOpacity="0.6">
+                  {d.conversations}
+                </text>
+              )}
+              <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill="currentColor" fillOpacity="0.45">
                 {d.month.slice(5)}/{d.month.slice(2, 4)}
               </text>
             </g>

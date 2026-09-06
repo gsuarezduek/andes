@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
-import { verifyWebhookSignature, parseInboundEvent } from "@/lib/whatsapp/chakra";
+import { verifyWebhookSignature, parseInboundEvent, parseOutboundEchoEvents } from "@/lib/whatsapp/chakra";
 
 describe("verifyWebhookSignature", () => {
   const secret = "shh-its-a-secret";
@@ -142,5 +142,110 @@ describe("parseInboundEvent", () => {
   it("devuelve [] para un payload sin entry", () => {
     expect(parseInboundEvent({})).toEqual([]);
     expect(parseInboundEvent(null)).toEqual([]);
+  });
+});
+
+// Formato tomado de la referencia oficial de Meta (developers.facebook.com/
+// documentation/business-messaging/whatsapp/webhooks/reference/
+// smb_message_echoes) — todavía NO verificado contra un payload real
+// (Coexistence sin probar en esta cuenta). Ver comentario en chakra.ts.
+describe("parseOutboundEchoEvents", () => {
+  it("extrae un mensaje de texto mandado a mano desde la app/WhatsApp Web", () => {
+    const payload = {
+      entry: [
+        {
+          changes: [
+            {
+              field: "smb_message_echoes",
+              value: {
+                messaging_product: "whatsapp",
+                metadata: { display_phone_number: "5492612306787", phone_number_id: "883576331510395" },
+                message_echoes: [
+                  {
+                    from: "5492612306787",
+                    to: "5492612577987",
+                    id: "wamid.ECHO1",
+                    timestamp: "1788703999",
+                    type: "text",
+                    text: { body: "te confirmo desde la app" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const events = parseOutboundEchoEvents(payload);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      waMessageId: "wamid.ECHO1",
+      toE164: "+5492612577987",
+      text: "te confirmo desde la app",
+    });
+    expect(events[0].timestamp).toEqual(new Date(1788703999 * 1000));
+  });
+
+  it("extrae un eco con imagen y caption", () => {
+    const payload = {
+      entry: [
+        {
+          changes: [
+            {
+              field: "smb_message_echoes",
+              value: {
+                message_echoes: [
+                  {
+                    from: "5492612306787",
+                    to: "5492611234567",
+                    id: "wamid.ECHOIMG",
+                    timestamp: "1700000002",
+                    type: "image",
+                    image: { id: "media-echo-1", mime_type: "image/jpeg", caption: "así quedó" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const events = parseOutboundEchoEvents(payload);
+    expect(events).toHaveLength(1);
+    expect(events[0].media).toEqual({ mediaId: "media-echo-1", mimeType: "image/jpeg", kind: "image" });
+    expect(events[0].text).toBe("así quedó");
+  });
+
+  it("ignora ediciones y borrados (fuera de alcance del MVP)", () => {
+    const payload = {
+      entry: [
+        {
+          changes: [
+            {
+              field: "smb_message_echoes",
+              value: {
+                message_echoes: [
+                  { from: "1", to: "2", id: "wamid.EDIT", timestamp: "1700000003", type: "edit" },
+                  { from: "1", to: "2", id: "wamid.REVOKE", timestamp: "1700000004", type: "revoke" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(parseOutboundEchoEvents(payload)).toEqual([]);
+  });
+
+  it("ignora un change de mensajes entrantes normales (field distinto)", () => {
+    const payload = {
+      entry: [{ changes: [{ field: "messages", value: { messages: [{ id: "x", from: "1", timestamp: "1", type: "text", text: { body: "hola" } }] } }] }],
+    };
+    expect(parseOutboundEchoEvents(payload)).toEqual([]);
+  });
+
+  it("devuelve [] para un payload sin entry", () => {
+    expect(parseOutboundEchoEvents({})).toEqual([]);
+    expect(parseOutboundEchoEvents(null)).toEqual([]);
   });
 });

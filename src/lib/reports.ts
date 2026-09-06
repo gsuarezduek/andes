@@ -26,6 +26,8 @@ import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
 export type MonthPoint = { month: string; rentals: number; km: number };
 
+export type WhatsAppMonthPoint = { month: string; conversations: number };
+
 export type VehicleReport = {
   id: string;
   label: string;
@@ -79,6 +81,12 @@ export type Reports = {
   highlightMonth: string | null;
   vehicles: VehicleReport[];
   cashByOwnership: CashByOwnership;
+  whatsapp: {
+    // Conversaciones únicas (al menos un mensaje, entrante o saliente) del período elegido arriba.
+    conversationsInPeriod: number;
+    // Mismo criterio, agrupado por mes — mismos meses que `byMonth` (ver chartMonthCount).
+    byMonth: WhatsAppMonthPoint[];
+  };
 };
 
 /** Año-mes ("YYYY-MM") de un instante, en hora de Mendoza. */
@@ -238,6 +246,22 @@ export function aggregateCashByOwnership(movements: CashMovementForOwnership[]):
 }
 
 /**
+ * Agrupa mensajes de WhatsApp por mes y cuenta conversaciones únicas por
+ * bucket (una misma conversación puede sumar en varios meses si tuvo
+ * actividad en cada uno). Pura y testeable.
+ */
+export function bucketWhatsAppConversations(
+  messages: { conversationId: string; createdAt: Date }[],
+  monthList: string[],
+): WhatsAppMonthPoint[] {
+  const sets = new Map<string, Set<string>>(monthList.map((m) => [m, new Set<string>()]));
+  for (const msg of messages) {
+    sets.get(monthOf(msg.createdAt))?.add(msg.conversationId);
+  }
+  return monthList.map((m) => ({ month: m, conversations: sets.get(m)!.size }));
+}
+
+/**
  * Reordena la tabla "por vehículo" por la columna elegida (click en el
  * encabezado, ver reports/page.tsx). No muta el array de entrada.
  */
@@ -331,17 +355,34 @@ export const getReports = unstable_cache(
     // El ingreso sale de un campo Json (`pricing`, con fallback a
     // `bookingTotal`) que no se puede sumar a nivel base de datos — hace
     // falta traer cada alquiler finalizado para resolverlo en JS.
-    const finishedInRange = await prisma.rental.findMany({
-      where: { status: "finished", endAt: { gte: queryStart, lt: now } },
-      select: {
-        id: true,
-        vehicleId: true,
-        pricing: true,
-        bookingTotal: true,
-        endAt: true,
-        inspections: { select: { type: true, km: true, createdAt: true } },
-      },
-    });
+    const [finishedInRange, whatsappMessagesInRange] = await Promise.all([
+      prisma.rental.findMany({
+        where: { status: "finished", endAt: { gte: queryStart, lt: now } },
+        select: {
+          id: true,
+          vehicleId: true,
+          pricing: true,
+          bookingTotal: true,
+          endAt: true,
+          inspections: { select: { type: true, km: true, createdAt: true } },
+        },
+      }),
+      // Misma ventana ancha que `finishedInRange` (superset de período+gráfico):
+      // se bucketea por mes para el gráfico y se filtra al período para el KPI.
+      prisma.whatsAppMessage.findMany({
+        where: { createdAt: { gte: queryStart, lt: now } },
+        select: { conversationId: true, createdAt: true },
+      }),
+    ]);
+
+    const whatsappByMonth = bucketWhatsAppConversations(whatsappMessagesInRange, chartMonthList);
+    const whatsappConversationsInPeriod = new Set(
+      whatsappMessagesInRange
+        .filter(
+          (m) => m.createdAt.getTime() >= periodRange.start.getTime() && m.createdAt.getTime() < periodRange.end.getTime(),
+        )
+        .map((m) => m.conversationId),
+    ).size;
 
     const vMap = new Map<string, VehicleReport>(
       vehicles.map((v) => [
@@ -446,6 +487,7 @@ export const getReports = unstable_cache(
       highlightMonth,
       vehicles: vehicleReports,
       cashByOwnership,
+      whatsapp: { conversationsInPeriod: whatsappConversationsInPeriod, byMonth: whatsappByMonth },
     };
   },
   ["reports"],

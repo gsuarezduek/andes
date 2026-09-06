@@ -8,6 +8,7 @@ import {
   recentMonths,
   sortVehicleReports,
   aggregateCashByOwnership,
+  bucketWhatsAppConversations,
   parseReportPeriod,
   reportPeriodParam,
   reportPeriodLabel,
@@ -185,6 +186,34 @@ describe("aggregateCashByOwnership", () => {
       incomeUnclassified: 0,
       expenseTotal: 0,
     });
+  });
+});
+
+describe("bucketWhatsAppConversations", () => {
+  it("cuenta conversaciones únicas por mes, ignorando mensajes duplicados de la misma conversación", () => {
+    const messages = [
+      { conversationId: "a", createdAt: new Date("2026-07-05T10:00:00Z") },
+      { conversationId: "a", createdAt: new Date("2026-07-06T10:00:00Z") }, // misma conversación, mismo mes
+      { conversationId: "b", createdAt: new Date("2026-07-10T10:00:00Z") },
+      { conversationId: "a", createdAt: new Date("2026-08-01T10:00:00Z") }, // misma conversación, otro mes: cuenta en los dos
+    ];
+    expect(bucketWhatsAppConversations(messages, ["2026-06", "2026-07", "2026-08"])).toEqual([
+      { month: "2026-06", conversations: 0 },
+      { month: "2026-07", conversations: 2 },
+      { month: "2026-08", conversations: 1 },
+    ]);
+  });
+
+  it("mensajes fuera de la lista de meses no cuentan en ningún lado", () => {
+    const messages = [{ conversationId: "a", createdAt: new Date("2025-01-01T00:00:00Z") }];
+    expect(bucketWhatsAppConversations(messages, ["2026-07"])).toEqual([{ month: "2026-07", conversations: 0 }]);
+  });
+
+  it("sin mensajes, todos los meses en cero", () => {
+    expect(bucketWhatsAppConversations([], ["2026-07", "2026-08"])).toEqual([
+      { month: "2026-07", conversations: 0 },
+      { month: "2026-08", conversations: 0 },
+    ]);
   });
 });
 

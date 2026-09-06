@@ -7,6 +7,26 @@ export function isSessionWindowOpen(lastInboundAt: Date | null): boolean {
   return Boolean(lastInboundAt && Date.now() - lastInboundAt.getTime() < SESSION_WINDOW_MS);
 }
 
+/**
+ * "Pendiente de respuesta": llegó un mensaje del cliente que todavía no se
+ * contestó (por Andes, el bot, o a mano desde la app — `lastOutboundAt`
+ * cubre las tres) NI se vio en Andes (`lastReadAt`). Alcanza con que
+ * cualquiera de las dos pase para que deje de estar pendiente — ver pedido
+ * del dueño: un mensaje sin abrir en Andes pero ya respondido desde otro
+ * lado no debe seguir marcado como pendiente.
+ */
+export function needsReply(c: { lastInboundAt: Date | null; lastOutboundAt: Date | null; lastReadAt: Date | null }): boolean {
+  if (!c.lastInboundAt) return false;
+  const answered = c.lastOutboundAt != null && c.lastOutboundAt.getTime() >= c.lastInboundAt.getTime();
+  const viewed = c.lastReadAt != null && c.lastReadAt.getTime() >= c.lastInboundAt.getTime();
+  return !answered && !viewed;
+}
+
+/** Marca el hilo como visto desde Andes — se llama al abrir la conversación (ver [id]/page.tsx). */
+export async function markConversationRead(conversationId: string) {
+  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastReadAt: new Date() } });
+}
+
 export async function listConversations() {
   const conversations = await prisma.whatsAppConversation.findMany({
     orderBy: { lastMessageAt: "desc" },
@@ -16,7 +36,9 @@ export async function listConversations() {
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
-  return conversations.map(({ messages, ...c }) => ({ ...c, lastMessage: messages[0] ?? null }));
+  return conversations
+    .map(({ messages, ...c }) => ({ ...c, lastMessage: messages[0] ?? null, needsReply: needsReply(c) }))
+    .sort((a, b) => Number(b.needsReply) - Number(a.needsReply));
 }
 
 export async function getConversation(id: string) {

@@ -28,6 +28,7 @@ async function sendOutboundText(
   const account = await requireAccount();
   const { waMessageId } = await sendSessionTextMessage(account, conversation.phoneE164, text);
 
+  const now = new Date();
   await prisma.$transaction([
     prisma.whatsAppMessage.create({
       data: {
@@ -39,7 +40,10 @@ async function sendOutboundText(
         sentByBot: sender.sentByBot ?? false,
       },
     }),
-    prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } }),
+    prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: now, lastOutboundAt: now },
+    }),
   ]);
 }
 
@@ -79,6 +83,7 @@ export async function reopenWithTemplate(
     variables,
   );
 
+  const now = new Date();
   await prisma.$transaction([
     prisma.whatsAppMessage.create({
       data: {
@@ -91,6 +96,9 @@ export async function reopenWithTemplate(
         templateName: template.name,
       },
     }),
-    prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } }),
+    prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: now, lastOutboundAt: now },
+    }),
   ]);
 }
