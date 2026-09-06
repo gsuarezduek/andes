@@ -24,11 +24,17 @@ function preview(message: { body: string | null; mediaId: string | null } | null
   return "—";
 }
 
-export default async function WhatsAppPage() {
+export default async function WhatsAppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ unread?: string }>;
+}) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
+  const { unread } = await searchParams;
+  const unreadOnly = unread === "1";
 
-  const [conversations, botData] = await Promise.all([
+  const [allConversations, botData] = await Promise.all([
     listConversations(),
     isAdmin
       ? Promise.all([
@@ -46,6 +52,8 @@ export default async function WhatsAppPage() {
       : Promise.resolve(null),
   ]);
   const [botConfig, botDocuments, botEscalations] = botData ?? [null, null, null];
+  const unreadCount = allConversations.filter((c) => c.needsReply).length;
+  const conversations = unreadOnly ? allConversations.filter((c) => c.needsReply) : allConversations;
 
   return (
     <div className="flex flex-col gap-5">
@@ -90,10 +98,32 @@ export default async function WhatsAppPage() {
         </section>
       ) : null}
 
+      <div className="flex items-center gap-2 text-sm">
+        <Link
+          href="/whatsapp"
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            unreadOnly ? "text-foreground/60 hover:bg-foreground/5" : "bg-foreground/10 text-foreground"
+          }`}
+        >
+          Todas ({allConversations.length})
+        </Link>
+        <Link
+          href="/whatsapp?unread=1"
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            unreadOnly
+              ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              : "text-foreground/60 hover:bg-foreground/5"
+          }`}
+        >
+          No leídas ({unreadCount})
+        </Link>
+      </div>
+
       {conversations.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
-          Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un
-          cliente escriba, o revisá que el webhook esté dado de alta en Chakra.
+          {unreadOnly
+            ? "No hay conversaciones no leídas."
+            : "Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un cliente escriba, o revisá que el webhook esté dado de alta en Chakra."}
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
@@ -101,12 +131,14 @@ export default async function WhatsAppPage() {
             <li key={c.id}>
               <Link
                 href={`/whatsapp/${c.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03]"
+                className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03] ${
+                  c.needsReply ? "bg-amber-500/5 dark:bg-amber-500/10" : ""
+                }`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
-                    {c.needsReply ? <Badge tone="amber">Pendiente</Badge> : null}
+                    {c.needsReply ? <Badge tone="amber">No leído</Badge> : null}
                     {!c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
                   </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
