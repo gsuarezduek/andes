@@ -28,40 +28,71 @@ describe("verifyWebhookSignature", () => {
   });
 });
 
-// Formato real de Chakra (verificado contra apidocs.chakrahq.com/doc-919167),
-// NO el pass-through nativo de Meta que se había asumido en un principio.
+// Formato real (pass-through de Meta), capturado contra una cuenta real de
+// Chakra el 2026-09-06 — ver CLAUDE.md v20.
 describe("parseInboundEvent", () => {
-  it("extrae un mensaje de texto", () => {
+  it("extrae un mensaje de texto (payload real capturado en producción)", () => {
     const payload = {
-      event: "message",
-      payload: {
-        wabaId: "83784929738012",
-        externalId: "wamid.ABC",
-        messageId: "wamid.ABC",
-        timestamp: 1788259051000,
-        message: { from: "5492611234567", type: "text", text: { body: "Hola!" } },
-        contacts: [{ profile: { name: "Juan Pérez" }, wa_id: "5492611234567" }],
-      },
+      entry: [
+        {
+          id: "1115147320428113",
+          changes: [
+            {
+              field: "messages",
+              value: {
+                messaging_product: "whatsapp",
+                metadata: { display_phone_number: "5492612306787", phone_number_id: "883576331510395" },
+                contacts: [{ profile: { name: "Gastón" }, user_id: "AR.1523879196210702", wa_id: "5492612577987" }],
+                messages: [
+                  {
+                    from: "5492612577987",
+                    from_user_id: "AR.1523879196210702",
+                    id: "wamid.HBgNNTQ5MjYxMjU3Nzk4NxUCABIYFDNCNkQ3REFCRTg2NjU0NEE2MTVCAA==",
+                    timestamp: "1788703888",
+                    type: "text",
+                    text: { body: "hola oo" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      object: "whatsapp_business_account",
     };
     const events = parseInboundEvent(payload);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      waMessageId: "wamid.ABC",
-      fromE164: "+5492611234567",
-      contactName: "Juan Pérez",
-      text: "Hola!",
+      waMessageId: "wamid.HBgNNTQ5MjYxMjU3Nzk4NxUCABIYFDNCNkQ3REFCRTg2NjU0NEE2MTVCAA==",
+      fromE164: "+5492612577987",
+      contactName: "Gastón",
+      text: "hola oo",
     });
-    expect(events[0].timestamp).toEqual(new Date(1788259051000));
+    expect(events[0].timestamp).toEqual(new Date(1788703888 * 1000));
   });
 
   it("extrae un mensaje con imagen y caption", () => {
     const payload = {
-      event: "message",
-      payload: {
-        messageId: "wamid.IMG",
-        timestamp: 1788259051000,
-        message: { from: "5492611234567", type: "image", image: { id: "media-1", mime_type: "image/jpeg", caption: "mirá esto" } },
-      },
+      entry: [
+        {
+          changes: [
+            {
+              field: "messages",
+              value: {
+                messages: [
+                  {
+                    id: "wamid.IMG",
+                    from: "5492611234567",
+                    timestamp: "1700000001",
+                    type: "image",
+                    image: { id: "media-1", mime_type: "image/jpeg", caption: "mirá esto" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
     };
     const events = parseInboundEvent(payload);
     expect(events).toHaveLength(1);
@@ -69,13 +100,47 @@ describe("parseInboundEvent", () => {
     expect(events[0].text).toBe("mirá esto");
   });
 
-  it("ignora eventos que no son de mensaje (status, billing, etc.)", () => {
-    expect(parseInboundEvent({ event: "status", payload: { status: "delivered" } })).toEqual([]);
+  it("ignora eventos de status de un mensaje saliente (payload real de sent/delivered/read)", () => {
+    const payload = {
+      entry: [
+        {
+          id: "1115147320428113",
+          changes: [
+            {
+              field: "messages",
+              value: {
+                messaging_product: "whatsapp",
+                metadata: { display_phone_number: "5492612306787", phone_number_id: "883576331510395" },
+                contacts: [{ user_id: "AR.1523879196210702", wa_id: "5492612577987" }],
+                statuses: [
+                  {
+                    id: "wamid.STATUS",
+                    status: "delivered",
+                    timestamp: "1788703905",
+                    recipient_id: "5492612577987",
+                    recipient_user_id: "AR.1523879196210702",
+                    pricing: { billable: false, category: "service", pricing_model: "PMP", type: "free_customer_service" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      object: "whatsapp_business_account",
+    };
+    expect(parseInboundEvent(payload)).toEqual([]);
   });
 
-  it("devuelve [] para un payload sin la forma esperada", () => {
+  it("ignora eventos de sincronización de historial (field:history)", () => {
+    const payload = {
+      entry: [{ changes: [{ field: "history", value: { history: [{ threads: [] }] } }] }],
+    };
+    expect(parseInboundEvent(payload)).toEqual([]);
+  });
+
+  it("devuelve [] para un payload sin entry", () => {
     expect(parseInboundEvent({})).toEqual([]);
     expect(parseInboundEvent(null)).toEqual([]);
-    expect(parseInboundEvent({ event: "message" })).toEqual([]);
   });
 });

@@ -2,18 +2,19 @@
  * Adaptador hacia Chakra (chakrahq.com), el BSP (Business Solution Provider)
  * que actúa de intermediario hacia la WhatsApp Cloud API de Meta.
  *
- * Verificado contra la documentación pública de Chakra (apidocs.chakrahq.com)
- * el 2026-09-06 — corrigió varios supuestos equivocados de una primera
- * versión basada en una integración hermana no verificada: falta el prefijo
- * `/v1/ext` en las rutas de mensajería/plantillas, la respuesta al enviar es
- * `{ _data: { whatsappMessageId } }` (no el shape nativo de Meta), y el
- * **webhook entrante NO es pass-through del formato nativo de Meta** — es un
- * formato propio de Chakra (`{ event, payload: { messageId, timestamp en
- * MILISEGUNDOS, message: {...} } }`), aunque el BODY que uno manda para
- * enviar un mensaje sí es el formato nativo de la Cloud API. Sigue sin
- * probarse contra una llamada real (solo contra la documentación) — si algo
- * no coincide en producción, este es el único archivo que debería necesitar
- * ajustes.
+ * Historial de verificación (ver CLAUDE.md v19/v20 para el detalle completo):
+ * primero se armó contra una integración hermana sin acceso a Chakra; se
+ * corrigió contra la documentación pública (apidocs.chakrahq.com) — eso SÍ
+ * confirmó el prefijo `/v1/ext` en las rutas de mensajería/plantillas y que
+ * la respuesta al enviar es `{ _data: { whatsappMessageId } }` (no el shape
+ * nativo de Meta) — pero esa misma corrección asumió mal el formato del
+ * webhook ENTRANTE. Contra una cuenta real (2026-09-06, con el toggle
+ * "Pass-through webhook" activado en Chakra), el payload entrante **es el
+ * formato nativo de la Cloud API de Meta** (`entry[].changes[].value...`,
+ * timestamp en SEGUNDOS) — el formato propio `{event, payload}` que describe
+ * `apidocs.chakrahq.com/doc-919167` corresponde a otro modo de webhook de
+ * Chakra, no al pass-through. `parseInboundEvent` ya está verificado contra
+ * un payload real capturado en producción.
  */
 
 import "server-only";
@@ -222,8 +223,10 @@ export interface InboundMessageEvent {
   media?: { mediaId: string; mimeType: string | null; kind: WhatsAppMediaKind };
 }
 
-interface ChakraInboundMessage {
+interface MetaMessage {
+  id: string;
   from: string;
+  timestamp: string; // segundos, no milisegundos
   type: string;
   text?: { body: string };
   image?: { id: string; mime_type: string; caption?: string };
@@ -233,50 +236,54 @@ interface ChakraInboundMessage {
   sticker?: { id: string; mime_type: string };
 }
 
-interface ChakraWebhookPayload {
-  event: string;
-  payload?: {
-    messageId: string;
-    timestamp: number; // milisegundos, no segundos
-    message: ChakraInboundMessage;
-    contacts?: { profile?: { name?: string } }[];
-  };
-}
-
 /**
- * Normaliza un evento del webhook de Chakra (su propio formato, NO el
- * pass-through de Meta) a una lista de mensajes entrantes. Devuelve `[]` para
- * cualquier evento que no sea `event:"message"` (status de entrega,
- * facturación, etc.) — fuera de alcance del inbox, se ignoran sin romper el
- * webhook. Cada request de Chakra trae UN evento, no un batch — el array de
- * salida es por compatibilidad con el llamador, nunca tiene más de 1 elemento.
+ * Normaliza el payload del webhook a una lista de mensajes entrantes.
+ *
+ * ⚠️ CONFIRMADO CONTRA UNA CUENTA REAL (2026-09-06, ver CLAUDE.md v20): con
+ * el toggle "Pass-through webhook" de Chakra activado, el payload que llega
+ * es el formato NATIVO de la Cloud API de Meta (`entry[].changes[].value...`,
+ * timestamp en SEGUNDOS) — no el formato propio `{event, payload}` que
+ * describe `apidocs.chakrahq.com/doc-919167` (ese doc aplica a otro modo de
+ * webhook de Chakra, no al pass-through). Devuelve `[]` para cualquier
+ * `change` que no sea `field:"messages"` con `value.messages` (status de
+ * entrega, sync de historial con `field:"history"`, facturación, etc.) —
+ * fuera de alcance del inbox, se ignoran sin romper el webhook.
  */
-export function parseInboundEvent(raw: unknown): InboundMessageEvent[] {
-  const event = raw as ChakraWebhookPayload | null;
-  if (!event || event.event !== "message" || !event.payload?.message) return [];
+export function parseInboundEvent(payload: unknown): InboundMessageEvent[] {
+  const events: InboundMessageEvent[] = [];
+  const entries = (payload as { entry?: unknown[] })?.entry;
+  if (!Array.isArray(entries)) return events;
 
-  const { payload } = event;
-  const m = payload.message;
-  const base = {
-    waMessageId: payload.messageId,
-    fromE164: `+${m.from}`,
-    timestamp: new Date(payload.timestamp),
-    contactName: payload.contacts?.[0]?.profile?.name,
-  };
+  for (const entry of entries) {
+    const changes = (entry as { changes?: unknown[] })?.changes;
+    if (!Array.isArray(changes)) continue;
+    for (const change of changes) {
+      const value = (change as { value?: { messages?: MetaMessage[]; contacts?: { profile?: { name?: string } }[] } })
+        ?.value;
+      const messages = value?.messages;
+      if (!Array.isArray(messages)) continue;
+      const contactName = value?.contacts?.[0]?.profile?.name;
 
-  if (m.type === "text" && m.text) {
-    return [{ ...base, text: m.text.body }];
+      for (const m of messages) {
+        const base = {
+          waMessageId: m.id,
+          fromE164: `+${m.from}`,
+          timestamp: new Date(Number(m.timestamp) * 1000),
+          contactName,
+        };
+        const mediaField = m.image ?? m.audio ?? m.video ?? m.document ?? m.sticker;
+        if (m.type === "text" && m.text) {
+          events.push({ ...base, text: m.text.body });
+        } else if (mediaField && m.type in MEDIA_KIND_BY_TYPE) {
+          events.push({
+            ...base,
+            text: (mediaField as { caption?: string }).caption,
+            media: { mediaId: mediaField.id, mimeType: mediaField.mime_type ?? null, kind: MEDIA_KIND_BY_TYPE[m.type] },
+          });
+        }
+        // Otros tipos (location, contacts, button, interactive, reaction, unsupported) se ignoran a propósito.
+      }
+    }
   }
-  const mediaField = m.image ?? m.audio ?? m.video ?? m.document ?? m.sticker;
-  if (mediaField && m.type in MEDIA_KIND_BY_TYPE) {
-    return [
-      {
-        ...base,
-        text: (mediaField as { caption?: string }).caption,
-        media: { mediaId: mediaField.id, mimeType: mediaField.mime_type ?? null, kind: MEDIA_KIND_BY_TYPE[m.type] },
-      },
-    ];
-  }
-  // Otros tipos (location, contacts, button, interactive, reaction, unsupported) se ignoran a propósito.
-  return [];
+  return events;
 }
