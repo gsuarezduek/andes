@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 export type SyncOutcome = { result: "success" | "partial" | "error"; message?: string };
 
 /** Botón-ícono para disparar la sincronización con VikRentCar a mano. */
-export function SyncButton({ sync, full = false }: { sync: () => Promise<SyncOutcome>; full?: boolean }) {
+export function SyncButton({ sync }: { sync: () => Promise<SyncOutcome> }) {
   const [pending, start] = useTransition();
   const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
   const router = useRouter();
@@ -32,19 +32,6 @@ export function SyncButton({ sync, full = false }: { sync: () => Promise<SyncOut
           ? "Sincronizado ✓"
           : "Sincronizar ahora";
 
-  if (full) {
-    return (
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className="flex w-full items-center gap-2 rounded-lg px-3 py-3 text-left text-base font-medium text-foreground/70 transition-colors hover:bg-foreground/5 disabled:opacity-60"
-      >
-        <SyncIcon spinning={pending} outcome={outcome} />
-        {label}
-      </button>
-    );
-  }
   return (
     <button
       type="button"
