@@ -45,7 +45,7 @@ export default async function GpsPage() {
             {devices.map((d) => (
               <GpsDeviceRow
                 key={d.id}
-                device={{ id: d.id, identifier: d.identifier, vehicleId: d.vehicleId }}
+                device={{ id: d.id, identifier: d.identifier, vehicleId: d.vehicleId, notes: d.notes }}
                 vehicles={vehicleOptions}
                 isAdmin={isAdmin}
               />

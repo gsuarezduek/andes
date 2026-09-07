@@ -63,6 +63,7 @@ export default async function VehiclesPage({
           orderBy: { createdAt: "desc" },
           select: { id: true, text: true },
         },
+        gpsDevice: { select: { identifier: true } },
       },
     }),
     prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
@@ -123,6 +124,14 @@ export default async function VehiclesPage({
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate font-medium">
                     {vehicleDisplayName(v)}
+                    {v.gpsDevice && (
+                      <span
+                        title={`GPS instalado: ${v.gpsDevice.identifier}`}
+                        className="inline-flex shrink-0 items-center rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400"
+                      >
+                        📡 {v.gpsDevice.identifier}
+                      </span>
+                    )}
                     {v.teamNotes.length > 0 && (
                       <span
                         title={`${v.teamNotes.length} nota(s) sin resolver`}

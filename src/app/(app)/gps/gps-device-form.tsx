@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useEffect } from "react";
-import { TextField, FormError } from "@/components/ui/fields";
+import { TextField, TextareaField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { createGpsDevice, type FormState } from "./actions";
 
@@ -23,6 +23,12 @@ export function GpsDeviceForm() {
         </div>
         <SubmitButton pendingLabel="Agregando…">Agregar</SubmitButton>
       </div>
+      <TextareaField
+        id="notes"
+        label="Dónde está instalado (opcional)"
+        placeholder="Ej. debajo del asiento del acompañante"
+        rows={2}
+      />
       <FormError>{state.error}</FormError>
     </form>
   );

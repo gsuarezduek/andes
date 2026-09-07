@@ -19,9 +19,10 @@ export async function createGpsDevice(
   await requireUser();
   const identifier = String(formData.get("identifier") ?? "").trim();
   if (!identifier) return { error: "El identificador es obligatorio." };
+  const notes = String(formData.get("notes") ?? "").trim();
 
   try {
-    await prisma.gpsDevice.create({ data: { identifier } });
+    await prisma.gpsDevice.create({ data: { identifier, notes: notes || null } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: "Ya existe un GPS con ese identificador." };
@@ -56,6 +57,18 @@ export async function assignGpsDevice(deviceId: string, vehicleId: string | null
   });
   revalidatePath("/gps");
   revalidatePath("/vehicles");
+}
+
+/** Dónde está físicamente instalado el GPS en el auto (ej. "debajo del
+ *  asiento del acompañante"). Igual que la asignación, es tarea operativa del
+ *  día a día — cualquier usuario logueado puede editarla. */
+export async function updateGpsDeviceNotes(deviceId: string, notes: string): Promise<void> {
+  await requireUser();
+  await prisma.gpsDevice.update({
+    where: { id: deviceId },
+    data: { notes: notes.trim() || null },
+  });
+  revalidatePath("/gps");
 }
 
 /** Borrado real (no es evidencia legal) — mismo criterio que los medios de pago. */
