@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { phoneVariants } from "@/lib/whatsapp/phone";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateInput, formatDateTime } from "@/lib/datetime";
 
 /**
  * El alquiler más relevante del cliente para dar contexto al bot — best
@@ -40,6 +40,11 @@ export function formatRentalContextLine(rental: Awaited<ReturnType<typeof findRe
     `Vehículo: ${vehicle}.`,
     `Retiro: ${formatDateTime(rental.startAt)}.`,
     `Devolución: ${formatDateTime(rental.endAt)}.`,
-    "No informes precios, señas ni saldos aunque te los pregunten — para eso deriva a un humano.",
+    "Para el precio/saldo exacto de esta reserva, o si el cliente pregunta por otra reserva o da un número, usá la herramienta get_my_reservations en vez de asumir estos datos.",
   ].join(" ");
+}
+
+/** "Hoy es …" en hora Mendoza, para que el bot resuelva "mañana"/"el viernes que viene" a una fecha real antes de llamar check_availability. */
+export function todayContextLine(now: Date = new Date()): string {
+  return `Hoy es ${formatDateInput(now)} (America/Argentina/Mendoza) — usá esta fecha como referencia para "hoy", "mañana", etc.`;
 }

@@ -6,10 +6,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { sendBotTextMessage } from "@/lib/whatsapp/send";
-import { generateBotReply, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
+import { generateBotReply, type BotTools, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 import { findMatch } from "@/lib/whatsapp/bot/security";
 import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
-import { findRentalContext, formatRentalContextLine } from "@/lib/whatsapp/bot/rental-context";
+import { findRentalContext, formatRentalContextLine, todayContextLine } from "@/lib/whatsapp/bot/rental-context";
+import { checkAvailability } from "@/lib/whatsapp/bot/availability";
+import { findMyReservations } from "@/lib/whatsapp/bot/my-reservations";
 
 const DEFAULT_HANDOFF_MESSAGE =
   "Gracias por escribirnos. Ya le paso tu consulta a alguien del equipo para que te ayude en breve.";
@@ -59,15 +61,24 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
     .filter((t): t is TranscriptTurn => t !== null);
   if (transcript.length === 0) return;
 
-  const [knowledgeBlock, rental, customer] = await Promise.all([
+  const [knowledgeBlock, rental, customer, conditions] = await Promise.all([
     buildKnowledgeBlock(),
     findRentalContext(conversation.phoneE164),
     conversation.customerId ? prisma.customer.findUnique({ where: { id: conversation.customerId } }) : null,
+    prisma.conditionSettings.findUnique({ where: { id: 1 } }),
   ]);
   const contextLine = [
     customer?.name ? `El cliente se llama ${customer.name}.` : "Todavía no se sabe el nombre del cliente.",
     formatRentalContextLine(rental) ?? "No tiene ningún alquiler activo o reservado registrado en el sistema.",
+    todayContextLine(),
   ].join(" ");
+
+  // El teléfono de la reserva SIEMPRE es el de esta conversación — nunca un
+  // parámetro que el modelo pueda controlar (ver my-reservations.ts).
+  const tools: BotTools = {
+    checkAvailability: (i) => checkAvailability(i),
+    getMyReservations: (i) => findMyReservations({ phoneE164: conversation.phoneE164, ...i }),
+  };
 
   let result;
   try {
@@ -79,8 +90,17 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
         examples: config.examples as { question: string; answer: string }[],
       },
       knowledgeBlock,
+      conditions: conditions
+        ? {
+            kmPerDay: conditions.kmPerDay,
+            extraKmRate: conditions.extraKmRate != null ? Number(conditions.extraKmRate) : null,
+            deductible: conditions.deductible != null ? Number(conditions.deductible) : null,
+            deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
+          }
+        : null,
       contextLine,
       transcript,
+      tools,
     });
   } catch (err) {
     // Best-effort: si Claude falla, no se manda nada — la conversación queda

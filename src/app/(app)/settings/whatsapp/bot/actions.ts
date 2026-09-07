@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { uploadDocument } from "@/lib/whatsapp/bot/documents";
 import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
-import { generateBotReply, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
+import { generateBotReply, type BotTools, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
+import { checkAvailability } from "@/lib/whatsapp/bot/availability";
 
 export type ActionState = { ok?: boolean; error?: string };
 
@@ -124,8 +125,20 @@ export type PlaygroundResult = {
  */
 export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<PlaygroundResult> {
   await requireAdmin();
-  const config = await getOrCreateConfig();
-  const knowledgeBlock = await buildKnowledgeBlock();
+  const [config, knowledgeBlock, conditions] = await Promise.all([
+    getOrCreateConfig(),
+    buildKnowledgeBlock(),
+    prisma.conditionSettings.findUnique({ where: { id: 1 } }),
+  ]);
+
+  // `check_availability` es dato de negocio real, no sensible — se ejercita
+  // de verdad en la prueba. `get_my_reservations` no tiene un teléfono/
+  // conversación real detrás en el playground, así que devuelve vacío (el
+  // modelo lo interpreta igual que un cliente sin reservas registradas).
+  const tools: BotTools = {
+    checkAvailability: (i) => checkAvailability(i),
+    getMyReservations: async () => [],
+  };
 
   try {
     const result = await generateBotReply({
@@ -136,8 +149,17 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
         examples: config.examples as { question: string; answer: string }[],
       },
       knowledgeBlock,
+      conditions: conditions
+        ? {
+            kmPerDay: conditions.kmPerDay,
+            extraKmRate: conditions.extraKmRate != null ? Number(conditions.extraKmRate) : null,
+            deductible: conditions.deductible != null ? Number(conditions.deductible) : null,
+            deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
+          }
+        : null,
       contextLine: "Este es un mensaje de prueba desde el panel de Configuración — no es un cliente real.",
       transcript,
+      tools,
     });
     return { reply: result.reply, escalate: result.escalate, escalateReason: result.escalateReason };
   } catch (err) {
