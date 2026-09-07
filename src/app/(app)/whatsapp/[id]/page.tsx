@@ -13,7 +13,6 @@ import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { MessageBubble } from "@/components/whatsapp/message-bubble";
 import { SendForm } from "@/components/whatsapp/send-form";
 import { ReopenForm } from "@/components/whatsapp/reopen-form";
-import { AssignForm } from "@/components/whatsapp/assign-form";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
 import { BotToggle } from "@/components/whatsapp/bot-toggle";
 import { RentalLinkPicker } from "@/components/whatsapp/rental-link-picker";
@@ -34,8 +33,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 
-  const [users, relatedRentals, rentalOptions, approvedTemplates] = await Promise.all([
-    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  const [relatedRentals, rentalOptions, approvedTemplates] = await Promise.all([
     conversation.rental ? Promise.resolve([]) : findRelatedRentals(conversation.phoneE164),
     conversation.rental ? Promise.resolve([]) : getRentalPickerOptions(),
     windowOpen
@@ -61,7 +59,6 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       </div>
 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
-        <AssignForm conversationId={conversation.id} users={users} assignedToId={conversation.assignedToId} />
         {conversation.customer ? (
           <CustomerInfoForm
             customerId={conversation.customer.id}
@@ -70,7 +67,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
             email={conversation.customer.email}
           />
         ) : null}
-        <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">
+        <div className={`flex flex-col gap-2 ${conversation.customer ? "border-t border-foreground/10 pt-3" : ""}`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">Reserva vinculada</p>
           {conversation.rental ? (
             (() => {

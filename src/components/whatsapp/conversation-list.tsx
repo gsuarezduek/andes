@@ -15,8 +15,12 @@ function preview(message: { body: string | null; mediaId: string | null } | null
   return "—";
 }
 
-/** Filtra en el momento por nombre del cliente o teléfono — sin ida y vuelta al servidor. */
-export function ConversationList({ conversations }: { conversations: Conversation[] }) {
+/**
+ * Filtra en el momento por nombre del cliente o teléfono — sin ida y vuelta
+ * al servidor. `filters` (los tabs Todas/No leídas) se renderiza en la misma
+ * fila que el buscador para no sumar una fila aparte.
+ */
+export function ConversationList({ conversations, filters }: { conversations: Conversation[]; filters?: React.ReactNode }) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -29,24 +33,27 @@ export function ConversationList({ conversations }: { conversations: Conversatio
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative">
-        <svg
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40"
-        >
-          <circle cx="8.5" cy="8.5" r="6" />
-          <path d="M17 17l-4-4" strokeLinecap="round" />
-        </svg>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nombre o teléfono…"
-          className="h-11 w-full rounded-lg border border-foreground/15 bg-transparent pl-9 pr-3 text-base outline-none focus:border-foreground/40"
-        />
+      <div className="flex items-center gap-2">
+        {filters}
+        <div className="relative min-w-0 flex-1">
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40"
+          >
+            <circle cx="8.5" cy="8.5" r="6" />
+            <path d="M17 17l-4-4" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar…"
+            className="h-9 w-full rounded-lg border border-foreground/15 bg-transparent pl-9 pr-3 text-sm outline-none focus:border-foreground/40"
+          />
+        </div>
       </div>
 
       {filtered.length === 0 ? (

@@ -16,6 +16,29 @@ import { Playground } from "@/components/whatsapp-bot/playground";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
+function FilterTabs({ allCount, unreadCount, unreadOnly }: { allCount: number; unreadCount: number; unreadOnly: boolean }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 text-sm">
+      <Link
+        href="/whatsapp"
+        className={`rounded-full px-3 py-1 font-medium transition-colors ${
+          unreadOnly ? "text-foreground/60 hover:bg-foreground/5" : "bg-foreground/10 text-foreground"
+        }`}
+      >
+        Todas ({allCount})
+      </Link>
+      <Link
+        href="/whatsapp?unread=1"
+        className={`rounded-full px-3 py-1 font-medium transition-colors ${
+          unreadOnly ? "bg-amber-500/15 text-amber-700 dark:text-amber-400" : "text-foreground/60 hover:bg-foreground/5"
+        }`}
+      >
+        No leídas ({unreadCount})
+      </Link>
+    </div>
+  );
+}
+
 export default async function WhatsAppPage({
   searchParams,
 }: {
@@ -90,35 +113,20 @@ export default async function WhatsAppPage({
         </section>
       ) : null}
 
-      <div className="flex items-center gap-2 text-sm">
-        <Link
-          href="/whatsapp"
-          className={`rounded-full px-3 py-1 font-medium transition-colors ${
-            unreadOnly ? "text-foreground/60 hover:bg-foreground/5" : "bg-foreground/10 text-foreground"
-          }`}
-        >
-          Todas ({allConversations.length})
-        </Link>
-        <Link
-          href="/whatsapp?unread=1"
-          className={`rounded-full px-3 py-1 font-medium transition-colors ${
-            unreadOnly
-              ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-              : "text-foreground/60 hover:bg-foreground/5"
-          }`}
-        >
-          No leídas ({unreadCount})
-        </Link>
-      </div>
-
       {conversations.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
-          {unreadOnly
-            ? "No hay conversaciones no leídas."
-            : "Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un cliente escriba, o revisá que el webhook esté dado de alta en Chakra."}
-        </p>
+        <>
+          <FilterTabs allCount={allConversations.length} unreadCount={unreadCount} unreadOnly={unreadOnly} />
+          <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
+            {unreadOnly
+              ? "No hay conversaciones no leídas."
+              : "Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un cliente escriba, o revisá que el webhook esté dado de alta en Chakra."}
+          </p>
+        </>
       ) : (
-        <ConversationList conversations={conversations} />
+        <ConversationList
+          conversations={conversations}
+          filters={<FilterTabs allCount={allConversations.length} unreadCount={unreadCount} unreadOnly={unreadOnly} />}
+        />
       )}
     </div>
   );

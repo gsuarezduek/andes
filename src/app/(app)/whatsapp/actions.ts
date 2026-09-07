@@ -58,14 +58,6 @@ export async function toggleConversationBot(conversationId: string, botEnabled: 
   revalidatePath(`/whatsapp/${conversationId}`);
 }
 
-export async function assignConversation(conversationId: string, formData: FormData) {
-  await requireUser();
-  const assignedToId = String(formData.get("assignedToId") ?? "").trim() || null;
-  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { assignedToId } });
-  revalidatePath(`/whatsapp/${conversationId}`);
-  revalidatePath("/whatsapp");
-}
-
 /** Vincula (o desvincula, `rentalId: null`) la conversación a una reserva. Ligado con `.bind()` desde botones y el buscador. */
 export async function linkRental(conversationId: string, rentalId: string | null) {
   await requireUser();
