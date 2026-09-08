@@ -119,7 +119,7 @@ export function ProviderCard({
               ) : (
                 <ul className="flex flex-col gap-2">
                   {thisMonthRows.map((m) => (
-                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} principalName={provider.name} />
+                    <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`} movement={m} isAdmin={isAdmin} principalName={provider.name} paymentMethods={paymentMethods} />
                   ))}
                 </ul>
               )}
@@ -158,7 +158,7 @@ export function ProviderCard({
                     <h5 className="text-xs font-medium text-foreground/50">{g.label}</h5>
                     <ul className="flex flex-col gap-2">
                       {g.rows.map((m) => (
-                        <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}`} movement={m} isAdmin={isAdmin} principalName={provider.name} />
+                        <LedgerRow key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`} movement={m} isAdmin={isAdmin} principalName={provider.name} paymentMethods={paymentMethods} />
                       ))}
                     </ul>
                   </div>

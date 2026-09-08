@@ -1,25 +1,41 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { DebtRow } from "./debt-row";
+import { AccountMovementRow } from "./account-movement-row";
 import type { ThirdPartyLedgerRow } from "@/lib/third-party-accounts";
+
+type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 /**
  * Una fila del historial de una cuenta ajena (proveedor o asociado) — deuda,
  * pago directo del cliente, o pago de la empresa. Compartido por
  * `ProviderCard`/`AssociateCard` (mismo tipo de dato, ver
- * `src/lib/third-party-accounts.ts`).
+ * `src/lib/third-party-accounts.ts`). Deuda y Pago son editables (incluido
+ * el tipo mismo — ver `AccountMovementRow`); el pago directo del cliente
+ * sigue siendo de solo lectura acá (no se carga con los botones de esta
+ * sección, no tiene sentido convertirlo).
  */
 export function LedgerRow({
   movement,
   isAdmin,
   principalName,
+  paymentMethods,
 }: {
   movement: ThirdPartyLedgerRow;
   isAdmin: boolean;
   principalName: string;
+  paymentMethods: PaymentMethodOption[];
 }) {
-  if (movement.kind === "debt") return <DebtRow movement={movement} isAdmin={isAdmin} />;
+  if (movement.kind === "debt" || movement.kind === "company_payment") {
+    return (
+      <AccountMovementRow
+        movement={movement}
+        isAdmin={isAdmin}
+        principalName={principalName}
+        paymentMethods={paymentMethods}
+      />
+    );
+  }
   // Si la cuenta real usada es una subcuenta (no la principal), lo aclara —
   // la vista sigue unificada, pero no se pierde por dónde salió/entró la plata.
   const viaSubaccount = movement.accountName && movement.accountName !== principalName;
@@ -30,8 +46,7 @@ export function LedgerRow({
         <p className="shrink-0 font-semibold text-emerald-600">−{formatMoney(movement.amount, movement.currency)}</p>
       </div>
       <p className="mt-1 text-xs text-foreground/50">
-        {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} · Cargado por:{" "}
-        {movement.createdByName} · {formatDateTime(movement.createdAt)}
+        Pago directo del cliente · Cargado por: {movement.createdByName} · {formatDateTime(movement.createdAt)}
         {viaSubaccount && ` · vía ${movement.accountName}`}
         {movement.rentalId && (
           <>

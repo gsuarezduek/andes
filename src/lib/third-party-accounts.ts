@@ -117,6 +117,13 @@ export type ThirdPartyLedgerRow = {
   createdAt: Date;
   rentalId: string | null;
   rentalClientName: string | null;
+  // Origen del "company_payment" (de qué cuenta propia/ajena salió la
+  // plata) — null en "debt" (no tiene) y en "client_payment" (el medio ES
+  // la cuenta ajena, no un origen distinto). Solo se usa al editar un "Pago"
+  // o al convertirlo desde/hacia "Deuda" (ver `updateAccountMovement`).
+  originId: string | null;
+  originName: string | null;
+  originNote: string | null;
 };
 
 /**
@@ -158,5 +165,8 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     createdAt: r.createdAt,
     rentalId: r.rentalId,
     rentalClientName: r.rental?.clientName ?? null,
+    originId: r.type === "expense" ? r.paymentMethodId : null,
+    originName: r.type === "expense" ? r.paymentMethodName : null,
+    originNote: r.type === "expense" ? r.paymentMethodNote : null,
   }));
 }

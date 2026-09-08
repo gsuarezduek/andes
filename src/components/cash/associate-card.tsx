@@ -135,10 +135,11 @@ export function AssociateCard({
             <ul className="flex flex-col gap-2">
               {thisMonthRows.map((m) => (
                 <LedgerRow
-                  key={`${m.id}:${m.description}:${m.amount}:${m.currency}`}
+                  key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
                   movement={m}
                   isAdmin={isAdmin}
                   principalName={associate.name}
+                  paymentMethods={paymentMethods}
                 />
               ))}
             </ul>
@@ -173,10 +174,11 @@ export function AssociateCard({
                 <ul className="flex flex-col gap-2">
                   {g.rows.map((m) => (
                     <LedgerRow
-                      key={`${m.id}:${m.description}:${m.amount}:${m.currency}`}
+                      key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
                       movement={m}
                       isAdmin={isAdmin}
                       principalName={associate.name}
+                      paymentMethods={paymentMethods}
                     />
                   ))}
                 </ul>
