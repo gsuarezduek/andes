@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { MessageBubble } from "@/components/whatsapp/message-bubble";
 import { SendForm } from "@/components/whatsapp/send-form";
 import { ReopenForm } from "@/components/whatsapp/reopen-form";
@@ -47,6 +48,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <AutoRefresh intervalMs={8000} />
       <div className="flex items-center justify-between gap-3">
         <div>
           <ButtonLink href="/whatsapp" variant="secondary" className="mb-2 h-9 px-3 text-xs">

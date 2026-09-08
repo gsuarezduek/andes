@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { listConversations } from "@/lib/whatsapp/conversations";
 import { MAX_DOCUMENTS } from "@/lib/whatsapp/bot/documents";
 import { ConversationList } from "@/components/whatsapp/conversation-list";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { GlobalBotToggle } from "@/components/whatsapp-bot/global-bot-toggle";
 import { BotSettingsTabs } from "@/components/whatsapp-bot/bot-settings-tabs";
 import { PersonalityForm } from "@/components/whatsapp-bot/personality-form";
@@ -72,6 +73,7 @@ export default async function WhatsAppPage({
 
   return (
     <div className="flex flex-col gap-5">
+      <AutoRefresh intervalMs={15000} />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">WhatsApp</h1>
         <p className="text-sm text-foreground/60">Conversaciones con clientes.</p>
