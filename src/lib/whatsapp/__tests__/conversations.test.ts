@@ -1,8 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+const { prismaMock } = vi.hoisted(() => ({
+  prismaMock: {
+    whatsAppConversation: { findUnique: vi.fn(), update: vi.fn() },
+    rental: { findMany: vi.fn() },
+  },
+}));
+vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-import { needsReply } from "@/lib/whatsapp/conversations";
+import { needsReply, autoLinkRentalIfUnambiguous } from "@/lib/whatsapp/conversations";
 
 const d = (s: string) => new Date(s);
 
@@ -45,5 +51,50 @@ describe("needsReply", () => {
         lastReadAt: d("2026-09-06T10:01:00Z"),
       }),
     ).toBe(true);
+  });
+});
+
+describe("autoLinkRentalIfUnambiguous", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("no hace nada si la conversación ya tiene un vínculo (elegido o quitado a mano)", async () => {
+    prismaMock.whatsAppConversation.findUnique.mockResolvedValue({ rentalId: "r1" });
+
+    await autoLinkRentalIfUnambiguous("c1", "+5492611234567");
+
+    expect(prismaMock.rental.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.whatsAppConversation.update).not.toHaveBeenCalled();
+  });
+
+  it("vincula sola cuando hay exactamente una reserva candidata por teléfono", async () => {
+    prismaMock.whatsAppConversation.findUnique.mockResolvedValue({ rentalId: null });
+    prismaMock.rental.findMany.mockResolvedValue([{ id: "r2" }]);
+
+    await autoLinkRentalIfUnambiguous("c1", "+5492611234567");
+
+    expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { rentalId: "r2" },
+    });
+  });
+
+  it("no vincula si no hay ninguna candidata", async () => {
+    prismaMock.whatsAppConversation.findUnique.mockResolvedValue({ rentalId: null });
+    prismaMock.rental.findMany.mockResolvedValue([]);
+
+    await autoLinkRentalIfUnambiguous("c1", "+5492611234567");
+
+    expect(prismaMock.whatsAppConversation.update).not.toHaveBeenCalled();
+  });
+
+  it("no vincula si hay más de una candidata (ambiguo) — requiere elegir a mano", async () => {
+    prismaMock.whatsAppConversation.findUnique.mockResolvedValue({ rentalId: null });
+    prismaMock.rental.findMany.mockResolvedValue([{ id: "r2" }, { id: "r3" }]);
+
+    await autoLinkRentalIfUnambiguous("c1", "+5492611234567");
+
+    expect(prismaMock.whatsAppConversation.update).not.toHaveBeenCalled();
   });
 });

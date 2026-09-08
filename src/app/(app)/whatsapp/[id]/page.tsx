@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { getConversation, findRelatedRentals, isSessionWindowOpen, markConversationRead } from "@/lib/whatsapp/conversations";
+import {
+  getConversation,
+  findRelatedRentals,
+  isSessionWindowOpen,
+  markConversationRead,
+  autoLinkRentalIfUnambiguous,
+} from "@/lib/whatsapp/conversations";
 import { getRentalPickerOptions } from "@/lib/cash";
 import { formatDate } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +35,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   // Fire-and-forget: no bloquea el render, y no hace falta esperar a
   // confirmarlo para mostrar la página.
   after(() => markConversationRead(id).catch(() => {}));
+  // Backfill: si esta conversación es de antes de tener auto-vínculo (o el
+  // mensaje que lo hubiera disparado ya pasó), lo resuelve al abrirla —
+  // mismo criterio "no ambiguo" que en el webhook.
+  if (!conversation.rental) {
+    after(() => autoLinkRentalIfUnambiguous(id, conversation.phoneE164).catch(() => {}));
+  }
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 

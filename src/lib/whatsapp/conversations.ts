@@ -127,3 +127,26 @@ export async function findRelatedRentals(phoneE164: string) {
     select: RENTAL_CARD_SELECT,
   });
 }
+
+/**
+ * Vincula sola la conversación cuando `findRelatedRentals` encuentra
+ * exactamente UNA candidata — con 0 o 2+ sigue haciendo falta elegir a mano
+ * (`linkRental`/`RentalLinkPicker`), para no arriesgar vincular la reserva
+ * equivocada cuando hay ambigüedad. Nunca pisa un vínculo ya
+ * elegido/quitado a mano: si `rentalId` no es null (haya quedado en algo o
+ * se haya quitado explícitamente), no hace nada. Se llama fire-and-forget
+ * (`after()`) al llegar un mensaje nuevo y al abrir la conversación — mismo
+ * patrón que `markConversationRead`.
+ */
+export async function autoLinkRentalIfUnambiguous(conversationId: string, phoneE164: string): Promise<void> {
+  const conversation = await prisma.whatsAppConversation.findUnique({
+    where: { id: conversationId },
+    select: { rentalId: true },
+  });
+  if (!conversation || conversation.rentalId) return;
+
+  const candidates = await findRelatedRentals(phoneE164);
+  if (candidates.length !== 1) return;
+
+  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { rentalId: candidates[0].id } });
+}

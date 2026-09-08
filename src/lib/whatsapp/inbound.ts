@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 import { getDecryptedAccount, getDecryptedWebhookSecret } from "@/lib/whatsapp/settings";
 import { maybeRespondWithBot } from "@/lib/whatsapp/bot/respond";
+import { autoLinkRentalIfUnambiguous } from "@/lib/whatsapp/conversations";
 import {
   verifyWebhookSignature,
   parseInboundEvent,
@@ -127,6 +128,11 @@ async function handleInboundMessage(account: ChakraAccount, event: InboundMessag
   // Fire-and-forget: no bloquea el 200 que espera el BSP (reintenta agresivo
   // si tarda). Un fallo del bot no debe romper la confirmación del webhook.
   after(() => maybeRespondWithBot(conversation.id).catch((err) => console.error("whatsapp bot failed", err)));
+  after(() =>
+    autoLinkRentalIfUnambiguous(conversation.id, event.fromE164).catch((err) =>
+      console.error("whatsapp auto-link rental failed", err),
+    ),
+  );
 }
 
 /**
