@@ -12,7 +12,7 @@ export type BotReplyResult = {
   reply: string;
   escalate: boolean;
   escalateReason: string | null;
-  escalateTrigger: "confidence" | "blocked_word" | "tool_loop_exceeded" | null;
+  escalateTrigger: "confidence" | "blocked_word" | null;
 };
 
 /** Ejecutores reales de las tools de datos — inyectados por el llamador (respond.ts /
@@ -24,7 +24,7 @@ export type BotTools = {
 
 const RESPOND_TOOL = {
   name: "respond",
-  description: "Termina la conversación y genera la respuesta final del bot para el cliente de WhatsApp. Llamala SIEMPRE al final, nunca respondas en texto plano.",
+  description: "Genera la respuesta final del bot para el cliente de WhatsApp.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -67,14 +67,19 @@ const GET_MY_RESERVATIONS_TOOL = {
   },
 };
 
-const ALL_TOOLS = [RESPOND_TOOL, CHECK_AVAILABILITY_TOOL, GET_MY_RESERVATIONS_TOOL];
-/** Cota la cantidad de idas y vueltas de tool-use por mensaje (costo/latencia). */
+/** Tools de datos disponibles en la fase de consulta — `respond` NUNCA entra
+ *  acá: con `tool_choice: "auto"` el modelo puede simplemente no llamar
+ *  ninguna, así que si `respond` compitiera en esta lista, "auto" podía
+ *  resolver con texto plano sin pasar por ninguna tool y el bot escalaba
+ *  siempre (bug real de producción — ver la fase forzada de abajo). */
+const DATA_TOOLS = [CHECK_AVAILABILITY_TOOL, GET_MY_RESERVATIONS_TOOL];
+/** Cota la cantidad de idas y vueltas de consulta de datos por mensaje (costo/latencia). */
 const MAX_TOOL_ROUNDS = 4;
 
 type RespondInput = { reply: string; escalate: boolean; escalateReason?: string };
 
-/** Único llamado forzado a `respond` — se usa para el reintento por `blockedWords`, donde ya no hace falta volver a consultar datos. */
-async function callModelForceRespond(system: Anthropic.TextBlockParam[], messages: TranscriptTurn[]): Promise<RespondInput> {
+/** Único llamado forzado a `respond` — garantiza salida estructurada siempre, tenga o no datos consultados antes. */
+async function callModelForceRespond(system: Anthropic.TextBlockParam[], messages: Anthropic.MessageParam[]): Promise<RespondInput> {
   const msg = await client().messages.create({
     model: MODEL,
     max_tokens: 1024,
@@ -103,20 +108,19 @@ async function executeDataTool(use: Anthropic.ToolUseBlock, tools: BotTools): Pr
   }
 }
 
-type LoopOutcome = {
-  reply: string;
-  escalate: boolean;
-  escalateReason: string | null;
-  escalateTrigger: "confidence" | "tool_loop_exceeded" | null;
-};
-
 /**
- * Loop de tool-use: el modelo puede llamar `check_availability`/
- * `get_my_reservations` antes de terminar con `respond` (`tool_choice: "auto"`).
- * Cotado a `MAX_TOOL_ROUNDS` idas y vueltas — si no cierra en `respond`, se
- * escala en vez de arriesgar una respuesta sin pasar por el contrato de tools.
+ * Fase de consulta: el modelo puede llamar `check_availability`/
+ * `get_my_reservations` con `tool_choice: "auto"` (solo esas dos tools —
+ * ver nota en `DATA_TOOLS`). En cuanto una respuesta no pide más datos
+ * (`toolUses.length === 0`), corta — la respuesta final se genera aparte,
+ * siempre forzada a `respond` (`callModelForceRespond`). Devuelve el
+ * historial con los intercambios de tools ya resueltos.
  */
-async function runToolLoop(system: Anthropic.TextBlockParam[], transcript: TranscriptTurn[], tools: BotTools): Promise<LoopOutcome> {
+async function gatherToolData(
+  system: Anthropic.TextBlockParam[],
+  transcript: TranscriptTurn[],
+  tools: BotTools,
+): Promise<Anthropic.MessageParam[]> {
   const messages: Anthropic.MessageParam[] = transcript.map((t) => ({ role: t.role, content: t.content }));
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -124,30 +128,12 @@ async function runToolLoop(system: Anthropic.TextBlockParam[], transcript: Trans
       model: MODEL,
       max_tokens: 1024,
       system,
-      tools: ALL_TOOLS,
+      tools: DATA_TOOLS,
       tool_choice: { type: "auto" },
       messages,
     });
     const toolUses = msg.content.filter((c): c is Anthropic.ToolUseBlock => c.type === "tool_use");
-    const respondUse = toolUses.find((t) => t.name === "respond");
-    if (respondUse) {
-      const parsed = respondUse.input as RespondInput;
-      return {
-        reply: parsed.reply,
-        escalate: parsed.escalate,
-        escalateReason: parsed.escalate ? (parsed.escalateReason ?? null) : null,
-        escalateTrigger: parsed.escalate ? "confidence" : null,
-      };
-    }
-
-    if (toolUses.length === 0) {
-      return {
-        reply: "",
-        escalate: true,
-        escalateReason: "El modelo no llamó a ninguna herramienta.",
-        escalateTrigger: "confidence",
-      };
-    }
+    if (toolUses.length === 0) break; // el modelo ya tiene lo que necesita para responder
 
     messages.push({ role: "assistant", content: msg.content as unknown as Anthropic.ContentBlockParam[] });
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -157,12 +143,7 @@ async function runToolLoop(system: Anthropic.TextBlockParam[], transcript: Trans
     messages.push({ role: "user", content: toolResults });
   }
 
-  return {
-    reply: "",
-    escalate: true,
-    escalateReason: "El bot no llegó a una respuesta final tras varias consultas de datos.",
-    escalateTrigger: "tool_loop_exceeded",
-  };
+  return messages;
 }
 
 /**
@@ -197,9 +178,10 @@ export async function generateBotReply(input: {
     { type: "text", text: input.contextLine },
   ];
 
-  const first = await runToolLoop(system, input.transcript, input.tools);
+  const messages = await gatherToolData(system, input.transcript, input.tools);
+  const first = await callModelForceRespond(system, messages);
   if (first.escalate) {
-    return { reply: first.reply, escalate: true, escalateReason: first.escalateReason, escalateTrigger: first.escalateTrigger ?? "confidence" };
+    return { reply: first.reply, escalate: true, escalateReason: first.escalateReason ?? null, escalateTrigger: "confidence" };
   }
 
   const blocked = findMatch(first.reply, input.config.blockedWords);
@@ -208,7 +190,9 @@ export async function generateBotReply(input: {
   }
 
   // Un reintento pidiendo reformular sin la palabra bloqueada — los datos ya
-  // se consultaron en el loop de arriba, así que alcanza con forzar `respond`.
+  // se consultaron arriba, así que alcanza con forzar `respond` de nuevo
+  // sobre una reconstrucción simple en texto plano (sin los tool_use/
+  // tool_result de la fase de consulta).
   const retryMessages: TranscriptTurn[] = [
     ...input.transcript,
     { role: "assistant", content: first.reply },
