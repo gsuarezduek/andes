@@ -11,9 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { MessageBubble } from "@/components/whatsapp/message-bubble";
-import { SendForm } from "@/components/whatsapp/send-form";
-import { ReopenForm } from "@/components/whatsapp/reopen-form";
+import { ConversationThread } from "@/components/whatsapp/conversation-thread";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
 import { BotToggle } from "@/components/whatsapp/bot-toggle";
 import { RentalLinkPicker } from "@/components/whatsapp/rental-link-picker";
@@ -121,21 +119,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         </div>
       </section>
 
-      <section className="flex flex-1 flex-col gap-3 rounded-xl border border-foreground/10 p-4">
-        <div className="flex flex-col gap-3">
-          {conversation.messages.length === 0 ? (
-            <p className="py-6 text-center text-sm text-foreground/50">Todavía no hay mensajes.</p>
-          ) : (
-            conversation.messages.map((m) => <MessageBubble key={m.id} message={m} />)
-          )}
-        </div>
-
-        {windowOpen ? (
-          <SendForm conversationId={conversation.id} />
-        ) : (
-          <ReopenForm conversationId={conversation.id} templates={approvedTemplates} />
-        )}
-      </section>
+      <ConversationThread
+        conversationId={conversation.id}
+        messages={conversation.messages}
+        windowOpen={windowOpen}
+        templates={approvedTemplates}
+      />
     </div>
   );
 }

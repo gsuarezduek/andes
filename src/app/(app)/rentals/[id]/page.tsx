@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,9 @@ import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-sect
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
+import { getConversationForRental, isSessionWindowOpen } from "@/lib/whatsapp/conversations";
+import { ConversationThread } from "@/components/whatsapp/conversation-thread";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 export const metadata: Metadata = { title: "Alquiler — Andes" };
 
@@ -112,6 +116,20 @@ export default async function RentalDetailPage({
     requiresNote: m.requiresNote,
     ownership: m.ownership,
   }));
+
+  // Pestaña "WhatsApp": solo si esta reserva tiene una conversación vinculada
+  // (link manual, ver linkRental en /whatsapp/[id]) — la mayoría de las
+  // reservas no tiene ninguna.
+  const conversation = await getConversationForRental(rental.id);
+  const conversationWindowOpen = conversation ? isSessionWindowOpen(conversation.lastInboundAt) : false;
+  const conversationTemplates =
+    conversation && !conversationWindowOpen
+      ? await prisma.whatsAppTemplate.findMany({
+          where: { status: "APPROVED" },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, language: true, variableCount: true },
+        })
+      : [];
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -263,6 +281,25 @@ export default async function RentalDetailPage({
               <InspectionsSection inspections={rental.inspections} />
             </>
           )
+        }
+        whatsapp={
+          conversation ? (
+            <>
+              <AutoRefresh intervalMs={15000} />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-foreground/50">{conversation.phoneE164}</p>
+                <Link href={`/whatsapp/${conversation.id}`} className="text-xs font-medium underline">
+                  Abrir en WhatsApp →
+                </Link>
+              </div>
+              <ConversationThread
+                conversationId={conversation.id}
+                messages={conversation.messages}
+                windowOpen={conversationWindowOpen}
+                templates={conversationTemplates}
+              />
+            </>
+          ) : undefined
         }
       />
 

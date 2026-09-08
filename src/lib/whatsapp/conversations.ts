@@ -92,6 +92,28 @@ export async function getConversation(id: string) {
 }
 
 /**
+ * Conversación vinculada a esta reserva (link manual, ver `setConversationRental`)
+ * — para la pestaña "WhatsApp" del detalle de la reserva. `findFirst` porque
+ * el schema no fuerza 1:1 (`rentalId` no es único); en la práctica solo hay
+ * una, y si hubiera más de una se muestra la más activa.
+ */
+export async function getConversationForRental(rentalId: string) {
+  return prisma.whatsAppConversation.findFirst({
+    where: { rentalId },
+    orderBy: { lastMessageAt: "desc" },
+    select: {
+      id: true,
+      phoneE164: true,
+      lastInboundAt: true,
+      messages: {
+        orderBy: { createdAt: "asc" },
+        include: { media: true, sentBy: { select: { id: true, name: true } } },
+      },
+    },
+  });
+}
+
+/**
  * Reservas cuyo teléfono cargado (VikRentCar o alta manual) coincide con
  * alguna variante plausible del E.164 de esta conversación. Best-effort: no
  * hay FK entre `Rental` y `Customer` (ver nota en el schema), así que este
