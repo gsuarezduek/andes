@@ -14,27 +14,34 @@ import type { CashMovementRow } from "@/lib/cash";
 export function MovementMetaLine({ movement }: { movement: CashMovementRow }) {
   const accountLabel = movement.type === "income" ? "Cuenta destino" : "Origen";
   return (
-    <p className="mt-1 text-xs text-foreground/50">
-      {accountLabel}: {movement.paymentMethodName}
-      {movement.paymentMethodNote ? ` (${movement.paymentMethodNote})` : ""}
-      {movement.recipientPaymentMethodName
-        ? ` → Destino: ${movement.recipientPaymentMethodName}${
-            movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""
-          }`
-        : ""}
-      {movement.rentalClientName ? (
-        <>
-          {" · Cliente: "}
-          {movement.rentalId ? (
-            <Link href={`/rentals/${movement.rentalId}`} className="underline hover:text-foreground/70">
-              {movement.rentalClientName}
-            </Link>
-          ) : (
-            movement.rentalClientName
-          )}
-        </>
-      ) : null}
-      {` · Cargado por: ${movement.createdByName}`} · {formatDateTime(movement.createdAt)}
-    </p>
+    <>
+      <p className="mt-1 text-xs text-foreground/50">
+        {accountLabel}: {movement.paymentMethodName}
+        {movement.paymentMethodNote ? ` (${movement.paymentMethodNote})` : ""}
+        {movement.recipientPaymentMethodName
+          ? ` → Destino: ${movement.recipientPaymentMethodName}${
+              movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""
+            }`
+          : ""}
+        {movement.rentalClientName ? (
+          <>
+            {" · Cliente: "}
+            {movement.rentalId ? (
+              <Link href={`/rentals/${movement.rentalId}`} className="underline hover:text-foreground/70">
+                {movement.rentalClientName}
+              </Link>
+            ) : (
+              movement.rentalClientName
+            )}
+          </>
+        ) : null}
+        {` · Cargado por: ${movement.createdByName}`} · {formatDateTime(movement.createdAt)}
+      </p>
+      {movement.lastEditedAt && (
+        <p className="mt-0.5 text-xs text-foreground/50">
+          Editado por: {movement.lastEditedByName ?? "—"} · {formatDateTime(movement.lastEditedAt)}
+        </p>
+      )}
+    </>
   );
 }

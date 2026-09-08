@@ -66,6 +66,11 @@ export type CashMovementRow = {
   rentalBookingId: string | null;
   createdByName: string;
   createdAt: Date;
+  // Última edición real (no borrado) de este movimiento, si tiene — se
+  // muestra en el lugar mismo donde se ve el movimiento (no en una sección
+  // aparte, ver `MovementMetaLine`).
+  lastEditedByName: string | null;
+  lastEditedAt: Date | null;
 };
 
 export type CashPeriodDetail = {
@@ -89,6 +94,12 @@ async function findMovements(
     include: {
       createdBy: { select: { name: true } },
       rental: { select: { clientName: true, wpBookingId: true } },
+      edits: {
+        where: { action: "updated" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { editedBy: { select: { name: true } } },
+      },
     },
     orderBy: { createdAt: "desc" },
     ...(opts?.take ? { take: opts.take } : {}),
@@ -114,6 +125,8 @@ async function findMovements(
       rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
       createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
       createdAt: r.createdAt,
+      lastEditedByName: r.edits[0]?.editedBy?.name ?? null,
+      lastEditedAt: r.edits[0]?.createdAt ?? null,
     }),
   );
 }
@@ -248,11 +261,10 @@ export function paymentsToCashMovements(
 
 export type CashMovementFieldChange = FieldChange;
 
-export type CashMovementEditRow = {
+export type DeletedCashMovementRow = {
   id: string;
-  action: "updated" | "deleted";
-  changes: CashMovementFieldChange[] | null;
-  editedByName: string;
+  reason: string;
+  deletedByName: string;
   movementDescription: string;
   movementAmount: number;
   movementCurrency: Currency;
@@ -261,31 +273,41 @@ export type CashMovementEditRow = {
 };
 
 /**
- * Historial de ediciones/borrados de movimientos de Caja (Ingreso/Egreso), del
- * período visible (por fecha de la edición). Excluye ediciones de deudas de
- * proveedor (`type: "debt"`) — esas viven en la pestaña Proveedores, no acá.
+ * Movimientos de Caja (Ingreso/Egreso) eliminados dentro del período visible
+ * (por fecha del borrado). Solo borrados — una edición normal ya se muestra
+ * en el lugar mismo del movimiento (ver `lastEditedByName`/`lastEditedAt` en
+ * `CashMovementRow` y `MovementMetaLine`); un borrado, en cambio, hace
+ * desaparecer la fila del listado, así que necesita este lugar aparte para
+ * poder verlo. Excluye deudas de proveedor (`type: "debt"`) — esas viven en
+ * la pestaña Cuentas corrientes, no acá.
  */
-export async function getCashPeriodEdits(period: CashPeriod): Promise<CashMovementEditRow[]> {
+export async function getDeletedCashMovements(period: CashPeriod): Promise<DeletedCashMovementRow[]> {
   const { start, end } = resolveCashPeriod(period);
   const rows = await prisma.cashMovementEdit.findMany({
-    where: { createdAt: { gte: start, lt: end }, cashMovement: { type: { in: ["income", "expense"] } } },
+    where: {
+      action: "deleted",
+      createdAt: { gte: start, lt: end },
+      cashMovement: { type: { in: ["income", "expense"] } },
+    },
     include: {
       editedBy: { select: { name: true } },
       cashMovement: { select: { description: true, amount: true, currency: true, type: true } },
     },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    action: r.action,
-    changes: (r.changes as CashMovementFieldChange[] | null) ?? null,
-    editedByName: r.editedBy?.name ?? "—",
-    movementDescription: r.cashMovement.description,
-    movementAmount: Number(r.cashMovement.amount),
-    movementCurrency: r.cashMovement.currency,
-    movementType: r.cashMovement.type as "income" | "expense",
-    createdAt: r.createdAt,
-  }));
+  return rows.map((r) => {
+    const changes = (r.changes as CashMovementFieldChange[] | null) ?? null;
+    return {
+      id: r.id,
+      reason: changes?.find((c) => c.field === "Motivo")?.to ?? "—",
+      deletedByName: r.editedBy?.name ?? "—",
+      movementDescription: r.cashMovement.description,
+      movementAmount: Number(r.cashMovement.amount),
+      movementCurrency: r.cashMovement.currency,
+      movementType: r.cashMovement.type as "income" | "expense",
+      createdAt: r.createdAt,
+    };
+  });
 }
 
 /**

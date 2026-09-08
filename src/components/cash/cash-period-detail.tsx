@@ -4,16 +4,16 @@ import { cashPeriodSearch } from "@/lib/cash";
 import { SectionTitle } from "@/components/ui/section-title";
 import { CashMovementsBoard, type PaymentMethodOption } from "./cash-movements-board";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
-import type { CashPeriodDetail as CashPeriodDetailData, CashMovementEditRow, CashPeriod } from "@/lib/cash";
+import type { CashPeriodDetail as CashPeriodDetailData, DeletedCashMovementRow, CashPeriod } from "@/lib/cash";
 
 export function CashPeriodDetail({
   data,
-  edits,
+  deleted,
   paymentMethods,
   period,
 }: {
   data: CashPeriodDetailData;
-  edits: CashMovementEditRow[];
+  deleted: DeletedCashMovementRow[];
   paymentMethods: PaymentMethodOption[];
   period: CashPeriod;
 }) {
@@ -43,35 +43,33 @@ export function CashPeriodDetail({
 
       <CashMovementsBoard incomes={data.incomes} expenses={data.expenses} paymentMethods={paymentMethods} period={period} />
 
-      <EditHistorySection edits={edits} />
+      <DeletedSection deleted={deleted} />
     </div>
   );
 }
 
-function editSummary(edit: CashMovementEditRow): string {
-  if (edit.action === "deleted") {
-    const note = edit.changes?.find((c) => c.field === "Motivo")?.to;
-    const base = `Eliminado — ${edit.movementDescription} (${formatMoney(edit.movementAmount, edit.movementCurrency)})`;
-    return note ? `${base} · Motivo: ${note}` : base;
-  }
-  return (edit.changes ?? []).map((c) => `${c.field}: ${c.from} → ${c.to}`).join(" · ");
-}
-
-function EditHistorySection({ edits }: { edits: CashMovementEditRow[] }) {
+/**
+ * Movimientos eliminados del período — a diferencia de una edición (que se
+ * ve en el lugar mismo del movimiento, ver `MovementMetaLine`), un borrado
+ * hace desaparecer la fila del listado, así que necesita este lugar aparte.
+ */
+function DeletedSection({ deleted }: { deleted: DeletedCashMovementRow[] }) {
   return (
     <section className="flex flex-col gap-2">
-      <SectionTitle>Historial de ediciones</SectionTitle>
-      {edits.length === 0 ? (
+      <SectionTitle>Movimientos eliminados</SectionTitle>
+      {deleted.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin ediciones en este período.
+          Sin movimientos eliminados en este período.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {edits.map((e) => (
-            <li key={e.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-              <p className={e.action === "deleted" ? "text-red-600" : ""}>{editSummary(e)}</p>
+          {deleted.map((d) => (
+            <li key={d.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
+              <p className="text-red-600">
+                {d.movementDescription} ({formatMoney(d.movementAmount, d.movementCurrency)}) · Motivo: {d.reason}
+              </p>
               <p className="mt-1 text-xs text-foreground/50">
-                {e.editedByName} · {formatDateTime(e.createdAt)}
+                Eliminado por: {d.deletedByName} · {formatDateTime(d.createdAt)}
               </p>
             </li>
           ))}

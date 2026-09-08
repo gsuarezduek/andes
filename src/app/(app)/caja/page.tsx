@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   currentMonth,
   getCashPeriodDetail,
-  getCashPeriodEdits,
+  getDeletedCashMovements,
   getCashSearchIndex,
   getOwnCashMovements,
   getRentalPickerOptions,
@@ -64,7 +64,7 @@ export default async function CajaPage({
       {isAdmin ? (
         <CashPeriodDetail
           data={periodDetail}
-          edits={await getCashPeriodEdits(period)}
+          deleted={await getDeletedCashMovements(period)}
           paymentMethods={paymentMethods}
           period={period}
         />

@@ -57,6 +57,11 @@ export function LedgerRow({
           </>
         )}
       </p>
+      {movement.lastEditedAt && (
+        <p className="mt-0.5 text-xs text-foreground/50">
+          Editado por: {movement.lastEditedByName ?? "—"} · {formatDateTime(movement.lastEditedAt)}
+        </p>
+      )}
     </li>
   );
 }

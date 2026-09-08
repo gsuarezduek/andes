@@ -124,6 +124,10 @@ export type ThirdPartyLedgerRow = {
   originId: string | null;
   originName: string | null;
   originNote: string | null;
+  // Última edición real (no borrado) de este movimiento, si tiene — se
+  // muestra en el lugar mismo del movimiento (ver `AccountMovementRow`).
+  lastEditedByName: string | null;
+  lastEditedAt: Date | null;
 };
 
 /**
@@ -151,6 +155,12 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     include: {
       createdBy: { select: { name: true } },
       rental: { select: { clientName: true } },
+      edits: {
+        where: { action: "updated" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { editedBy: { select: { name: true } } },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -168,5 +178,7 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     originId: r.type === "expense" ? r.paymentMethodId : null,
     originName: r.type === "expense" ? r.paymentMethodName : null,
     originNote: r.type === "expense" ? r.paymentMethodNote : null,
+    lastEditedByName: r.edits[0]?.editedBy?.name ?? null,
+    lastEditedAt: r.edits[0]?.createdAt ?? null,
   }));
 }

@@ -73,6 +73,11 @@ export function CashMovementSearch({ index }: { index: CashMovementRow[] }) {
                   {m.rentalBookingId ? ` · #${m.rentalBookingId}` : ""} · Cargado por: {m.createdByName} ·{" "}
                   {formatDateTime(m.createdAt)}
                 </p>
+                {m.lastEditedAt && (
+                  <p className="mt-0.5 text-xs text-foreground/50">
+                    Editado por: {m.lastEditedByName ?? "—"} · {formatDateTime(m.lastEditedAt)}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

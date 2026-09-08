@@ -190,6 +190,11 @@ export function AccountMovementRow({
           </>
         )}
       </p>
+      {movement.lastEditedAt && (
+        <p className="mt-0.5 text-xs text-foreground/50">
+          Editado por: {movement.lastEditedByName ?? "—"} · {formatDateTime(movement.lastEditedAt)}
+        </p>
+      )}
       {isAdmin && (
         <div className="mt-1.5 flex items-center">
           <button
