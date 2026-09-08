@@ -6,8 +6,8 @@ type ProviderWithLedger = ProviderBalance & { ledger: ProviderLedgerRow[] };
 
 /**
  * Cuenta corriente por proveedor: una `ProviderCard` por cada uno (saldo,
- * alta de pago/deuda inline, historial del mes + "ver todos" paginado — ver
- * ese componente). Visible para cualquier rol; `isAdmin` solo gatea poder
+ * alta de pago/deuda inline, historial colapsado por defecto — ver ese
+ * componente). Visible para cualquier rol; `isAdmin` solo gatea poder
  * editar/borrar una deuda ya cargada (`DebtRow`) — cargar pago/deuda nueva es
  * para cualquiera.
  */

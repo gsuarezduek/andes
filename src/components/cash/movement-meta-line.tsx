@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
 
@@ -8,6 +9,7 @@ import type { CashMovementRow } from "@/lib/cash";
  * en realidad significa "cargado automático desde VikRentCar", ver
  * `AUTO_IMPORT_CREATOR_LABEL`). Compartida por `MovementRow`, `IncomesBoard`
  * y `CashOwnList` — misma forma de dato (`CashMovementRow`), mismo formato.
+ * El cliente linkea a la reserva vinculada cuando hay una (`rentalId`).
  */
 export function MovementMetaLine({ movement }: { movement: CashMovementRow }) {
   const accountLabel = movement.type === "income" ? "Cuenta destino" : "Origen";
@@ -20,7 +22,18 @@ export function MovementMetaLine({ movement }: { movement: CashMovementRow }) {
             movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""
           }`
         : ""}
-      {movement.rentalClientName ? ` · Cliente: ${movement.rentalClientName}` : ""}
+      {movement.rentalClientName ? (
+        <>
+          {" · Cliente: "}
+          {movement.rentalId ? (
+            <Link href={`/rentals/${movement.rentalId}`} className="underline hover:text-foreground/70">
+              {movement.rentalClientName}
+            </Link>
+          ) : (
+            movement.rentalClientName
+          )}
+        </>
+      ) : null}
       {` · Cargado por: ${movement.createdByName}`} · {formatDateTime(movement.createdAt)}
     </p>
   );

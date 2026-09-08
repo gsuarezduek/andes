@@ -1,6 +1,6 @@
 import { SectionTitle } from "@/components/ui/section-title";
+import { MovementMetaLine } from "./movement-meta-line";
 import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
 
 export function CashOwnList({ items }: { items: CashMovementRow[] }) {
@@ -24,16 +24,7 @@ export function CashOwnList({ items }: { items: CashMovementRow[] }) {
                   {formatMoney(r.amount, r.currency)}
                 </p>
               </div>
-              <p className="mt-1 text-xs text-foreground/50">
-                {r.type === "income" ? "Cuenta destino" : "Origen"}: {r.paymentMethodName}
-                {r.paymentMethodNote ? ` (${r.paymentMethodNote})` : ""}
-                {r.recipientPaymentMethodName
-                  ? ` → Destino: ${r.recipientPaymentMethodName}${
-                      r.recipientPaymentMethodNote ? ` (${r.recipientPaymentMethodNote})` : ""
-                    }`
-                  : ""}
-                {r.rentalClientName ? ` · Cliente: ${r.rentalClientName}` : ""} · {formatDateTime(r.createdAt)}
-              </p>
+              <MovementMetaLine movement={r} />
             </li>
           ))}
         </ul>

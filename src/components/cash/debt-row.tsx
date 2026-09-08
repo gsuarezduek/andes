@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { TextField, TextareaField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
@@ -88,6 +89,14 @@ export function DebtRow({ movement, isAdmin }: { movement: ThirdPartyLedgerRow; 
       </div>
       <p className="mt-1 text-xs text-foreground/50">
         Deuda · Cargado por: {movement.createdByName} · {formatDateTime(movement.createdAt)}
+        {movement.rentalId && (
+          <>
+            {" · "}
+            <Link href={`/rentals/${movement.rentalId}`} className="underline hover:text-foreground/70">
+              Ver reserva{movement.rentalClientName ? ` (${movement.rentalClientName})` : ""}
+            </Link>
+          </>
+        )}
       </p>
       {isAdmin && (
         <div className="mt-1.5 flex items-center">

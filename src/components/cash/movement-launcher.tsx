@@ -16,9 +16,9 @@ type Action = "income" | "expense" | null;
 
 /**
  * Selector de qué movimiento cargar: Ingreso o Egreso, 50/50. La deuda con un
- * proveedor se carga desde su tarjeta en la pestaña Proveedores (ya sabe a
- * quién); la caja fuerte tiene su propio lanzador en su propia pestaña
- * (ver `SafeLauncher`) — ninguna de las dos vive acá.
+ * proveedor se carga desde su tarjeta en la pestaña Cuentas corrientes (ya
+ * sabe a quién); la caja fuerte tiene su propio lanzador en su propia
+ * pestaña (ver `SafeLauncher`) — ninguna de las dos vive acá.
  */
 export function MovementLauncher({
   paymentMethods,

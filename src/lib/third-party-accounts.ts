@@ -115,6 +115,8 @@ export type ThirdPartyLedgerRow = {
   accountName: string;
   createdByName: string;
   createdAt: Date;
+  rentalId: string | null;
+  rentalClientName: string | null;
 };
 
 /**
@@ -139,7 +141,10 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
         { type: "expense", recipientPaymentMethodId: { in: memberIds } },
       ],
     },
-    include: { createdBy: { select: { name: true } } },
+    include: {
+      createdBy: { select: { name: true } },
+      rental: { select: { clientName: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
   return rows.map((r) => ({
@@ -151,5 +156,7 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     accountName: (r.type === "income" ? r.paymentMethodName : r.recipientPaymentMethodName) ?? "",
     createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
+    rentalId: r.rentalId,
+    rentalClientName: r.rental?.clientName ?? null,
   }));
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import type { CashMovementRow } from "@/lib/cash";
@@ -57,7 +58,18 @@ export function CashMovementSearch({ index }: { index: CashMovementRow[] }) {
                 </div>
                 <p className="mt-1 text-xs text-foreground/50">
                   {m.type === "income" ? "Cuenta destino" : "Origen"}: {m.paymentMethodName}
-                  {m.rentalClientName ? ` · Cliente: ${m.rentalClientName}` : ""}
+                  {m.rentalClientName ? (
+                    <>
+                      {" · Cliente: "}
+                      {m.rentalId ? (
+                        <Link href={`/rentals/${m.rentalId}`} className="underline hover:text-foreground/70">
+                          {m.rentalClientName}
+                        </Link>
+                      ) : (
+                        m.rentalClientName
+                      )}
+                    </>
+                  ) : null}
                   {m.rentalBookingId ? ` · #${m.rentalBookingId}` : ""} · Cargado por: {m.createdByName} ·{" "}
                   {formatDateTime(m.createdAt)}
                 </p>

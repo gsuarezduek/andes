@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { DebtRow } from "./debt-row";
@@ -32,6 +33,14 @@ export function LedgerRow({
         {movement.kind === "client_payment" ? "Pago directo del cliente" : "Pagado por la empresa"} · Cargado por:{" "}
         {movement.createdByName} · {formatDateTime(movement.createdAt)}
         {viaSubaccount && ` · vía ${movement.accountName}`}
+        {movement.rentalId && (
+          <>
+            {" · "}
+            <Link href={`/rentals/${movement.rentalId}`} className="underline hover:text-foreground/70">
+              Ver reserva{movement.rentalClientName ? ` (${movement.rentalClientName})` : ""}
+            </Link>
+          </>
+        )}
       </p>
     </li>
   );
