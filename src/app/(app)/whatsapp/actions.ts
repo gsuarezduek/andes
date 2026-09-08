@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
-import { setConversationRental } from "@/lib/whatsapp/conversations";
+import { setConversationRental, setConversationPinned } from "@/lib/whatsapp/conversations";
 
 export type MessageActionState = { error?: string };
 
@@ -56,6 +56,14 @@ export async function toggleConversationBot(conversationId: string, botEnabled: 
   await requireUser();
   await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { botEnabled } });
   revalidatePath(`/whatsapp/${conversationId}`);
+}
+
+/** Fijar/quitar fijado — propio de Andes, compartido para todo el equipo (no por usuario). */
+export async function toggleConversationPinned(conversationId: string, pinned: boolean) {
+  await requireUser();
+  await setConversationPinned(conversationId, pinned);
+  revalidatePath(`/whatsapp/${conversationId}`);
+  revalidatePath("/whatsapp");
 }
 
 /** Vincula (o desvincula, `rentalId: null`) la conversación a una reserva. Ligado con `.bind()` desde botones y el buscador. */

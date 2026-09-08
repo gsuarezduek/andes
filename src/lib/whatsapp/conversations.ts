@@ -63,7 +63,21 @@ export async function listConversations() {
   });
   return conversations
     .map(({ messages, ...c }) => ({ ...c, lastMessage: messages[0] ?? null, needsReply: needsReply(c) }))
-    .sort((a, b) => Number(b.needsReply) - Number(a.needsReply));
+    .sort((a, b) => {
+      // Fijadas primero (siempre), después no leídas — mismo criterio que
+      // WhatsApp: un pin gana incluso a una conversación sin leer.
+      const pinDiff = Number(b.pinnedAt != null) - Number(a.pinnedAt != null);
+      if (pinDiff !== 0) return pinDiff;
+      return Number(b.needsReply) - Number(a.needsReply);
+    });
+}
+
+/** Fija (o quita el fijado, `pinned: false`) una conversación — propio de Andes, compartido para todo el equipo. */
+export async function setConversationPinned(conversationId: string, pinned: boolean) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { pinnedAt: pinned ? new Date() : null },
+  });
 }
 
 /** Mismo select que `findRelatedRentals` — así ambos bloques (vinculada / candidatas automáticas) renderizan igual. */

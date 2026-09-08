@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
+import { PinToggle } from "@/components/whatsapp/pin-toggle";
 import type { listConversations } from "@/lib/whatsapp/conversations";
 
 type Conversation = Awaited<ReturnType<typeof listConversations>>[number];
@@ -79,9 +80,12 @@ export function ConversationList({ conversations, filters }: { conversations: Co
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                  {c.lastMessageAt ? (
-                    <span className="text-xs text-foreground/50">{formatDateTime(c.lastMessageAt)}</span>
-                  ) : null}
+                  <div className="flex items-center gap-1.5">
+                    {c.lastMessageAt ? (
+                      <span className="text-xs text-foreground/50">{formatDateTime(c.lastMessageAt)}</span>
+                    ) : null}
+                    <PinToggle conversationId={c.id} pinned={c.pinnedAt != null} />
+                  </div>
                   {c.assignedTo ? <span className="text-xs text-foreground/50">{c.assignedTo.name}</span> : null}
                 </div>
               </Link>

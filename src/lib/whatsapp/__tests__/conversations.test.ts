@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
-    whatsAppConversation: { findUnique: vi.fn(), update: vi.fn() },
+    whatsAppConversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     rental: { findMany: vi.fn() },
   },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-import { needsReply, autoLinkRentalIfUnambiguous } from "@/lib/whatsapp/conversations";
+import { needsReply, autoLinkRentalIfUnambiguous, listConversations } from "@/lib/whatsapp/conversations";
 
 const d = (s: string) => new Date(s);
 
@@ -51,6 +51,32 @@ describe("needsReply", () => {
         lastReadAt: d("2026-09-06T10:01:00Z"),
       }),
     ).toBe(true);
+  });
+});
+
+describe("listConversations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("ordena las fijadas primero, incluso por delante de las no leídas", async () => {
+    const row = (over: Partial<Record<string, unknown>>) => ({
+      id: over.id,
+      pinnedAt: over.pinnedAt ?? null,
+      lastInboundAt: over.lastInboundAt ?? null,
+      lastOutboundAt: null,
+      lastReadAt: null,
+      messages: [],
+    });
+    prismaMock.whatsAppConversation.findMany.mockResolvedValue([
+      row({ id: "unread", lastInboundAt: d("2026-09-06T10:00:00Z") }),
+      row({ id: "pinned-read", pinnedAt: d("2026-09-01T00:00:00Z") }),
+      row({ id: "neither" }),
+    ]);
+
+    const result = await listConversations();
+
+    expect(result.map((c) => c.id)).toEqual(["pinned-read", "unread", "neither"]);
   });
 });
 

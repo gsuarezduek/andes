@@ -1444,6 +1444,13 @@ model WhatsAppConversation {
   // humano (ver WhatsAppBotEscalation) o a mano desde el hilo.
   botEnabled Boolean @default(true) @map("bot_enabled")
 
+  // Fijado propio de Andes (no es un espejo de "pinear" en WhatsApp — esa
+  // función vive en el protocolo del teléfono/multi-dispositivo y Meta no la
+  // expone por webhook, ver docs/wordpress-mapping.md-style nota en
+  // CLAUDE.md). Compartido para todo el equipo, no por usuario. Timestamp
+  // (no boolean) para poder ordenar las fijadas entre sí; null = no fijada.
+  pinnedAt DateTime? @map("pinned_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

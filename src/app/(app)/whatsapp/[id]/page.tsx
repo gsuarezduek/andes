@@ -20,6 +20,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { ConversationThread } from "@/components/whatsapp/conversation-thread";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
 import { BotToggle } from "@/components/whatsapp/bot-toggle";
+import { PinToggle } from "@/components/whatsapp/pin-toggle";
 import { RentalLinkPicker } from "@/components/whatsapp/rental-link-picker";
 import { linkRental } from "@/app/(app)/whatsapp/actions";
 
@@ -67,7 +68,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           <h1 className="text-xl font-bold tracking-tight">{conversation.customer?.name || conversation.phoneE164}</h1>
           <p className="text-sm text-foreground/60">{conversation.phoneE164}</p>
         </div>
-        <BotToggle conversationId={conversation.id} botEnabled={conversation.botEnabled} />
+        <div className="flex shrink-0 items-center gap-1">
+          <PinToggle conversationId={conversation.id} pinned={conversation.pinnedAt != null} className="p-2" />
+          <BotToggle conversationId={conversation.id} botEnabled={conversation.botEnabled} />
+        </div>
       </div>
 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
