@@ -35,21 +35,9 @@ export async function createGpsDevice(
 }
 
 /** Instala (o desinstala, con `vehicleId: null`) un GPS en un vehículo. Un
- *  vehículo no puede tener dos GPS a la vez (`GpsDevice.vehicleId` es único) —
- *  se valida acá primero para devolver un mensaje claro en vez de un error de
- *  constraint. */
+ *  vehículo puede tener más de un GPS instalado a la vez (ej. uno de respaldo). */
 export async function assignGpsDevice(deviceId: string, vehicleId: string | null): Promise<void> {
   await requireUser();
-
-  if (vehicleId) {
-    const clash = await prisma.gpsDevice.findUnique({
-      where: { vehicleId },
-      select: { identifier: true },
-    });
-    if (clash) {
-      throw new Error(`Ese vehículo ya tiene instalado el GPS "${clash.identifier}".`);
-    }
-  }
 
   await prisma.gpsDevice.update({
     where: { id: deviceId },

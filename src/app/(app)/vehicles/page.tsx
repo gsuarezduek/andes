@@ -63,7 +63,7 @@ export default async function VehiclesPage({
           orderBy: { createdAt: "desc" },
           select: { id: true, text: true },
         },
-        gpsDevice: { select: { identifier: true } },
+        gpsDevices: { select: { identifier: true }, orderBy: { identifier: "asc" } },
       },
     }),
     prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
@@ -122,16 +122,17 @@ export default async function VehiclesPage({
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 truncate font-medium">
-                    {vehicleDisplayName(v)}
-                    {v.gpsDevice && (
+                  <p className="flex flex-wrap items-center gap-1.5 font-medium">
+                    <span className="min-w-0 truncate">{vehicleDisplayName(v)}</span>
+                    {v.gpsDevices.map((d) => (
                       <span
-                        title={`GPS instalado: ${v.gpsDevice.identifier}`}
+                        key={d.identifier}
+                        title={`GPS instalado: ${d.identifier}`}
                         className="inline-flex shrink-0 items-center rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400"
                       >
-                        📡 {v.gpsDevice.identifier}
+                        📡 {d.identifier}
                       </span>
-                    )}
+                    ))}
                     {v.teamNotes.length > 0 && (
                       <span
                         title={`${v.teamNotes.length} nota(s) sin resolver`}
