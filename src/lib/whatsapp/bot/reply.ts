@@ -2,7 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { client, MODEL } from "@/lib/competitor-prices/llm";
 import { findMatch } from "@/lib/whatsapp/bot/security";
-import { buildStaticSystemText, type GeneralConditions } from "@/lib/whatsapp/bot/prompt";
+import { buildStaticSystemText, type GeneralConditions, type BotPolicy } from "@/lib/whatsapp/bot/prompt";
 import type { AvailabilityToolResult } from "@/lib/whatsapp/bot/availability";
 import type { ReservationSummary } from "@/lib/whatsapp/bot/my-reservations";
 
@@ -161,6 +161,7 @@ export async function generateBotReply(input: {
   };
   knowledgeBlock: string | null;
   conditions?: GeneralConditions | null;
+  policies?: BotPolicy[];
   contextLine: string;
   transcript: TranscriptTurn[];
   tools: BotTools;
@@ -172,6 +173,7 @@ export async function generateBotReply(input: {
     examples: input.config.examples,
     knowledgeBlock: input.knowledgeBlock,
     conditions: input.conditions,
+    policies: input.policies,
   });
   const system: Anthropic.TextBlockParam[] = [
     { type: "text", text: staticText, cache_control: { type: "ephemeral" } },

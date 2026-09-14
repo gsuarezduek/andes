@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildSecurityBlock, buildExamplesBlock, buildStaticSystemText, buildConditionsBlock } from "@/lib/whatsapp/bot/prompt";
+import {
+  buildSecurityBlock,
+  buildExamplesBlock,
+  buildStaticSystemText,
+  buildConditionsBlock,
+  buildPoliciesBlock,
+} from "@/lib/whatsapp/bot/prompt";
 
 describe("buildSecurityBlock", () => {
   it("devuelve null sin ninguna palabra configurada", () => {
@@ -43,6 +49,18 @@ describe("buildConditionsBlock", () => {
   });
 });
 
+describe("buildPoliciesBlock", () => {
+  it("devuelve null sin políticas", () => {
+    expect(buildPoliciesBlock([])).toBeNull();
+  });
+
+  it("incluye el tema y el texto de cada política", () => {
+    const block = buildPoliciesBlock([{ topic: "Cruce a Chile", text: "Se permite con seguro internacional aparte." }]);
+    expect(block).toContain("Cruce a Chile");
+    expect(block).toContain("Se permite con seguro internacional aparte.");
+  });
+});
+
 describe("buildStaticSystemText", () => {
   it("usa un prompt por defecto si viene vacío", () => {
     const text = buildStaticSystemText({ prompt: "", blockedWords: [], escalationWords: [], examples: [], knowledgeBlock: null });
@@ -74,5 +92,18 @@ describe("buildStaticSystemText", () => {
       conditions: { kmPerDay: 200, extraKmRate: null, deductible: null, deductibleReduced: null },
     });
     expect(text).toContain("200 km");
+  });
+
+  it("incluye las políticas cuando vienen cargadas", () => {
+    const text = buildStaticSystemText({
+      prompt: "Sos el bot.",
+      blockedWords: [],
+      escalationWords: [],
+      examples: [],
+      knowledgeBlock: null,
+      policies: [{ topic: "Horarios", text: "Atendemos de 8 a 20hs." }],
+    });
+    expect(text).toContain("Horarios");
+    expect(text).toContain("Atendemos de 8 a 20hs.");
   });
 });

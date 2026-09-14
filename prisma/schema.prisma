@@ -1559,6 +1559,12 @@ model WhatsAppBotConfig {
   // prender/apagarlo para toda la cuenta.
   trainingPhones Json @default("[]") @map("training_phones")
 
+  // Políticas fijas del negocio como lista de { topic, text } — separadas del
+  // `prompt` de personalidad a propósito: el dueño no usa `WhatsAppBotDocument`
+  // y quiere poder ir directo a actualizar un tema puntual (ej. "Cruce a
+  // Chile") sin releer todo el prompt de comportamiento.
+  policies Json @default("[]")
+
   // Doble capa de seguridad (instrucción al modelo + chequeo programático):
   // `escalationWords` se revisan ANTES de llamar a Claude contra el último
   // mensaje del cliente (deriva directo, sin gastar el llamado);

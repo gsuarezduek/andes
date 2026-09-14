@@ -51,6 +51,22 @@ export function buildConditionsBlock(conditions: GeneralConditions | null): stri
   return `Condiciones económicas generales vigentes (aplican salvo que la reserva puntual del cliente diga otra cosa; la tarifa por día de cada auto sale de check_availability):\n${lines.join("\n")}`;
 }
 
+export type BotPolicy = { topic: string; text: string };
+
+/**
+ * Políticas fijas del negocio (horarios, cruce a Chile, cancelación, etc.),
+ * cargadas como lista de tema+texto — separadas del `prompt` de personalidad
+ * a propósito, para que se puedan actualizar una por una sin releer todo el
+ * prompt de comportamiento. Ganan por sobre cualquier documento de la base de
+ * conocimiento que las contradiga (la base de conocimiento es opcional y
+ * puede quedar desactualizada; esto es lo que carga el dueño a mano).
+ */
+export function buildPoliciesBlock(policies: BotPolicy[]): string | null {
+  if (policies.length === 0) return null;
+  const lines = policies.map((p) => `- ${p.topic}: ${p.text}`).join("\n");
+  return `Políticas fijas del negocio (fuente de verdad — si algún documento de referencia dice otra cosa, priorizá esto):\n${lines}`;
+}
+
 export function buildExamplesBlock(examples: { question: string; answer: string }[]): string | null {
   if (examples.length === 0) return null;
   const lines = examples
@@ -65,6 +81,7 @@ export function buildStaticSystemText(input: {
   blockedWords: string[];
   escalationWords: string[];
   examples: { question: string; answer: string }[];
+  policies?: BotPolicy[];
   knowledgeBlock: string | null;
   conditions?: GeneralConditions | null;
 }): string {
@@ -75,6 +92,7 @@ export function buildStaticSystemText(input: {
     buildSecurityBlock(input.blockedWords, input.escalationWords),
     buildExamplesBlock(input.examples),
     buildConditionsBlock(input.conditions ?? null),
+    buildPoliciesBlock(input.policies ?? []),
     input.knowledgeBlock ? `Información de referencia del negocio:\n\n${input.knowledgeBlock}` : null,
   ].filter((b): b is string => Boolean(b));
   return blocks.join("\n\n");

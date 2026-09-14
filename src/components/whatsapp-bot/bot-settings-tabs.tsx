@@ -3,10 +3,11 @@
 import { useState, type ReactNode } from "react";
 import { TabBar } from "@/components/ui/tabs";
 
-const SECTIONS = ["Personalidad", "Seguridad", "Ejemplos", "Documentos", "Calidad", "Probar"];
+const SECTIONS = ["Personalidad", "Políticas", "Seguridad", "Ejemplos", "Documentos", "Calidad", "Probar"];
 
 export function BotSettingsTabs({
   personality,
+  policies,
   security,
   examples,
   documents,
@@ -14,6 +15,7 @@ export function BotSettingsTabs({
   playground,
 }: {
   personality: ReactNode;
+  policies: ReactNode;
   security: ReactNode;
   examples: ReactNode;
   documents: ReactNode;
@@ -21,7 +23,7 @@ export function BotSettingsTabs({
   playground: ReactNode;
 }) {
   const [active, setActive] = useState(0);
-  const panels = [personality, security, examples, documents, quality, playground];
+  const panels = [personality, policies, security, examples, documents, quality, playground];
 
   return (
     <div className="flex flex-col gap-5">

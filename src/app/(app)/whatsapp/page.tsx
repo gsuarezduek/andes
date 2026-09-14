@@ -9,6 +9,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { GlobalBotToggle } from "@/components/whatsapp-bot/global-bot-toggle";
 import { BotSettingsTabs } from "@/components/whatsapp-bot/bot-settings-tabs";
 import { PersonalityForm } from "@/components/whatsapp-bot/personality-form";
+import { PoliciesEditor } from "@/components/whatsapp-bot/policies-editor";
 import { SecurityForm } from "@/components/whatsapp-bot/security-form";
 import { ExamplesEditor } from "@/components/whatsapp-bot/examples-editor";
 import { DocumentsPanel } from "@/components/whatsapp-bot/documents-panel";
@@ -99,6 +100,7 @@ export default async function WhatsAppPage({
                     prompt={botConfig.prompt}
                   />
                 }
+                policies={<PoliciesEditor policies={botConfig.policies as { topic: string; text: string }[]} />}
                 security={
                   <SecurityForm
                     blockedWords={botConfig.blockedWords as string[]}

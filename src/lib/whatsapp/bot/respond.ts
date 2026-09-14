@@ -104,6 +104,7 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
             deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
           }
         : null,
+      policies: config.policies as { topic: string; text: string }[],
       contextLine,
       transcript,
       tools,

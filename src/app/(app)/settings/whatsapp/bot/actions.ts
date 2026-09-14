@@ -89,6 +89,26 @@ export async function saveExamples(_prev: ActionState, formData: FormData): Prom
   return { ok: true };
 }
 
+export async function savePolicies(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  let policies: { topic: string; text: string }[];
+  try {
+    const parsed = JSON.parse(String(formData.get("policies") ?? "[]"));
+    policies = Array.isArray(parsed)
+      ? parsed
+          .filter((p) => p && typeof p.topic === "string" && typeof p.text === "string")
+          .map((p) => ({ topic: p.topic.slice(0, 200), text: p.text.slice(0, 2000) }))
+      : [];
+  } catch {
+    return { error: "Formato inválido." };
+  }
+
+  await getOrCreateConfig();
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { policies } });
+  revalidateBotPages();
+  return { ok: true };
+}
+
 export async function uploadBotDocument(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdmin();
   const file = formData.get("file");
@@ -158,6 +178,7 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
             deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
           }
         : null,
+      policies: config.policies as { topic: string; text: string }[],
       contextLine: "Este es un mensaje de prueba desde el panel de Configuración — no es un cliente real.",
       transcript,
       tools,

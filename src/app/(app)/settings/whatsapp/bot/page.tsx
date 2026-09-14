@@ -5,6 +5,7 @@ import { MAX_DOCUMENTS } from "@/lib/whatsapp/bot/documents";
 import { ButtonLink } from "@/components/ui/button";
 import { BotSettingsTabs } from "@/components/whatsapp-bot/bot-settings-tabs";
 import { PersonalityForm } from "@/components/whatsapp-bot/personality-form";
+import { PoliciesEditor } from "@/components/whatsapp-bot/policies-editor";
 import { SecurityForm } from "@/components/whatsapp-bot/security-form";
 import { ExamplesEditor } from "@/components/whatsapp-bot/examples-editor";
 import { DocumentsPanel } from "@/components/whatsapp-bot/documents-panel";
@@ -45,6 +46,7 @@ export default async function WhatsAppBotSettingsPage() {
             prompt={config.prompt}
           />
         }
+        policies={<PoliciesEditor policies={config.policies as { topic: string; text: string }[]} />}
         security={
           <SecurityForm
             blockedWords={config.blockedWords as string[]}
