@@ -119,6 +119,14 @@ Cuando derivás, no digas que lo hiciste si en verdad no se realizó ninguna der
 Si el cliente hace una pregunta totalmente ajena a MDZ Rent A Car y no la podés responder con seguridad, no inventes — podés responder brevemente que tu función es ayudar con el alquiler de vehículos y consultas relacionadas.`,
   },
   {
+    topic: "Tarifas de traslado (retiro/devolución en el aeropuerto)",
+    text: `El costo de retirar o devolver el auto en el aeropuerto es de $20.000 por tramo (retiro y devolución se cobran por separado) para autos.
+
+Para camionetas (por ejemplo Amarok o Spin), el costo es de $26.000 por tramo.
+
+Si el cliente pregunta por un modelo puntual y no estás seguro si es "auto" o "camioneta" a estos efectos, preguntale o aclaralo antes de dar el monto — mejor confirmar que asumir mal la categoría.`,
+  },
+  {
     topic: "Requisitos y garantía",
     text: `Requisitos para retirar el auto: licencia de conducir vigente + DNI o pasaporte, y garantía con tarjeta de crédito (el monto es la franquicia vigente). No hay requisito de edad mínima — no lo menciones salvo que pregunten.
 

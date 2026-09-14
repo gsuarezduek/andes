@@ -210,6 +210,7 @@ model User {
   completedTasks         Task[]                  @relation("TaskCompleter")
   assignedWhatsappConversations WhatsAppConversation[]
   sentWhatsappMessages          WhatsAppMessage[]
+  resolvedWhatsappBotEscalations WhatsAppBotEscalation[] @relation("WhatsAppBotEscalationResolver")
 
   @@map("users")
 }
@@ -1621,6 +1622,15 @@ model WhatsAppBotEscalation {
   clientMessage String? @db.Text @map("client_message")
 
   createdAt DateTime @default(now()) @map("created_at")
+
+  // Revisión del dueño: qué debería haber respondido el bot en este caso, y
+  // si esa respuesta se usó para crear un ejemplo (WhatsAppBotConfig.examples)
+  // que lo entrena para la próxima vez. `resolvedAt` null = todavía sin revisar.
+  correctAnswer  String?   @db.Text @map("correct_answer")
+  addedAsExample Boolean   @default(false) @map("added_as_example")
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedById   String?   @map("resolved_by_id")
+  resolvedBy     User?     @relation("WhatsAppBotEscalationResolver", fields: [resolvedById], references: [id])
 
   @@index([conversationId])
   @@map("whatsapp_bot_escalations")

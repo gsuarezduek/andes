@@ -25,8 +25,11 @@ export default async function WhatsAppBotSettingsPage() {
     }),
     prisma.whatsAppBotEscalation.findMany({
       orderBy: { createdAt: "desc" },
-      take: 50,
-      include: { conversation: { select: { id: true, phoneE164: true, customer: { select: { name: true } } } } },
+      take: 100,
+      include: {
+        conversation: { select: { id: true, phoneE164: true, customer: { select: { name: true } } } },
+        resolvedBy: { select: { name: true } },
+      },
     }),
   ]);
 

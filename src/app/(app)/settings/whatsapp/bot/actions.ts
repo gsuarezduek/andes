@@ -102,6 +102,41 @@ export async function deleteBotDocument(id: string) {
   revalidateBotPages();
 }
 
+/**
+ * Revisión de un caso derivado (pestaña Calidad): marca la escalación
+ * resuelta y, opcionalmente, guarda "cómo debería haber respondido" el bot.
+ * Si `addAsExample` viene true (requiere `correctAnswer` y que el caso tenga
+ * `clientMessage`), ese par se agrega directo a los Ejemplos del bot — así el
+ * caso real se convierte en entrenamiento sin pasos manuales aparte.
+ */
+export async function resolveEscalation(input: { escalationId: string; correctAnswer?: string; addAsExample?: boolean }) {
+  const user = await requireUser();
+  const escalation = await prisma.whatsAppBotEscalation.findUnique({ where: { id: input.escalationId } });
+  if (!escalation) return;
+
+  const correctAnswer = input.correctAnswer?.trim() || null;
+  const addAsExample = Boolean(input.addAsExample && correctAnswer && escalation.clientMessage);
+
+  await prisma.whatsAppBotEscalation.update({
+    where: { id: input.escalationId },
+    data: {
+      resolvedAt: new Date(),
+      resolvedById: user.id,
+      correctAnswer,
+      addedAsExample: addAsExample || escalation.addedAsExample,
+    },
+  });
+
+  if (addAsExample) {
+    const config = await getOrCreateConfig();
+    const examples = (config.examples as { question: string; answer: string }[]).slice(0, 19);
+    examples.push({ question: escalation.clientMessage!.slice(0, 500), answer: correctAnswer!.slice(0, 500) });
+    await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples } });
+  }
+
+  revalidateBotPages();
+}
+
 export type PlaygroundResult = {
   reply?: string;
   escalate?: boolean;
