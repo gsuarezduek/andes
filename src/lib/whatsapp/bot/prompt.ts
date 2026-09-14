@@ -63,8 +63,8 @@ export type BotPolicy = { topic: string; text: string };
  */
 export function buildPoliciesBlock(policies: BotPolicy[]): string | null {
   if (policies.length === 0) return null;
-  const lines = policies.map((p) => `- ${p.topic}: ${p.text}`).join("\n");
-  return `Políticas fijas del negocio (fuente de verdad — si algún documento de referencia dice otra cosa, priorizá esto):\n${lines}`;
+  const sections = policies.map((p) => `## ${p.topic}\n${p.text}`).join("\n\n");
+  return `Políticas y reglas del negocio, por tema (fuente de verdad — si algún documento de referencia dice otra cosa, priorizá esto):\n\n${sections}`;
 }
 
 export function buildExamplesBlock(examples: { question: string; answer: string }[]): string | null {
