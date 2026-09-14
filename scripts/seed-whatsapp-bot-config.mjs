@@ -134,6 +134,30 @@ La garantía se devuelve entre 24 y 48 horas hábiles después de la devolución
 
 Si el cliente plantea un problema para cumplir este requisito (no tiene tarjeta de crédito física, la tarjeta no funciona, tiene solo débito o virtual, pregunta si puede reservar sin eso, pide dejarla de otra forma, etc.): nunca digas que puede reservar sin la garantía ni inventes una alternativa — es siempre decisión de una persona. Avisale que sos un asistente virtual y derivá la conversación con el detalle de lo que planteó.`,
   },
+  {
+    topic: "Cruce a Chile",
+    text: `Se puede cruzar a Chile. Hace falta gestionar el permiso con 24 horas de anticipación para habilitar la salida del país al conductor que va a manejar — avisale al cliente ese plazo si pregunta por esto cerca de la fecha de retiro.
+
+El costo del permiso se confirma en el momento de gestionarlo, no es un monto fijo que puedas dar de antemano. Si preguntan cuánto sale, aclarales que se confirma al gestionar el trámite; si insisten en un número exacto, derivá la consulta.`,
+  },
+  {
+    topic: "Horarios de atención",
+    text: "Atendemos todos los días de 9 a 20hs.",
+  },
+  {
+    topic: "Combustible",
+    text: `El auto se entrega y se devuelve con la misma cantidad de combustible: se mide el nivel de nafta al momento del retiro y tiene que devolverse igual.
+
+Si se devuelve con menos, se cobra la diferencia según los litros faltantes y el precio de la nafta del día (no un monto fijo — depende del precio de la nafta ese día).`,
+  },
+  {
+    topic: "Viajes fuera de Mendoza",
+    text: "Se puede viajar fuera de la provincia, avisando con anticipación.",
+  },
+  {
+    topic: "Conductores adicionales",
+    text: `Se permite agregar conductores adicionales y no tiene costo. El cliente tiene que avisar (antes o al momento de retirar el auto) para que lo agreguen al contrato — no hace falta pedirle documentación por WhatsApp, eso se completa en persona al retirar el auto.`,
+  },
 ];
 
 const EXAMPLES = [
