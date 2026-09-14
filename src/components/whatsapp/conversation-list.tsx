@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { PinToggle } from "@/components/whatsapp/pin-toggle";
+import { useDebouncedCallback } from "@/lib/client/use-debounced-callback";
+import { searchConversationIdsByMessage } from "@/app/(app)/whatsapp/actions";
 import type { listConversations } from "@/lib/whatsapp/conversations";
 
 type Conversation = Awaited<ReturnType<typeof listConversations>>[number];
@@ -17,20 +19,42 @@ function preview(message: { body: string | null; mediaId: string | null } | null
 }
 
 /**
- * Filtra en el momento por nombre del cliente o teléfono — sin ida y vuelta
- * al servidor. `filters` (los tabs Todas/No leídas) se renderiza en la misma
- * fila que el buscador para no sumar una fila aparte.
+ * Busca por nombre del cliente o teléfono en el momento (sin ida y vuelta al
+ * servidor, ya están cargados) y, en paralelo, por texto de los mensajes
+ * contra el servidor (con debounce) — el resultado es la unión de ambos, en
+ * el mismo buscador. `filters` (los tabs Todas/No leídas) se renderiza en la
+ * misma fila para no sumar una fila aparte.
  */
 export function ConversationList({ conversations, filters }: { conversations: Conversation[]; filters?: React.ReactNode }) {
   const [query, setQuery] = useState("");
+  const [messageMatchIds, setMessageMatchIds] = useState<Set<string> | null>(null);
+  const [searching, startSearch] = useTransition();
+
+  const searchMessages = useDebouncedCallback((q: string) => {
+    if (q.trim().length < 2) {
+      setMessageMatchIds(null);
+      return;
+    }
+    startSearch(async () => {
+      const ids = await searchConversationIdsByMessage(q);
+      setMessageMatchIds(new Set(ids));
+    });
+  }, 300);
+
+  useEffect(() => {
+    searchMessages(query);
+  }, [query, searchMessages]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return conversations;
     return conversations.filter(
-      (c) => (c.customer?.name?.toLowerCase().includes(q) ?? false) || c.phoneE164.toLowerCase().includes(q),
+      (c) =>
+        (c.customer?.name?.toLowerCase().includes(q) ?? false) ||
+        c.phoneE164.toLowerCase().includes(q) ||
+        (messageMatchIds?.has(c.id) ?? false),
     );
-  }, [query, conversations]);
+  }, [query, conversations, messageMatchIds]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -51,9 +75,12 @@ export function ConversationList({ conversations, filters }: { conversations: Co
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar…"
+            placeholder="Buscar por nombre, teléfono o mensaje…"
             className="h-9 w-full rounded-lg border border-foreground/15 bg-transparent pl-9 pr-3 text-sm outline-none focus:border-foreground/40"
           />
+          {searching ? (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-foreground/40">Buscando…</span>
+          ) : null}
         </div>
       </div>
 

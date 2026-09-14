@@ -73,6 +73,25 @@ export async function linkRental(conversationId: string, rentalId: string | null
   revalidatePath(`/whatsapp/${conversationId}`);
 }
 
+/**
+ * IDs de conversaciones con al menos un mensaje que contiene `query` — para
+ * sumar al buscador del listado (`ConversationList`), que filtra nombre/
+ * teléfono en el navegador pero no tiene el texto de los mensajes cargado.
+ * Se corta en 2 caracteres para no hacer un `contains` disparado por cada
+ * tecla de una búsqueda de una sola letra.
+ */
+export async function searchConversationIdsByMessage(query: string): Promise<string[]> {
+  await requireUser();
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const matches = await prisma.whatsAppConversation.findMany({
+    where: { messages: { some: { body: { contains: q, mode: "insensitive" } } } },
+    select: { id: true },
+    take: 50,
+  });
+  return matches.map((m) => m.id);
+}
+
 export async function updateCustomer(customerId: string, conversationId: string, formData: FormData) {
   await requireUser();
   const name = String(formData.get("name") ?? "").trim() || null;

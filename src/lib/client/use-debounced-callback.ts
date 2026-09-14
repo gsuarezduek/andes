@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 
-/** Para campos de texto: espera a que el usuario deje de tipear antes de guardar. */
+/** Para campos de texto: espera a que el usuario deje de tipear antes de disparar la acción. */
 export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, delayMs: number) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

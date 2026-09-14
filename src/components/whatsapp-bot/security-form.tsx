@@ -5,7 +5,7 @@ import { TextareaField } from "@/components/ui/fields";
 import { WordChipsInput } from "@/components/whatsapp-bot/word-chips-input";
 import { AutosaveStatus } from "@/components/whatsapp-bot/autosave-status";
 import { useAutosave } from "@/components/whatsapp-bot/use-autosave";
-import { useDebouncedCallback } from "@/components/whatsapp-bot/use-debounced-callback";
+import { useDebouncedCallback } from "@/lib/client/use-debounced-callback";
 import { updateSecurity } from "@/app/(app)/settings/whatsapp/bot/actions";
 
 export function SecurityForm({
