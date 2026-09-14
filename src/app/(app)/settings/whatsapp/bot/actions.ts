@@ -1,12 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { uploadDocument } from "@/lib/whatsapp/bot/documents";
 import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
 import { generateBotReply, type BotTools, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 import { checkAvailability } from "@/lib/whatsapp/bot/availability";
+
+// Todas las acciones de esta pestaña usan `requireUser` (no `requireAdmin`) a
+// propósito: es "entrenamiento en equipo" — cualquier empleado carga
+// políticas/ejemplos, no solo un admin.
 
 export type ActionState = { ok?: boolean; error?: string };
 
@@ -22,7 +26,7 @@ function revalidateBotPages() {
 
 /** Prender/apagar el bot sin tocar el resto de la config — el switch rápido de `/whatsapp`. */
 export async function toggleGlobalBot(enabled: boolean) {
-  await requireAdmin();
+  await requireUser();
   await prisma.whatsAppBotConfig.upsert({
     where: { id: 1 },
     create: { id: 1, enabled },
@@ -31,86 +35,52 @@ export async function toggleGlobalBot(enabled: boolean) {
   revalidateBotPages();
 }
 
-function parseWordList(raw: FormDataEntryValue | null): string[] {
-  try {
-    const arr = JSON.parse(String(raw ?? "[]"));
-    return Array.isArray(arr) ? arr.filter((w): w is string => typeof w === "string" && w.trim().length > 0) : [];
-  } catch {
-    return [];
-  }
-}
+type PersonalityPatch = Partial<{
+  enabled: boolean;
+  onlyNewConversations: boolean;
+  trainingPhones: string[];
+  prompt: string;
+}>;
 
-export async function savePersonality(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  const enabled = formData.get("enabled") === "on";
-  const onlyNewConversations = formData.get("onlyNewConversations") === "on";
-  const prompt = String(formData.get("prompt") ?? "").trim();
-  const trainingPhones = parseWordList(formData.get("trainingPhones"));
-
-  await prisma.whatsAppBotConfig.upsert({
-    where: { id: 1 },
-    create: { id: 1, enabled, onlyNewConversations, prompt, trainingPhones },
-    update: { enabled, onlyNewConversations, prompt, trainingPhones },
-  });
-  revalidateBotPages();
-  return { ok: true };
-}
-
-export async function saveSecurity(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  const blockedWords = parseWordList(formData.get("blockedWords"));
-  const escalationWords = parseWordList(formData.get("escalationWords"));
-  const handoffMessage = String(formData.get("handoffMessage") ?? "").trim() || null;
-
+/** Autoguardado: se llama en cada cambio (checkbox, chip agregada/sacada, o texto con debounce) — sin botón "Guardar". */
+export async function updatePersonality(patch: PersonalityPatch) {
+  await requireUser();
   await getOrCreateConfig();
-  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { blockedWords, escalationWords, handoffMessage } });
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: patch });
   revalidateBotPages();
-  return { ok: true };
 }
 
-export async function saveExamples(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  let examples: { question: string; answer: string }[];
-  try {
-    const parsed = JSON.parse(String(formData.get("examples") ?? "[]"));
-    examples = Array.isArray(parsed)
-      ? parsed
-          .filter((e) => e && typeof e.question === "string" && typeof e.answer === "string")
-          .slice(0, 20)
-          .map((e) => ({ question: e.question.slice(0, 500), answer: e.answer.slice(0, 500) }))
-      : [];
-  } catch {
-    return { error: "Formato inválido." };
-  }
+type SecurityPatch = Partial<{
+  blockedWords: string[];
+  escalationWords: string[];
+  handoffMessage: string | null;
+}>;
 
+export async function updateSecurity(patch: SecurityPatch) {
+  await requireUser();
   await getOrCreateConfig();
-  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples } });
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: patch });
   revalidateBotPages();
-  return { ok: true };
 }
 
-export async function savePolicies(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  let policies: { topic: string; text: string }[];
-  try {
-    const parsed = JSON.parse(String(formData.get("policies") ?? "[]"));
-    policies = Array.isArray(parsed)
-      ? parsed
-          .filter((p) => p && typeof p.topic === "string" && typeof p.text === "string")
-          .map((p) => ({ topic: p.topic.slice(0, 200), text: p.text.slice(0, 2000) }))
-      : [];
-  } catch {
-    return { error: "Formato inválido." };
-  }
-
+export async function updateExamples(examples: { question: string; answer: string }[]) {
+  await requireUser();
+  const trimmed = examples.slice(0, 20).map((e) => ({ question: e.question.slice(0, 500), answer: e.answer.slice(0, 500) }));
   await getOrCreateConfig();
-  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { policies } });
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples: trimmed } });
   revalidateBotPages();
-  return { ok: true };
+}
+
+export async function updatePolicies(policies: { topic: string; text: string }[]) {
+  await requireUser();
+  const trimmed = policies.map((p) => ({ topic: p.topic.slice(0, 200), text: p.text.slice(0, 2000) }));
+  await getOrCreateConfig();
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { policies: trimmed } });
+  revalidateBotPages();
 }
 
 export async function uploadBotDocument(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
+  await requireUser();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Elegí un archivo." };
@@ -125,7 +95,7 @@ export async function uploadBotDocument(_prev: ActionState, formData: FormData):
 }
 
 export async function deleteBotDocument(id: string) {
-  await requireAdmin();
+  await requireUser();
   const doc = await prisma.whatsAppBotDocument.findUnique({ where: { id } });
   if (!doc) return;
   await prisma.whatsAppBotDocument.delete({ where: { id } });
@@ -145,7 +115,7 @@ export type PlaygroundResult = {
  * frontend. No persiste ni manda nada real por WhatsApp.
  */
 export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<PlaygroundResult> {
-  await requireAdmin();
+  await requireUser();
   const [config, knowledgeBlock, conditions] = await Promise.all([
     getOrCreateConfig(),
     buildKnowledgeBlock(),

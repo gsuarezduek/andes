@@ -1,38 +1,44 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { FormError, TextField } from "@/components/ui/fields";
-import { SavedBanner } from "@/components/ui/saved-banner";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { useState } from "react";
+import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
-import { saveExamples, type ActionState } from "@/app/(app)/settings/whatsapp/bot/actions";
-
-const initialState: ActionState = {};
+import { AutosaveStatus } from "@/components/whatsapp-bot/autosave-status";
+import { useAutosave } from "@/components/whatsapp-bot/use-autosave";
+import { updateExamples } from "@/app/(app)/settings/whatsapp/bot/actions";
 
 type Example = { question: string; answer: string };
 
 export function ExamplesEditor({ examples: initial }: { examples: Example[] }) {
-  const [state, formAction] = useActionState(saveExamples, initialState);
+  const { pending, saved, run } = useAutosave();
   const [examples, setExamples] = useState<Example[]>(initial);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
 
   const add = () => {
     if (!question.trim() || !answer.trim()) return;
-    setExamples([...examples, { question: question.trim(), answer: answer.trim() }]);
+    const next = [...examples, { question: question.trim(), answer: answer.trim() }];
+    setExamples(next);
     setQuestion("");
     setAnswer("");
+    run(() => updateExamples(next));
+  };
+
+  const remove = (i: number) => {
+    const next = examples.filter((_, idx) => idx !== i);
+    setExamples(next);
+    run(() => updateExamples(next));
   };
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <p className="text-sm text-foreground/60">
-        Ejemplos de preguntas frecuentes y cómo responderlas — guían el tono, no son respuestas fijas para copiar
-        literal.
-      </p>
-      <FormError>{state.error}</FormError>
-      <SavedBanner show={Boolean(state.ok)} label="Guardado." />
-      <input type="hidden" name="examples" value={JSON.stringify(examples)} />
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-foreground/60">
+          Ejemplos de preguntas frecuentes y cómo responderlas — guían el tono, no son respuestas fijas para copiar
+          literal. Se guardan solos.
+        </p>
+        <AutosaveStatus pending={pending} saved={saved} />
+      </div>
 
       <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
         <TextField id="new-question" label="Pregunta del cliente" value={question} onChange={(e) => setQuestion(e.target.value)} />
@@ -52,7 +58,7 @@ export function ExamplesEditor({ examples: initial }: { examples: Example[] }) {
               </div>
               <button
                 type="button"
-                onClick={() => setExamples(examples.filter((_, idx) => idx !== i))}
+                onClick={() => remove(i)}
                 className="shrink-0 text-xs text-foreground/40 hover:text-red-600"
               >
                 Sacar
@@ -63,10 +69,6 @@ export function ExamplesEditor({ examples: initial }: { examples: Example[] }) {
       ) : (
         <p className="text-sm text-foreground/50">Todavía no hay ejemplos cargados.</p>
       )}
-
-      <div className="flex justify-end">
-        <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>
-      </div>
-    </form>
+    </div>
   );
 }
