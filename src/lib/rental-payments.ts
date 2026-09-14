@@ -49,18 +49,21 @@ export function computeRentalPayments(rental: RentalPaymentsInput): RentalPaymen
 export type PaymentAccent = "complete" | "pending" | null;
 
 /**
- * Marca visual de pago para Calendario/Alquileres/Home: solo tiene sentido en
- * `active` o `reserved` ya confirmada (verde/ámbar) — una reserva pendiente o
- * cancelada todavía no tiene por qué tener seña. `null` cubre tanto "no
- * aplica" como "no hay datos suficientes para saber" (mismo tratamiento
- * visual: no se resalta nada porque no hay una alerta real que mostrar).
+ * Marca visual de pago para Calendario/Alquileres/Home: tiene sentido en
+ * `active`, `finished` (para cobranza: saber si un alquiler ya cerrado quedó
+ * con saldo pendiente, aunque la barra del Calendario se pinte gris) o
+ * `reserved` ya confirmada (verde/ámbar) — una reserva pendiente o cancelada
+ * todavía no tiene por qué tener seña. `null` cubre tanto "no aplica" como
+ * "no hay datos suficientes para saber" (mismo tratamiento visual: no se
+ * resalta nada porque no hay una alerta real que mostrar).
  */
 export function paymentAccent(
   status: RentalStatus,
   bookingConfirmed: boolean,
   payments: Pick<RentalPayments, "balance">,
 ): PaymentAccent {
-  const applies = status === "active" || (status === "reserved" && bookingConfirmed);
+  const applies =
+    status === "active" || status === "finished" || (status === "reserved" && bookingConfirmed);
   if (!applies || payments.balance == null) return null;
   return payments.balance <= 0 ? "complete" : "pending";
 }

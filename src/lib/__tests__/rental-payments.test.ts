@@ -72,8 +72,12 @@ describe("paymentAccent", () => {
     expect(paymentAccent("cancelled", true, { balance: 10_000 })).toBeNull();
   });
 
-  it("finalizado: no aplica (fuera de alcance a propósito)", () => {
-    expect(paymentAccent("finished", true, { balance: 10_000 })).toBeNull();
+  it("finalizado con saldo pendiente: falta pagar (para cobranza)", () => {
+    expect(paymentAccent("finished", true, { balance: 10_000 })).toBe("pending");
+  });
+
+  it("finalizado sin saldo: completo", () => {
+    expect(paymentAccent("finished", true, { balance: 0 })).toBe("complete");
   });
 
   it("sin datos de saldo: no aplica", () => {
