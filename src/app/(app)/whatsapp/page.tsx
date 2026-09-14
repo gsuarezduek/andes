@@ -95,6 +95,7 @@ export default async function WhatsAppPage({
                   <PersonalityForm
                     enabled={botConfig.enabled}
                     onlyNewConversations={botConfig.onlyNewConversations}
+                    trainingPhones={botConfig.trainingPhones as string[]}
                     prompt={botConfig.prompt}
                   />
                 }

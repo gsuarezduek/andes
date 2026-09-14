@@ -38,7 +38,12 @@ export default async function WhatsAppBotSettingsPage() {
 
       <BotSettingsTabs
         personality={
-          <PersonalityForm enabled={config.enabled} onlyNewConversations={config.onlyNewConversations} prompt={config.prompt} />
+          <PersonalityForm
+            enabled={config.enabled}
+            onlyNewConversations={config.onlyNewConversations}
+            trainingPhones={config.trainingPhones as string[]}
+            prompt={config.prompt}
+          />
         }
         security={
           <SecurityForm

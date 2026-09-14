@@ -31,21 +31,6 @@ export async function toggleGlobalBot(enabled: boolean) {
   revalidateBotPages();
 }
 
-export async function savePersonality(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
-  const enabled = formData.get("enabled") === "on";
-  const onlyNewConversations = formData.get("onlyNewConversations") === "on";
-  const prompt = String(formData.get("prompt") ?? "").trim();
-
-  await prisma.whatsAppBotConfig.upsert({
-    where: { id: 1 },
-    create: { id: 1, enabled, onlyNewConversations, prompt },
-    update: { enabled, onlyNewConversations, prompt },
-  });
-  revalidateBotPages();
-  return { ok: true };
-}
-
 function parseWordList(raw: FormDataEntryValue | null): string[] {
   try {
     const arr = JSON.parse(String(raw ?? "[]"));
@@ -53,6 +38,22 @@ function parseWordList(raw: FormDataEntryValue | null): string[] {
   } catch {
     return [];
   }
+}
+
+export async function savePersonality(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const enabled = formData.get("enabled") === "on";
+  const onlyNewConversations = formData.get("onlyNewConversations") === "on";
+  const prompt = String(formData.get("prompt") ?? "").trim();
+  const trainingPhones = parseWordList(formData.get("trainingPhones"));
+
+  await prisma.whatsAppBotConfig.upsert({
+    where: { id: 1 },
+    create: { id: 1, enabled, onlyNewConversations, prompt, trainingPhones },
+    update: { enabled, onlyNewConversations, prompt, trainingPhones },
+  });
+  revalidateBotPages();
+  return { ok: true };
 }
 
 export async function saveSecurity(_prev: ActionState, formData: FormData): Promise<ActionState> {

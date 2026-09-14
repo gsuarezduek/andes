@@ -5,6 +5,7 @@
  */
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { normalizePhone } from "@/lib/whatsapp/phone";
 import { sendBotTextMessage } from "@/lib/whatsapp/send";
 import { generateBotReply, type BotTools, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 import { findMatch } from "@/lib/whatsapp/bot/security";
@@ -26,8 +27,13 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
 
   // Un humano ya intervino en esta conversación puntual (desde Andes o a
   // mano desde la app/WhatsApp Web): el bot no vuelve a meterse aunque nadie
-  // haya tocado el toggle a mano.
-  if (config.onlyNewConversations) {
+  // haya tocado el toggle a mano. Los teléfonos de entrenamiento son la
+  // excepción a propósito — permiten seguir probando el bot desde un número
+  // propio sin que la primera respuesta manual lo calle para siempre.
+  const isTrainingPhone = (config.trainingPhones as string[]).some(
+    (p) => normalizePhone(p) === normalizePhone(conversation.phoneE164),
+  );
+  if (config.onlyNewConversations && !isTrainingPhone) {
     const humanReplied = await prisma.whatsAppMessage.findFirst({
       where: { conversationId, OR: [{ sentById: { not: null } }, { sentViaApp: true }] },
     });

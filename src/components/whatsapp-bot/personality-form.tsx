@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { FormError, TextareaField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { WordChipsInput } from "@/components/whatsapp-bot/word-chips-input";
 import { savePersonality, type ActionState } from "@/app/(app)/settings/whatsapp/bot/actions";
 
 const initialState: ActionState = {};
@@ -11,13 +12,16 @@ const initialState: ActionState = {};
 export function PersonalityForm({
   enabled,
   onlyNewConversations,
+  trainingPhones: initialTrainingPhones,
   prompt,
 }: {
   enabled: boolean;
   onlyNewConversations: boolean;
+  trainingPhones: string[];
   prompt: string;
 }) {
   const [state, formAction] = useActionState(savePersonality, initialState);
+  const [trainingPhones, setTrainingPhones] = useState(initialTrainingPhones);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -37,6 +41,14 @@ export function PersonalityForm({
         <input type="checkbox" name="onlyNewConversations" defaultChecked={onlyNewConversations} className="h-4 w-4" />
         Dejar de responder apenas un humano contesta esa conversación
       </label>
+
+      <input type="hidden" name="trainingPhones" value={JSON.stringify(trainingPhones)} />
+      <WordChipsInput
+        label="Teléfonos de entrenamiento (excepción a la regla de arriba)"
+        hint="El bot sigue respondiendo en estos números aunque ya hayas escrito vos — ideal para probar el bot desde tu propio celular sin apagarlo para toda la cuenta. Formato con código de país, ej: 5492611234567."
+        words={trainingPhones}
+        onChange={setTrainingPhones}
+      />
 
       <TextareaField
         id="prompt"

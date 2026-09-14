@@ -1553,6 +1553,12 @@ model WhatsAppBotConfig {
   prompt               String  @default("") @db.Text
   onlyNewConversations Boolean @default(false) @map("only_new_conversations") // deja de responder apenas un humano contesta esa conversación
 
+  // Teléfonos (E.164) que ignoran `onlyNewConversations`: el bot les sigue
+  // respondiendo aunque un humano ya haya escrito en esa conversación — para
+  // poder probar/entrenar el bot desde un número propio sin tener que
+  // prender/apagarlo para toda la cuenta.
+  trainingPhones Json @default("[]") @map("training_phones")
+
   // Doble capa de seguridad (instrucción al modelo + chequeo programático):
   // `escalationWords` se revisan ANTES de llamar a Claude contra el último
   // mensaje del cliente (deriva directo, sin gastar el llamado);
