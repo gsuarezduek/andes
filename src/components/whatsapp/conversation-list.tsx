@@ -11,6 +11,13 @@ import type { listConversations } from "@/lib/whatsapp/conversations";
 
 type Conversation = Awaited<ReturnType<typeof listConversations>>[number];
 
+const STATE_BG: Record<Conversation["state"], string> = {
+  confirm: "bg-emerald-500/5 dark:bg-emerald-500/10",
+  unread: "bg-amber-500/5 dark:bg-amber-500/10",
+  followup: "bg-blue-500/5 dark:bg-blue-500/10",
+  read: "",
+};
+
 function preview(message: { body: string | null; mediaId: string | null } | null): string {
   if (!message) return "Sin mensajes todavía";
   if (message.body) return message.body;
@@ -94,14 +101,14 @@ export function ConversationList({ conversations, filters }: { conversations: Co
             <li key={c.id}>
               <Link
                 href={`/whatsapp/${c.id}`}
-                className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03] ${
-                  c.needsReply ? "bg-amber-500/5 dark:bg-amber-500/10" : ""
-                }`}
+                className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03] ${STATE_BG[c.state]}`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
-                    {c.needsReply ? <Badge tone="amber">No leído</Badge> : null}
+                    {c.state === "confirm" ? <Badge tone="emerald">A confirmar</Badge> : null}
+                    {c.state === "unread" ? <Badge tone="amber">No leído</Badge> : null}
+                    {c.state === "followup" ? <Badge tone="blue">A recuperar</Badge> : null}
                     {!c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
                   </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>

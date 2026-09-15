@@ -13,6 +13,7 @@ import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
 import { findRentalContext, formatRentalContextLine, todayContextLine } from "@/lib/whatsapp/bot/rental-context";
 import { checkAvailability } from "@/lib/whatsapp/bot/availability";
 import { findMyReservations } from "@/lib/whatsapp/bot/my-reservations";
+import { setPendingConfirmation, setFollowUp } from "@/lib/whatsapp/conversations";
 
 const DEFAULT_HANDOFF_MESSAGE =
   "Gracias por escribirnos. Ya le paso tu consulta a alguien del equipo para que te ayude en breve.";
@@ -126,6 +127,20 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
   }
 
   await sendBotTextMessage(conversationId, result.reply);
+
+  // "outcome" solo prende estos flags — nunca los apaga desde acá: se
+  // resuelven solos (vincular reserva / el cliente vuelve a escribir, ver
+  // conversationState en conversations.ts) o a mano desde el hilo. Un
+  // "none" en un mensaje posterior no debe borrar lo que ya se marcó antes.
+  if (result.outcome === "client_accepted") {
+    await setPendingConfirmation(conversationId, true).catch((err) => {
+      console.error("whatsapp bot: setPendingConfirmation failed", err);
+    });
+  } else if (result.outcome === "awaiting_client") {
+    await setFollowUp(conversationId, true).catch((err) => {
+      console.error("whatsapp bot: setFollowUp failed", err);
+    });
+  }
 }
 
 async function handoff(

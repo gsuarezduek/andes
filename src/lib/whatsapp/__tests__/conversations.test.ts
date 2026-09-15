@@ -8,7 +8,7 @@ const { prismaMock } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-import { needsReply, autoLinkRentalIfUnambiguous, listConversations } from "@/lib/whatsapp/conversations";
+import { needsReply, conversationState, autoLinkRentalIfUnambiguous, listConversations } from "@/lib/whatsapp/conversations";
 
 const d = (s: string) => new Date(s);
 
@@ -52,6 +52,76 @@ describe("needsReply", () => {
       }),
     ).toBe(true);
   });
+});
+
+describe("conversationState", () => {
+  const base = {
+    rentalId: null as string | null,
+    pendingConfirmationAt: null as Date | null,
+    followUpAt: null as Date | null,
+    lastInboundAt: null as Date | null,
+    lastOutboundAt: null as Date | null,
+    lastReadAt: null as Date | null,
+  };
+
+  it("sin nada marcado, es 'read'", () => {
+    expect(conversationState(base)).toBe("read");
+  });
+
+  it("con pendingConfirmationAt y sin reserva vinculada, es 'confirm'", () => {
+    expect(conversationState({ ...base, pendingConfirmationAt: d("2026-09-06T10:00:00Z") })).toBe("confirm");
+  });
+
+  it("'confirm' se resuelve solo al vincular una reserva", () => {
+    expect(conversationState({ ...base, pendingConfirmationAt: d("2026-09-06T10:00:00Z"), rentalId: "r1" })).toBe(
+      "read",
+    );
+  });
+
+  it("con followUpAt y el cliente no volvió a escribir, es 'followup'", () => {
+    expect(conversationState({ ...base, followUpAt: d("2026-09-06T10:00:00Z") })).toBe("followup");
+  });
+
+  it("'followup' se resuelve solo apenas el cliente vuelve a escribir", () => {
+    // El nuevo entrante también deja la conversación al día (respondida/vista)
+    // para aislar la lógica de followup de la de needsReply, que gana prioridad.
+    expect(
+      conversationState({
+        ...base,
+        followUpAt: d("2026-09-06T10:00:00Z"),
+        lastInboundAt: d("2026-09-06T11:00:00Z"),
+        lastReadAt: d("2026-09-06T11:05:00Z"),
+      }),
+    ).toBe("read");
+  });
+
+  it("un entrante ANTERIOR a followUpAt no lo resuelve (era el mensaje que motivó la cotización)", () => {
+    // El bot respondió (seteando followUpAt) después de ese entrante, así que
+    // ya está contestado — needsReply no debe interferir con la lectura de followup.
+    expect(
+      conversationState({
+        ...base,
+        followUpAt: d("2026-09-06T10:00:00Z"),
+        lastInboundAt: d("2026-09-06T09:00:00Z"),
+        lastOutboundAt: d("2026-09-06T10:00:01Z"),
+      }),
+    ).toBe("followup");
+  });
+
+  it("'followup' también se resuelve al vincular una reserva", () => {
+    expect(conversationState({ ...base, followUpAt: d("2026-09-06T10:00:00Z"), rentalId: "r1" })).toBe("read");
+  });
+
+  it("prioridad: 'confirm' gana sobre 'unread'", () => {
+    expect(
+      conversationState({
+        ...base,
+        pendingConfirmationAt: d("2026-09-06T10:00:00Z"),
+        lastInboundAt: d("2026-09-06T11:00:00Z"),
+      }),
+    ).toBe("confirm");
+  });
+
 });
 
 describe("listConversations", () => {

@@ -8,11 +8,15 @@ import type { ReservationSummary } from "@/lib/whatsapp/bot/my-reservations";
 
 export type TranscriptTurn = { role: "user" | "assistant"; content: string };
 
+export type BotOutcome = "none" | "client_accepted" | "awaiting_client";
+
 export type BotReplyResult = {
   reply: string;
   escalate: boolean;
   escalateReason: string | null;
   escalateTrigger: "confidence" | "blocked_word" | null;
+  /** Clasificación interna del resultado comercial de la charla — ver OUTCOME_INSTRUCTIONS en prompt.ts. Sirve para priorizar el inbox (conversationState en conversations.ts), no se manda al cliente. */
+  outcome: BotOutcome;
 };
 
 /** Ejecutores reales de las tools de datos — inyectados por el llamador (respond.ts /
@@ -31,6 +35,12 @@ const RESPOND_TOOL = {
       reply: { type: "string", description: "El mensaje a mandar al cliente. Breve, en español, tono amable." },
       escalate: { type: "boolean", description: "true si hay que derivar a un humano en vez de mandar `reply`." },
       escalateReason: { type: "string", description: "Motivo breve, solo si escalate=true." },
+      outcome: {
+        type: "string",
+        enum: ["none", "client_accepted", "awaiting_client"],
+        description:
+          'Clasificación interna del resultado de esta respuesta, para priorizar el inbox del equipo — NO se le manda al cliente. "client_accepted" si el cliente acaba de aceptar una propuesta concreta y falta que una persona arme la reserva. "awaiting_client" si le diste una cotización (completa o de referencia) y quedó en responder después. "none" para cualquier otro caso.',
+      },
     },
     required: ["reply", "escalate"],
   },
@@ -76,7 +86,7 @@ const DATA_TOOLS = [CHECK_AVAILABILITY_TOOL, GET_MY_RESERVATIONS_TOOL];
 /** Cota la cantidad de idas y vueltas de consulta de datos por mensaje (costo/latencia). */
 const MAX_TOOL_ROUNDS = 4;
 
-type RespondInput = { reply: string; escalate: boolean; escalateReason?: string };
+type RespondInput = { reply: string; escalate: boolean; escalateReason?: string; outcome?: BotOutcome };
 
 /** Único llamado forzado a `respond` — garantiza salida estructurada siempre, tenga o no datos consultados antes. */
 async function callModelForceRespond(system: Anthropic.TextBlockParam[], messages: Anthropic.MessageParam[]): Promise<RespondInput> {
@@ -183,12 +193,24 @@ export async function generateBotReply(input: {
   const messages = await gatherToolData(system, input.transcript, input.tools);
   const first = await callModelForceRespond(system, messages);
   if (first.escalate) {
-    return { reply: first.reply, escalate: true, escalateReason: first.escalateReason ?? null, escalateTrigger: "confidence" };
+    return {
+      reply: first.reply,
+      escalate: true,
+      escalateReason: first.escalateReason ?? null,
+      escalateTrigger: "confidence",
+      outcome: "none",
+    };
   }
 
   const blocked = findMatch(first.reply, input.config.blockedWords);
   if (!blocked) {
-    return { reply: first.reply, escalate: false, escalateReason: null, escalateTrigger: null };
+    return {
+      reply: first.reply,
+      escalate: false,
+      escalateReason: null,
+      escalateTrigger: null,
+      outcome: first.outcome ?? "none",
+    };
   }
 
   // Un reintento pidiendo reformular sin la palabra bloqueada — los datos ya
@@ -203,7 +225,13 @@ export async function generateBotReply(input: {
   try {
     const second = await callModelForceRespond(system, retryMessages);
     if (!second.escalate && !findMatch(second.reply, input.config.blockedWords)) {
-      return { reply: second.reply, escalate: false, escalateReason: null, escalateTrigger: null };
+      return {
+        reply: second.reply,
+        escalate: false,
+        escalateReason: null,
+        escalateTrigger: null,
+        outcome: second.outcome ?? "none",
+      };
     }
   } catch {
     // el reintento falló — cae al handoff de abajo
@@ -213,5 +241,6 @@ export async function generateBotReply(input: {
     escalate: true,
     escalateReason: `La respuesta generada mencionaba una palabra bloqueada ("${blocked}") y el reintento no la resolvió.`,
     escalateTrigger: "blocked_word",
+    outcome: "none",
   };
 }

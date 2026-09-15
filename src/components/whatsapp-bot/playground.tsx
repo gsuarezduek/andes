@@ -6,7 +6,12 @@ import { useAutosave } from "@/components/whatsapp-bot/use-autosave";
 import { testBotPlayground, addPlaygroundExample } from "@/app/(app)/settings/whatsapp/bot/actions";
 import type { TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 
-type Turn = TranscriptTurn & { escalate?: boolean };
+type Turn = TranscriptTurn & { escalate?: boolean; outcome?: "none" | "client_accepted" | "awaiting_client" };
+
+const OUTCOME_LABEL: Record<string, string> = {
+  client_accepted: "✅ Pasaría a \"A confirmar\"",
+  awaiting_client: "🕒 Pasaría a \"A recuperar\"",
+};
 
 /** El mensaje del cliente que motivó esta respuesta — el turno "user" inmediato anterior. */
 function questionFor(turns: Turn[], assistantIndex: number): string {
@@ -101,7 +106,7 @@ export function Playground() {
         setError(result.error);
         return;
       }
-      setTurns([...next, { role: "assistant", content: result.reply ?? "", escalate: result.escalate }]);
+      setTurns([...next, { role: "assistant", content: result.reply ?? "", escalate: result.escalate, outcome: result.outcome }]);
     });
   };
 
@@ -125,6 +130,9 @@ export function Playground() {
                 {t.content}
               </div>
               {t.escalate ? <span className="mt-1 text-xs text-amber-600 dark:text-amber-400">🚩 Esto pasaría a un humano</span> : null}
+              {t.outcome && t.outcome !== "none" ? (
+                <span className="mt-1 text-xs text-foreground/50">{OUTCOME_LABEL[t.outcome]}</span>
+              ) : null}
               {t.role === "assistant" ? <Feedback turns={turns} index={i} /> : null}
             </div>
           ))

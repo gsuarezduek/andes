@@ -1452,6 +1452,21 @@ model WhatsAppConversation {
   // (no boolean) para poder ordenar las fijadas entre sí; null = no fijada.
   pinnedAt DateTime? @map("pinned_at")
 
+  // Estados de triage sobre "no leído"/"leído", ver conversationState() en
+  // src/lib/whatsapp/conversations.ts. El bot los prende solo (campo
+  // `outcome` de la tool `respond`, ver whatsapp/bot/reply.ts) y también se
+  // pueden prender/apagar a mano desde el hilo.
+
+  // "A confirmar": el cliente acaba de aceptar una propuesta concreta y
+  // falta que un humano arme la reserva. Se resuelve solo (deja de contar)
+  // en cuanto esta conversación queda vinculada a una reserva (`rentalId`).
+  pendingConfirmationAt DateTime? @map("pending_confirmation_at")
+
+  // "A recuperar": se cotizó (completo o de referencia) y el cliente quedó
+  // en responder después. Se resuelve solo apenas el cliente vuelve a
+  // escribir (`lastInboundAt` más nuevo que esto) o al vincular una reserva.
+  followUpAt DateTime? @map("follow_up_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

@@ -162,6 +162,7 @@ export type PlaygroundResult = {
   reply?: string;
   escalate?: boolean;
   escalateReason?: string | null;
+  outcome?: "none" | "client_accepted" | "awaiting_client";
   error?: string;
 };
 
@@ -209,7 +210,7 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
       transcript,
       tools,
     });
-    return { reply: result.reply, escalate: result.escalate, escalateReason: result.escalateReason };
+    return { reply: result.reply, escalate: result.escalate, escalateReason: result.escalateReason, outcome: result.outcome };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "No se pudo generar la respuesta." };
   }

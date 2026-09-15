@@ -21,6 +21,7 @@ import { ConversationThread } from "@/components/whatsapp/conversation-thread";
 import { CustomerInfoForm } from "@/components/whatsapp/customer-info-form";
 import { BotToggle } from "@/components/whatsapp/bot-toggle";
 import { PinToggle } from "@/components/whatsapp/pin-toggle";
+import { ConversationStateToggles } from "@/components/whatsapp/state-toggle";
 import { RentalLinkPicker } from "@/components/whatsapp/rental-link-picker";
 import { linkRental } from "@/app/(app)/whatsapp/actions";
 
@@ -73,6 +74,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           <BotToggle conversationId={conversation.id} botEnabled={conversation.botEnabled} />
         </div>
       </div>
+
+      <ConversationStateToggles
+        conversationId={conversation.id}
+        confirming={conversation.pendingConfirmationAt != null}
+        followingUp={conversation.followUpAt != null}
+      />
 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
         {conversation.customer ? (

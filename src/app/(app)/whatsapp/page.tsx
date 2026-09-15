@@ -19,37 +19,49 @@ import { Playground } from "@/components/whatsapp-bot/playground";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
-function FilterTabs({ allCount, unreadCount, unreadOnly }: { allCount: number; unreadCount: number; unreadOnly: boolean }) {
+type FilterValue = "all" | "confirm" | "unread" | "followup";
+
+const FILTER_TABS: { value: FilterValue; label: string; activeClass: string }[] = [
+  { value: "all", label: "Todas", activeClass: "bg-foreground/10 text-foreground" },
+  { value: "confirm", label: "A confirmar", activeClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  { value: "unread", label: "No leídas", activeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  { value: "followup", label: "A recuperar", activeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+];
+
+function FilterTabs({ counts, active }: { counts: Record<FilterValue, number>; active: FilterValue }) {
   return (
-    <div className="flex shrink-0 items-center gap-1.5 text-sm">
-      <Link
-        href="/whatsapp"
-        className={`rounded-full px-3 py-1 font-medium transition-colors ${
-          unreadOnly ? "text-foreground/60 hover:bg-foreground/5" : "bg-foreground/10 text-foreground"
-        }`}
-      >
-        Todas ({allCount})
-      </Link>
-      <Link
-        href="/whatsapp?unread=1"
-        className={`rounded-full px-3 py-1 font-medium transition-colors ${
-          unreadOnly ? "bg-amber-500/15 text-amber-700 dark:text-amber-400" : "text-foreground/60 hover:bg-foreground/5"
-        }`}
-      >
-        No leídas ({unreadCount})
-      </Link>
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-sm">
+      {FILTER_TABS.map((tab) => (
+        <Link
+          key={tab.value}
+          href={tab.value === "all" ? "/whatsapp" : `/whatsapp?filter=${tab.value}`}
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            active === tab.value ? tab.activeClass : "text-foreground/60 hover:bg-foreground/5"
+          }`}
+        >
+          {tab.label} ({counts[tab.value]})
+        </Link>
+      ))}
     </div>
   );
 }
 
+const EMPTY_STATE_LABEL: Record<FilterValue, string> = {
+  all: "",
+  confirm: "No hay conversaciones en \"A confirmar\".",
+  unread: "No hay conversaciones no leídas.",
+  followup: "No hay conversaciones en \"A recuperar\".",
+};
+
 export default async function WhatsAppPage({
   searchParams,
 }: {
-  searchParams: Promise<{ unread?: string }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   await requireUser();
-  const { unread } = await searchParams;
-  const unreadOnly = unread === "1";
+  const { filter } = await searchParams;
+  const active: FilterValue =
+    filter === "confirm" || filter === "unread" || filter === "followup" ? filter : "all";
 
   // Bot de IA y entrenamiento: visible para cualquier empleado, no solo admin
   // — es entrenamiento en equipo, no una función administrativa.
@@ -69,8 +81,13 @@ export default async function WhatsAppPage({
       },
     }),
   ]);
-  const unreadCount = allConversations.filter((c) => c.needsReply).length;
-  const conversations = unreadOnly ? allConversations.filter((c) => c.needsReply) : allConversations;
+  const counts: Record<FilterValue, number> = {
+    all: allConversations.length,
+    confirm: allConversations.filter((c) => c.state === "confirm").length,
+    unread: allConversations.filter((c) => c.state === "unread").length,
+    followup: allConversations.filter((c) => c.state === "followup").length,
+  };
+  const conversations = active === "all" ? allConversations : allConversations.filter((c) => c.state === active);
 
   return (
     <div className="flex flex-col gap-5">
@@ -107,18 +124,15 @@ export default async function WhatsAppPage({
 
       {conversations.length === 0 ? (
         <>
-          <FilterTabs allCount={allConversations.length} unreadCount={unreadCount} unreadOnly={unreadOnly} />
+          <FilterTabs counts={counts} active={active} />
           <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
-            {unreadOnly
-              ? "No hay conversaciones no leídas."
-              : "Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un cliente escriba, o revisá que el webhook esté dado de alta en Chakra."}
+            {active === "all"
+              ? "Todavía no llegó ningún mensaje. Si ya conectaste la cuenta en Configuración → WhatsApp, esperá a que un cliente escriba, o revisá que el webhook esté dado de alta en Chakra."
+              : EMPTY_STATE_LABEL[active]}
           </p>
         </>
       ) : (
-        <ConversationList
-          conversations={conversations}
-          filters={<FilterTabs allCount={allConversations.length} unreadCount={unreadCount} unreadOnly={unreadOnly} />}
-        />
+        <ConversationList conversations={conversations} filters={<FilterTabs counts={counts} active={active} />} />
       )}
     </div>
   );

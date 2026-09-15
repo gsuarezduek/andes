@@ -22,6 +22,31 @@ export function needsReply(c: { lastInboundAt: Date | null; lastOutboundAt: Date
   return !answered && !viewed;
 }
 
+export type ConversationState = "confirm" | "unread" | "followup" | "read";
+
+/**
+ * Estado de triage de la conversación, en orden de prioridad de arriba hacia
+ * abajo: "confirm" (el bot detectó que el cliente aceptó una propuesta y
+ * falta armar la reserva) > "unread" (needsReply) > "followup" (cotizamos,
+ * esperamos que el cliente responda) > "read" (todo lo demás). Vincular una
+ * reserva resuelve "confirm" y "followup" por igual — ya no hace falta
+ * seguimiento si ya hay una reserva de por medio.
+ */
+export function conversationState(c: {
+  rentalId: string | null;
+  pendingConfirmationAt: Date | null;
+  followUpAt: Date | null;
+  lastInboundAt: Date | null;
+  lastOutboundAt: Date | null;
+  lastReadAt: Date | null;
+}): ConversationState {
+  if (c.pendingConfirmationAt && !c.rentalId) return "confirm";
+  if (needsReply(c)) return "unread";
+  const clientRepliedSince = c.lastInboundAt != null && c.lastInboundAt.getTime() > (c.followUpAt?.getTime() ?? -Infinity);
+  if (c.followUpAt && !c.rentalId && !clientRepliedSince) return "followup";
+  return "read";
+}
+
 /** Marca el hilo como visto desde Andes — se llama al abrir la conversación (ver [id]/page.tsx). */
 export async function markConversationRead(conversationId: string) {
   await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { lastReadAt: new Date() } });
@@ -52,6 +77,8 @@ export async function setConversationRental(conversationId: string, rentalId: st
   await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { rentalId } });
 }
 
+const STATE_PRIORITY: Record<ConversationState, number> = { confirm: 0, unread: 1, followup: 2, read: 3 };
+
 export async function listConversations() {
   const conversations = await prisma.whatsAppConversation.findMany({
     orderBy: { lastMessageAt: "desc" },
@@ -62,14 +89,35 @@ export async function listConversations() {
     },
   });
   return conversations
-    .map(({ messages, ...c }) => ({ ...c, lastMessage: messages[0] ?? null, needsReply: needsReply(c) }))
+    .map(({ messages, ...c }) => ({
+      ...c,
+      lastMessage: messages[0] ?? null,
+      needsReply: needsReply(c),
+      state: conversationState(c),
+    }))
     .sort((a, b) => {
-      // Fijadas primero (siempre), después no leídas — mismo criterio que
-      // WhatsApp: un pin gana incluso a una conversación sin leer.
+      // Fijadas primero (siempre) — mismo criterio que WhatsApp: un pin gana
+      // incluso a "A confirmar". Después, por prioridad de estado.
       const pinDiff = Number(b.pinnedAt != null) - Number(a.pinnedAt != null);
       if (pinDiff !== 0) return pinDiff;
-      return Number(b.needsReply) - Number(a.needsReply);
+      return STATE_PRIORITY[a.state] - STATE_PRIORITY[b.state];
     });
+}
+
+/** Marca/descarta "A confirmar" a mano — el bot lo prende solo (ver reply.ts), esto es el escape manual. */
+export async function setPendingConfirmation(conversationId: string, on: boolean) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { pendingConfirmationAt: on ? new Date() : null },
+  });
+}
+
+/** Marca/descarta "A recuperar" a mano. */
+export async function setFollowUp(conversationId: string, on: boolean) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { followUpAt: on ? new Date() : null },
+  });
 }
 
 /** Fija (o quita el fijado, `pinned: false`) una conversación — propio de Andes, compartido para todo el equipo. */

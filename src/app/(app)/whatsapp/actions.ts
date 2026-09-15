@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
-import { setConversationRental, setConversationPinned } from "@/lib/whatsapp/conversations";
+import { setConversationRental, setConversationPinned, setPendingConfirmation, setFollowUp } from "@/lib/whatsapp/conversations";
 
 export type MessageActionState = { error?: string };
 
@@ -62,6 +62,22 @@ export async function toggleConversationBot(conversationId: string, botEnabled: 
 export async function toggleConversationPinned(conversationId: string, pinned: boolean) {
   await requireUser();
   await setConversationPinned(conversationId, pinned);
+  revalidatePath(`/whatsapp/${conversationId}`);
+  revalidatePath("/whatsapp");
+}
+
+/** Marca/descarta "A confirmar" a mano — el bot lo prende solo (ver whatsapp/bot/respond.ts), esto es el escape manual. */
+export async function toggleConversationConfirm(conversationId: string, on: boolean) {
+  await requireUser();
+  await setPendingConfirmation(conversationId, on);
+  revalidatePath(`/whatsapp/${conversationId}`);
+  revalidatePath("/whatsapp");
+}
+
+/** Marca/descarta "A recuperar" a mano. */
+export async function toggleConversationFollowUp(conversationId: string, on: boolean) {
+  await requireUser();
+  await setFollowUp(conversationId, on);
   revalidatePath(`/whatsapp/${conversationId}`);
   revalidatePath("/whatsapp");
 }

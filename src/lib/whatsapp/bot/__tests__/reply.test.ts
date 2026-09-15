@@ -44,7 +44,13 @@ describe("generateBotReply", () => {
       tools: makeTools(),
     });
 
-    expect(result).toEqual({ reply: "¡Hola! ¿En qué te ayudo?", escalate: false, escalateReason: null, escalateTrigger: null });
+    expect(result).toEqual({
+      reply: "¡Hola! ¿En qué te ayudo?",
+      escalate: false,
+      escalateReason: null,
+      escalateTrigger: null,
+      outcome: "none",
+    });
     expect(createMock).toHaveBeenCalledTimes(2);
     const gatherCallTools = createMock.mock.calls[0][0].tools.map((t: { name: string }) => t.name);
     expect(gatherCallTools).not.toContain("respond");
@@ -91,5 +97,22 @@ describe("generateBotReply", () => {
     expect(result.escalate).toBe(true);
     expect(result.escalateTrigger).toBe("confidence");
     expect(result.escalateReason).toBe("Pidió hablar con una persona.");
+    expect(result.outcome).toBe("none");
+  });
+
+  it("propaga el outcome que devuelve el modelo (client_accepted/awaiting_client)", async () => {
+    createMock
+      .mockResolvedValueOnce(textOnly("nada que consultar"))
+      .mockResolvedValueOnce(toolUse("respond", { reply: "Perfecto, ya te armamos la reserva.", escalate: false, outcome: "client_accepted" }));
+
+    const result = await generateBotReply({
+      config: baseConfig,
+      knowledgeBlock: null,
+      contextLine: "contexto",
+      transcript: [{ role: "user", content: "Dale, confirmo el Sandero" }],
+      tools: makeTools(),
+    });
+
+    expect(result.outcome).toBe("client_accepted");
   });
 });
