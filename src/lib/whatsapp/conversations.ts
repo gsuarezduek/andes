@@ -22,26 +22,31 @@ export function needsReply(c: { lastInboundAt: Date | null; lastOutboundAt: Date
   return !answered && !viewed;
 }
 
-export type ConversationState = "confirm" | "unread" | "followup" | "read";
+export type ConversationState = "confirm" | "unread" | "confirmed" | "followup" | "read";
 
 /**
  * Estado de triage de la conversación, en orden de prioridad de arriba hacia
  * abajo: "confirm" (el bot detectó que el cliente aceptó una propuesta y
- * falta armar la reserva) > "unread" (needsReply) > "followup" (cotizamos,
- * esperamos que el cliente responda) > "read" (todo lo demás). Vincular una
- * reserva resuelve "confirm" y "followup" por igual — ya no hace falta
- * seguimiento si ya hay una reserva de por medio.
+ * falta armar la reserva) > "unread" (needsReply) > "confirmed" (marcado a
+ * mano, ver `setConfirmed`) > "followup" (cotizamos, esperamos que el
+ * cliente responda) > "read" (todo lo demás). Vincular una reserva o marcar
+ * "confirmed" resuelven "confirm"/"followup" por igual (`setConversationRental`/
+ * `setConfirmed` ya limpian esos campos al hacerlo) — los chequeos
+ * `!c.rentalId` de acá son una segunda capa por si queda algún dato viejo de
+ * antes de ese fix.
  */
 export function conversationState(c: {
   rentalId: string | null;
   pendingConfirmationAt: Date | null;
   followUpAt: Date | null;
+  confirmedAt: Date | null;
   lastInboundAt: Date | null;
   lastOutboundAt: Date | null;
   lastReadAt: Date | null;
 }): ConversationState {
   if (c.pendingConfirmationAt && !c.rentalId) return "confirm";
   if (needsReply(c)) return "unread";
+  if (c.confirmedAt) return "confirmed";
   const clientRepliedSince = c.lastInboundAt != null && c.lastInboundAt.getTime() > (c.followUpAt?.getTime() ?? -Infinity);
   if (c.followUpAt && !c.rentalId && !clientRepliedSince) return "followup";
   return "read";
@@ -72,12 +77,21 @@ export async function countNeedsReply(): Promise<number> {
  * `findRelatedRentals` (coincidencia automática por teléfono, nunca
  * persistida). Útil para desambiguar cuando hay varias reservas candidatas o
  * el cliente escribe desde un número distinto al cargado en la reserva.
+ *
+ * Al vincular, limpia `pendingConfirmationAt`/`followUpAt`: antes solo se
+ * "ignoraban" en `conversationState()` pero quedaban prendidos en la base,
+ * así que el botón manual de "A recuperar"/"A confirmar" (que lee el campo
+ * crudo, no el estado calculado) seguía apareciendo activo aunque ya hubiera
+ * una reserva confirmada — bug real reportado por el dueño.
  */
 export async function setConversationRental(conversationId: string, rentalId: string | null) {
-  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { rentalId } });
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: rentalId ? { rentalId, pendingConfirmationAt: null, followUpAt: null } : { rentalId },
+  });
 }
 
-const STATE_PRIORITY: Record<ConversationState, number> = { confirm: 0, unread: 1, followup: 2, read: 3 };
+const STATE_PRIORITY: Record<ConversationState, number> = { confirm: 0, unread: 1, confirmed: 2, followup: 3, read: 4 };
 
 export async function listConversations() {
   const conversations = await prisma.whatsAppConversation.findMany({
@@ -117,6 +131,19 @@ export async function setFollowUp(conversationId: string, on: boolean) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
     data: { followUpAt: on ? new Date() : null },
+  });
+}
+
+/**
+ * Marca/descarta "Confirmado" a mano — nunca lo prende el bot. Al prenderlo,
+ * limpia "A confirmar"/"A recuperar" (mismo criterio que vincular una
+ * reserva, ver `setConversationRental`): si ya está confirmado, esos dos ya
+ * no aplican. Al apagarlo, no toca nada más.
+ */
+export async function setConfirmed(conversationId: string, on: boolean) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: on ? { confirmedAt: new Date(), pendingConfirmationAt: null, followUpAt: null } : { confirmedAt: null },
   });
 }
 
@@ -210,5 +237,5 @@ export async function autoLinkRentalIfUnambiguous(conversationId: string, phoneE
   const candidates = await findRelatedRentals(phoneE164);
   if (candidates.length !== 1) return;
 
-  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { rentalId: candidates[0].id } });
+  await setConversationRental(conversationId, candidates[0].id);
 }

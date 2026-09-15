@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "emerald" | "amber" | "red" | "blue" | "orange";
+type Tone = "neutral" | "emerald" | "amber" | "red" | "blue" | "orange" | "violet";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-foreground/10 text-foreground/70",
@@ -11,6 +11,7 @@ const tones: Record<Tone, string> = {
   red: "bg-red-500/15 text-red-700 dark:text-red-400",
   blue: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
   orange: "bg-orange-500/20 text-orange-700 dark:text-orange-400",
+  violet: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
 };
 
 type RingTone = "complete" | "pending";

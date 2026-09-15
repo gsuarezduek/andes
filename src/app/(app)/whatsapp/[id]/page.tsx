@@ -84,6 +84,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         conversationId={conversation.id}
         confirming={conversation.pendingConfirmationAt != null}
         followingUp={conversation.followUpAt != null}
+        confirmed={conversation.confirmedAt != null}
       />
 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">

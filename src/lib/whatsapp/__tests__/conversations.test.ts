@@ -8,7 +8,14 @@ const { prismaMock } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
-import { needsReply, conversationState, autoLinkRentalIfUnambiguous, listConversations } from "@/lib/whatsapp/conversations";
+import {
+  needsReply,
+  conversationState,
+  autoLinkRentalIfUnambiguous,
+  listConversations,
+  setConversationRental,
+  setConfirmed,
+} from "@/lib/whatsapp/conversations";
 
 const d = (s: string) => new Date(s);
 
@@ -59,6 +66,7 @@ describe("conversationState", () => {
     rentalId: null as string | null,
     pendingConfirmationAt: null as Date | null,
     followUpAt: null as Date | null,
+    confirmedAt: null as Date | null,
     lastInboundAt: null as Date | null,
     lastOutboundAt: null as Date | null,
     lastReadAt: null as Date | null,
@@ -122,6 +130,29 @@ describe("conversationState", () => {
     ).toBe("confirm");
   });
 
+  it("con confirmedAt marcado a mano, es 'confirmed'", () => {
+    expect(conversationState({ ...base, confirmedAt: d("2026-09-06T10:00:00Z") })).toBe("confirmed");
+  });
+
+  it("'confirmed' gana sobre 'followup'", () => {
+    expect(
+      conversationState({
+        ...base,
+        confirmedAt: d("2026-09-06T10:00:00Z"),
+        followUpAt: d("2026-09-06T09:00:00Z"),
+      }),
+    ).toBe("confirmed");
+  });
+
+  it("'unread' sigue ganando sobre 'confirmed' — un mensaje nuevo importa igual", () => {
+    expect(
+      conversationState({
+        ...base,
+        confirmedAt: d("2026-09-06T10:00:00Z"),
+        lastInboundAt: d("2026-09-06T11:00:00Z"),
+      }),
+    ).toBe("unread");
+  });
 });
 
 describe("listConversations", () => {
@@ -150,6 +181,51 @@ describe("listConversations", () => {
   });
 });
 
+describe("setConversationRental", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("al vincular, limpia 'a confirmar'/'a recuperar'", async () => {
+    await setConversationRental("c1", "r1");
+    expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { rentalId: "r1", pendingConfirmationAt: null, followUpAt: null },
+    });
+  });
+
+  it("al desvincular, no toca los otros campos", async () => {
+    await setConversationRental("c1", null);
+    expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { rentalId: null },
+    });
+  });
+});
+
+describe("setConfirmed", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("al marcar, limpia 'a confirmar'/'a recuperar' — mismo criterio que vincular una reserva", async () => {
+    await setConfirmed("c1", true);
+    const call = prismaMock.whatsAppConversation.update.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "c1" });
+    expect(call.data.confirmedAt).toBeInstanceOf(Date);
+    expect(call.data.pendingConfirmationAt).toBeNull();
+    expect(call.data.followUpAt).toBeNull();
+  });
+
+  it("al descartar, solo limpia confirmedAt", async () => {
+    await setConfirmed("c1", false);
+    expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { confirmedAt: null },
+    });
+  });
+});
+
 describe("autoLinkRentalIfUnambiguous", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -164,15 +240,19 @@ describe("autoLinkRentalIfUnambiguous", () => {
     expect(prismaMock.whatsAppConversation.update).not.toHaveBeenCalled();
   });
 
-  it("vincula sola cuando hay exactamente una reserva candidata por teléfono", async () => {
+  it("vincula sola cuando hay exactamente una reserva candidata por teléfono, y limpia 'a confirmar'/'a recuperar'", async () => {
     prismaMock.whatsAppConversation.findUnique.mockResolvedValue({ rentalId: null });
     prismaMock.rental.findMany.mockResolvedValue([{ id: "r2" }]);
 
     await autoLinkRentalIfUnambiguous("c1", "+5492611234567");
 
+    // Reproduce el bug real reportado: una reserva ya confirmada (vinculada
+    // acá) seguía mostrando el botón "A recuperar" activo porque el vínculo
+    // automático escribía `rentalId` directo, sin pasar por
+    // `setConversationRental` (que sí limpia estos campos).
     expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
       where: { id: "c1" },
-      data: { rentalId: "r2" },
+      data: { rentalId: "r2", pendingConfirmationAt: null, followUpAt: null },
     });
   });
 

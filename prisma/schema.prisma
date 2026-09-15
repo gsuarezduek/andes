@@ -1467,6 +1467,14 @@ model WhatsAppConversation {
   // escribir (`lastInboundAt` más nuevo que esto) o al vincular una reserva.
   followUpAt DateTime? @map("follow_up_at")
 
+  // "Confirmado": marcado a mano — a diferencia de los dos de arriba, este
+  // nunca lo prende el bot ni se resuelve solo. Pensado para clientes
+  // frecuentes: ya está todo arreglado con esa persona (con o sin una
+  // reserva puntual vinculada en Andes) y no hace falta que siga apareciendo
+  // como "a recuperar". Prenderlo también limpia `pendingConfirmationAt`/
+  // `followUpAt` (mismo criterio que vincular una reserva).
+  confirmedAt DateTime? @map("confirmed_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

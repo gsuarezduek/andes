@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
-import { setConversationRental, setConversationPinned, setPendingConfirmation, setFollowUp } from "@/lib/whatsapp/conversations";
+import { setConversationRental, setConversationPinned, setPendingConfirmation, setFollowUp, setConfirmed } from "@/lib/whatsapp/conversations";
 
 export type MessageActionState = { error?: string };
 
@@ -78,6 +78,14 @@ export async function toggleConversationConfirm(conversationId: string, on: bool
 export async function toggleConversationFollowUp(conversationId: string, on: boolean) {
   await requireUser();
   await setFollowUp(conversationId, on);
+  revalidatePath(`/whatsapp/${conversationId}`);
+  revalidatePath("/whatsapp");
+}
+
+/** Marca/descarta "Confirmado" a mano — nunca lo prende el bot (ver setConfirmed). */
+export async function toggleConversationConfirmed(conversationId: string, on: boolean) {
+  await requireUser();
+  await setConfirmed(conversationId, on);
   revalidatePath(`/whatsapp/${conversationId}`);
   revalidatePath("/whatsapp");
 }

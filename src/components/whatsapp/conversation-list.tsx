@@ -14,6 +14,7 @@ type Conversation = Awaited<ReturnType<typeof listConversations>>[number];
 const STATE_BG: Record<Conversation["state"], string> = {
   confirm: "bg-emerald-500/5 dark:bg-emerald-500/10",
   unread: "bg-amber-500/5 dark:bg-amber-500/10",
+  confirmed: "bg-violet-500/5 dark:bg-violet-500/10",
   followup: "bg-blue-500/5 dark:bg-blue-500/10",
   read: "",
 };
@@ -116,6 +117,7 @@ export function ConversationList({
                     <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
                     {c.state === "confirm" ? <Badge tone="emerald">A confirmar</Badge> : null}
                     {c.state === "unread" ? <Badge tone="amber">No leído</Badge> : null}
+                    {c.state === "confirmed" ? <Badge tone="violet">Confirmado</Badge> : null}
                     {c.state === "followup" ? <Badge tone="blue">A recuperar</Badge> : null}
                     {globalBotEnabled && !c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
                   </div>
