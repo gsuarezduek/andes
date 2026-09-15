@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getWhatsappUnreadCount } from "@/app/(app)/actions";
+import { getInboundMessageCount } from "@/app/(app)/actions";
 
-const POLL_MS = 20000;
+const POLL_MS = 10000;
 
 /** Beep corto vía Web Audio API — no hace falta ningún archivo de sonido. */
 function beep() {
@@ -29,10 +29,12 @@ function beep() {
 }
 
 /**
- * Sonido corto cada vez que sube la cantidad de conversaciones sin
- * responder — funciona en cualquier pantalla de la app (montado en el
- * layout), no solo con `/whatsapp` abierto. La primera lectura solo fija
- * la base, para no sonar apenas se carga la página si ya había pendientes.
+ * Sonido corto cada vez que llega un mensaje nuevo de WhatsApp — cuenta TODOS
+ * los mensajes entrantes recibidos alguna vez (no "no leídos": ese es un
+ * estado derivado que puede no reflejar la llegada si la conversación ya
+ * estaba abierta). Funciona en cualquier pantalla de la app (montado en el
+ * layout), no solo con `/whatsapp` abierto. La primera lectura solo fija la
+ * base, para no sonar apenas se carga la página.
  */
 export function WhatsappSoundNotifier() {
   const lastCountRef = useRef<number | null>(null);
@@ -41,7 +43,7 @@ export function WhatsappSoundNotifier() {
     let cancelled = false;
 
     const poll = async () => {
-      const count = await getWhatsappUnreadCount().catch(() => null);
+      const count = await getInboundMessageCount().catch(() => null);
       if (cancelled || count === null) return;
       if (lastCountRef.current !== null && count > lastCountRef.current) {
         beep();
