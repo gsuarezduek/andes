@@ -2,15 +2,85 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { testBotPlayground } from "@/app/(app)/settings/whatsapp/bot/actions";
+import { useAutosave } from "@/components/whatsapp-bot/use-autosave";
+import { testBotPlayground, addPlaygroundExample } from "@/app/(app)/settings/whatsapp/bot/actions";
 import type { TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 
 type Turn = TranscriptTurn & { escalate?: boolean };
 
+/** El mensaje del cliente que motivó esta respuesta — el turno "user" inmediato anterior. */
+function questionFor(turns: Turn[], assistantIndex: number): string {
+  for (let i = assistantIndex - 1; i >= 0; i--) {
+    if (turns[i].role === "user") return turns[i].content;
+  }
+  return "";
+}
+
+function Feedback({ turns, index }: { turns: Turn[]; index: number }) {
+  const { pending, saved, run } = useAutosave();
+  const [editing, setEditing] = useState(false);
+  const [correction, setCorrection] = useState(turns[index].content);
+  const question = questionFor(turns, index);
+
+  if (!question) return null;
+
+  if (saved) {
+    return <span className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">✓ Guardado como ejemplo</span>;
+  }
+
+  if (editing) {
+    return (
+      <div className="mt-1 flex w-full max-w-[85%] flex-col gap-1.5">
+        <textarea
+          value={correction}
+          onChange={(e) => setCorrection(e.target.value)}
+          rows={2}
+          className="w-full resize-none rounded-lg border border-foreground/15 bg-transparent p-2 text-sm outline-none focus:border-foreground/40"
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            disabled={pending || !correction.trim()}
+            onClick={() => run(() => addPlaygroundExample(question, correction))}
+          >
+            Guardar corrección
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex gap-3">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(() => addPlaygroundExample(question, turns[index].content))}
+        className="text-xs text-foreground/50 hover:text-emerald-600 disabled:opacity-50 dark:hover:text-emerald-400"
+      >
+        ✓ Está bien
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => setEditing(true)}
+        className="text-xs text-foreground/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+      >
+        ✗ Está mal
+      </button>
+    </div>
+  );
+}
+
 /**
  * Corre la config YA GUARDADA (personalidad/seguridad/ejemplos/documentos)
  * contra una conversación de prueba armada acá — no persiste ni manda nada
- * real por WhatsApp, pero sigue gastando tokens reales.
+ * real por WhatsApp, pero sigue gastando tokens reales. Cada respuesta se
+ * puede marcar como buena o corregir — ambas se guardan como Ejemplo, para
+ * ir entrenando al bot con estas pruebas.
  */
 export function Playground() {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -37,7 +107,10 @@ export function Playground() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-foreground/60">Probá cómo respondería el bot ahora mismo, sin mandar nada real.</p>
+      <p className="text-sm text-foreground/60">
+        Probá cómo respondería el bot ahora mismo, sin mandar nada real. Marcá cada respuesta como buena o corregila —
+        queda guardada como Ejemplo para la próxima.
+      </p>
       <div className="flex min-h-[200px] flex-col gap-2 rounded-xl border border-foreground/10 p-3">
         {turns.length === 0 ? (
           <p className="text-sm text-foreground/40">Escribí como si fueras un cliente…</p>
@@ -52,6 +125,7 @@ export function Playground() {
                 {t.content}
               </div>
               {t.escalate ? <span className="mt-1 text-xs text-amber-600 dark:text-amber-400">🚩 Esto pasaría a un humano</span> : null}
+              {t.role === "assistant" ? <Feedback turns={turns} index={i} /> : null}
             </div>
           ))
         )}

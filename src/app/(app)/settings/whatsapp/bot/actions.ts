@@ -7,6 +7,7 @@ import { uploadDocument } from "@/lib/whatsapp/bot/documents";
 import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
 import { generateBotReply, type BotTools, type TranscriptTurn } from "@/lib/whatsapp/bot/reply";
 import { checkAvailability } from "@/lib/whatsapp/bot/availability";
+import { todayContextLine } from "@/lib/whatsapp/bot/rental-context";
 
 // Todas las acciones de esta pestaña usan `requireUser` (no `requireAdmin`) a
 // propósito: es "entrenamiento en equipo" — cualquier empleado carga
@@ -102,6 +103,14 @@ export async function deleteBotDocument(id: string) {
   revalidateBotPages();
 }
 
+/** Agrega un par pregunta/respuesta a los Ejemplos del bot (tope 20, mismo recorte que `updateExamples`). */
+async function pushExample(question: string, answer: string) {
+  const config = await getOrCreateConfig();
+  const examples = (config.examples as { question: string; answer: string }[]).slice(0, 19);
+  examples.push({ question: question.slice(0, 500), answer: answer.slice(0, 500) });
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples } });
+}
+
 /**
  * Revisión de un caso derivado (pestaña Calidad): marca la escalación
  * resuelta y, opcionalmente, guarda "cómo debería haber respondido" el bot.
@@ -128,12 +137,24 @@ export async function resolveEscalation(input: { escalationId: string; correctAn
   });
 
   if (addAsExample) {
-    const config = await getOrCreateConfig();
-    const examples = (config.examples as { question: string; answer: string }[]).slice(0, 19);
-    examples.push({ question: escalation.clientMessage!.slice(0, 500), answer: correctAnswer!.slice(0, 500) });
-    await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { examples } });
+    await pushExample(escalation.clientMessage!, correctAnswer!);
   }
 
+  revalidateBotPages();
+}
+
+/**
+ * Playground (pestaña Probar): marca una respuesta de prueba como buena, o
+ * corregida, y la guarda como Ejemplo — mismo mecanismo que "agregar como
+ * ejemplo" de la pestaña Calidad (`resolveEscalation`), aplicado acá a
+ * cualquier respuesta de prueba, no solo a las que terminaron escaladas.
+ */
+export async function addPlaygroundExample(question: string, answer: string) {
+  await requireUser();
+  const q = question.trim();
+  const a = answer.trim();
+  if (!q || !a) return;
+  await pushExample(q, a);
   revalidateBotPages();
 }
 
@@ -184,7 +205,7 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
           }
         : null,
       policies: config.policies as { topic: string; text: string }[],
-      contextLine: "Este es un mensaje de prueba desde el panel de Configuración — no es un cliente real.",
+      contextLine: `Este es un mensaje de prueba desde el panel de Configuración — no es un cliente real. ${todayContextLine()}`,
       transcript,
       tools,
     });
