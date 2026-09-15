@@ -6,6 +6,7 @@ import { countNeedsReply } from "@/lib/whatsapp/conversations";
 import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
 import { EvidenceSync } from "@/components/evidence-sync";
+import { WhatsappSoundNotifier } from "@/components/whatsapp-sound-notifier";
 import { logout, enableEmployeeView, disableEmployeeView } from "./actions";
 import { triggerSync } from "./sync/actions";
 
@@ -48,6 +49,7 @@ export default async function AppLayout({
 
       <InactivityLogout />
       <EvidenceSync />
+      <WhatsappSoundNotifier />
     </div>
   );
 }

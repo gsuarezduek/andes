@@ -46,7 +46,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 
-  const [relatedRentals, rentalOptions, approvedTemplates] = await Promise.all([
+  const [relatedRentals, rentalOptions, approvedTemplates, botConfig] = await Promise.all([
     conversation.rental ? Promise.resolve([]) : findRelatedRentals(conversation.phoneE164),
     conversation.rental ? Promise.resolve([]) : getRentalPickerOptions(),
     windowOpen
@@ -56,6 +56,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           orderBy: { name: "asc" },
           select: { id: true, name: true, language: true, variableCount: true },
         }),
+    prisma.whatsAppBotConfig.findUnique({ where: { id: 1 }, select: { enabled: true } }),
   ]);
 
   return (
@@ -71,7 +72,11 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <PinToggle conversationId={conversation.id} pinned={conversation.pinnedAt != null} className="p-2" />
-          <BotToggle conversationId={conversation.id} botEnabled={conversation.botEnabled} />
+          <BotToggle
+            conversationId={conversation.id}
+            botEnabled={conversation.botEnabled}
+            globalEnabled={botConfig?.enabled ?? false}
+          />
         </div>
       </div>
 

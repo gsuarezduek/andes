@@ -132,7 +132,11 @@ export default async function WhatsAppPage({
           </p>
         </>
       ) : (
-        <ConversationList conversations={conversations} filters={<FilterTabs counts={counts} active={active} />} />
+        <ConversationList
+          conversations={conversations}
+          filters={<FilterTabs counts={counts} active={active} />}
+          globalBotEnabled={botConfig.enabled}
+        />
       )}
     </div>
   );

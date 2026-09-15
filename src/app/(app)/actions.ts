@@ -4,6 +4,13 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { requireUser, EMPLOYEE_VIEW_COOKIE } from "@/lib/auth-helpers";
+import { countNeedsReply } from "@/lib/whatsapp/conversations";
+
+/** Polleado por `WhatsappSoundNotifier` (montado en el layout) para el sonido de mensaje nuevo. */
+export async function getWhatsappUnreadCount() {
+  await requireUser();
+  return countNeedsReply();
+}
 
 export async function logout() {
   await signOut({ redirectTo: "/login" });

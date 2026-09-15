@@ -32,7 +32,15 @@ function preview(message: { body: string | null; mediaId: string | null } | null
  * el mismo buscador. `filters` (los tabs Todas/No leídas) se renderiza en la
  * misma fila para no sumar una fila aparte.
  */
-export function ConversationList({ conversations, filters }: { conversations: Conversation[]; filters?: React.ReactNode }) {
+export function ConversationList({
+  conversations,
+  filters,
+  globalBotEnabled,
+}: {
+  conversations: Conversation[];
+  filters?: React.ReactNode;
+  globalBotEnabled: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [messageMatchIds, setMessageMatchIds] = useState<Set<string> | null>(null);
   const [searching, startSearch] = useTransition();
@@ -109,7 +117,7 @@ export function ConversationList({ conversations, filters }: { conversations: Co
                     {c.state === "confirm" ? <Badge tone="emerald">A confirmar</Badge> : null}
                     {c.state === "unread" ? <Badge tone="amber">No leído</Badge> : null}
                     {c.state === "followup" ? <Badge tone="blue">A recuperar</Badge> : null}
-                    {!c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
+                    {globalBotEnabled && !c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
                   </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
                 </div>
