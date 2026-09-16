@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { PinToggle } from "@/components/whatsapp/pin-toggle";
 import { useDebouncedCallback } from "@/lib/client/use-debounced-callback";
 import { searchConversationIdsByMessage } from "@/app/(app)/whatsapp/actions";
+import { isFollowUpStale } from "@/lib/whatsapp/follow-up";
 import type { listConversations } from "@/lib/whatsapp/conversations";
 
 type Conversation = Awaited<ReturnType<typeof listConversations>>[number];
 
 const STATE_BG: Record<Conversation["state"], string> = {
   confirm: "bg-emerald-500/5 dark:bg-emerald-500/10",
+  transfer: "bg-red-500/5 dark:bg-red-500/10",
   unread: "bg-amber-500/5 dark:bg-amber-500/10",
   confirmed: "bg-violet-500/5 dark:bg-violet-500/10",
   followup: "bg-blue-500/5 dark:bg-blue-500/10",
@@ -37,10 +39,12 @@ export function ConversationList({
   conversations,
   filters,
   globalBotEnabled,
+  followUpStaleDays,
 }: {
   conversations: Conversation[];
   filters?: React.ReactNode;
   globalBotEnabled: boolean;
+  followUpStaleDays: number;
 }) {
   const [query, setQuery] = useState("");
   const [messageMatchIds, setMessageMatchIds] = useState<Set<string> | null>(null);
@@ -106,20 +110,29 @@ export function ConversationList({
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-          {filtered.map((c) => (
+          {filtered.map((c) => {
+            const stale = c.state === "followup" && isFollowUpStale(c.followUpAt, followUpStaleDays);
+            return (
             <li key={c.id}>
               <Link
                 href={`/whatsapp/${c.id}`}
-                className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03] ${STATE_BG[c.state]}`}
+                className={`flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-foreground/[0.03] ${
+                  stale ? "bg-orange-500/5 dark:bg-orange-500/10" : STATE_BG[c.state]
+                }`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{c.customer?.name || c.phoneE164}</p>
                     {c.state === "confirm" ? <Badge tone="emerald">A confirmar</Badge> : null}
+                    {c.state === "transfer" ? <Badge tone="red">🚩 Transferido</Badge> : null}
                     {c.state === "unread" ? <Badge tone="amber">No leído</Badge> : null}
                     {c.state === "confirmed" ? <Badge tone="violet">Confirmado</Badge> : null}
-                    {c.state === "followup" ? <Badge tone="blue">A recuperar</Badge> : null}
-                    {globalBotEnabled && !c.botEnabled ? <Badge tone="red">Bot apagado</Badge> : null}
+                    {c.state === "followup" ? (
+                      <Badge tone={stale ? "orange" : "blue"}>{stale ? "A recuperar · vencido" : "A recuperar"}</Badge>
+                    ) : null}
+                    {globalBotEnabled && !c.botEnabled && c.state !== "transfer" ? (
+                      <Badge tone="red">Bot apagado</Badge>
+                    ) : null}
                   </div>
                   <p className="truncate text-sm text-foreground/60">{preview(c.lastMessage)}</p>
                 </div>
@@ -134,7 +147,8 @@ export function ConversationList({
                 </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

@@ -22,29 +22,37 @@ export function needsReply(c: { lastInboundAt: Date | null; lastOutboundAt: Date
   return !answered && !viewed;
 }
 
-export type ConversationState = "confirm" | "unread" | "confirmed" | "followup" | "read";
+export type ConversationState = "confirm" | "transfer" | "unread" | "confirmed" | "followup" | "read";
 
 /**
  * Estado de triage de la conversación, en orden de prioridad de arriba hacia
  * abajo: "confirm" (el bot detectó que el cliente aceptó una propuesta y
- * falta armar la reserva) > "unread" (needsReply) > "confirmed" (marcado a
- * mano, ver `setConfirmed`) > "followup" (cotizamos, esperamos que el
- * cliente responda) > "read" (todo lo demás). Vincular una reserva o marcar
- * "confirmed" resuelven "confirm"/"followup" por igual (`setConversationRental`/
- * `setConfirmed` ya limpian esos campos al hacerlo) — los chequeos
- * `!c.rentalId` de acá son una segunda capa por si queda algún dato viejo de
- * antes de ese fix.
+ * falta armar la reserva) > "transfer" (el bot escaló porque no estaba
+ * seguro, ver WhatsAppBotEscalation) > "unread" (needsReply) > "confirmed"
+ * (marcado a mano, ver `setConfirmed`) > "followup" (cotizamos, esperamos
+ * que el cliente responda) > "read" (todo lo demás). Vincular una reserva o
+ * marcar "confirmed" resuelven "confirm"/"followup"/"transfer" por igual
+ * (`setConversationRental`/`setConfirmed` ya limpian esos campos al
+ * hacerlo) — los chequeos `!c.rentalId` de acá son una segunda capa por si
+ * queda algún dato viejo de antes de ese fix.
  */
 export function conversationState(c: {
   rentalId: string | null;
   pendingConfirmationAt: Date | null;
   followUpAt: Date | null;
   confirmedAt: Date | null;
+  transferredAt: Date | null;
   lastInboundAt: Date | null;
   lastOutboundAt: Date | null;
   lastReadAt: Date | null;
 }): ConversationState {
   if (c.pendingConfirmationAt && !c.rentalId) return "confirm";
+  // Se resuelve solo apenas hay una salida (humano, o el bot si lo
+  // reactivan) más nueva que el momento en que se escaló — el mensaje de
+  // handoff en sí no cuenta porque se manda ANTES de setear transferredAt.
+  const transferResolved =
+    c.transferredAt != null && c.lastOutboundAt != null && c.lastOutboundAt.getTime() > c.transferredAt.getTime();
+  if (c.transferredAt && !c.rentalId && !transferResolved) return "transfer";
   if (needsReply(c)) return "unread";
   if (c.confirmedAt) return "confirmed";
   const clientRepliedSince = c.lastInboundAt != null && c.lastInboundAt.getTime() > (c.followUpAt?.getTime() ?? -Infinity);
@@ -78,20 +86,30 @@ export async function countNeedsReply(): Promise<number> {
  * persistida). Útil para desambiguar cuando hay varias reservas candidatas o
  * el cliente escribe desde un número distinto al cargado en la reserva.
  *
- * Al vincular, limpia `pendingConfirmationAt`/`followUpAt`: antes solo se
- * "ignoraban" en `conversationState()` pero quedaban prendidos en la base,
- * así que el botón manual de "A recuperar"/"A confirmar" (que lee el campo
- * crudo, no el estado calculado) seguía apareciendo activo aunque ya hubiera
- * una reserva confirmada — bug real reportado por el dueño.
+ * Al vincular, limpia `pendingConfirmationAt`/`followUpAt`/`transferredAt`:
+ * antes solo se "ignoraban" en `conversationState()` pero quedaban
+ * prendidos en la base, así que el botón manual de "A recuperar"/"A
+ * confirmar" (que lee el campo crudo, no el estado calculado) seguía
+ * apareciendo activo aunque ya hubiera una reserva confirmada — bug real
+ * reportado por el dueño.
  */
 export async function setConversationRental(conversationId: string, rentalId: string | null) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
-    data: rentalId ? { rentalId, pendingConfirmationAt: null, followUpAt: null } : { rentalId },
+    data: rentalId
+      ? { rentalId, pendingConfirmationAt: null, followUpAt: null, transferredAt: null }
+      : { rentalId },
   });
 }
 
-const STATE_PRIORITY: Record<ConversationState, number> = { confirm: 0, unread: 1, confirmed: 2, followup: 3, read: 4 };
+const STATE_PRIORITY: Record<ConversationState, number> = {
+  confirm: 0,
+  transfer: 1,
+  unread: 2,
+  confirmed: 3,
+  followup: 4,
+  read: 5,
+};
 
 export async function listConversations() {
   const conversations = await prisma.whatsAppConversation.findMany({
@@ -144,6 +162,19 @@ export async function setConfirmed(conversationId: string, on: boolean) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
     data: on ? { confirmedAt: new Date(), pendingConfirmationAt: null, followUpAt: null } : { confirmedAt: null },
+  });
+}
+
+/**
+ * Marca/descarta "Transferido" a mano. El bot lo prende solo al escalar
+ * (ver whatsapp/bot/respond.ts `handoff()`); también se apaga solo al
+ * volver a activar el bot para esta conversación (ver `toggleConversationBot`
+ * en whatsapp/actions.ts) o al mandar cualquier mensaje después.
+ */
+export async function setTransferred(conversationId: string, on: boolean) {
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { transferredAt: on ? new Date() : null },
   });
 }
 

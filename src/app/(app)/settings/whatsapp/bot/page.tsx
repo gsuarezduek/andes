@@ -7,6 +7,7 @@ import { BotSettingsTabs } from "@/components/whatsapp-bot/bot-settings-tabs";
 import { PersonalityForm } from "@/components/whatsapp-bot/personality-form";
 import { PoliciesEditor } from "@/components/whatsapp-bot/policies-editor";
 import { SecurityForm } from "@/components/whatsapp-bot/security-form";
+import { StatesPanel } from "@/components/whatsapp-bot/states-panel";
 import { ExamplesEditor } from "@/components/whatsapp-bot/examples-editor";
 import { DocumentsPanel } from "@/components/whatsapp-bot/documents-panel";
 import { QualityPanel } from "@/components/whatsapp-bot/quality-panel";
@@ -57,6 +58,7 @@ export default async function WhatsAppBotSettingsPage() {
             handoffMessage={config.handoffMessage}
           />
         }
+        states={<StatesPanel followUpStaleDays={config.followUpStaleDays} />}
         examples={<ExamplesEditor examples={config.examples as { question: string; answer: string }[]} />}
         documents={<DocumentsPanel documents={documents} maxDocuments={MAX_DOCUMENTS} />}
         quality={<QualityPanel escalations={escalations} />}

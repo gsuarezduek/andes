@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
-import { setConversationRental, setConversationPinned, setPendingConfirmation, setFollowUp, setConfirmed } from "@/lib/whatsapp/conversations";
+import {
+  setConversationRental,
+  setConversationPinned,
+  setPendingConfirmation,
+  setFollowUp,
+  setConfirmed,
+  setTransferred,
+} from "@/lib/whatsapp/conversations";
 
 export type MessageActionState = { error?: string };
 
@@ -52,9 +59,18 @@ export async function reopenConversation(
   return {};
 }
 
+/**
+ * Al reactivar el bot a mano ("Devolver al bot"), también limpia
+ * `transferredAt` — reactivarlo es la forma más directa de decir "esto ya
+ * no necesita seguir marcado como Transferido", aunque nadie haya mandado
+ * un mensaje todavía.
+ */
 export async function toggleConversationBot(conversationId: string, botEnabled: boolean) {
   await requireUser();
-  await prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { botEnabled } });
+  await prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: botEnabled ? { botEnabled, transferredAt: null } : { botEnabled },
+  });
   revalidatePath(`/whatsapp/${conversationId}`);
 }
 
@@ -86,6 +102,14 @@ export async function toggleConversationFollowUp(conversationId: string, on: boo
 export async function toggleConversationConfirmed(conversationId: string, on: boolean) {
   await requireUser();
   await setConfirmed(conversationId, on);
+  revalidatePath(`/whatsapp/${conversationId}`);
+  revalidatePath("/whatsapp");
+}
+
+/** Marca/descarta "Transferido" a mano — el bot lo prende solo al escalar (ver whatsapp/bot/respond.ts). */
+export async function toggleConversationTransferred(conversationId: string, on: boolean) {
+  await requireUser();
+  await setTransferred(conversationId, on);
   revalidatePath(`/whatsapp/${conversationId}`);
   revalidatePath("/whatsapp");
 }

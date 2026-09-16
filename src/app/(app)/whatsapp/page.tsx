@@ -12,6 +12,7 @@ import { BotSettingsTabs } from "@/components/whatsapp-bot/bot-settings-tabs";
 import { PersonalityForm } from "@/components/whatsapp-bot/personality-form";
 import { PoliciesEditor } from "@/components/whatsapp-bot/policies-editor";
 import { SecurityForm } from "@/components/whatsapp-bot/security-form";
+import { StatesPanel } from "@/components/whatsapp-bot/states-panel";
 import { ExamplesEditor } from "@/components/whatsapp-bot/examples-editor";
 import { DocumentsPanel } from "@/components/whatsapp-bot/documents-panel";
 import { QualityPanel } from "@/components/whatsapp-bot/quality-panel";
@@ -19,11 +20,12 @@ import { Playground } from "@/components/whatsapp-bot/playground";
 
 export const metadata: Metadata = { title: "WhatsApp — Andes" };
 
-type FilterValue = "all" | "confirm" | "unread" | "confirmed" | "followup";
+type FilterValue = "all" | "confirm" | "transfer" | "unread" | "confirmed" | "followup";
 
 const FILTER_TABS: { value: FilterValue; label: string; activeClass: string }[] = [
   { value: "all", label: "Todas", activeClass: "bg-foreground/10 text-foreground" },
   { value: "confirm", label: "A confirmar", activeClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  { value: "transfer", label: "Transferidos", activeClass: "bg-red-500/15 text-red-700 dark:text-red-400" },
   { value: "unread", label: "No leídas", activeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   { value: "confirmed", label: "Confirmado", activeClass: "bg-violet-500/15 text-violet-700 dark:text-violet-400" },
   { value: "followup", label: "A recuperar", activeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
@@ -50,6 +52,7 @@ function FilterTabs({ counts, active }: { counts: Record<FilterValue, number>; a
 const EMPTY_STATE_LABEL: Record<FilterValue, string> = {
   all: "",
   confirm: "No hay conversaciones en \"A confirmar\".",
+  transfer: "No hay conversaciones transferidas.",
   unread: "No hay conversaciones no leídas.",
   confirmed: "No hay conversaciones marcadas \"Confirmado\".",
   followup: "No hay conversaciones en \"A recuperar\".",
@@ -63,7 +66,9 @@ export default async function WhatsAppPage({
   await requireUser();
   const { filter } = await searchParams;
   const active: FilterValue =
-    filter === "confirm" || filter === "unread" || filter === "confirmed" || filter === "followup" ? filter : "all";
+    filter === "confirm" || filter === "transfer" || filter === "unread" || filter === "confirmed" || filter === "followup"
+      ? filter
+      : "all";
 
   // Bot de IA y entrenamiento: visible para cualquier empleado, no solo admin
   // — es entrenamiento en equipo, no una función administrativa.
@@ -86,6 +91,7 @@ export default async function WhatsAppPage({
   const counts: Record<FilterValue, number> = {
     all: allConversations.length,
     confirm: allConversations.filter((c) => c.state === "confirm").length,
+    transfer: allConversations.filter((c) => c.state === "transfer").length,
     unread: allConversations.filter((c) => c.state === "unread").length,
     confirmed: allConversations.filter((c) => c.state === "confirmed").length,
     followup: allConversations.filter((c) => c.state === "followup").length,
@@ -118,6 +124,7 @@ export default async function WhatsAppPage({
               handoffMessage={botConfig.handoffMessage}
             />
           }
+          states={<StatesPanel followUpStaleDays={botConfig.followUpStaleDays} />}
           examples={<ExamplesEditor examples={botConfig.examples as { question: string; answer: string }[]} />}
           documents={<DocumentsPanel documents={botDocuments} maxDocuments={MAX_DOCUMENTS} />}
           quality={<QualityPanel escalations={botEscalations} />}
@@ -139,6 +146,7 @@ export default async function WhatsAppPage({
           conversations={conversations}
           filters={<FilterTabs counts={counts} active={active} />}
           globalBotEnabled={botConfig.enabled}
+          followUpStaleDays={botConfig.followUpStaleDays}
         />
       )}
     </div>

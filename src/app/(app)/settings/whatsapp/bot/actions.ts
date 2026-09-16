@@ -72,6 +72,15 @@ export async function updateExamples(examples: { question: string; answer: strin
   revalidateBotPages();
 }
 
+/** Días para marcar "A recuperar" como vencido en el listado — ver panel "Estados". */
+export async function updateFollowUpStaleDays(days: number) {
+  await requireUser();
+  const clamped = Math.max(1, Math.min(30, Math.round(days) || 1));
+  await getOrCreateConfig();
+  await prisma.whatsAppBotConfig.update({ where: { id: 1 }, data: { followUpStaleDays: clamped } });
+  revalidateBotPages();
+}
+
 export async function updatePolicies(policies: { topic: string; text: string }[]) {
   await requireUser();
   const trimmed = policies.map((p) => ({ topic: p.topic.slice(0, 200), text: p.text.slice(0, 2000) }));

@@ -15,7 +15,9 @@ import {
   listConversations,
   setConversationRental,
   setConfirmed,
+  setTransferred,
 } from "@/lib/whatsapp/conversations";
+import { isFollowUpStale } from "@/lib/whatsapp/follow-up";
 
 const d = (s: string) => new Date(s);
 
@@ -67,6 +69,7 @@ describe("conversationState", () => {
     pendingConfirmationAt: null as Date | null,
     followUpAt: null as Date | null,
     confirmedAt: null as Date | null,
+    transferredAt: null as Date | null,
     lastInboundAt: null as Date | null,
     lastOutboundAt: null as Date | null,
     lastReadAt: null as Date | null,
@@ -153,6 +156,70 @@ describe("conversationState", () => {
       }),
     ).toBe("unread");
   });
+
+  it("con transferredAt y sin salida posterior, es 'transfer'", () => {
+    expect(conversationState({ ...base, transferredAt: d("2026-09-06T10:00:00Z") })).toBe("transfer");
+  });
+
+  it("el propio mensaje de handoff (salida ANTES de transferredAt) no lo resuelve", () => {
+    expect(
+      conversationState({
+        ...base,
+        transferredAt: d("2026-09-06T10:00:00Z"),
+        lastOutboundAt: d("2026-09-06T09:59:59Z"),
+      }),
+    ).toBe("transfer");
+  });
+
+  it("'transfer' se resuelve apenas hay una salida DESPUÉS de transferredAt (humano o bot reactivado)", () => {
+    expect(
+      conversationState({
+        ...base,
+        transferredAt: d("2026-09-06T10:00:00Z"),
+        lastOutboundAt: d("2026-09-06T10:00:01Z"),
+      }),
+    ).toBe("read");
+  });
+
+  it("'transfer' también se resuelve al vincular una reserva", () => {
+    expect(conversationState({ ...base, transferredAt: d("2026-09-06T10:00:00Z"), rentalId: "r1" })).toBe("read");
+  });
+
+  it("prioridad: 'confirm' gana sobre 'transfer'", () => {
+    expect(
+      conversationState({
+        ...base,
+        pendingConfirmationAt: d("2026-09-06T10:00:00Z"),
+        transferredAt: d("2026-09-06T09:00:00Z"),
+      }),
+    ).toBe("confirm");
+  });
+
+  it("prioridad: 'transfer' gana sobre 'unread'", () => {
+    expect(
+      conversationState({
+        ...base,
+        transferredAt: d("2026-09-06T10:00:00Z"),
+        lastInboundAt: d("2026-09-06T11:00:00Z"),
+      }),
+    ).toBe("transfer");
+  });
+});
+
+describe("isFollowUpStale", () => {
+  it("sin followUpAt, nunca está vencido", () => {
+    expect(isFollowUpStale(null, 3)).toBe(false);
+  });
+
+  it("con menos días de los configurados, no está vencido", () => {
+    const now = d("2026-09-10T00:00:00Z");
+    expect(isFollowUpStale(d("2026-09-08T00:00:00Z"), 3, now)).toBe(false);
+  });
+
+  it("con los días configurados cumplidos, está vencido", () => {
+    const now = d("2026-09-11T00:00:00Z");
+    expect(isFollowUpStale(d("2026-09-08T00:00:00Z"), 3, now)).toBe(true);
+  });
 });
 
 describe("listConversations", () => {
@@ -186,11 +253,11 @@ describe("setConversationRental", () => {
     vi.clearAllMocks();
   });
 
-  it("al vincular, limpia 'a confirmar'/'a recuperar'", async () => {
+  it("al vincular, limpia 'a confirmar'/'a recuperar'/'transferido'", async () => {
     await setConversationRental("c1", "r1");
     expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
       where: { id: "c1" },
-      data: { rentalId: "r1", pendingConfirmationAt: null, followUpAt: null },
+      data: { rentalId: "r1", pendingConfirmationAt: null, followUpAt: null, transferredAt: null },
     });
   });
 
@@ -226,6 +293,27 @@ describe("setConfirmed", () => {
   });
 });
 
+describe("setTransferred", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("al marcar, setea transferredAt", async () => {
+    await setTransferred("c1", true);
+    const call = prismaMock.whatsAppConversation.update.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "c1" });
+    expect(call.data.transferredAt).toBeInstanceOf(Date);
+  });
+
+  it("al descartar, lo limpia", async () => {
+    await setTransferred("c1", false);
+    expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { transferredAt: null },
+    });
+  });
+});
+
 describe("autoLinkRentalIfUnambiguous", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -252,7 +340,7 @@ describe("autoLinkRentalIfUnambiguous", () => {
     // `setConversationRental` (que sí limpia estos campos).
     expect(prismaMock.whatsAppConversation.update).toHaveBeenCalledWith({
       where: { id: "c1" },
-      data: { rentalId: "r2", pendingConfirmationAt: null, followUpAt: null },
+      data: { rentalId: "r2", pendingConfirmationAt: null, followUpAt: null, transferredAt: null },
     });
   });
 

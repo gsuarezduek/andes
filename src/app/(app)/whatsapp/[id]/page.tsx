@@ -83,6 +83,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       <ConversationStateToggles
         conversationId={conversation.id}
         confirming={conversation.pendingConfirmationAt != null}
+        transferring={conversation.transferredAt != null}
         followingUp={conversation.followUpAt != null}
         confirmed={conversation.confirmedAt != null}
       />

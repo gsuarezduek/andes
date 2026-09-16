@@ -1475,6 +1475,12 @@ model WhatsAppConversation {
   // `followUpAt` (mismo criterio que vincular una reserva).
   confirmedAt DateTime? @map("confirmed_at")
 
+  // "Transferido": el bot escaló porque no estaba seguro (ver
+  // WhatsAppBotEscalation, mismo evento). Se resuelve solo apenas hay una
+  // salida (humano, o el bot si lo reactivan) más nueva que esto, o al
+  // vincular una reserva.
+  transferredAt DateTime? @map("transferred_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1602,6 +1608,13 @@ model WhatsAppBotConfig {
   examples Json @default("[]")
 
   handoffMessage String? @map("handoff_message") @db.Text
+
+  // Días sin que el cliente responda desde que una conversación queda "A
+  // recuperar" (ver conversationState en whatsapp/conversations.ts) para
+  // marcarla como vencida en el listado — solo cambia cómo se destaca, no el
+  // criterio de cuándo entra a ese estado (eso lo decide el bot al instante,
+  // vía el outcome de la tool `respond`).
+  followUpStaleDays Int @default(3) @map("follow_up_stale_days")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 

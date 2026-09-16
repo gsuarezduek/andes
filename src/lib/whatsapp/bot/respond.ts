@@ -152,7 +152,10 @@ async function handoff(
     console.error("whatsapp bot: handoff message failed to send", err);
   });
   await prisma.$transaction([
-    prisma.whatsAppConversation.update({ where: { id: conversationId }, data: { botEnabled: false } }),
+    prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: { botEnabled: false, transferredAt: new Date() },
+    }),
     prisma.whatsAppBotEscalation.create({
       data: {
         conversationId,
