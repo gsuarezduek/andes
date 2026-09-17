@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { phoneVariants } from "@/lib/whatsapp/phone";
-import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { vehicleBrandModel } from "@/lib/vehicle-ui";
 import { formatDateInput, formatDateTime } from "@/lib/datetime";
 
 /**
@@ -19,7 +19,7 @@ export async function findRentalContext(phoneE164: string) {
       startAt: true,
       endAt: true,
       bookingConfirmed: true,
-      vehicle: { select: { name: true, brand: true, model: true, plate: true } },
+      vehicle: { select: { brand: true, model: true } },
     },
   });
   const active = rentals.find((r) => r.status === "active");
@@ -34,7 +34,9 @@ export function formatRentalContextLine(rental: Awaited<ReturnType<typeof findRe
       : rental.bookingConfirmed
         ? "reservado (confirmado)"
         : "reservado (sin confirmar todavía)";
-  const vehicle = rental.vehicle ? vehicleLabelWithPlate(rental.vehicle) : "sin unidad asignada todavía";
+  // Marca + modelo, nunca el apodo interno de la ficha ni la patente — esto
+  // es contexto que el modelo puede citar textual en el chat.
+  const vehicle = rental.vehicle ? vehicleBrandModel(rental.vehicle) : "sin unidad asignada todavía";
   return [
     `Alquiler ${statusLabel}.`,
     `Vehículo: ${vehicle}.`,

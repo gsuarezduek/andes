@@ -9,7 +9,7 @@ import type { Rental, RentalStatus, Vehicle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { phoneVariants } from "@/lib/whatsapp/phone";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
-import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { vehicleBrandModel } from "@/lib/vehicle-ui";
 import { computeRentalPayments } from "@/lib/rental-payments";
 import { formatDate } from "@/lib/datetime";
 
@@ -34,7 +34,7 @@ export type ReservationSummary = {
 type ReservationRow = Pick<
   Rental,
   "wpBookingId" | "status" | "bookingConfirmed" | "startAt" | "endAt" | "pricing" | "bookingTotal" | "bookingPaid"
-> & { vehicle: Pick<Vehicle, "brand" | "model" | "name"> | null };
+> & { vehicle: Pick<Vehicle, "brand" | "model"> | null };
 
 export function summarizeReservation(r: ReservationRow): ReservationSummary {
   const { label } = rentalStatusDisplay(r.status, r.bookingConfirmed);
@@ -42,7 +42,7 @@ export function summarizeReservation(r: ReservationRow): ReservationSummary {
   return {
     bookingNumber: r.wpBookingId,
     statusLabel: label,
-    vehicle: r.vehicle ? vehicleDisplayName(r.vehicle) : null,
+    vehicle: r.vehicle ? vehicleBrandModel(r.vehicle) : null,
     startDate: formatDate(r.startAt),
     endDate: formatDate(r.endAt),
     confirmed: r.bookingConfirmed,
@@ -86,7 +86,7 @@ export async function findMyReservations(input: {
       pricing: true,
       bookingTotal: true,
       bookingPaid: true,
-      vehicle: { select: { brand: true, model: true, name: true } },
+      vehicle: { select: { brand: true, model: true } },
     },
   });
   return rentals.map(summarizeReservation);

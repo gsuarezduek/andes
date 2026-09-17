@@ -12,7 +12,7 @@ describe("summarizeReservation", () => {
       pricing: null,
       bookingTotal: 400000 as never,
       bookingPaid: 100000 as never,
-      vehicle: { brand: "Fiat", model: "Cronos", name: null },
+      vehicle: { brand: "Fiat", model: "Cronos" },
     });
     expect(summary.bookingNumber).toBe(1234);
     expect(summary.statusLabel).toBe("Confirmado");
@@ -33,10 +33,12 @@ describe("summarizeReservation", () => {
       pricing: { total: 300000, sena: 50000, paid: 50000, balance: 200000 } as never,
       bookingTotal: null,
       bookingPaid: null,
-      vehicle: { brand: "Toyota", model: "Hilux", name: "La camioneta" },
+      vehicle: { brand: "Toyota", model: "Hilux" },
     });
     expect(summary.statusLabel).toBe("Activo");
-    expect(summary.vehicle).toBe("La camioneta");
+    // Marca + modelo siempre, nunca el apodo interno de la ficha (bug real:
+    // el bot le decía al cliente "La camioneta" en vez de "Toyota Hilux").
+    expect(summary.vehicle).toBe("Toyota Hilux");
     expect(summary.isEstimate).toBe(false);
     expect(summary.totalRef).toBe(300000);
     expect(summary.paidSoFar).toBe(100000);

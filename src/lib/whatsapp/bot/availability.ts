@@ -7,7 +7,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
-import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { vehicleBrandModel } from "@/lib/vehicle-ui";
 
 /** Como máximo, cuántos días de rango puede pedir una consulta. */
 export const MAX_AVAILABILITY_RANGE_DAYS = 60;
@@ -136,7 +136,7 @@ export async function checkAvailability(input: {
 
   return {
     ok: true,
-    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map((v) => ({ label: vehicleDisplayName(v), dailyRate: v.dailyRate })),
+    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map((v) => ({ label: vehicleBrandModel(v), dailyRate: v.dailyRate })),
     truncated: available.length > MAX_AVAILABILITY_RESULTS,
   };
 }
