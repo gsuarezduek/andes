@@ -58,7 +58,10 @@ const saveSchema = z.object({
   vehicleId: z.string().min(1, "Falta asignar un vehículo"),
   language: z.enum(["es", "en"]),
   clientName: z.string().trim().min(1, "Falta el nombre del cliente"),
-  clientEmail: z.string().trim().optional(),
+  clientEmail: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined),
+    z.email("Email inválido").optional(),
+  ),
   clientPhone: z.string().trim().optional(),
   clientDocNumber: z.string().trim().optional(),
   clientAddress: z.string().trim().optional(),

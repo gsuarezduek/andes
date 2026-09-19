@@ -278,7 +278,7 @@ export default async function RentalDetailPage({
           ) : (
             <>
               <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
-              <InspectionsSection inspections={rental.inspections} />
+              <InspectionsSection rentalId={rental.id} inspections={rental.inspections} />
             </>
           )
         }

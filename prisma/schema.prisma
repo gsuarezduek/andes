@@ -57,6 +57,15 @@ enum InspectionType {
   return_ // devolución (`return` es palabra reservada en algunos contextos)
 }
 
+/// Resultado real del envío del acta por email (Resend no tira excepción
+/// ante un error de la API — sin este registro, un envío rechazado quedaba
+/// invisible tanto para el equipo como para el cliente).
+enum ActaEmailStatus {
+  sent
+  failed
+  skipped
+}
+
 enum MediaType {
   photo
   video
@@ -655,6 +664,17 @@ model Inspection {
   // con `evidenceCompletedAt: null` como guard hace que solo un llamado
   // concurrente gane la carrera de completarlo.
   evidenceCompletedAt DateTime? @map("evidence_completed_at")
+
+  // Estado del último intento de envío del acta por email, cliente y admin
+  // por separado (uno puede fallar sin afectar al otro — ver
+  // `generateAndSendActa`). Null = todavía no se intentó (evidencia pendiente
+  // de subir) o la inspección es anterior a este seguimiento.
+  actaClientEmailStatus ActaEmailStatus? @map("acta_client_email_status")
+  actaClientEmailError  String?          @map("acta_client_email_error")
+  actaClientEmailSentAt DateTime?        @map("acta_client_email_sent_at")
+  actaAdminEmailStatus  ActaEmailStatus? @map("acta_admin_email_status")
+  actaAdminEmailError   String?          @map("acta_admin_email_error")
+  actaAdminEmailSentAt  DateTime?        @map("acta_admin_email_sent_at")
 
   media   InspectionMedia[]
   damages Damage[]

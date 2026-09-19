@@ -16,6 +16,7 @@ import {
 } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import type { Settlement } from "@/lib/settlement";
+import type { Resend } from "resend";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
 
 const MAX_PHOTOS_IN_PDF = 8;
@@ -59,11 +60,21 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   // croquis) — sin esto, si la entrega/devolución no encontró ningún daño
   // NUEVO, el acta no mostraba el dibujo aunque el auto ya tuviera rayones
   // registrados de antes.
+  //
+  // Ojo: el acta es regenerable en cualquier momento (on-demand, o cuando
+  // termina de subir evidencia demorada), y `Damage` es por VEHÍCULO, no por
+  // inspección — un daño cargado después (en la devolución de esta misma
+  // reserva, o en un alquiler posterior de otro cliente) NO puede aparecer
+  // acá. Por eso el filtro es contra el estado del vehículo al momento de
+  // ESTA inspección (`createdAt` del daño anterior a la inspección, y todavía
+  // sin reparar EN ESE MOMENTO — un daño reparado después de esta inspección
+  // pero antes de hoy sigue siendo válido mostrarlo acá).
   const existingDamageRows = await prisma.damage.findMany({
     where: {
       vehicleId: inspection.vehicleId,
       view: "top",
-      repaired: false,
+      createdAt: { lt: inspection.createdAt },
+      OR: [{ repaired: false }, { repairedAt: { gt: inspection.createdAt } }],
       NOT: { id: { in: inspection.damages.map((d) => d.id) } },
     },
     select: { posX: true, posY: true, description: true },
@@ -218,7 +229,43 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   return renderToBuffer(element);
 }
 
-/** Genera el acta, la guarda en el almacenamiento y envía los emails (async, post-guardado). */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type EmailAttempt = { status: "sent" | "failed" | "skipped"; error?: string; sentAt?: Date };
+
+/**
+ * Manda un email con el acta adjunta y nunca tira excepción por un rechazo de
+ * la API — el SDK de Resend responde `{data:null, error}` en vez de lanzar
+ * ante un email inválido/dominio no verificado/rate limit, así que sin este
+ * chequeo explícito el fallo queda invisible (ni log, ni excepción).
+ */
+async function sendActaEmailTo(
+  resend: Resend,
+  params: { from: string; to: string; subject: string; html: string; pdf: Buffer; filename: string },
+): Promise<EmailAttempt> {
+  try {
+    const { error } = await resend.emails.send({
+      from: params.from,
+      to: [params.to],
+      subject: params.subject,
+      html: params.html,
+      attachments: [{ filename: params.filename, content: params.pdf }],
+    });
+    if (error) return { status: "failed", error: error.message ?? JSON.stringify(error) };
+    return { status: "sent", sentAt: new Date() };
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Genera el acta, la guarda en el almacenamiento y envía los emails (async,
+ * post-guardado). Regenerable/reenviable en cualquier momento (ver botón
+ * "Reenviar" en el detalle del alquiler): cliente y admin se mandan por
+ * separado y cada resultado (enviado/falló/omitido) queda en
+ * `Inspection.actaClientEmail*`/`actaAdminEmail*` — antes un rechazo de
+ * Resend era 100% silencioso.
+ */
 export async function generateAndSendActa(inspectionId: string): Promise<void> {
   const pdf = await renderActaBuffer(inspectionId);
   await storage().put(actaKey(inspectionId), pdf, "application/pdf");
@@ -234,12 +281,24 @@ export async function generateAndSendActa(inspectionId: string): Promise<void> {
 
   const apiKey = process.env.RESEND_API_KEY;
   const from = fromOverride ?? process.env.EMAIL_FROM;
+  const isHandover = inspection.type === "handover";
+  const filename = `acta-${isHandover ? "entrega" : "devolucion"}-${inspectionId}.pdf`;
+
   if (!apiKey || !from) {
     console.warn("[acta] Resend no configurado — PDF guardado, email omitido");
+    const skipped: EmailAttempt = { status: "skipped", error: "Resend no está configurado (falta API key o remitente)." };
+    await prisma.inspection.update({
+      where: { id: inspectionId },
+      data: {
+        actaClientEmailStatus: skipped.status,
+        actaClientEmailError: skipped.error,
+        actaAdminEmailStatus: skipped.status,
+        actaAdminEmailError: skipped.error,
+      },
+    });
     return;
   }
 
-  const isHandover = inspection.type === "handover";
   const subject = isHandover ? content.handoverSubject : content.returnSubject;
   const body = isHandover ? content.handoverBody : content.returnBody;
 
@@ -250,31 +309,52 @@ export async function generateAndSendActa(inspectionId: string): Promise<void> {
     ? (conditions?.sendHandoverActa ?? true)
     : (conditions?.sendReturnActa ?? true);
 
-  const to: string[] = [];
-  if (sendToClient && inspection.rental.clientEmail) to.push(inspection.rental.clientEmail);
-  const admin = process.env.ADMIN_EMAIL;
-  if (to.length === 0 && admin) to.push(admin);
-  if (to.length === 0) {
-    console.warn("[acta] sin destinatario (ni cliente ni admin) — email omitido");
-    return;
-  }
-
   const br = (s: string) => s.replace(/\n/g, "<br>");
   const html = `<p>${content.greeting} ${inspection.rental.clientName},</p><p>${br(body)}</p><p>${content.attachmentNote}</p><p>${br(content.regards)}</p>`;
 
   const { Resend } = await import("resend");
   const resend = new Resend(apiKey);
-  await resend.emails.send({
-    from,
-    to,
-    cc: admin && !to.includes(admin) ? [admin] : undefined,
-    subject,
-    html,
-    attachments: [
-      {
-        filename: `acta-${isHandover ? "entrega" : "devolucion"}-${inspectionId}.pdf`,
-        content: pdf,
-      },
-    ],
+
+  // Cliente y admin se mandan como requests separados a propósito: antes iban
+  // en el mismo `to`/`cc`, así que un email de cliente inválido hacía que
+  // Resend rechazara el envío ENTERO — el admin tampoco recibía su copia y
+  // nadie se enteraba de ninguna de las dos cosas.
+  let clientResult: EmailAttempt;
+  const clientEmail = inspection.rental.clientEmail;
+  if (!sendToClient) {
+    clientResult = { status: "skipped", error: "Envío al cliente desactivado en Configuración → Condiciones." };
+  } else if (!clientEmail) {
+    clientResult = { status: "skipped", error: "La reserva no tiene un email de cliente cargado." };
+  } else if (!EMAIL_RE.test(clientEmail)) {
+    clientResult = { status: "failed", error: `El email cargado ("${clientEmail}") no tiene un formato válido.` };
+  } else {
+    clientResult = await sendActaEmailTo(resend, { from, to: clientEmail, subject, html, pdf, filename });
+  }
+
+  const admin = process.env.ADMIN_EMAIL;
+  let adminResult: EmailAttempt;
+  if (!admin) {
+    adminResult = { status: "skipped", error: "ADMIN_EMAIL no está configurado." };
+  } else {
+    adminResult = await sendActaEmailTo(resend, { from, to: admin, subject, html, pdf, filename });
+  }
+
+  await prisma.inspection.update({
+    where: { id: inspectionId },
+    data: {
+      actaClientEmailStatus: clientResult.status,
+      actaClientEmailError: clientResult.error ?? null,
+      actaClientEmailSentAt: clientResult.sentAt ?? null,
+      actaAdminEmailStatus: adminResult.status,
+      actaAdminEmailError: adminResult.error ?? null,
+      actaAdminEmailSentAt: adminResult.sentAt ?? null,
+    },
   });
+
+  if (clientResult.status === "failed") {
+    console.error(`[acta] envío al cliente falló (inspection ${inspectionId}): ${clientResult.error}`);
+  }
+  if (adminResult.status === "failed") {
+    console.error(`[acta] envío al admin falló (inspection ${inspectionId}): ${adminResult.error}`);
+  }
 }
