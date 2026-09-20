@@ -5,6 +5,7 @@ import {
   daysInMonth,
   normalizeMonth,
   seasonsForDay,
+  seasonsForDayAndCar,
   shiftMonth,
   type CalendarBar,
 } from "@/lib/calendar";
@@ -158,5 +159,29 @@ describe("seasonsForDay", () => {
       { diffPercent: 15, from: "2026-07-18", to: "2026-08-02" },
       { diffPercent: 30, from: "2026-07-18", to: "2026-08-02" },
     ]);
+  });
+});
+
+describe("seasonsForDayAndCar", () => {
+  // Misma temporada que arriba (18-jul → 2-ago 2026, +15%), pero solo aplica
+  // a los modelos wpCarId 5 y 25 (mismo formato que guarda el sync: Int[]).
+  const SEASONS = [{ fromSeconds: 17_107_200, toSeconds: 18_403_200, year: 2026, diffPercent: 15, carIds: [5, 25] }];
+
+  it("auto incluido en carIds y día dentro de la temporada → la devuelve", () => {
+    expect(seasonsForDayAndCar(SEASONS, at("2026-07-20"), 25)).toEqual([
+      { diffPercent: 15, from: "2026-07-18", to: "2026-08-02" },
+    ]);
+  });
+
+  it("auto NO incluido en carIds → [] aunque el día esté en temporada", () => {
+    expect(seasonsForDayAndCar(SEASONS, at("2026-07-20"), 8)).toEqual([]);
+  });
+
+  it("sin wpCarId (auto no mapeado a VikRentCar) → [] siempre", () => {
+    expect(seasonsForDayAndCar(SEASONS, at("2026-07-20"), null)).toEqual([]);
+  });
+
+  it("día fuera de la temporada → [] aunque el auto esté incluido", () => {
+    expect(seasonsForDayAndCar(SEASONS, at("2026-07-15"), 5)).toEqual([]);
   });
 });

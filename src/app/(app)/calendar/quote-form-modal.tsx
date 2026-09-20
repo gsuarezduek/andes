@@ -42,7 +42,15 @@ export function QuoteFormModal({
   const days = endIndex - startIndex + 1;
   const startKey = columns[startIndex]!.key;
   const endKey = columns[endIndex]!.key;
-  const suggested = estimateQuoteTotal(row.dailyRate, days);
+  const rangeDays = columns.slice(startIndex, endIndex + 1);
+  // Temporadas de ESTE auto puntual (row.seasonsByDay, filtrado por
+  // wpCarId) — no `CalendarColumn.seasons`, que es fleet-wide y solo
+  // alimenta el marcador visual del encabezado.
+  const daySeasons = row.seasonsByDay.slice(startIndex, endIndex + 1);
+  const suggested = estimateQuoteTotal(row.dailyRate, row.todaySeasons, daySeasons);
+  const seasonDaysInRange = rangeDays
+    .map((c, i) => ({ key: c.key, seasons: daySeasons[i]! }))
+    .filter((d) => d.seasons.length > 0);
 
   const conflicts = [
     ...row.bars
@@ -94,10 +102,22 @@ export function QuoteFormModal({
           </p>
         ) : null}
 
+        {seasonDaysInRange.length > 0 ? (
+          <p className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5 text-xs text-purple-700 dark:text-purple-400">
+            Incluye temporada con aumento (
+            {seasonDaysInRange.map((c) => `${fmtShortDate(c.key)} +${c.seasons[0]!.diffPercent}%`).join(", ")}) —
+            el sugerido ya lo tiene en cuenta.
+          </p>
+        ) : null}
+
         <TextField
           id="estimatedTotal"
           label="Total estimado"
-          hint={suggested != null ? `Sugerido: ${formatArs(suggested)} (tarifa × días)` : "Sin tarifa cargada para este auto"}
+          hint={
+            suggested != null
+              ? `Sugerido: ${formatArs(suggested)} (tarifa × días${seasonDaysInRange.length > 0 ? ", con temporada" : ""})`
+              : "Sin tarifa cargada para este auto"
+          }
           type="text"
           inputMode="decimal"
           prefix="$"

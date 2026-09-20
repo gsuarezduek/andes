@@ -129,6 +129,16 @@ export type CalendarRow = {
    *  filas `unassigned`: un presupuesto siempre tiene `vehicleId`). */
   quotes: CalendarQuoteBar[];
   quoteLaneCount: number;
+  /** Temporadas de ESTE auto (filtradas por `Vehicle.wpCarId`, a diferencia
+   *  de `CalendarColumn.seasons` que es fleet-wide y solo alimenta el
+   *  marcador visual del encabezado) vigentes HOY — permite reconstruir la
+   *  tarifa base a partir de `Vehicle.dailyRate` (que el sync ya trae con la
+   *  temporada de hoy aplicada). `[]` si el auto no tiene `wpCarId` mapeado.
+   *  Ver `estimateQuoteTotal`. */
+  todaySeasons: CalendarColumnSeason[];
+  /** Temporadas de ESTE auto por cada día de la ventana visible (paralelo a
+   *  `columns`), para recalcular el precio del presupuesto día por día. */
+  seasonsByDay: CalendarColumnSeason[][];
 };
 
 /** Temporada de VikRentCar (`SeasonRate`) vigente un día puntual del calendario. */
@@ -352,18 +362,54 @@ export function assignLanes<T extends { startIndex: number; span: number }>(
   return { bars: withLanes, laneCount: Math.max(1, laneLastEnd.length) };
 }
 
-/** Fila cruda de `SeasonRate` tal como llega de la base (sin el `id`/`carIds`,
- *  que acá no hacen falta: el marcador es por columna, para toda la flota). */
-type SeasonRateRow = { fromSeconds: number; toSeconds: number; year: number | null; diffPercent: number };
+/** Fila cruda de `SeasonRate` tal como llega de la base. `carIds` es opcional
+ *  porque `seasonsForDay` (fleet-wide) no lo necesita — solo lo usa
+ *  `seasonsForDayAndCar`. */
+type SeasonRateRow = {
+  fromSeconds: number;
+  toSeconds: number;
+  year: number | null;
+  diffPercent: number;
+  carIds?: number[];
+};
 
 /**
  * Temporadas vigentes un día puntual, a partir de las filas crudas de
- * `SeasonRate`. Pura y testeable — separada de `getCalendarData`.
+ * `SeasonRate` — **sin filtrar por auto** (fleet-wide): es lo que alimenta el
+ * marcador visual del encabezado ("temporada con aumento" sobre la columna),
+ * donde no importa a qué modelo puntual aplica cada una. Pura y testeable —
+ * separada de `getCalendarData`.
  */
 export function seasonsForDay(seasonRates: SeasonRateRow[], day: Date): CalendarColumnSeason[] {
   const { year } = secondsIntoYear(day);
   return seasonRates
     .filter((s) => isSeasonActiveOn({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day))
+    .map((s) => {
+      const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, year);
+      return { diffPercent: Number(s.diffPercent), from: range.start, to: range.end };
+    });
+}
+
+/**
+ * Temporadas vigentes un día puntual **para un auto puntual** (filtra por
+ * `wpCarId`, mismo criterio que `computeDailyRate` en src/lib/sync/rates.ts)
+ * — a diferencia de `seasonsForDay`, esto sí importa para calcular plata: dos
+ * autos pueden tener temporadas distintas el mismo día. `[]` si el auto no
+ * tiene `wpCarId` mapeado (no hay forma de saber si le aplica alguna).
+ */
+export function seasonsForDayAndCar(
+  seasonRates: SeasonRateRow[],
+  day: Date,
+  wpCarId: number | null,
+): CalendarColumnSeason[] {
+  if (wpCarId == null) return [];
+  const { year } = secondsIntoYear(day);
+  return seasonRates
+    .filter(
+      (s) =>
+        isSeasonActiveOn({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day) &&
+        (s.carIds ?? []).includes(wpCarId),
+    )
     .map((s) => {
       const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, year);
       return { diffPercent: Number(s.diffPercent), from: range.start, to: range.end };
@@ -410,7 +456,7 @@ export async function getCalendarData(opts?: {
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
       orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
-      select: { id: true, plate: true, name: true, brand: true, model: true, status: true, dailyRate: true },
+      select: { id: true, plate: true, name: true, brand: true, model: true, status: true, dailyRate: true, wpCarId: true },
     }),
     prisma.vehicleNote.findMany({
       where: { resolvedAt: null },
@@ -453,7 +499,7 @@ export async function getCalendarData(opts?: {
       orderBy: { startAt: "asc" },
     }),
     prisma.seasonRate.findMany({
-      select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true },
+      select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true, carIds: true },
     }),
     prisma.rentalQuote.findMany({
       where: {
@@ -481,6 +527,7 @@ export async function getCalendarData(opts?: {
     toSeconds: s.toSeconds,
     year: s.year,
     diffPercent: Number(s.diffPercent),
+    carIds: s.carIds,
   }));
 
   // Columnas de día.
@@ -537,6 +584,8 @@ export async function getCalendarData(opts?: {
         activeNotes: [],
         quotes: [],
         quoteLaneCount: 0,
+        todaySeasons: [],
+        seasonsByDay: columns.map(() => []),
       });
     }
   }
@@ -554,6 +603,9 @@ export async function getCalendarData(opts?: {
   const rows: CalendarRow[] = vehicles.map((v) => {
     const { bars, laneCount } = assignLanes(barsByVehicle.get(v.id) ?? []);
     const { bars: quoteBars, laneCount: quoteLaneCount } = assignLanes(quotesByVehicle.get(v.id) ?? []);
+    const seasonsByDay = columns.map((c) =>
+      seasonsForDayAndCar(seasonRows, mendozaWallTimeToUtc(`${c.key}T00:00`), v.wpCarId),
+    );
     return {
       id: v.id,
       plate: v.plate,
@@ -566,6 +618,8 @@ export async function getCalendarData(opts?: {
       activeNotes: notesByVehicle.get(v.id) ?? [],
       quotes: quoteBars,
       quoteLaneCount,
+      todaySeasons: seasonsForDayAndCar(seasonRows, new Date(), v.wpCarId),
+      seasonsByDay,
     };
   });
 
