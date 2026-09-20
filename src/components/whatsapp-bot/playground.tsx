@@ -10,7 +10,7 @@ type Turn = TranscriptTurn & { escalate?: boolean; outcome?: "none" | "client_ac
 
 const OUTCOME_LABEL: Record<string, string> = {
   client_accepted: "✅ Pasaría a \"A confirmar\"",
-  awaiting_client: "🕒 Pasaría a \"A recuperar\"",
+  awaiting_client: "🕒 Pasaría a \"Hacer seguimiento\"",
 };
 
 /** El mensaje del cliente que motivó esta respuesta — el turno "user" inmediato anterior. */

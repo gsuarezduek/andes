@@ -28,7 +28,7 @@ const FILTER_TABS: { value: FilterValue; label: string; activeClass: string }[] 
   { value: "transfer", label: "Transferidos", activeClass: "bg-red-500/15 text-red-700 dark:text-red-400" },
   { value: "unread", label: "No leídas", activeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   { value: "confirmed", label: "Confirmado", activeClass: "bg-violet-500/15 text-violet-700 dark:text-violet-400" },
-  { value: "followup", label: "A recuperar", activeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+  { value: "followup", label: "Hacer seguimiento", activeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
 ];
 
 function FilterTabs({ counts, active }: { counts: Record<FilterValue, number>; active: FilterValue }) {
@@ -55,7 +55,7 @@ const EMPTY_STATE_LABEL: Record<FilterValue, string> = {
   transfer: "No hay conversaciones transferidas.",
   unread: "No hay conversaciones no leídas.",
   confirmed: "No hay conversaciones marcadas \"Confirmado\".",
-  followup: "No hay conversaciones en \"A recuperar\".",
+  followup: "No hay conversaciones en \"Hacer seguimiento\".",
 };
 
 export default async function WhatsAppPage({

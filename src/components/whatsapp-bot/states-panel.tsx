@@ -45,7 +45,7 @@ const STATES: StateInfo[] = [
     automatic: false,
   },
   {
-    label: "A recuperar",
+    label: "Hacer seguimiento",
     dot: "bg-blue-500",
     trigger: 'El bot cotiza (completo o de referencia) y el cliente queda en responder ("te aviso", "lo pienso"). Se prende al instante, sin ningún plazo de espera.',
     resolves: "Apenas el cliente vuelve a escribir, o al vincular una reserva. También hay un botón manual.",
@@ -82,8 +82,8 @@ export function StatesPanel({ followUpStaleDays: initial }: { followUpStaleDays:
     <div className="flex flex-col gap-5">
       <p className="text-sm text-foreground/60">
         Orden de prioridad en el listado de arriba hacia abajo (las fijadas siempre van primero). &quot;A
-        confirmar&quot;, &quot;Transferido&quot; y &quot;A recuperar&quot; los prende el bot solo, pero siempre se
-        pueden prender/apagar a mano desde el detalle de la conversación.
+        confirmar&quot;, &quot;Transferido&quot; y &quot;Hacer seguimiento&quot; los prende el bot solo, pero siempre
+        se pueden prender/apagar a mano desde el detalle de la conversación.
       </p>
 
       <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
@@ -108,12 +108,12 @@ export function StatesPanel({ followUpStaleDays: initial }: { followUpStaleDays:
 
       <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Marcar &quot;A recuperar&quot; como vencido</span>
+          <span className="text-sm font-medium">Marcar &quot;Hacer seguimiento&quot; como vencido</span>
           <AutosaveStatus pending={pending} saved={saved} />
         </div>
         <p className="text-xs text-foreground/50">
-          Días sin que el cliente responda desde que quedó &quot;A recuperar&quot; para resaltarla en naranja en el
-          listado (no cambia cuándo entra al estado, solo cómo se destaca después).
+          Días sin que el cliente responda desde que quedó &quot;Hacer seguimiento&quot; para resaltarla en naranja en
+          el listado (no cambia cuándo entra al estado, solo cómo se destaca después).
         </p>
         <TextField
           id="followUpStaleDays"

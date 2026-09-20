@@ -69,7 +69,7 @@ export function ConversationStateToggles({
             : "bg-foreground/5 text-foreground/50 hover:bg-foreground/10"
         }`}
       >
-        {followingUp ? "✓ A recuperar" : "Marcar \"A recuperar\""}
+        {followingUp ? "✓ Hacer seguimiento" : "Marcar \"Hacer seguimiento\""}
       </button>
       <button
         type="button"

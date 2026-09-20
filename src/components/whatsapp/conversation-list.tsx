@@ -128,7 +128,7 @@ export function ConversationList({
                     {c.state === "unread" ? <Badge tone="amber">No leído</Badge> : null}
                     {c.state === "confirmed" ? <Badge tone="violet">Confirmado</Badge> : null}
                     {c.state === "followup" ? (
-                      <Badge tone={stale ? "orange" : "blue"}>{stale ? "A recuperar · vencido" : "A recuperar"}</Badge>
+                      <Badge tone={stale ? "orange" : "blue"}>{stale ? "Hacer seguimiento · vencido" : "Hacer seguimiento"}</Badge>
                     ) : null}
                     {globalBotEnabled && !c.botEnabled && c.state !== "transfer" ? (
                       <Badge tone="red">Bot apagado</Badge>
