@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { filterThisMonth, groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
+import { WhatsappAccountLink } from "./whatsapp-link";
 import { BalanceLine } from "./balance-line";
 import { LedgerRow } from "./ledger-row";
 import { AssociateIncomeForm } from "./associate-income-form";
@@ -50,7 +51,10 @@ export function AssociateCard({
   return (
     <details className="rounded-xl border border-foreground/10 p-3" open={defaultOpen}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-        <h3 className="text-sm font-semibold">{associate.name}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">{associate.name}</h3>
+          <WhatsappAccountLink conversationId={associate.whatsappConversationId} />
+        </div>
         <BalanceLine balance={associate.balance} />
       </summary>
 

@@ -3,6 +3,7 @@ import type { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 import { emptyCurrencyTotals, type Currency, type CurrencyTotals } from "@/lib/currency";
+import { phoneVariants } from "@/lib/whatsapp/phone";
 
 /**
  * Cuenta corriente genérica para una cuenta ajena (proveedor o asociado) —
@@ -20,7 +21,41 @@ export type ThirdPartyBalance = {
    *  — para poder elegir por cuál cargar un movimiento puntual sin perder esa
    *  info, aunque el saldo ya viene sumado entre todas. */
   subaccounts: { id: string; name: string }[];
+  /** Conversación de WhatsApp encontrada para `PaymentMethod.whatsappPhone`
+   *  (cruce best-effort por teléfono) — null si no hay teléfono cargado, o si
+   *  todavía no existe ninguna conversación con ese número. */
+  whatsappConversationId: string | null;
 };
+
+/** Solo dígitos, para comparar dos teléfonos sin importar "+"/espacios/guiones. */
+function digitsOnly(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+/**
+ * Resuelve cada teléfono de `PaymentMethod.whatsappPhone` a la conversación
+ * de WhatsApp existente que más probablemente sea esa persona — mismo cruce
+ * best-effort que `findRelatedRentals` (Rental↔Customer), reusando
+ * `phoneVariants` para tolerar cómo se haya tipeado el número acá vs. el
+ * E.164 real que manda Meta.
+ */
+async function resolveWhatsappConversationIds(phones: (string | null)[]): Promise<Map<string, string>> {
+  const withPhone = [...new Set(phones.filter((p): p is string => Boolean(p)))];
+  if (withPhone.length === 0) return new Map();
+
+  const conversations = await prisma.whatsAppConversation.findMany({ select: { id: true, phoneE164: true } });
+  const byDigits = new Map(conversations.map((c) => [digitsOnly(c.phoneE164), c.id]));
+
+  const result = new Map<string, string>();
+  for (const phone of withPhone) {
+    const match = phoneVariants(phone)
+      .map(digitsOnly)
+      .map((d) => byDigits.get(d))
+      .find((id): id is string => Boolean(id));
+    if (match) result.set(phone, match);
+  }
+  return result;
+}
 
 /**
  * Mapa cuenta → cuenta principal del grupo (una cuenta principal se mapea a
@@ -29,14 +64,14 @@ export type ThirdPartyBalance = {
  * cuenta — ver comentario en el schema.
  */
 async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
-  principals: { id: string; name: string; subaccounts: { id: string; name: string }[] }[];
+  principals: { id: string; name: string; whatsappPhone: string | null; subaccounts: { id: string; name: string }[] }[];
   resolve: Map<string, string>;
   memberIds: string[];
 }> {
   const accounts = await prisma.paymentMethod.findMany({
     where: { ownership },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, parentId: true, active: true },
+    select: { id: true, name: true, parentId: true, active: true, whatsappPhone: true },
   });
   const resolve = new Map<string, string>();
   for (const a of accounts) resolve.set(a.id, a.parentId ?? a.id);
@@ -45,6 +80,7 @@ async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
     .map((p) => ({
       id: p.id,
       name: p.name,
+      whatsappPhone: p.whatsappPhone,
       subaccounts: accounts.filter((a) => a.parentId === p.id).map((a) => ({ id: a.id, name: a.name })),
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
@@ -95,11 +131,14 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
     if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
   }
 
+  const conversationByPhone = await resolveWhatsappConversationIds(principals.map((p) => p.whatsappPhone));
+
   return principals.map((p) => ({
     id: p.id,
     name: p.name,
     balance: balances.get(p.id)!,
     subaccounts: p.subaccounts,
+    whatsappConversationId: p.whatsappPhone ? (conversationByPhone.get(p.whatsappPhone) ?? null) : null,
   }));
 }
 

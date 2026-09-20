@@ -856,6 +856,13 @@ model PaymentMethod {
   ordering          Int                    @default(0)
   active            Boolean                @default(true)
 
+  // Teléfono de WhatsApp de este proveedor/asociado (contacto frecuente) —
+  // para mostrar un link directo a esa conversación desde su tarjeta en
+  // Caja, sin tener que buscarla a mano en /whatsapp. Cruce best-effort por
+  // teléfono contra WhatsAppConversation, igual que Rental↔Customer (no hay
+  // FK — el número se tipea a mano acá y puede no coincidir exacto).
+  whatsappPhone String? @map("whatsapp_phone")
+
   // Misma entidad (persona/proveedor) con más de una cuenta real (ej. efectivo
   // y transferencia) — la subcuenta apunta a la principal. Jerarquía de un
   // solo nivel a propósito (una subcuenta no puede tener sus propias

@@ -54,6 +54,9 @@ export type PaymentMethodUpdateInput = {
   // Cuenta principal (misma entidad, otra cuenta real) — ver comentario en el
   // schema. `null` = cuenta principal (no es subcuenta de nadie).
   parentId: string | null;
+  // Teléfono de WhatsApp de este proveedor/asociado — link directo a su
+  // conversación desde la tarjeta en Caja (ver third-party-accounts.ts).
+  whatsappPhone: string;
 };
 
 /**
@@ -103,6 +106,7 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           isCash: u.isCash,
           ownership: u.ownership,
           parentId: u.parentId,
+          whatsappPhone: strOrNull(u.whatsappPhone),
         },
       }),
     ),

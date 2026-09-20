@@ -25,6 +25,7 @@ type Draft = {
   requiresNote: boolean;
   isCash: boolean;
   parentId: string | null;
+  whatsappPhone: string;
 };
 
 function draftFrom(it: PaymentMethod): Draft {
@@ -36,6 +37,7 @@ function draftFrom(it: PaymentMethod): Draft {
     requiresNote: it.requiresNote,
     isCash: it.isCash,
     parentId: it.parentId,
+    whatsappPhone: it.whatsappPhone ?? "",
   };
 }
 
@@ -47,7 +49,8 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.ownership === b.ownership &&
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
-    a.parentId === b.parentId
+    a.parentId === b.parentId &&
+    a.whatsappPhone === b.whatsappPhone
   );
 }
 
@@ -387,6 +390,16 @@ function PaymentMethodRow({
               <option value="associate">Asociado</option>
               <option value="provider">Proveedor</option>
             </SelectField>
+            {draft.ownership !== "own" && (
+              <TextField
+                id={`whatsappPhone-${item.id}`}
+                label="Teléfono de WhatsApp"
+                hint='Opcional — si tenés una conversación con este número en /whatsapp, su tarjeta acá muestra un link "Ver WhatsApp".'
+                value={draft.whatsappPhone}
+                onChange={(e) => setField(item.id, "whatsappPhone", e.target.value)}
+                placeholder="Ej: 5492611234567"
+              />
+            )}
             {children.length > 0 ? (
               <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
                 Ya es cuenta principal de {children.length === 1 ? "otra cuenta" : "otras cuentas"} — desvinculalas

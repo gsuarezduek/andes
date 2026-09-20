@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { filterThisMonth, groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
+import { WhatsappAccountLink } from "./whatsapp-link";
 import { BalanceLine } from "./balance-line";
 import { LedgerRow } from "./ledger-row";
 import { DebtMovementForm } from "./debt-movement-form";
@@ -47,7 +48,10 @@ export function ProviderCard({
   return (
     <section className="rounded-xl border border-foreground/10 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">{provider.name}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">{provider.name}</h3>
+          <WhatsappAccountLink conversationId={provider.whatsappConversationId} />
+        </div>
         <BalanceLine balance={provider.balance} />
       </div>
 
