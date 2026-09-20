@@ -78,9 +78,9 @@ export function ConversationList({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {filters}
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 sm:flex-1">
           <svg
             viewBox="0 0 20 20"
             fill="none"
