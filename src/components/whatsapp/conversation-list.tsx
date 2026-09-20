@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
@@ -48,17 +48,32 @@ export function ConversationList({
 }) {
   const [query, setQuery] = useState("");
   const [messageMatchIds, setMessageMatchIds] = useState<Set<string> | null>(null);
-  const [searching, startSearch] = useTransition();
+  const [searching, setSearching] = useState(false);
+  const requestIdRef = useRef(0);
 
+  // Ojo: NO envolver esto en `useTransition`/`startTransition` — Next.js ya
+  // envuelve la navegación de un <Link> en su propia transición, y React
+  // encola una transición async nueva detrás de una que ya está pendiente en
+  // la misma raíz. Con esto en un `startTransition`, un click para entrar a
+  // una conversación quedaba pegado hasta que esta búsqueda (lenta contra
+  // muchos mensajes) terminaba — a veces varios segundos. Un estado plano no
+  // compite con la transición de navegación.
   const searchMessages = useDebouncedCallback((q: string) => {
     if (q.trim().length < 2) {
       setMessageMatchIds(null);
+      setSearching(false);
       return;
     }
-    startSearch(async () => {
-      const ids = await searchConversationIdsByMessage(q);
-      setMessageMatchIds(new Set(ids));
-    });
+    const requestId = ++requestIdRef.current;
+    setSearching(true);
+    searchConversationIdsByMessage(q)
+      .then((ids) => {
+        if (requestIdRef.current !== requestId) return; // respuesta vieja, ya hay una búsqueda más nueva
+        setMessageMatchIds(new Set(ids));
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setSearching(false);
+      });
   }, 300);
 
   useEffect(() => {
