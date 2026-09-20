@@ -51,6 +51,30 @@ function MediaPreview({ media }: { media: { storageKey: string; mimeType: string
     // eslint-disable-next-line @next/next/no-img-element -- viene de storage propio, no de un dominio externo optimizable
     return <img src={href} alt="Adjunto" className="mb-1.5 max-h-64 rounded-lg" />;
   }
+  if (media.kind === "audio") {
+    return (
+      <audio controls preload="none" src={href} className="mb-1.5 h-10 max-w-full">
+        Tu navegador no puede reproducir este audio.
+      </audio>
+    );
+  }
+  if (media.kind === "video") {
+    return (
+      <video controls preload="none" src={href} className="mb-1.5 max-h-64 max-w-full rounded-lg">
+        Tu navegador no puede reproducir este video.
+      </video>
+    );
+  }
+  if (media.kind === "document" && media.mimeType === "application/pdf") {
+    return (
+      <div className="mb-1.5">
+        <iframe src={href} title="Adjunto PDF" className="h-64 w-full rounded-lg border border-foreground/10" />
+        <a href={href} target="_blank" rel="noreferrer" className="mt-1 block text-xs underline">
+          Abrir en una pestaña nueva ↗
+        </a>
+      </div>
+    );
+  }
   return (
     <a href={href} target="_blank" rel="noreferrer" className="mb-1.5 block text-sm underline">
       📎 Ver adjunto ({media.kind})
