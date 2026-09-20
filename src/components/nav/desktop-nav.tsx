@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { NavLink } from "@/components/nav-link";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
+import { ConnectedUsers } from "@/components/nav/connected-users";
 import type { Item } from "@/components/nav/types";
+import type { OnlineUser } from "@/lib/presence";
 
 /** Menú principal inline + submenú de cuenta desplegable, visibles solo en desktop. */
 export function DesktopNav({
@@ -13,6 +15,7 @@ export function DesktopNav({
   userName,
   logout,
   sync,
+  onlineUsers,
   viewToggle,
 }: {
   mainItems: Item[];
@@ -21,6 +24,7 @@ export function DesktopNav({
   userName?: string | null;
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
+  onlineUsers?: OnlineUser[];
   viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,6 +42,7 @@ export function DesktopNav({
 
       {/* Desktop: submenú de cuenta (desplegable) */}
       <div className="relative hidden shrink-0 items-center gap-1 sm:flex">
+        <ConnectedUsers initialUsers={onlineUsers ?? []} />
         {sync ? <SyncButton sync={sync} /> : null}
         <button
           type="button"

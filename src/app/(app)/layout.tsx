@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssignedPendingCount } from "@/lib/tasks";
 import { countNeedsReply } from "@/lib/whatsapp/conversations";
+import { touchPresence, getOnlineUsers } from "@/lib/presence";
 import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
 import { EvidenceSync } from "@/components/evidence-sync";
@@ -19,7 +21,12 @@ export default async function AppLayout({
   const isAdmin = user.role === "admin";
   const isRealAdmin = user.realRole === "admin";
   const viewingAsEmployee = isRealAdmin && !isAdmin;
-  const [taskCount, whatsappUnread] = await Promise.all([getAssignedPendingCount(user.id), countNeedsReply()]);
+  const [taskCount, whatsappUnread, onlineUsers] = await Promise.all([
+    getAssignedPendingCount(user.id),
+    countNeedsReply(),
+    getOnlineUsers(user.id),
+  ]);
+  after(() => touchPresence(user.id));
 
   return (
     <div className="flex min-h-full flex-col">
@@ -43,6 +50,7 @@ export default async function AppLayout({
             sync={triggerSync}
             taskCount={taskCount}
             whatsappUnread={whatsappUnread}
+            onlineUsers={onlineUsers}
             isRealAdmin={isRealAdmin}
             viewingAsEmployee={viewingAsEmployee}
             enableEmployeeView={enableEmployeeView}

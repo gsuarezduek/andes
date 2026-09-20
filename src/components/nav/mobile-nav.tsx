@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
+import { ConnectedUsers } from "@/components/nav/connected-users";
 import type { Item } from "@/components/nav/types";
+import type { OnlineUser } from "@/lib/presence";
 
 /** Botón hamburguesa + panel colapsable, visibles solo en mobile. */
 export function MobileNav({
@@ -12,6 +14,7 @@ export function MobileNav({
   userName,
   logout,
   sync,
+  onlineUsers,
   viewToggle,
 }: {
   mainItems: Item[];
@@ -20,6 +23,7 @@ export function MobileNav({
   userName?: string | null;
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
+  onlineUsers?: OnlineUser[];
   viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -28,6 +32,7 @@ export function MobileNav({
     <>
       {/* Mobile: ícono de sync (siempre visible) + botón hamburguesa */}
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:hidden">
+        <ConnectedUsers initialUsers={onlineUsers ?? []} />
         {sync ? <SyncButton sync={sync} /> : null}
         <button
           type="button"

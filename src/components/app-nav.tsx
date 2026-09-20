@@ -5,6 +5,7 @@ import { DesktopNav } from "@/components/nav/desktop-nav";
 import { MobileNav } from "@/components/nav/mobile-nav";
 import type { SyncOutcome } from "@/components/nav/sync-button";
 import type { Item } from "@/components/nav/types";
+import type { OnlineUser } from "@/lib/presence";
 
 /**
  * Navegación de la app.
@@ -28,6 +29,7 @@ export function AppNav({
   sync,
   taskCount,
   whatsappUnread,
+  onlineUsers,
   isRealAdmin,
   viewingAsEmployee,
   enableEmployeeView,
@@ -40,6 +42,8 @@ export function AppNav({
   taskCount?: number;
   /** Conversaciones de WhatsApp pendientes de respuesta — mismo criterio visual que `taskCount`. */
   whatsappUnread?: number;
+  /** Otros usuarios activos ahora mismo (últimos ~5 min) — quién está conectado, sin preguntar. */
+  onlineUsers?: OnlineUser[];
   /** Rol real de la sesión (no el efectivo tras "Ver como empleado"). */
   isRealAdmin?: boolean;
   viewingAsEmployee?: boolean;
@@ -95,6 +99,7 @@ export function AppNav({
         userName={userName}
         logout={logout}
         sync={sync}
+        onlineUsers={onlineUsers}
         viewToggle={viewToggle}
       />
       <MobileNav
@@ -104,6 +109,7 @@ export function AppNav({
         userName={userName}
         logout={logout}
         sync={sync}
+        onlineUsers={onlineUsers}
         viewToggle={viewToggle}
       />
     </>
