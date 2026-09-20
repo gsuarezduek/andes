@@ -83,6 +83,28 @@ export type CalendarNote = {
   createdAt: Date;
 };
 
+/** Presupuesto/borrador (ver `RentalQuote`) recortado a la ventana visible —
+ *  no es una reserva real, se dibuja en un carril aparte, más angosto. */
+export type CalendarQuoteBar = {
+  quoteId: string;
+  vehicleId: string;
+  startIndex: number;
+  span: number;
+  /** Fechas reales del presupuesto (sin recortar a la ventana visible) —
+   *  para el formulario de edición, que muestra el rango real aunque se
+   *  haya scrolleado a otra parte del calendario. */
+  startAt: Date;
+  endAt: Date;
+  clientName: string | null;
+  note: string | null;
+  estimatedTotal: number | null;
+  createdByName: string | null;
+  createdById: string | null;
+  conversationId: string | null;
+  conversationLabel: string | null;
+  lane: number;
+};
+
 export type CalendarRow = {
   id: string;
   plate: string | null;
@@ -103,6 +125,10 @@ export type CalendarRow = {
   laneCount: number;
   /** Notas del equipo sin resolver → notificación roja sobre la patente. */
   activeNotes: CalendarNote[];
+  /** Presupuestos vigentes para este auto en la ventana (siempre `[]` en las
+   *  filas `unassigned`: un presupuesto siempre tiene `vehicleId`). */
+  quotes: CalendarQuoteBar[];
+  quoteLaneCount: number;
 };
 
 /** Temporada de VikRentCar (`SeasonRate`) vigente un día puntual del calendario. */
@@ -261,14 +287,59 @@ function toBar(
   };
 }
 
+type QuoteRow = {
+  id: string;
+  vehicleId: string;
+  startAt: Date;
+  endAt: Date;
+  clientName: string | null;
+  note: string | null;
+  estimatedTotal: unknown; // Prisma Decimal | null
+  createdById: string | null;
+  createdBy: { name: string } | null;
+  conversationId: string | null;
+  conversation: { phoneE164: string; customer: { name: string | null } | null } | null;
+};
+
+/** Construye la barra de un presupuesto recortada a la ventana — mismo
+ *  recorte de `toBar`, sin nada de lo específico de `Rental`. */
+function toQuoteBar(q: QuoteRow, windowStart: Date, days: number): CalendarQuoteBar | null {
+  const relStart = (q.startAt.getTime() - windowStart.getTime()) / DAY_MS;
+  const relEnd = (q.endAt.getTime() - windowStart.getTime()) / DAY_MS;
+  const startIndex = Math.max(0, Math.floor(relStart));
+  const endIndex = Math.min(days - 1, Math.ceil(relEnd) - 1);
+  if (endIndex < startIndex) return null;
+  const conversationName = q.conversation?.customer?.name?.trim() || q.conversation?.phoneE164 || null;
+  return {
+    quoteId: q.id,
+    vehicleId: q.vehicleId,
+    startIndex,
+    span: endIndex - startIndex + 1,
+    startAt: q.startAt,
+    endAt: q.endAt,
+    clientName: q.clientName?.trim() || null,
+    note: q.note?.trim() || null,
+    estimatedTotal: q.estimatedTotal == null ? null : Number(q.estimatedTotal),
+    createdByName: q.createdBy?.name ?? null,
+    createdById: q.createdById,
+    conversationId: q.conversationId,
+    conversationLabel: conversationName,
+    lane: 0,
+  };
+}
+
 /**
  * Asigna un carril a cada barra de un mismo auto: si dos se solapan en
  * columnas (mismo día ocupado por ambas), la segunda pasa al siguiente
  * carril libre en vez de dibujarse encima de la primera. Sin solapamientos,
  * todas quedan en el carril 0 (el caso normal, fila de altura simple).
- * Algoritmo greedy de partición de intervalos, por orden de inicio.
+ * Algoritmo greedy de partición de intervalos, por orden de inicio. Genérica
+ * (barras reales y presupuestos comparten el mismo cálculo de carriles, cada
+ * uno en su propio track — ver `toQuoteBar`/`CalendarQuoteBar`).
  */
-export function assignLanes(bars: CalendarBar[]): { bars: CalendarBar[]; laneCount: number } {
+export function assignLanes<T extends { startIndex: number; span: number }>(
+  bars: T[],
+): { bars: (T & { lane: number })[]; laneCount: number } {
   const sorted = [...bars].sort((a, b) => a.startIndex - b.startIndex || b.span - a.span);
   const laneLastEnd: number[] = []; // último endIndex ocupado por carril
   const withLanes = sorted.map((bar) => {
@@ -334,7 +405,7 @@ export async function getCalendarData(opts?: {
   }
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
 
-  const [vehicles, notes, rentals, seasonRates] = await Promise.all([
+  const [vehicles, notes, rentals, seasonRates, quotes] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
@@ -383,6 +454,26 @@ export async function getCalendarData(opts?: {
     }),
     prisma.seasonRate.findMany({
       select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true },
+    }),
+    prisma.rentalQuote.findMany({
+      where: {
+        startAt: { lt: windowEnd },
+        endAt: { gt: windowStart },
+      },
+      select: {
+        id: true,
+        vehicleId: true,
+        startAt: true,
+        endAt: true,
+        clientName: true,
+        note: true,
+        estimatedTotal: true,
+        createdById: true,
+        createdBy: { select: { name: true } },
+        conversationId: true,
+        conversation: { select: { phoneE164: true, customer: { select: { name: true } } } },
+      },
+      orderBy: { startAt: "asc" },
     }),
   ]);
   const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({
@@ -444,12 +535,25 @@ export async function getCalendarData(opts?: {
         bars: [bar],
         laneCount: 1,
         activeNotes: [],
+        quotes: [],
+        quoteLaneCount: 0,
       });
     }
   }
 
+  // Presupuestos por vehículo (siempre tienen vehicleId, no hay "sin unidad").
+  const quotesByVehicle = new Map<string, CalendarQuoteBar[]>();
+  for (const q of quotes as QuoteRow[]) {
+    const quoteBar = toQuoteBar(q, windowStart, days);
+    if (!quoteBar) continue;
+    const list = quotesByVehicle.get(q.vehicleId) ?? [];
+    list.push(quoteBar);
+    quotesByVehicle.set(q.vehicleId, list);
+  }
+
   const rows: CalendarRow[] = vehicles.map((v) => {
     const { bars, laneCount } = assignLanes(barsByVehicle.get(v.id) ?? []);
+    const { bars: quoteBars, laneCount: quoteLaneCount } = assignLanes(quotesByVehicle.get(v.id) ?? []);
     return {
       id: v.id,
       plate: v.plate,
@@ -460,6 +564,8 @@ export async function getCalendarData(opts?: {
       bars,
       laneCount,
       activeNotes: notesByVehicle.get(v.id) ?? [],
+      quotes: quoteBars,
+      quoteLaneCount,
     };
   });
 

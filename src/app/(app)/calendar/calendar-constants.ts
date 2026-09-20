@@ -13,3 +13,8 @@ export const WEEK_MAX_COLUMNS = 7;
 // móvil se usa como piso conservador para el minWidth del contenido scrolleable.
 export const LABEL_W_MOBILE = 64;
 export const LABEL_W_CLASS = "w-16 sm:w-[168px]";
+
+// Franja angosta debajo del track de barras reales donde se dibujan los
+// presupuestos (borradores, ver src/lib/rental-quotes.ts) — carril propio,
+// no comparten posicionamiento con las barras de alquileres reales.
+export const QUOTE_TRACK_H = 22;

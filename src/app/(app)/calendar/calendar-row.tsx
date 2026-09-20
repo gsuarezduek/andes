@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow } from "@/lib/calendar";
 import { formatTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
-import { barClasses, paymentBorderClasses } from "./bar-style";
-import { LABEL_W_CLASS } from "./calendar-constants";
+import { barClasses, paymentBorderClasses, quoteBarClasses } from "./bar-style";
+import { LABEL_W_CLASS, QUOTE_TRACK_H } from "./calendar-constants";
 
 export function Row({
   row,
@@ -17,6 +17,10 @@ export function Row({
   onEnterNote,
   onMove,
   onLeave,
+  quotePick,
+  onCellClick,
+  onQuoteEnter,
+  onQuoteClick,
 }: {
   row: CalendarRow;
   columns: CalendarColumn[];
@@ -29,12 +33,22 @@ export function Row({
   onEnterNote: (title: string, notes: CalendarNote[], e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
   onLeave: () => void;
+  /** Día de inicio elegido para un presupuesto en esta fila, mientras se
+   *  espera el segundo toque (día de fin) — `null` si no hay selección acá. */
+  quotePick: number | null;
+  onCellClick: (vehicleId: string, dayIndex: number) => void;
+  onQuoteEnter: (quote: CalendarQuoteBar, e: React.MouseEvent) => void;
+  onQuoteClick: (quote: CalendarQuoteBar) => void;
 }) {
   const hasNotes = row.activeNotes.length > 0;
   // Cuando hay alquileres solapados para este auto, la fila se hace
   // `laneCount` veces más alta (un carril por cada barra que se superpone en
   // fechas) para que ninguna tape a otra — ver assignLanes en src/lib/calendar.ts.
-  const totalH = rowH * row.laneCount;
+  const barsH = rowH * row.laneCount;
+  // Franja aparte para los presupuestos (borradores) — solo ocupa espacio si
+  // hay alguno para este auto en la ventana visible.
+  const quotesH = row.quotes.length > 0 ? QUOTE_TRACK_H * row.quoteLaneCount : 0;
+  const totalH = barsH + quotesH;
   return (
     <div className="flex border-b border-foreground/5 last:border-0">
       {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
@@ -100,18 +114,29 @@ export function Row({
       >
         {/* Líneas de grilla / resaltados por columna. Temporada con aumento
             (ver leyenda) se remarca aparte, encima del resto — es la que más
-            importa detectar de un vistazo bajando por las filas. */}
+            importa detectar de un vistazo bajando por las filas. También son
+            el área clickeable para elegir el rango de un presupuesto nuevo
+            (dos toques: día de inicio, día de fin) — ver `onCellClick` en
+            CalendarGrid. Un click sobre un día ya cubierto por una barra cae
+            sobre esa barra (que está encima en el DOM), no acá: limitación
+            conocida, alcanza con elegir el margen libre del día. */}
         {columns.map((c, i) => (
           <div
             key={c.key}
-            className={`absolute top-0 h-full border-r border-foreground/5 ${
-              c.seasons.length > 0
-                ? "bg-purple-500/[0.08]"
-                : c.isToday
-                  ? "bg-blue-500/[0.14]"
-                  : c.isWeekend
-                    ? "bg-foreground/[0.03]"
-                    : ""
+            onClick={(e) => {
+              e.stopPropagation();
+              onCellClick(row.id, i);
+            }}
+            className={`absolute top-0 h-full cursor-pointer border-r border-foreground/5 ${
+              quotePick === i
+                ? "bg-indigo-500/30 ring-2 ring-inset ring-indigo-500"
+                : c.seasons.length > 0
+                  ? "bg-purple-500/[0.08]"
+                  : c.isToday
+                    ? "bg-blue-500/[0.14]"
+                    : c.isWeekend
+                      ? "bg-foreground/[0.03]"
+                      : ""
             }`}
             style={{ left: i * colW, width: colW }}
           />
@@ -177,6 +202,41 @@ export function Row({
               </span>
             ) : null}
           </Link>
+          );
+        })}
+
+        {/* Presupuestos (borradores) — carril propio, debajo de las barras
+            reales. Botón, no Link: no navega, abre el detalle. */}
+        {row.quotes.map((q) => {
+          const isQuoteActive = activeKey === `quote:${q.quoteId}`;
+          return (
+            <button
+              key={q.quoteId}
+              type="button"
+              onMouseEnter={(e) => onQuoteEnter(q, e)}
+              onMouseMove={onMove}
+              onMouseLeave={onLeave}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Touch: el primer toque muestra el tooltip; recién un
+                // segundo toque (ya activa) abre el detalle — mismo patrón
+                // que las barras de alquiler real.
+                if (!isQuoteActive) {
+                  onQuoteEnter(q, e);
+                  return;
+                }
+                onQuoteClick(q);
+              }}
+              className={`absolute overflow-hidden rounded px-1 text-left text-[10px] font-medium shadow-sm transition-shadow hover:ring-2 hover:ring-indigo-300 ${quoteBarClasses()}`}
+              style={{
+                left: q.startIndex * colW + 2,
+                width: q.span * colW - 4,
+                top: barsH + q.lane * QUOTE_TRACK_H + 1,
+                height: QUOTE_TRACK_H - 2,
+              }}
+            >
+              <span className="truncate">{q.clientName ?? "Presupuesto"}</span>
+            </button>
           );
         })}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CalendarBar, CalendarColumn, CalendarNote, CalendarRow } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow } from "@/lib/calendar";
 import {
   COL_W_MONTH,
   COL_W_WEEK,
@@ -13,6 +13,10 @@ import {
 } from "./calendar-constants";
 import { Row } from "./calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
+import { QuoteFormModal } from "./quote-form-modal";
+import { QuoteDetailModal } from "./quote-detail-modal";
+import type { ConversationPickerOption } from "@/lib/rental-quotes";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 // Altura del header fijo de la app (logo + nav, ver `(app)/layout.tsx`) — el
 // header de fechas del calendario se pega debajo de él, no del todo arriba.
@@ -22,12 +26,25 @@ export function CalendarGrid({
   columns,
   rows,
   unassigned,
+  conversationOptions,
+  userId,
+  isAdmin,
 }: {
   columns: CalendarColumn[];
   rows: CalendarRow[];
   unassigned: CalendarRow[];
+  conversationOptions: ConversationPickerOption[];
+  userId: string;
+  isAdmin: boolean;
 }) {
   const [hover, setHover] = useState<Hover>(null);
+  // Selección de un presupuesto en curso: día de inicio elegido, esperando
+  // el segundo toque (día de fin) en la misma fila.
+  const [pick, setPick] = useState<{ vehicleId: string; startIndex: number } | null>(null);
+  const [draftRange, setDraftRange] = useState<{ vehicleId: string; startIndex: number; endIndex: number } | null>(
+    null,
+  );
+  const [quoteDetail, setQuoteDetail] = useState<CalendarQuoteBar | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   const dense = columns.length <= WEEK_MAX_COLUMNS;
@@ -57,13 +74,47 @@ export function CalendarGrid({
     setHover({ type: "notes", title, notes, x: e.clientX, y: e.clientY });
   const showSeason = (seasons: CalendarColumn["seasons"], e: React.MouseEvent) =>
     setHover({ type: "season", seasons, x: e.clientX, y: e.clientY });
+  const showQuote = (quote: CalendarQuoteBar, e: React.MouseEvent) =>
+    setHover({ type: "quote", quote, x: e.clientX, y: e.clientY });
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
   // En touch no hay hover: la barra se identifica primero (muestra el tooltip)
   // y recién un segundo toque sobre la misma barra navega. Ver activeKey en Row.
   const activeKey =
-    hover?.type === "bar" ? `bar:${hover.bar.rentalId}` : hover?.type === "notes" ? `notes:${hover.title}` : null;
+    hover?.type === "bar"
+      ? `bar:${hover.bar.rentalId}`
+      : hover?.type === "notes"
+        ? `notes:${hover.title}`
+        : hover?.type === "quote"
+          ? `quote:${hover.quote.quoteId}`
+          : null;
+
+  // Selección de auto+rango para un presupuesto nuevo (dos toques): sin
+  // selección activa, el primer toque la arranca; un segundo toque en la
+  // misma fila la completa (o la cancela, si es la misma celda); un toque en
+  // otra fila la reinicia ahí.
+  function onCellClick(vehicleId: string, dayIndex: number) {
+    setHover(null);
+    if (!pick || pick.vehicleId !== vehicleId) {
+      setPick({ vehicleId, startIndex: dayIndex });
+      return;
+    }
+    if (pick.startIndex === dayIndex) {
+      setPick(null);
+      return;
+    }
+    setDraftRange({
+      vehicleId,
+      startIndex: Math.min(pick.startIndex, dayIndex),
+      endIndex: Math.max(pick.startIndex, dayIndex),
+    });
+    setPick(null);
+  }
+  const noCellClick = () => {};
+
+  const draftRow = draftRange ? rows.find((r) => r.id === draftRange.vehicleId) : null;
+  const canEditQuoteDetail = quoteDetail ? isAdmin || quoteDetail.createdById === userId : false;
 
   // El header (fechas) y el cuerpo (filas) son dos contenedores con scroll
   // horizontal propio, sincronizados a mano: un único contenedor con
@@ -77,7 +128,20 @@ export function CalendarGrid({
   };
 
   return (
-    <div className="relative rounded-xl border border-foreground/10" onClick={hide}>
+    <div
+      className="relative rounded-xl border border-foreground/10"
+      onClick={() => {
+        hide();
+        setPick(null);
+      }}
+    >
+      {pick ? (
+        <div className="pointer-events-none fixed inset-x-0 top-2 z-50 flex justify-center">
+          <p className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
+            Presupuestando: tocá el día de fin (o el mismo día para cancelar)
+          </p>
+        </div>
+      ) : null}
       {/* Encabezado de días: sticky contra la página (debajo del header fijo
           de la app), con scroll horizontal propio pero sin barra visible —
           se mueve solo cuando se sincroniza con el scroll del cuerpo. */}
@@ -159,6 +223,10 @@ export function CalendarGrid({
               onEnterNote={showNotes}
               onMove={move}
               onLeave={hide}
+              quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
+              onCellClick={onCellClick}
+              onQuoteEnter={showQuote}
+              onQuoteClick={setQuoteDetail}
             />
           ))}
 
@@ -194,6 +262,10 @@ export function CalendarGrid({
                   onEnterNote={showNotes}
                   onMove={move}
                   onLeave={hide}
+                  quotePick={null}
+                  onCellClick={noCellClick}
+                  onQuoteEnter={showQuote}
+                  onQuoteClick={setQuoteDetail}
                 />
               ))}
             </>
@@ -202,6 +274,32 @@ export function CalendarGrid({
       </div>
 
       {hover ? <Tooltip hover={hover} /> : null}
+
+      {/* Pausado mientras hay un presupuesto en selección/edición — un
+          refresco a mitad de camino podía tirar abajo el modal abierto
+          (perdiendo lo tipeado) antes de que el empleado llegara a guardar. */}
+      {!pick && !draftRange && !quoteDetail ? <AutoRefresh intervalMs={30_000} /> : null}
+
+      {draftRange && draftRow ? (
+        <QuoteFormModal
+          vehicleId={draftRange.vehicleId}
+          startIndex={draftRange.startIndex}
+          endIndex={draftRange.endIndex}
+          row={draftRow}
+          columns={columns}
+          conversationOptions={conversationOptions}
+          onClose={() => setDraftRange(null)}
+        />
+      ) : null}
+
+      {quoteDetail ? (
+        <QuoteDetailModal
+          quote={quoteDetail}
+          canEdit={canEditQuoteDetail}
+          conversationOptions={conversationOptions}
+          onClose={() => setQuoteDetail(null)}
+        />
+      ) : null}
     </div>
   );
 }

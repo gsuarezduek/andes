@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
+import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import { ButtonLink } from "@/components/ui/button";
 import { CalendarGrid } from "./calendar-grid";
 
@@ -11,10 +12,13 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ from?: string; days?: string; month?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { from, days: rawDays, month } = await searchParams;
   const days = normalizeCalendarDays(rawDays);
-  const data = await getCalendarData({ from, days, month });
+  const [data, conversationOptions] = await Promise.all([
+    getCalendarData({ from, days, month }),
+    listConversationPickerOptions(),
+  ]);
 
   const rangeStart = data.columns[0]?.key;
   const rangeEnd = data.columns[data.columns.length - 1]?.key;
@@ -96,19 +100,28 @@ export default async function CalendarPage({
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" /> Temporada con aumento (día)
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded border-2 border-dashed border-indigo-500 bg-indigo-500/25" />{" "}
+          Presupuesto (borrador)
+        </span>
       </div>
 
       <p className="text-xs text-foreground/40">
         Autos ordenados por su orden de calendario (editable en cada ficha). En 90 días se puede
         desplazar la grilla hacia los costados para moverse en el tiempo, sin usar Anterior/Siguiente.
         Pasá el mouse por una barra para ver las notas de la reserva; el precio de cada auto
-        (desktop) y los días con temporada especial se traen de VikRentCar.
+        (desktop) y los días con temporada especial se traen de VikRentCar. Tocá dos días vacíos de
+        un auto (inicio y fin) para armar un presupuesto — queda visible para todo el equipo, no
+        bloquea el auto.
       </p>
 
       <CalendarGrid
         columns={data.columns}
         rows={data.rows}
         unassigned={data.unassigned}
+        conversationOptions={conversationOptions}
+        userId={user.id}
+        isAdmin={user.role === "admin"}
       />
     </div>
   );

@@ -1,12 +1,13 @@
-import type { CalendarBar, CalendarColumnSeason, CalendarNote } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumnSeason, CalendarNote, CalendarQuoteBar } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
-import { chipClasses, statusLabel } from "./bar-style";
+import { chipClasses, quoteChipClasses, statusLabel } from "./bar-style";
 
 export type HoverContent =
   | { type: "bar"; bar: CalendarBar }
   | { type: "notes"; title: string; notes: CalendarNote[] }
-  | { type: "season"; seasons: CalendarColumnSeason[] };
+  | { type: "season"; seasons: CalendarColumnSeason[] }
+  | { type: "quote"; quote: CalendarQuoteBar };
 export type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
@@ -23,10 +24,46 @@ export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
         <NotesTooltipBody title={hover.title} notes={hover.notes} />
       ) : hover.type === "season" ? (
         <SeasonTooltipBody seasons={hover.seasons} />
+      ) : hover.type === "quote" ? (
+        <QuoteTooltipBody quote={hover.quote} />
       ) : (
         <BarTooltipBody bar={hover.bar} />
       )}
     </div>
+  );
+}
+
+function QuoteTooltipBody({ quote }: { quote: CalendarQuoteBar }) {
+  return (
+    <>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="truncate">{quote.clientName ?? "Presupuesto"}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${quoteChipClasses()}`}>
+          Presupuesto
+        </span>
+      </p>
+      {quote.estimatedTotal != null ? (
+        <p className="mt-1 font-medium text-indigo-700 dark:text-indigo-400">
+          Estimado: {formatArs(quote.estimatedTotal)}
+        </p>
+      ) : null}
+      <p className="mt-1 text-foreground/60">
+        {quote.createdByName ? `Cargado por ${quote.createdByName}` : "Cargado por un compañero"}
+      </p>
+      {quote.conversationId ? (
+        <p className="mt-1 text-foreground/60">
+          🔗 Conversación de WhatsApp vinculada{quote.conversationLabel ? ` (${quote.conversationLabel})` : ""}
+        </p>
+      ) : null}
+      {quote.note ? (
+        <p className="mt-1.5 whitespace-pre-wrap border-t border-foreground/10 pt-1.5 text-foreground/80">
+          {quote.note}
+        </p>
+      ) : null}
+      <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">
+        Tocá la barra para ver el detalle.
+      </p>
+    </>
   );
 }
 

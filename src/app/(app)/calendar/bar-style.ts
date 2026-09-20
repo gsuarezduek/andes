@@ -31,6 +31,18 @@ export function paymentBorderClasses(bar: CalendarBar): string {
   return paymentBorderClass(bar.paymentAccent);
 }
 
+/** Clases de la barra de presupuesto (borrador, ver src/lib/rental-quotes.ts)
+ *  — indigo punteado, color no usado por ningún estado real y el patrón
+ *  punteado refuerza que "no es una reserva real". */
+export function quoteBarClasses(): string {
+  return "border-2 border-dashed border-indigo-500 bg-indigo-500/25 text-indigo-800 hover:bg-indigo-500/35 dark:text-indigo-200";
+}
+
+/** Chip del tooltip/detalle de presupuesto (mismo criterio que `chipClasses`). */
+export function quoteChipClasses(): string {
+  return "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400";
+}
+
 /** Clases del chip de estado en el tooltip (fondo suave + texto). */
 export function chipClasses(bar: CalendarBar): string {
   switch (bar.status) {
