@@ -17,7 +17,6 @@ import { InspectionHistorySection } from "@/components/vehicle/inspection-histor
 import { MaintenanceSection } from "@/components/vehicle/maintenance-section";
 import { vehicleStatusLabels } from "@/lib/labels";
 import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
-import { formatDate } from "@/lib/datetime";
 import { getVehicleDetail } from "@/lib/vehicle-detail-queries";
 
 export const metadata: Metadata = { title: "Vehículo — Andes" };
@@ -44,7 +43,14 @@ export default async function VehicleDetailPage({
   const activeNotes = vehicle.teamNotes.filter((n) => !n.resolvedAt);
   const resolvedNotes = vehicle.teamNotes.filter((n) => n.resolvedAt);
 
-  const kmData = vehicle.inspections.map((i) => ({ km: i.km, label: formatDate(i.createdAt) }));
+  const kmData = vehicle.inspections.map((i) => ({
+    id: i.id,
+    km: i.km,
+    createdAt: i.createdAt,
+    type: i.type,
+    clientName: i.rental.clientName,
+    userName: i.user?.name ?? null,
+  }));
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
 
   return (
