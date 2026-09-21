@@ -17,7 +17,7 @@ export function InspectionHistorySection({ inspections }: { inspections: Vehicle
                   {insp.type === "handover" ? "Entrega" : "Devolución"} · {insp.km.toLocaleString("es-AR")} km
                 </p>
                 <p className="text-xs text-foreground/50">{insp.rental.clientName} · {formatDateTime(insp.createdAt)}</p>
-                <p className="text-xs text-foreground/50">Responsable: {insp.user?.name ?? "—"}</p>
+                <p className="text-xs text-foreground/50">Responsable: {insp.userName}</p>
               </div>
               <a className="font-medium underline" href={`/api/acta?inspectionId=${insp.id}`} target="_blank" rel="noopener noreferrer">
                 Acta

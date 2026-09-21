@@ -412,12 +412,16 @@ model VehicleNote {
 
   text String @db.Text
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("VehicleNoteCreator", fields: [createdById], references: [id])
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("VehicleNoteCreator", fields: [createdById], references: [id])
+  createdByName String  @map("created_by_name")
 
-  resolvedById String?   @map("resolved_by_id")
-  resolvedBy   User?     @relation("VehicleNoteResolver", fields: [resolvedById], references: [id])
-  resolvedAt   DateTime? @map("resolved_at")
+  resolvedById   String?   @map("resolved_by_id")
+  resolvedBy     User?     @relation("VehicleNoteResolver", fields: [resolvedById], references: [id])
+  resolvedByName String?   @map("resolved_by_name")
+  resolvedAt     DateTime? @map("resolved_at")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -437,12 +441,16 @@ model RentalNote {
 
   text String @db.Text
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("RentalNoteCreator", fields: [createdById], references: [id])
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("RentalNoteCreator", fields: [createdById], references: [id])
+  createdByName String  @map("created_by_name")
 
-  resolvedById String?   @map("resolved_by_id")
-  resolvedBy   User?     @relation("RentalNoteResolver", fields: [resolvedById], references: [id])
-  resolvedAt   DateTime? @map("resolved_at")
+  resolvedById   String?   @map("resolved_by_id")
+  resolvedBy     User?     @relation("RentalNoteResolver", fields: [resolvedById], references: [id])
+  resolvedByName String?   @map("resolved_by_name")
+  resolvedAt     DateTime? @map("resolved_at")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -573,8 +581,11 @@ model RentalQuote {
   conversationId String?               @map("conversation_id")
   conversation   WhatsAppConversation? @relation(fields: [conversationId], references: [id])
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation(fields: [createdById], references: [id])
+  // `createdByName` congela el nombre al momento del hecho (ver
+  // Inspection.userName) — sobrevive a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation(fields: [createdById], references: [id])
+  createdByName String? @map("created_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -671,9 +682,13 @@ model Inspection {
   vehicleId String  @map("vehicle_id")
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
 
-  // Empleado que la realizó (auditoría).
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  // Empleado que la realizó (auditoría). `userId` es opcional (a diferencia
+  // del resto del modelo, que es legalmente inmutable) para poder borrar al
+  // usuario más adelante sin romper la inspección firmada — `userName` es el
+  // nombre congelado al momento de firmar, que sigue mostrándose igual.
+  userId   String? @map("user_id")
+  user     User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName String  @map("user_name")
 
   km        Int
   fuelLevel Int @map("fuel_level") // octavos de tanque, 0–8
@@ -775,11 +790,15 @@ model Damage {
 
   // Auditoría: quién cargó el daño (createdAt = fecha de carga) y, si se reparó,
   // quién lo marcó reparado y cuándo. Nullable por robustez (daños del seed).
-  reportedById String?   @map("reported_by_id")
-  reportedBy   User?     @relation("DamageReporter", fields: [reportedById], references: [id])
-  repairedById String?   @map("repaired_by_id")
-  repairedBy   User?     @relation("DamageRepairer", fields: [repairedById], references: [id])
-  repairedAt   DateTime? @map("repaired_at")
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  reportedById   String?   @map("reported_by_id")
+  reportedBy     User?     @relation("DamageReporter", fields: [reportedById], references: [id])
+  reportedByName String?   @map("reported_by_name")
+  repairedById   String?   @map("repaired_by_id")
+  repairedBy     User?     @relation("DamageRepairer", fields: [repairedById], references: [id])
+  repairedByName String?   @map("repaired_by_name")
+  repairedAt     DateTime? @map("repaired_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -851,11 +870,15 @@ model Task {
   vehicleId String?  @map("vehicle_id")
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
 
-  assignedToId String? @map("assigned_to_id")
-  assignedTo   User?   @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  assignedToId   String? @map("assigned_to_id")
+  assignedTo     User?   @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedToName String? @map("assigned_to_name")
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("TaskCreator", fields: [createdById], references: [id])
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("TaskCreator", fields: [createdById], references: [id])
+  createdByName String  @map("created_by_name")
 
   completedById String?   @map("completed_by_id")
   completedBy   User?     @relation("TaskCompleter", fields: [completedById], references: [id])
@@ -993,9 +1016,9 @@ model CashMovement {
   // Sueldos) — nunca se usa en Ingresos. Mismo patrón de snapshot que
   // `paymentMethodName`: `categoryName` queda fijo aunque la categoría se
   // renombre o se borre después, para que el movimiento ya cargado no cambie.
-  categoryId   String?                @map("category_id")
-  category     CashMovementCategory?  @relation(fields: [categoryId], references: [id])
-  categoryName String?                @map("category_name")
+  categoryId   String?               @map("category_id")
+  category     CashMovementCategory? @relation(fields: [categoryId], references: [id])
+  categoryName String?               @map("category_name")
 
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])
@@ -1006,14 +1029,18 @@ model CashMovement {
   // ver `confirmCashMovementPaymentMethod`).
   needsConfirmation Boolean @default(false) @map("needs_confirmation")
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("CashMovementCreator", fields: [createdById], references: [id])
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("CashMovementCreator", fields: [createdById], references: [id])
+  createdByName String? @map("created_by_name")
 
   // Soft delete: nunca se borra la fila, para que CashMovementEdit pueda
   // seguir mostrando qué era el movimiento eliminado.
-  deletedAt   DateTime? @map("deleted_at")
-  deletedById String?   @map("deleted_by_id")
-  deletedBy   User?     @relation("CashMovementDeleter", fields: [deletedById], references: [id])
+  deletedAt     DateTime? @map("deleted_at")
+  deletedById   String?   @map("deleted_by_id")
+  deletedBy     User?     @relation("CashMovementDeleter", fields: [deletedById], references: [id])
+  deletedByName String?   @map("deleted_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1063,8 +1090,9 @@ model CashMovementEdit {
   action  CashMovementEditAction
   changes Json?
 
-  editedById String? @map("edited_by_id")
-  editedBy   User?   @relation("CashMovementEditor", fields: [editedById], references: [id])
+  editedById   String? @map("edited_by_id")
+  editedBy     User?   @relation("CashMovementEditor", fields: [editedById], references: [id])
+  editedByName String? @map("edited_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1092,12 +1120,14 @@ model SafeMovement {
   amount      Decimal          @db.Decimal(12, 2)
   currency    Currency         @default(ars)
 
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("SafeMovementCreator", fields: [createdById], references: [id])
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("SafeMovementCreator", fields: [createdById], references: [id])
+  createdByName String? @map("created_by_name")
 
-  deletedAt   DateTime? @map("deleted_at")
-  deletedById String?   @map("deleted_by_id")
-  deletedBy   User?     @relation("SafeMovementDeleter", fields: [deletedById], references: [id])
+  deletedAt     DateTime? @map("deleted_at")
+  deletedById   String?   @map("deleted_by_id")
+  deletedBy     User?     @relation("SafeMovementDeleter", fields: [deletedById], references: [id])
+  deletedByName String?   @map("deleted_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1124,8 +1154,9 @@ model SafeMovementEdit {
   action  SafeMovementEditAction
   changes Json?
 
-  editedById String? @map("edited_by_id")
-  editedBy   User?   @relation("SafeMovementEditor", fields: [editedById], references: [id])
+  editedById   String? @map("edited_by_id")
+  editedBy     User?   @relation("SafeMovementEditor", fields: [editedById], references: [id])
+  editedByName String? @map("edited_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1197,8 +1228,11 @@ model ConditionSettingsEdit {
 
   changes Json // FieldChange[]
 
-  editedById String @map("edited_by_id")
-  editedBy   User   @relation(fields: [editedById], references: [id])
+  // Nombre congelado al momento de la edición (ver Inspection.userName) —
+  // permite borrar al usuario sin perder de vista quién hizo cada cambio.
+  editedById   String? @map("edited_by_id")
+  editedBy     User?   @relation(fields: [editedById], references: [id], onDelete: SetNull)
+  editedByName String  @map("edited_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1606,9 +1640,11 @@ model WhatsAppMessage {
   direction   WhatsAppDirection
 
   // Solo en salientes: quién lo mandó desde Andes. Null en entrantes (los
-  // manda el cliente, no un User).
-  sentById String? @map("sent_by_id")
-  sentBy   User?   @relation(fields: [sentById], references: [id])
+  // manda el cliente, no un User). `sentByName` congela el nombre (ver
+  // Inspection.userName) — sobrevive a que se borre el usuario.
+  sentById   String? @map("sent_by_id")
+  sentBy     User?   @relation(fields: [sentById], references: [id])
+  sentByName String? @map("sent_by_name")
 
   body String? @db.Text
 
@@ -1766,6 +1802,7 @@ model WhatsAppBotEscalation {
   resolvedAt     DateTime? @map("resolved_at")
   resolvedById   String?   @map("resolved_by_id")
   resolvedBy     User?     @relation("WhatsAppBotEscalationResolver", fields: [resolvedById], references: [id])
+  resolvedByName String?   @map("resolved_by_name")
 
   @@index([conversationId])
   @@map("whatsapp_bot_escalations")

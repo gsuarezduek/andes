@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { currencyLabels } from "@/lib/currency";
@@ -45,6 +46,7 @@ export async function createDebtMovement(formData: FormData) {
       recipientPaymentMethodId: account.id,
       recipientPaymentMethodName: account.name,
       createdById: user.id,
+      createdByName: displayName(user),
     },
   });
 
@@ -138,7 +140,7 @@ export async function updateAccountMovement(id: string, formData: FormData) {
       },
     }),
     prisma.cashMovementEdit.create({
-      data: { cashMovementId: id, action: "updated", changes, editedById: user.id },
+      data: { cashMovementId: id, action: "updated", changes, editedById: user.id, editedByName: displayName(user) },
     }),
   ]);
 
@@ -162,13 +164,17 @@ export async function deleteAccountMovement(id: string, formData: FormData) {
   }
 
   await prisma.$transaction([
-    prisma.cashMovement.update({ where: { id }, data: { deletedAt: new Date(), deletedById: user.id } }),
+    prisma.cashMovement.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedById: user.id, deletedByName: displayName(user) },
+    }),
     prisma.cashMovementEdit.create({
       data: {
         cashMovementId: id,
         action: "deleted",
         changes: [{ field: "Motivo", from: "—", to: note }],
         editedById: user.id,
+        editedByName: displayName(user),
       },
     }),
   ]);

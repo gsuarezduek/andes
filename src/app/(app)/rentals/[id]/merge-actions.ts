@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 
 /**
  * Fusiona una reserva "duplicada" (importada de VikRentCar solo para
@@ -78,7 +79,7 @@ export async function mergeDuplicateRental(duplicateId: string, targetId: string
       },
     }),
     prisma.rentalNote.create({
-      data: { rentalId: target.id, text: noteText, createdById: admin.id },
+      data: { rentalId: target.id, text: noteText, createdById: admin.id, createdByName: displayName(admin) },
     }),
   ]);
 

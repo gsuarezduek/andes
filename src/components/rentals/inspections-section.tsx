@@ -78,7 +78,7 @@ export function InspectionsSection({
               </p>
               <p className="text-xs text-foreground/50">
                 {formatDateTime(insp.createdAt)} · Responsable:{" "}
-                {insp.user?.name ?? "—"}
+                {insp.userName}
               </p>
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <ClientEmailBadge inspection={insp} />

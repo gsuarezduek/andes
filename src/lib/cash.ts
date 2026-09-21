@@ -97,13 +97,11 @@ async function findMovements(
     // `src/lib/providers.ts`, no son un ingreso/egreso de caja real todavía.
     where: { type: { in: ["income", "expense"] }, ...where, deletedAt: null },
     include: {
-      createdBy: { select: { name: true } },
       rental: { select: { clientName: true, wpBookingId: true } },
       edits: {
         where: { action: "updated" },
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { editedBy: { select: { name: true } } },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -130,9 +128,9 @@ async function findMovements(
       rentalId: r.rentalId,
       rentalClientName: r.rental?.clientName ?? null,
       rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
-      createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
+      createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
       createdAt: r.createdAt,
-      lastEditedByName: r.edits[0]?.editedBy?.name ?? null,
+      lastEditedByName: r.edits[0]?.editedByName ?? null,
       lastEditedAt: r.edits[0]?.createdAt ?? null,
     }),
   );
@@ -251,7 +249,7 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
  */
 export function paymentsToCashMovements(
   payments: RentalPayment[],
-  opts: { rentalId: string; createdById: string; description: string },
+  opts: { rentalId: string; createdById: string; createdByName: string; description: string },
 ): Prisma.CashMovementCreateManyInput[] {
   return payments.map((p) => ({
     type: "income" as const,
@@ -263,6 +261,7 @@ export function paymentsToCashMovements(
     needsConfirmation: p.unconfirmed ?? false,
     rentalId: opts.rentalId,
     createdById: opts.createdById,
+    createdByName: opts.createdByName,
   }));
 }
 
@@ -297,7 +296,6 @@ export async function getDeletedCashMovements(period: CashPeriod): Promise<Delet
       cashMovement: { type: { in: ["income", "expense"] } },
     },
     include: {
-      editedBy: { select: { name: true } },
       cashMovement: { select: { description: true, amount: true, currency: true, type: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -307,7 +305,7 @@ export async function getDeletedCashMovements(period: CashPeriod): Promise<Delet
     return {
       id: r.id,
       reason: changes?.find((c) => c.field === "Motivo")?.to ?? "—",
-      deletedByName: r.editedBy?.name ?? "—",
+      deletedByName: r.editedByName ?? "—",
       movementDescription: r.cashMovement.description,
       movementAmount: Number(r.cashMovement.amount),
       movementCurrency: r.cashMovement.currency,

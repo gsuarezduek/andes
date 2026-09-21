@@ -30,7 +30,6 @@ export default async function GeneralSettingsPage({
     prisma.conditionSettingsEdit.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { editedBy: { select: { name: true } } },
     }),
   ]);
 
@@ -177,7 +176,7 @@ export default async function GeneralSettingsPage({
               {conditionEdits.map((e) => (
                 <li key={e.id} className="text-sm">
                   <p className="text-xs text-foreground/50">
-                    {e.editedBy?.name ?? "—"} · {formatDateTime(e.createdAt)}
+                    {e.editedByName} · {formatDateTime(e.createdAt)}
                   </p>
                   <ul className="mt-1 list-disc pl-4 text-xs text-foreground/70">
                     {(e.changes as FieldChange[]).map((c, i) => (

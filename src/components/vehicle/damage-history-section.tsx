@@ -18,11 +18,11 @@ export function DamageHistorySection({ damages }: { damages: VehicleDetail["dama
                 <Badge tone={d.repaired ? "neutral" : "amber"}>{d.repaired ? "Reparado" : "Activo"}</Badge>
               </div>
               <p className="text-xs text-foreground/50">
-                {d.reportedBy?.name ? `Cargado por ${d.reportedBy.name}` : "Cargado"} · {formatDateTime(d.createdAt)}
+                {d.reportedByName ? `Cargado por ${d.reportedByName}` : "Cargado"} · {formatDateTime(d.createdAt)}
               </p>
               {d.repaired && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  {d.repairedBy?.name ? `Reparado por ${d.repairedBy.name}` : "Reparado"}
+                  {d.repairedByName ? `Reparado por ${d.repairedByName}` : "Reparado"}
                   {d.repairedAt ? ` · ${formatDateTime(d.repairedAt)}` : ""}
                 </p>
               )}

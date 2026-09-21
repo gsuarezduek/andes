@@ -6,8 +6,8 @@ type Note = {
   id: string;
   text: string;
   createdAt: Date;
-  createdBy: { name: string } | null;
-  resolvedBy?: { name: string } | null;
+  createdByName: string;
+  resolvedByName?: string | null;
   resolvedAt?: Date | null;
 };
 
@@ -42,7 +42,7 @@ export function TeamNotesSection({
               <div className="min-w-0">
                 <p className="whitespace-pre-wrap">{n.text}</p>
                 <p className="mt-1 text-xs text-foreground/50">
-                  {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
+                  {n.createdByName} · {formatDateTime(n.createdAt)}
                 </p>
               </div>
               <form action={resolveNote(n.id)} className="shrink-0">
@@ -72,10 +72,10 @@ export function TeamNotesSection({
               <li key={n.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
                 <p className="whitespace-pre-wrap text-foreground/70">{n.text}</p>
                 <p className="mt-1 text-xs text-foreground/50">
-                  {n.createdBy?.name ?? "—"} · {formatDateTime(n.createdAt)}
+                  {n.createdByName} · {formatDateTime(n.createdAt)}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  Resuelto por {n.resolvedBy?.name ?? "—"} · {n.resolvedAt ? formatDateTime(n.resolvedAt) : ""}
+                  Resuelto por {n.resolvedByName ?? "—"} · {n.resolvedAt ? formatDateTime(n.resolvedAt) : ""}
                 </p>
               </li>
             ))}

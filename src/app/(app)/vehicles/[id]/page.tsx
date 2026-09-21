@@ -49,7 +49,7 @@ export default async function VehicleDetailPage({
     createdAt: i.createdAt,
     type: i.type,
     clientName: i.rental.clientName,
-    userName: i.user?.name ?? null,
+    userName: i.userName,
   }));
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
 

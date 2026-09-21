@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
@@ -207,6 +208,7 @@ export async function returnVehicleFromService(
                   paymentMethodName: method.name,
                   paymentMethodNote: method.requiresNote ? (data.accountNote ?? null) : null,
                   createdById: user.id,
+                  createdByName: displayName(user),
                 },
               })
             : prisma.cashMovement.create({
@@ -219,6 +221,7 @@ export async function returnVehicleFromService(
                   recipientPaymentMethodName: method.name,
                   recipientPaymentMethodNote: method.requiresNote ? (data.accountNote ?? null) : null,
                   createdById: user.id,
+                  createdByName: displayName(user),
                 },
               }),
         ]

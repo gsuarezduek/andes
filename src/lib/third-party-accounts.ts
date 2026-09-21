@@ -194,13 +194,11 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
       ],
     },
     include: {
-      createdBy: { select: { name: true } },
       rental: { select: { clientName: true } },
       edits: {
         where: { action: "updated" },
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { editedBy: { select: { name: true } } },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -212,14 +210,14 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     amount: Number(r.amount),
     currency: r.currency,
     accountName: (r.type === "income" ? r.paymentMethodName : r.recipientPaymentMethodName) ?? "",
-    createdByName: r.createdBy?.name ?? AUTO_IMPORT_CREATOR_LABEL,
+    createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
     rentalId: r.rentalId,
     rentalClientName: r.rental?.clientName ?? null,
     originId: r.type === "expense" ? r.paymentMethodId : null,
     originName: r.type === "expense" ? r.paymentMethodName : null,
     originNote: r.type === "expense" ? r.paymentMethodNote : null,
-    lastEditedByName: r.edits[0]?.editedBy?.name ?? null,
+    lastEditedByName: r.edits[0]?.editedByName ?? null,
     lastEditedAt: r.edits[0]?.createdAt ?? null,
   }));
 }

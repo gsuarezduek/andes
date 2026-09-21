@@ -14,7 +14,7 @@ async function requireAccount() {
 async function sendOutboundText(
   conversationId: string,
   text: string,
-  sender: { sentById?: string; sentByBot?: boolean },
+  sender: { sentById?: string; sentByName?: string; sentByBot?: boolean },
 ) {
   const conversation = await prisma.whatsAppConversation.findUniqueOrThrow({ where: { id: conversationId } });
   const withinWindow =
@@ -37,6 +37,7 @@ async function sendOutboundText(
         direction: "out",
         body: text,
         sentById: sender.sentById,
+        sentByName: sender.sentByName,
         sentByBot: sender.sentByBot ?? false,
       },
     }),
@@ -48,8 +49,8 @@ async function sendOutboundText(
 }
 
 /** Mensaje de texto libre de un miembro del equipo. Solo dentro de la ventana de 24hs. */
-export async function sendTextMessage(conversationId: string, text: string, userId: string) {
-  await sendOutboundText(conversationId, text, { sentById: userId });
+export async function sendTextMessage(conversationId: string, text: string, userId: string, userName: string) {
+  await sendOutboundText(conversationId, text, { sentById: userId, sentByName: userName });
 }
 
 /** Respuesta automática del bot de IA. Mismas reglas de ventana que un mensaje humano. */
@@ -63,6 +64,7 @@ export async function reopenWithTemplate(
   templateId: string,
   variables: string[],
   userId: string,
+  userName: string,
 ) {
   const [conversation, template] = await Promise.all([
     prisma.whatsAppConversation.findUniqueOrThrow({ where: { id: conversationId } }),
@@ -92,6 +94,7 @@ export async function reopenWithTemplate(
         direction: "out",
         body: null,
         sentById: userId,
+        sentByName: userName,
         viaTemplate: true,
         templateName: template.name,
       },

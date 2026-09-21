@@ -10,15 +10,10 @@ export async function getRentalDetail(id: string) {
       vehicle: true,
       inspections: {
         orderBy: { createdAt: "asc" },
-        include: { user: { select: { name: true } } },
       },
       documents: { orderBy: { createdAt: "asc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: { select: { name: true } },
-          resolvedBy: { select: { name: true } },
-        },
       },
       // Historial de pagos de esta reserva: entrada única de verdad, ya sea
       // el pago rápido de esta pantalla, el de la entrega o el de la
@@ -26,7 +21,6 @@ export async function getRentalDetail(id: string) {
       cashMovements: {
         where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
-        include: { createdBy: { select: { name: true } } },
       },
     },
   });

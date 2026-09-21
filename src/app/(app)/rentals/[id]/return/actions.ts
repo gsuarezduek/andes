@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { generateAndSendActa } from "@/lib/acta";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
@@ -138,6 +139,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           rentalId: rental.id,
           vehicleId: data.vehicleId,
           userId: user.id,
+          userName: displayName(user),
           km: data.km,
           fuelLevel: data.fuelLevel,
           checklistResponses: data.checklist,
@@ -170,6 +172,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
               description: d.description ?? null,
               photoUrl: d.photoKey ?? null,
               reportedById: user.id,
+              reportedByName: displayName(user),
             })),
           },
         },
@@ -194,6 +197,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           data: paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
+            createdByName: displayName(user),
             description: `Ingreso de devolución — ${rental.clientName}`,
           }),
         });

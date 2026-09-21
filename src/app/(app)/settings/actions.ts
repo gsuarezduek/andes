@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { parseDecimal } from "@/lib/number-input";
 import { formatArs } from "@/lib/contract";
 import { diffFields } from "@/lib/movement-audit";
@@ -101,7 +102,11 @@ export async function saveConditions(formData: FormData) {
       update: data,
     }),
     ...(changes.length > 0
-      ? [prisma.conditionSettingsEdit.create({ data: { changes, editedById: user.id } })]
+      ? [
+          prisma.conditionSettingsEdit.create({
+            data: { changes, editedById: user.id, editedByName: displayName(user) },
+          }),
+        ]
       : []),
   ]);
   revalidatePath("/settings/general");

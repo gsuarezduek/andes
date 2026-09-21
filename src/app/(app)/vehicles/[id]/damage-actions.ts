@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 
 const addDamageSchema = z.object({
   posX: z.coerce.number().min(0).max(1),
@@ -35,6 +36,7 @@ export async function addDamage(vehicleId: string, formData: FormData) {
       description: parsed.description ?? null,
       photoUrl: parsed.photoKey ?? null,
       reportedById: user.id,
+      reportedByName: displayName(user),
     },
   });
   revalidatePath(`/vehicles/${vehicleId}`);
@@ -47,7 +49,7 @@ export async function markDamageRepaired(vehicleId: string, id: string) {
   const user = await requireUser();
   await prisma.damage.update({
     where: { id, vehicleId },
-    data: { repaired: true, repairedById: user.id, repairedAt: new Date() },
+    data: { repaired: true, repairedById: user.id, repairedByName: displayName(user), repairedAt: new Date() },
   });
   revalidatePath(`/vehicles/${vehicleId}`);
 }

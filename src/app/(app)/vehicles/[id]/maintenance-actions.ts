@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
@@ -99,6 +100,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
               paymentMethodName: method.name,
               paymentMethodNote: method.requiresNote ? (paymentMethodNote ?? null) : null,
               createdById: user.id,
+              createdByName: displayName(user),
             },
           }),
         ]

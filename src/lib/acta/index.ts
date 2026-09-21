@@ -51,7 +51,6 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
       vehicle: true,
       media: true,
       damages: true,
-      user: { select: { name: true } },
     },
   });
   if (!inspection) throw new Error(`inspection ${inspectionId} not found`);
@@ -207,7 +206,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     comparison,
     settlement,
     dateStr: formatDateTime(inspection.createdAt, locale),
-    registeredBy: inspection.user?.name,
+    registeredBy: inspection.userName,
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,
     clientRows,

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { prisma } from "@/lib/prisma";
 import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
 import {
@@ -26,7 +27,7 @@ export async function sendMessage(
   if (!text) return { error: "Escribí un mensaje." };
 
   try {
-    await sendTextMessage(conversationId, text, user.id);
+    await sendTextMessage(conversationId, text, user.id, displayName(user));
   } catch (err) {
     return { error: err instanceof Error ? err.message : "No se pudo enviar el mensaje." };
   }
@@ -50,7 +51,7 @@ export async function reopenConversation(
     .filter((v) => v.length > 0);
 
   try {
-    await reopenWithTemplate(conversationId, templateId, variables, user.id);
+    await reopenWithTemplate(conversationId, templateId, variables, user.id, displayName(user));
   } catch (err) {
     return { error: err instanceof Error ? err.message : "No se pudo mandar la plantilla." };
   }

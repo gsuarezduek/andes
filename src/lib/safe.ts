@@ -19,7 +19,6 @@ export type SafeMovementRow = {
 async function findSafeMovements(where: Prisma.SafeMovementWhereInput): Promise<SafeMovementRow[]> {
   const rows = await prisma.safeMovement.findMany({
     where: { ...where, deletedAt: null },
-    include: { createdBy: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: SAFE_MOVEMENTS_LIMIT,
   });
@@ -29,7 +28,7 @@ async function findSafeMovements(where: Prisma.SafeMovementWhereInput): Promise<
     description: r.description,
     amount: Number(r.amount),
     currency: r.currency,
-    createdByName: r.createdBy?.name ?? "—",
+    createdByName: r.createdByName ?? "—",
     createdAt: r.createdAt,
   }));
 }
@@ -79,7 +78,6 @@ export type SafeMovementEditRow = {
 export async function getSafeMovementEdits(): Promise<SafeMovementEditRow[]> {
   const rows = await prisma.safeMovementEdit.findMany({
     include: {
-      editedBy: { select: { name: true } },
       safeMovement: { select: { description: true, amount: true, currency: true, type: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -89,7 +87,7 @@ export async function getSafeMovementEdits(): Promise<SafeMovementEditRow[]> {
     id: r.id,
     action: r.action,
     changes: (r.changes as SafeMovementFieldChange[] | null) ?? null,
-    editedByName: r.editedBy?.name ?? "—",
+    editedByName: r.editedByName ?? "—",
     movementDescription: r.safeMovement.description,
     movementAmount: Number(r.safeMovement.amount),
     movementCurrency: r.safeMovement.currency,

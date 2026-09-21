@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { createRentalQuote, updateRentalQuote, deleteRentalQuote, type QuoteInput } from "@/lib/rental-quotes";
 
@@ -34,7 +35,7 @@ function parseQuoteForm(formData: FormData): QuoteInput {
 export async function createQuote(formData: FormData) {
   const user = await requireUser();
   const data = parseQuoteForm(formData);
-  await createRentalQuote(data, user.id);
+  await createRentalQuote(data, user.id, displayName(user));
   revalidatePath("/calendar");
 }
 

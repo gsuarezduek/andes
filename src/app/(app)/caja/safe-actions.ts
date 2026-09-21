@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import type { SafeMovementFieldChange } from "@/lib/safe";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { currencyLabels } from "@/lib/currency";
@@ -26,7 +27,7 @@ export async function createSafeMovement(type: "deposit" | "withdrawal", formDat
   });
 
   await prisma.safeMovement.create({
-    data: { type, description, amount, currency, createdById: user.id },
+    data: { type, description, amount, currency, createdById: user.id, createdByName: displayName(user) },
   });
 
   revalidatePath("/caja");
@@ -62,7 +63,7 @@ export async function updateSafeMovement(id: string, formData: FormData) {
   await prisma.$transaction([
     prisma.safeMovement.update({ where: { id }, data: { description, amount, currency } }),
     prisma.safeMovementEdit.create({
-      data: { safeMovementId: id, action: "updated", changes, editedById: user.id },
+      data: { safeMovementId: id, action: "updated", changes, editedById: user.id, editedByName: displayName(user) },
     }),
   ]);
 
@@ -78,9 +79,12 @@ export async function deleteSafeMovement(id: string) {
   if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
 
   await prisma.$transaction([
-    prisma.safeMovement.update({ where: { id }, data: { deletedAt: new Date(), deletedById: user.id } }),
+    prisma.safeMovement.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedById: user.id, deletedByName: displayName(user) },
+    }),
     prisma.safeMovementEdit.create({
-      data: { safeMovementId: id, action: "deleted", editedById: user.id },
+      data: { safeMovementId: id, action: "deleted", editedById: user.id, editedByName: displayName(user) },
     }),
   ]);
 

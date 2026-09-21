@@ -205,7 +205,7 @@ export async function getConversation(id: string) {
       rental: { select: RENTAL_CARD_SELECT },
       messages: {
         orderBy: { createdAt: "asc" },
-        include: { media: true, sentBy: { select: { id: true, name: true } } },
+        include: { media: true },
       },
     },
   });
@@ -227,7 +227,7 @@ export async function getConversationForRental(rentalId: string) {
       lastInboundAt: true,
       messages: {
         orderBy: { createdAt: "asc" },
-        include: { media: true, sentBy: { select: { id: true, name: true } } },
+        include: { media: true },
       },
     },
   });

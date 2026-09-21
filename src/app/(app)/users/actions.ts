@@ -67,10 +67,15 @@ export async function createUser(
  * vehículo: primero se saca de circulación, después se puede borrar. Los
  * eventos puramente operativos sin valor legal (logins, tokens de
  * recuperación) se borran junto con el usuario — no hace falta conservarlos
- * una vez que la cuenta ya no existe. Si tiene actividad evidencial real
- * (inspecciones firmadas, ediciones de condiciones económicas), Postgres
- * rechaza el borrado por la FK requerida — se devuelve un mensaje claro en
- * vez de un 500; en ese caso, dejarlo inactivo sigue siendo la opción.
+ * una vez que la cuenta ya no existe.
+ *
+ * Toda otra referencia al usuario (inspecciones firmadas, ediciones de
+ * condiciones, notas de equipo, Caja, daños, tareas, WhatsApp) queda intacta:
+ * la FK se pone en null pero cada fila ya guardó el nombre congelado al
+ * momento del hecho (`*Name` — ver v34 en CLAUDE.md), así que sigue
+ * mostrándose igual aunque el usuario ya no exista. El catch de P2003 abajo
+ * es solo una red defensiva por si en el futuro se agrega una relación
+ * obligatoria a `User` sin el mismo patrón.
  */
 export type DeleteUserState = { error?: string };
 

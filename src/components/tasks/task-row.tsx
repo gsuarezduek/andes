@@ -120,9 +120,9 @@ export function TaskRow({
           )}
         </p>
         <p className="mt-0.5 text-xs text-foreground/50">
-          {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+          {task.assignedToName ?? "Sin asignar"}
           {" · creada por "}
-          {task.createdBy?.name ?? "—"}
+          {task.createdByName}
           {" el "}
           {formatDateTime(task.createdAt)}
           {task.vehicle ? (

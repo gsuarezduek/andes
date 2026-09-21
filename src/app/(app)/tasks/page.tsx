@@ -142,9 +142,9 @@ export default async function TasksPage({
                       <li key={task.id} className="px-3 py-2.5 text-sm">
                         <p className="text-foreground/70 line-through decoration-foreground/30">{task.text}</p>
                         <p className="mt-0.5 text-xs text-foreground/50">
-                          {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+                          {task.assignedToName ?? "Sin asignar"}
                           {" · creada por "}
-                          {task.createdBy?.name ?? "—"}
+                          {task.createdByName}
                           {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
                         </p>
                       </li>

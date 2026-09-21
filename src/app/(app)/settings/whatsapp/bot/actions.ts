@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { prisma } from "@/lib/prisma";
 import { uploadDocument } from "@/lib/whatsapp/bot/documents";
 import { buildKnowledgeBlock } from "@/lib/whatsapp/bot/knowledge";
@@ -140,6 +141,7 @@ export async function resolveEscalation(input: { escalationId: string; correctAn
     data: {
       resolvedAt: new Date(),
       resolvedById: user.id,
+      resolvedByName: displayName(user),
       correctAnswer,
       addedAsExample: addAsExample || escalation.addedAsExample,
     },

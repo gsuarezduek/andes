@@ -12,9 +12,9 @@ export type QuoteInput = {
   conversationId: string | null;
 };
 
-export async function createRentalQuote(input: QuoteInput, createdById: string) {
+export async function createRentalQuote(input: QuoteInput, createdById: string, createdByName: string) {
   return prisma.rentalQuote.create({
-    data: { ...input, createdById },
+    data: { ...input, createdById, createdByName },
   });
 }
 

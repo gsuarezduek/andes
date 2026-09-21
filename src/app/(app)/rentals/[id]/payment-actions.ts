@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { computeBalance, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
@@ -37,6 +38,7 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
       data: paymentsToCashMovements([payment], {
         rentalId,
         createdById: user.id,
+        createdByName: displayName(user),
         description: `Pago — ${rental.clientName}`,
       })[0],
     });

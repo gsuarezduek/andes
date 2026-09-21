@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
 function emptyToNull(v: FormDataEntryValue | null): string | null {
@@ -20,7 +21,7 @@ const taskFormSchema = z.object({
   vehicleId: z.string().nullable(),
 });
 
-function parseTaskForm(formData: FormData) {
+async function parseTaskForm(formData: FormData) {
   const parsed = taskFormSchema.parse({
     text: formData.get("text"),
     priority: formData.get("priority") || "normal",
@@ -28,19 +29,23 @@ function parseTaskForm(formData: FormData) {
     assignedToId: emptyToNull(formData.get("assignedToId")),
     vehicleId: emptyToNull(formData.get("vehicleId")),
   });
+  const assignedTo = parsed.assignedToId
+    ? await prisma.user.findUnique({ where: { id: parsed.assignedToId }, select: { name: true } })
+    : null;
   return {
     text: parsed.text,
     priority: parsed.priority,
     dueDate: parsed.dueDate ? mendozaWallTimeToUtc(`${parsed.dueDate}T00:00`) : null,
     assignedToId: parsed.assignedToId,
+    assignedToName: assignedTo?.name ?? null,
     vehicleId: parsed.vehicleId,
   };
 }
 
 export async function createTask(formData: FormData) {
   const user = await requireUser();
-  const data = parseTaskForm(formData);
-  await prisma.task.create({ data: { ...data, createdById: user.id } });
+  const data = await parseTaskForm(formData);
+  await prisma.task.create({ data: { ...data, createdById: user.id, createdByName: displayName(user) } });
   revalidatePath("/tasks");
   revalidatePath("/");
 }
@@ -65,7 +70,7 @@ async function assertCanEditTask(taskId: string, user: { id: string; role: UserR
 export async function updateTask(id: string, formData: FormData) {
   const user = await requireUser();
   await assertCanEditTask(id, user);
-  const data = parseTaskForm(formData);
+  const data = await parseTaskForm(formData);
   await prisma.task.update({ where: { id }, data });
   revalidatePath("/tasks");
   revalidatePath("/");

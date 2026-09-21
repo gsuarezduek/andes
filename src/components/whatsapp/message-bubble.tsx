@@ -10,7 +10,7 @@ export type MessageData = {
   sentByBot: boolean;
   sentViaApp: boolean;
   createdAt: Date;
-  sentBy: { name: string } | null;
+  sentByName: string | null;
   media: { storageKey: string; mimeType: string; kind: string } | null;
 };
 
@@ -37,8 +37,8 @@ export function MessageBubble({ message }: { message: MessageData }) {
           ? " · 🤖 Bot"
           : out && message.sentViaApp
             ? " · 📱 WhatsApp"
-            : out && message.sentBy
-              ? ` · ${message.sentBy.name}`
+            : out && message.sentByName
+              ? ` · ${message.sentByName}`
               : ""}
       </span>
     </div>

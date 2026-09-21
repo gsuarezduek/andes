@@ -246,7 +246,7 @@ type RentalRow = {
   bookingNote: string | null;
   bookingModel: string | null;
   additionalDrivers: unknown;
-  teamNotes: { id: string; text: string; createdAt: Date; createdBy: { name: string } | null }[];
+  teamNotes: { id: string; text: string; createdAt: Date; createdByName: string }[];
 } & Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid">;
 
 function extraDriverNames(value: unknown): string[] {
@@ -288,7 +288,7 @@ function toBar(
     activeNotes: r.teamNotes.map((n) => ({
       id: n.id,
       text: n.text,
-      authorName: n.createdBy?.name ?? null,
+      authorName: n.createdByName,
       createdAt: n.createdAt,
     })),
     lane: 0,
@@ -306,7 +306,7 @@ type QuoteRow = {
   note: string | null;
   estimatedTotal: unknown; // Prisma Decimal | null
   createdById: string | null;
-  createdBy: { name: string } | null;
+  createdByName: string | null;
   conversationId: string | null;
   conversation: { phoneE164: string; customer: { name: string | null } | null } | null;
 };
@@ -330,7 +330,7 @@ function toQuoteBar(q: QuoteRow, windowStart: Date, days: number): CalendarQuote
     clientName: q.clientName?.trim() || null,
     note: q.note?.trim() || null,
     estimatedTotal: q.estimatedTotal == null ? null : Number(q.estimatedTotal),
-    createdByName: q.createdBy?.name ?? null,
+    createdByName: q.createdByName,
     createdById: q.createdById,
     conversationId: q.conversationId,
     conversationLabel: conversationName,
@@ -466,7 +466,7 @@ export async function getCalendarData(opts?: {
         vehicleId: true,
         text: true,
         createdAt: true,
-        createdBy: { select: { name: true } },
+        createdByName: true,
       },
     }),
     prisma.rental.findMany({
@@ -493,7 +493,7 @@ export async function getCalendarData(opts?: {
         teamNotes: {
           where: { resolvedAt: null },
           orderBy: { createdAt: "asc" },
-          select: { id: true, text: true, createdAt: true, createdBy: { select: { name: true } } },
+          select: { id: true, text: true, createdAt: true, createdByName: true },
         },
       },
       orderBy: { startAt: "asc" },
@@ -515,7 +515,7 @@ export async function getCalendarData(opts?: {
         note: true,
         estimatedTotal: true,
         createdById: true,
-        createdBy: { select: { name: true } },
+        createdByName: true,
         conversationId: true,
         conversation: { select: { phoneE164: true, customer: { select: { name: true } } } },
       },
@@ -556,7 +556,7 @@ export async function getCalendarData(opts?: {
   const notesByVehicle = new Map<string, CalendarNote[]>();
   for (const n of notes) {
     const list = notesByVehicle.get(n.vehicleId) ?? [];
-    list.push({ id: n.id, text: n.text, authorName: n.createdBy?.name ?? null, createdAt: n.createdAt });
+    list.push({ id: n.id, text: n.text, authorName: n.createdByName, createdAt: n.createdAt });
     notesByVehicle.set(n.vehicleId, list);
   }
 

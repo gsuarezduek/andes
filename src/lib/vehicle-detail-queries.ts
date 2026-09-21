@@ -14,7 +14,6 @@ export async function getVehicleDetail(id: string) {
         orderBy: { createdAt: "asc" },
         include: {
           rental: { select: { clientName: true } },
-          user: { select: { name: true } },
         },
       },
       damages: {
@@ -28,18 +27,14 @@ export async function getVehicleDetail(id: string) {
           repaired: true,
           createdAt: true,
           repairedAt: true,
-          reportedBy: { select: { name: true } },
-          repairedBy: { select: { name: true } },
+          reportedByName: true,
+          repairedByName: true,
         },
       },
       maintenanceLogs: { orderBy: { date: "desc" } },
       gpsDevices: { select: { identifier: true }, orderBy: { identifier: "asc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: { select: { name: true } },
-          resolvedBy: { select: { name: true } },
-        },
       },
     },
   });

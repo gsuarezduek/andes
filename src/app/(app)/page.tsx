@@ -205,7 +205,7 @@ export default async function HomePage() {
                       {task.priority === "high" ? <Badge tone="red">Alta</Badge> : null}
                     </p>
                     <p className="text-sm text-foreground/60">
-                      {task.assignedTo ? task.assignedTo.name : "Sin asignar"}
+                      {task.assignedToName ?? "Sin asignar"}
                       {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
                     </p>
                   </div>

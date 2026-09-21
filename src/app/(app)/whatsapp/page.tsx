@@ -84,7 +84,6 @@ export default async function WhatsAppPage({
       take: 100,
       include: {
         conversation: { select: { id: true, phoneE164: true, customer: { select: { name: true } } } },
-        resolvedBy: { select: { name: true } },
       },
     }),
   ]);

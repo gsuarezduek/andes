@@ -22,7 +22,7 @@ type Escalation = {
   resolvedAt: Date | null;
   correctAnswer: string | null;
   addedAsExample: boolean;
-  resolvedBy: { name: string } | null;
+  resolvedByName: string | null;
   conversation: { id: string; phoneE164: string; customer: { name: string | null } | null };
 };
 
@@ -100,7 +100,7 @@ function ResolvedRow({ e }: { e: Escalation }) {
         <p className="text-emerald-700 dark:text-emerald-400">Respuesta correcta: &quot;{e.correctAnswer}&quot;</p>
       ) : null}
       <p className="text-xs text-foreground/40">
-        Resuelto{e.resolvedBy ? ` por ${e.resolvedBy.name}` : ""}
+        Resuelto{e.resolvedByName ? ` por ${e.resolvedByName}` : ""}
         {e.resolvedAt ? ` · ${formatDateTime(e.resolvedAt)}` : ""}
         {e.addedAsExample ? " · agregado como ejemplo" : ""}
       </p>
