@@ -23,6 +23,7 @@ export function MovementMetaLine({ movement }: { movement: CashMovementRow }) {
               movement.recipientPaymentMethodNote ? ` (${movement.recipientPaymentMethodNote})` : ""
             }`
           : ""}
+        {movement.categoryName ? ` · Categoría: ${movement.categoryName}` : ""}
         {movement.rentalClientName ? (
           <>
             {" · Cliente: "}

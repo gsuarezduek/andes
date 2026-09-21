@@ -21,6 +21,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Medios de pago disponibles al cobrar en la entrega, con % de recargo/descuento.",
   },
   {
+    href: "/settings/expense-categories",
+    title: "Categorías de gasto",
+    description: "Categorías opcionales para clasificar los Egresos en Caja.",
+  },
+  {
     href: "/settings/emails",
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",

@@ -61,9 +61,11 @@ async function resolveWhatsappConversationIds(phones: (string | null)[]): Promis
  * Mapa cuenta → cuenta principal del grupo (una cuenta principal se mapea a
  * sí misma). Varias cuentas reales de la misma entidad (`PaymentMethod.parentId`)
  * se agrupan bajo su principal para que los cálculos no queden partidos por
- * cuenta — ver comentario en el schema.
+ * cuenta — ver comentario en el schema. Exportada: también la reusa
+ * `getOwnAccountBalances` (`cash.ts`) para el mismo agrupado, con
+ * `ownership: "own"`.
  */
-async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
+export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
   principals: { id: string; name: string; whatsappPhone: string | null; subaccounts: { id: string; name: string }[] }[];
   resolve: Map<string, string>;
   memberIds: string[];

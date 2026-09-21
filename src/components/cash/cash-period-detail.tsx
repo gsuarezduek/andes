@@ -2,7 +2,7 @@ import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { cashPeriodSearch } from "@/lib/cash";
 import { SectionTitle } from "@/components/ui/section-title";
-import { CashMovementsBoard, type PaymentMethodOption } from "./cash-movements-board";
+import { CashMovementsBoard, type PaymentMethodOption, type ExpenseCategoryOption } from "./cash-movements-board";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import type { CashPeriodDetail as CashPeriodDetailData, DeletedCashMovementRow, CashPeriod } from "@/lib/cash";
 
@@ -10,11 +10,13 @@ export function CashPeriodDetail({
   data,
   deleted,
   paymentMethods,
+  expenseCategories,
   period,
 }: {
   data: CashPeriodDetailData;
   deleted: DeletedCashMovementRow[];
   paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
   period: CashPeriod;
 }) {
   return (
@@ -41,7 +43,13 @@ export function CashPeriodDetail({
         </div>
       </div>
 
-      <CashMovementsBoard incomes={data.incomes} expenses={data.expenses} paymentMethods={paymentMethods} period={period} />
+      <CashMovementsBoard
+        incomes={data.incomes}
+        expenses={data.expenses}
+        paymentMethods={paymentMethods}
+        expenseCategories={expenseCategories}
+        period={period}
+      />
 
       <DeletedSection deleted={deleted} />
     </div>

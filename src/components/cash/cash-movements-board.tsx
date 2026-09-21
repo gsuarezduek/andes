@@ -17,6 +17,7 @@ export type PaymentMethodOption = {
   ownership: PaymentMethodOwnership;
   parentId?: string | null;
 };
+export type ExpenseCategoryOption = { id: string; name: string };
 
 /**
  * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
@@ -29,11 +30,13 @@ export function CashMovementsBoard({
   incomes,
   expenses,
   paymentMethods,
+  expenseCategories,
   period,
 }: {
   incomes: CashMovementRow[];
   expenses: CashMovementRow[];
   paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
   period: CashPeriod;
 }) {
   const [accountId, setAccountId] = useState("");
@@ -154,12 +157,14 @@ export function CashMovementsBoard({
           rows={filteredIncomes}
           tone="emerald"
           paymentMethods={paymentMethods}
+          expenseCategories={expenseCategories}
         />
         <MovementColumn
           title={`Egresos (${filteredExpenses.length})`}
           rows={filteredExpenses}
           tone="red"
           paymentMethods={paymentMethods}
+          expenseCategories={expenseCategories}
         />
       </div>
     </div>
@@ -171,11 +176,13 @@ function MovementColumn({
   rows,
   tone,
   paymentMethods,
+  expenseCategories,
 }: {
   title: string;
   rows: CashMovementRow[];
   tone: "emerald" | "red";
   paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -191,10 +198,11 @@ function MovementColumn({
             // cambia y el componente se remonta con los valores nuevos (evita
             // quedar con el form de edición pegado a los datos viejos).
             <MovementRow
-              key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}`}
+              key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}:${r.categoryName ?? ""}`}
               movement={r}
               tone={tone}
               paymentMethods={paymentMethods}
+              expenseCategories={expenseCategories}
             />
           ))}
         </ul>

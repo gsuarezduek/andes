@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
-import { TextField, TextareaField } from "@/components/ui/fields";
+import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
 import { EditIcon } from "@/components/ui/icons";
@@ -15,6 +15,7 @@ import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
+type ExpenseCategoryOption = { id: string; name: string };
 
 /**
  * Fila de un movimiento (solo se usa en la vista admin). En reposo solo
@@ -29,10 +30,12 @@ export function MovementRow({
   movement,
   tone,
   paymentMethods,
+  expenseCategories,
 }: {
   movement: CashMovementRowData;
   tone: "emerald" | "red";
   paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
@@ -115,6 +118,21 @@ export function MovementRow({
                   defaultValue={movement.recipientPaymentMethodNote ?? ""}
                   required
                 />
+              )}
+              {expenseCategories.length > 0 && (
+                <SelectField
+                  id="categoryId"
+                  label="Categoría"
+                  hint="Opcional"
+                  defaultValue={movement.categoryId ?? ""}
+                >
+                  <option value="">Sin categoría</option>
+                  {expenseCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </SelectField>
               )}
             </>
           )}

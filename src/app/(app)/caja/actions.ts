@@ -17,6 +17,7 @@ const createMovementSchema = z.object({
   paymentMethodNote: z.string().trim().max(300).optional(),
   recipientPaymentMethodId: z.string().optional(),
   recipientPaymentMethodNote: z.string().trim().max(300).optional(),
+  categoryId: z.string().optional(),
   rentalId: z.string().optional(),
 });
 
@@ -38,6 +39,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     paymentMethodNote,
     recipientPaymentMethodId,
     recipientPaymentMethodNote,
+    categoryId,
     rentalId,
   } = createMovementSchema.parse({
     description: formData.get("description"),
@@ -47,6 +49,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     paymentMethodNote: formData.get("paymentMethodNote") || undefined,
     recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
     recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
+    categoryId: formData.get("categoryId") || undefined,
     rentalId: formData.get("rentalId") || undefined,
   });
 
@@ -67,6 +70,13 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     recipient = found;
   }
 
+  // La categoría solo aplica a un Egreso — se ignora si llega en un Ingreso.
+  let category: { id: string; name: string } | null = null;
+  if (type === "expense" && categoryId) {
+    category = await prisma.cashMovementCategory.findUnique({ where: { id: categoryId }, select: { id: true, name: true } });
+    if (!category) throw new Error("Categoría inválida");
+  }
+
   await prisma.cashMovement.create({
     data: {
       type,
@@ -79,6 +89,8 @@ export async function createCashMovement(type: "income" | "expense", formData: F
       recipientPaymentMethodId: recipient?.id ?? null,
       recipientPaymentMethodName: recipient?.name ?? null,
       recipientPaymentMethodNote: recipient?.requiresNote ? recipientPaymentMethodNote : null,
+      categoryId: category?.id ?? null,
+      categoryName: category?.name ?? null,
       rentalId: rentalId || null,
       createdById: user.id,
     },
@@ -95,6 +107,7 @@ const updateMovementSchema = z.object({
   paymentMethodNote: z.string().trim().max(300).optional(),
   recipientPaymentMethodId: z.string().optional(),
   recipientPaymentMethodNote: z.string().trim().max(300).optional(),
+  categoryId: z.string().optional(),
 });
 
 // Corrección de un error de carga (monto, medio de pago, detalle, y en un
@@ -112,6 +125,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
     paymentMethodNote,
     recipientPaymentMethodId,
     recipientPaymentMethodNote,
+    categoryId,
   } = updateMovementSchema.parse({
     description: formData.get("description"),
     amount: formData.get("amount"),
@@ -120,6 +134,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
     paymentMethodNote: formData.get("paymentMethodNote") || undefined,
     recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
     recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
+    categoryId: formData.get("categoryId") || undefined,
   });
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
@@ -144,6 +159,15 @@ export async function updateCashMovement(id: string, formData: FormData) {
   }
   const nextRecipientNote = recipient?.requiresNote ? (recipientPaymentMethodNote ?? null) : null;
 
+  // La categoría solo aplica a un Egreso — en un Ingreso siempre queda null,
+  // aunque `existing` ya tuviera una cargada de antes (no debería pasar, pero
+  // así no queda huérfana si el tipo original era distinto).
+  let category: { id: string; name: string } | null = null;
+  if (existing.type === "expense" && categoryId) {
+    category = await prisma.cashMovementCategory.findUnique({ where: { id: categoryId }, select: { id: true, name: true } });
+    if (!category) throw new Error("Categoría inválida");
+  }
+
   const changes: CashMovementFieldChange[] = diffDescriptionAndAmount(existing, { description, amount }, "Detalle");
   if (existing.currency !== currency) {
     changes.push({ field: "Moneda", from: currencyLabels[existing.currency], to: currencyLabels[currency] });
@@ -165,6 +189,9 @@ export async function updateCashMovement(id: string, formData: FormData) {
       to: nextRecipientNote ?? "—",
     });
   }
+  if ((existing.categoryName ?? "") !== (category?.name ?? "")) {
+    changes.push({ field: "Categoría", from: existing.categoryName ?? "—", to: category?.name ?? "—" });
+  }
   if (changes.length === 0) return;
 
   await prisma.$transaction([
@@ -180,6 +207,8 @@ export async function updateCashMovement(id: string, formData: FormData) {
         recipientPaymentMethodId: recipient?.id ?? null,
         recipientPaymentMethodName: recipient?.name ?? null,
         recipientPaymentMethodNote: nextRecipientNote,
+        categoryId: category?.id ?? null,
+        categoryName: category?.name ?? null,
       },
     }),
     prisma.cashMovementEdit.create({

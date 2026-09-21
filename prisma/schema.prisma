@@ -989,6 +989,14 @@ model CashMovement {
   recipientPaymentMethodName String?        @map("recipient_payment_method_name")
   recipientPaymentMethodNote String?        @map("recipient_payment_method_note") @db.Text
 
+  // Categorización opcional de un Egreso (ej. Combustible, Mantenimiento,
+  // Sueldos) — nunca se usa en Ingresos. Mismo patrón de snapshot que
+  // `paymentMethodName`: `categoryName` queda fijo aunque la categoría se
+  // renombre o se borre después, para que el movimiento ya cargado no cambie.
+  categoryId   String?                @map("category_id")
+  category     CashMovementCategory?  @relation(fields: [categoryId], references: [id])
+  categoryName String?                @map("category_name")
+
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])
 
@@ -1014,7 +1022,26 @@ model CashMovement {
   @@index([createdAt])
   @@index([rentalId])
   @@index([createdById])
+  @@index([categoryId])
   @@map("cash_movements")
+}
+
+/// Catálogo editable (Configuración → Categorías de gasto) de categorías para
+/// clasificar Egresos — mismo patrón que `ChecklistItem` (nombre + orden +
+/// activo, CRUD simple). Solo se ofrece al cargar/editar un Egreso; un
+/// Ingreso no se categoriza.
+model CashMovementCategory {
+  id       String  @id @default(cuid())
+  name     String
+  ordering Int     @default(0)
+  active   Boolean @default(true)
+
+  movements CashMovement[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("cash_movement_categories")
 }
 
 /// Acción registrada en el historial de ediciones de un CashMovement.

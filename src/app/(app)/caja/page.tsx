@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import {
@@ -6,6 +7,8 @@ import {
   getCashPeriodDetail,
   getDeletedCashMovements,
   getCashSearchIndex,
+  getOwnAccountBalances,
+  getOwnAccountLedger,
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
@@ -25,6 +28,7 @@ import { SafeLauncher } from "@/components/cash/safe-launcher";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
+import { AccountsSection } from "@/components/cash/accounts-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
@@ -38,11 +42,16 @@ export default async function CajaPage({
   const { period: rawPeriod, from: rawFrom, to: rawTo } = await searchParams;
   const period = parseCashPeriod(rawPeriod, rawFrom, rawTo);
 
-  const [paymentMethods, rentalOptions] = await Promise.all([
+  const [paymentMethods, expenseCategories, rentalOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
+    }),
+    prisma.cashMovementCategory.findMany({
+      where: { active: true },
+      orderBy: { ordering: "asc" },
+      select: { id: true, name: true },
     }),
     getRentalPickerOptions(),
   ]);
@@ -54,7 +63,7 @@ export default async function CajaPage({
     <div className="flex flex-col gap-5">
       <CashMovementSearch index={await getCashSearchIndex(isAdmin)} />
 
-      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} />
+      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} expenseCategories={expenseCategories} />
 
       <UnconfirmedIncomesSection
         movements={await getUnconfirmedCashMovements()}
@@ -66,6 +75,7 @@ export default async function CajaPage({
           data={periodDetail}
           deleted={await getDeletedCashMovements(period)}
           paymentMethods={paymentMethods}
+          expenseCategories={expenseCategories}
           period={period}
         />
       ) : (
@@ -100,6 +110,24 @@ export default async function CajaPage({
     <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
   );
 
+  // Saldo + movimientos por cuenta propia — igual que la Caja fuerte, es la
+  // posición de plata real de la empresa, así que solo se calcula/pasa para
+  // admin (ver comentario en `CajaTabs`).
+  let cuentas: ReactNode = undefined;
+  if (isAdmin) {
+    const ownAccountBalances = await getOwnAccountBalances();
+    const ownAccountsWithLedger = await Promise.all(
+      ownAccountBalances.map(async (a) => ({ ...a, ledger: await getOwnAccountLedger(a.id) })),
+    );
+    cuentas = (
+      <AccountsSection
+        accounts={ownAccountsWithLedger}
+        paymentMethods={paymentMethods}
+        expenseCategories={expenseCategories}
+      />
+    );
+  }
+
   const cajaFuerte = (
     <div className="flex flex-col gap-5">
       <SafeLauncher />
@@ -123,7 +151,13 @@ export default async function CajaPage({
         <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
       </div>
 
-      <CajaTabs movimientos={movimientos} asociados={asociados} proveedores={proveedores} cajaFuerte={cajaFuerte} />
+      <CajaTabs
+        movimientos={movimientos}
+        asociados={asociados}
+        proveedores={proveedores}
+        cuentas={cuentas}
+        cajaFuerte={cajaFuerte}
+      />
     </div>
   );
 }

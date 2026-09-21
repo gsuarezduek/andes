@@ -6,6 +6,7 @@ import type { RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
 import { getSafeBalance } from "@/lib/safe";
+import { resolveToPrincipal } from "@/lib/third-party-accounts";
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
@@ -56,6 +57,10 @@ export type CashMovementRow = {
   recipientPaymentMethodId: string | null;
   recipientPaymentMethodName: string | null;
   recipientPaymentMethodNote: string | null;
+  // Categoría opcional de un Egreso (ver `CashMovementCategory`) — siempre
+  // null en un Ingreso.
+  categoryId: string | null;
+  categoryName: string | null;
   // Importado automático desde VikRentCar sin poder resolver el medio de pago
   // real — falta que alguien lo confirme (ver `confirmCashMovementPaymentMethod`).
   needsConfirmation: boolean;
@@ -119,6 +124,8 @@ async function findMovements(
       recipientPaymentMethodId: r.recipientPaymentMethodId,
       recipientPaymentMethodName: r.recipientPaymentMethodName,
       recipientPaymentMethodNote: r.recipientPaymentMethodNote,
+      categoryId: r.categoryId,
+      categoryName: r.categoryName,
       needsConfirmation: r.needsConfirmation,
       rentalId: r.rentalId,
       rentalClientName: r.rental?.clientName ?? null,
@@ -340,4 +347,77 @@ export async function getWalletBalance(): Promise<CurrencyTotals> {
   for (const row of income) totals[row.currency] += Number(row._sum.amount ?? 0);
   for (const row of expense) totals[row.currency] -= Number(row._sum.amount ?? 0);
   return { ars: totals.ars - safeBalance.ars, usd: totals.usd - safeBalance.usd };
+}
+
+export type OwnAccountBalance = {
+  id: string;
+  name: string;
+  balance: CurrencyTotals;
+  /** Otras cuentas reales de la misma entidad agrupadas acá (ver `PaymentMethod.parentId`). */
+  subaccounts: { id: string; name: string }[];
+};
+
+/**
+ * Saldo actual de cada cuenta propia (Efectivo, banco, Mercado Pago, etc.),
+ * agrupado por cuenta principal — histórico completo, no por período: es
+ * "cuánta plata entró y salió por esta cuenta desde siempre", no un corte
+ * puntual. A diferencia de `getThirdPartyBalances`, acá no hace falta mirar
+ * `recipientPaymentMethodId` ni el tipo `debt`: el Destino de un Egreso nunca
+ * es una cuenta propia (ver `CashMovementForm`/`createCashMovement`), así que
+ * solo entra plata por un Ingreso con esta cuenta como medio y sale por un
+ * Egreso con esta cuenta como Origen. Distinto de la "Billetera"
+ * (`getWalletBalance`): esto es el saldo de UNA cuenta puntual, no el
+ * agregado de todas las marcadas `isCash` menos lo depositado en la caja
+ * fuerte. Info sensible (posición de plata real) — solo para admin, mismo
+ * criterio que la Caja fuerte y la Billetera.
+ */
+export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
+  const { principals, resolve, memberIds } = await resolveToPrincipal("own");
+  if (principals.length === 0) return [];
+
+  const [income, expense] = await Promise.all([
+    prisma.cashMovement.groupBy({
+      by: ["paymentMethodId", "currency"],
+      where: { type: "income", deletedAt: null, paymentMethodId: { in: memberIds } },
+      _sum: { amount: true },
+    }),
+    prisma.cashMovement.groupBy({
+      by: ["paymentMethodId", "currency"],
+      where: { type: "expense", deletedAt: null, paymentMethodId: { in: memberIds } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
+  for (const row of income) {
+    const principalId = row.paymentMethodId && resolve.get(row.paymentMethodId);
+    const totals = principalId && balances.get(principalId);
+    if (totals) totals[row.currency] += Number(row._sum.amount ?? 0);
+  }
+  for (const row of expense) {
+    const principalId = row.paymentMethodId && resolve.get(row.paymentMethodId);
+    const totals = principalId && balances.get(principalId);
+    if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
+  }
+
+  return principals.map((p) => ({
+    id: p.id,
+    name: p.name,
+    balance: balances.get(p.id)!,
+    subaccounts: p.subaccounts,
+  }));
+}
+
+/**
+ * Historial completo de una cuenta propia — principal + sus subcuentas,
+ * ingresos y egresos con esa cuenta como medio, más reciente primero. Mismo
+ * criterio que `getThirdPartyLedger` pero reusando `findMovements` (ya
+ * excluye `debt` y `deletedAt`).
+ */
+export async function getOwnAccountLedger(accountId: string): Promise<CashMovementRow[]> {
+  const members = await prisma.paymentMethod.findMany({
+    where: { OR: [{ id: accountId }, { parentId: accountId }] },
+    select: { id: true },
+  });
+  return findMovements({ paymentMethodId: { in: members.map((m) => m.id) } });
 }

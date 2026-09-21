@@ -12,6 +12,7 @@ type PaymentMethodOption = {
   requiresNote: boolean;
   ownership: PaymentMethodOwnership;
 };
+type ExpenseCategoryOption = { id: string; name: string };
 type Action = "income" | "expense" | null;
 
 /**
@@ -23,9 +24,11 @@ type Action = "income" | "expense" | null;
 export function MovementLauncher({
   paymentMethods,
   rentalOptions,
+  expenseCategories,
 }: {
   paymentMethods: PaymentMethodOption[];
   rentalOptions: RentalPickerOption[];
+  expenseCategories: ExpenseCategoryOption[];
 }) {
   const [action, setAction] = useState<Action>(null);
 
@@ -36,6 +39,7 @@ export function MovementLauncher({
         onCancel={() => setAction(null)}
         paymentMethods={paymentMethods}
         rentalOptions={rentalOptions}
+        expenseCategories={expenseCategories}
       />
     );
   }

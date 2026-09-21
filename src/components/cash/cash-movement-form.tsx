@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TextField, TextareaField } from "@/components/ui/fields";
+import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
@@ -12,6 +12,7 @@ import type { RentalPickerOption } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
+type ExpenseCategoryOption = { id: string; name: string };
 
 /**
  * Formulario de alta de un ingreso o un egreso. `mode` lo fija el botón que
@@ -27,11 +28,13 @@ export function CashMovementForm({
   onCancel,
   paymentMethods,
   rentalOptions,
+  expenseCategories,
 }: {
   mode: "income" | "expense";
   onCancel: () => void;
   paymentMethods: PaymentMethodOption[];
   rentalOptions: RentalPickerOption[];
+  expenseCategories: ExpenseCategoryOption[];
 }) {
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState("");
@@ -97,6 +100,16 @@ export function CashMovementForm({
               hint="Obligatorio para este destino"
               required
             />
+          )}
+          {expenseCategories.length > 0 && (
+            <SelectField id="categoryId" label="Categoría" hint="Opcional" defaultValue="">
+              <option value="">Sin categoría</option>
+              {expenseCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </SelectField>
           )}
         </>
       )}
