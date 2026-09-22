@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { OnlineUser } from "@/lib/presence";
 
-const POLL_MS = 20_000;
+const POLL_MS = 2 * 60_000;
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", empleado: "Empleado" };
 
 function initials(name: string) {
@@ -14,11 +14,13 @@ function initials(name: string) {
 }
 
 /**
- * Quién más está usando Andes ahora mismo. Sin heartbeat de cliente: el
- * servidor marca "visto" en cada navegación normal (`touchPresence`, en
- * `(app)/layout.tsx`) — acá solo se hace polling liviano de LECTURA para
- * refrescar la lista, pausado con la pestaña en segundo plano (mismo
- * criterio que `AutoRefresh`).
+ * Quién más está usando Andes ahora mismo. Este polling cada 2 minutos
+ * (pausado con la pestaña en segundo plano, mismo criterio que `AutoRefresh`)
+ * es también el heartbeat real de presencia propia: `GET /api/presence` marca
+ * "visto" a quien pregunta, además de devolver la lista. Hace falta porque el
+ * layout autenticado (`touchPresence` en `(app)/layout.tsx`) solo cubre
+ * login/F5 — por Partial Rendering, no se re-ejecuta al navegar entre rutas
+ * que lo comparten, que es como se usa la app normalmente.
  */
 export function ConnectedUsers({ initialUsers }: { initialUsers: OnlineUser[] }) {
   const [users, setUsers] = useState(initialUsers);
