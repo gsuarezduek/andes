@@ -7,7 +7,7 @@ import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
-import { computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
+import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
 
 const createMovementSchema = z.object({
@@ -53,6 +53,10 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     categoryId: formData.get("categoryId") || undefined,
     rentalId: formData.get("rentalId") || undefined,
   });
+  // Garantía/depósito (se devuelve, no es un cobro/pago real) — ver
+  // comentario de `isGuarantee` en el schema. Nunca editable después: si se
+  // cargó mal, se borra y se carga de nuevo (mismo criterio que `type`).
+  const isGuarantee = formData.get("isGuarantee") === "on";
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
@@ -93,6 +97,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
       categoryId: category?.id ?? null,
       categoryName: category?.name ?? null,
       rentalId: rentalId || null,
+      isGuarantee,
       createdById: user.id,
       createdByName: displayName(user),
     },
@@ -325,7 +330,7 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
             unconfirmed: false,
           };
         });
-        const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
+        const nextPaid = paidTotal(nextPayments);
         const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
         if (pricing.total != null) {
           nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;

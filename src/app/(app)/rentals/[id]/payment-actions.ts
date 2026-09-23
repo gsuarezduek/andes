@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
-import { computeBalance, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
+import { computeBalance, paidTotal, type ContractPricing, type RentalPayment } from "@/lib/contract";
 
 /**
  * Pago suelto cargado desde el detalle de la reserva (botón "Agregar pago"),
@@ -44,7 +44,7 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
     });
     const paymentWithRef: RentalPayment = { ...payment, cashMovementId: movement.id };
     const nextPayments = [...(pricing.payments ?? []), paymentWithRef];
-    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
+    const nextPaid = paidTotal(nextPayments);
     const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
     if (pricing.total != null) {
       nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;

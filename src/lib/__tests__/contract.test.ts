@@ -4,10 +4,13 @@ import {
   formatArs,
   formatMoney,
   computeBalance,
+  guaranteeTotal,
   kmPackKm,
   kmPackAmount,
   kmPackPriceFor,
+  paidTotal,
   paymentAdjustedAmount,
+  type RentalPayment,
 } from "@/lib/contract";
 
 describe("computeBalance", () => {
@@ -98,6 +101,44 @@ describe("paymentAdjustedAmount", () => {
     expect(paymentAdjustedAmount(200_000)).toBe(200_000);
     expect(paymentAdjustedAmount(200_000, null)).toBe(200_000);
     expect(paymentAdjustedAmount(200_000, 0)).toBe(200_000);
+  });
+});
+
+function payment(overrides: Partial<RentalPayment>): RentalPayment {
+  return { methodName: "Efectivo", amount: 0, adjustedAmount: 0, ...overrides };
+}
+
+describe("paidTotal", () => {
+  it("suma el importe base de las líneas que no son garantía", () => {
+    const payments = [payment({ amount: 10_000, adjustedAmount: 10_000 }), payment({ amount: 5_000, adjustedAmount: 5_000 })];
+    expect(paidTotal(payments)).toBe(15_000);
+  });
+
+  it("excluye las líneas marcadas como garantía", () => {
+    const payments = [
+      payment({ amount: 10_000, adjustedAmount: 10_000 }),
+      payment({ amount: 50_000, adjustedAmount: 50_000, isGuarantee: true }),
+    ];
+    expect(paidTotal(payments)).toBe(10_000);
+  });
+
+  it("0 sin pagos", () => {
+    expect(paidTotal([])).toBe(0);
+  });
+});
+
+describe("guaranteeTotal", () => {
+  it("suma solo las líneas marcadas como garantía", () => {
+    const payments = [
+      payment({ amount: 10_000, adjustedAmount: 10_000 }),
+      payment({ amount: 50_000, adjustedAmount: 50_000, isGuarantee: true }),
+      payment({ amount: 20_000, adjustedAmount: 20_000, isGuarantee: true }),
+    ];
+    expect(guaranteeTotal(payments)).toBe(70_000);
+  });
+
+  it("0 sin garantías", () => {
+    expect(guaranteeTotal([payment({ amount: 10_000, adjustedAmount: 10_000 })])).toBe(0);
   });
 });
 

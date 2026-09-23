@@ -4,8 +4,9 @@ import { useState } from "react";
 import { TextField } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
-import { formatArs, paymentAdjustedAmount, roundMoney, type RentalPayment } from "@/lib/contract";
+import { formatArs, guaranteeTotal, paidTotal, paymentAdjustedAmount, roundMoney, type RentalPayment } from "@/lib/contract";
 import { parseDecimal } from "@/lib/number-input";
 
 type PaymentMethodOption = {
@@ -40,19 +41,24 @@ export function PaymentsEditor({
   const [payMethodId, setPayMethodId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payNote, setPayNote] = useState("");
+  const [payIsGuarantee, setPayIsGuarantee] = useState(false);
 
   // Suma el importe base (lo que cuenta para el saldo) — no lo realmente
   // cobrado (`adjustedAmount`, que cada línea sigue mostrando aparte). Ver
-  // el comentario de `RentalPayment` en contract.ts.
-  const paidTotal = payments.reduce((a, p) => a + p.amount, 0);
-  const chargedTotal = payments.reduce((a, p) => a + p.adjustedAmount, 0);
-  const surcharge = roundMoney(chargedTotal - paidTotal);
+  // el comentario de `RentalPayment` en contract.ts. Una garantía no cuenta
+  // para ninguna de las dos: se devuelve, no es plata que paga el alquiler.
+  const nonGuaranteePayments = payments.filter((p) => !p.isGuarantee);
+  const paid = paidTotal(payments);
+  const chargedTotal = nonGuaranteePayments.reduce((a, p) => a + p.adjustedAmount, 0);
+  const surcharge = roundMoney(chargedTotal - paid);
+  const guaranteeAmount = guaranteeTotal(payments);
   const selectedMethod = paymentMethods.find((m) => m.id === payMethodId);
 
   function openPayModal() {
     setPayMethodId("");
     setPayAmount("");
     setPayNote("");
+    setPayIsGuarantee(false);
     setPayModalOpen(true);
   }
   function confirmPayment() {
@@ -68,6 +74,7 @@ export function PaymentsEditor({
       amount,
       adjustedAmount,
       note: method.requiresNote ? payNote.trim() : undefined,
+      isGuarantee: payIsGuarantee || undefined,
     });
     setPayModalOpen(false);
   }
@@ -76,12 +83,18 @@ export function PaymentsEditor({
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-foreground/80">{totalLabel}</span>
-        <span className="text-sm font-semibold text-foreground">{formatArs(paidTotal)}</span>
+        <span className="text-sm font-semibold text-foreground">{formatArs(paid)}</span>
       </div>
       {Math.abs(surcharge) > 0.01 && (
         <p className="text-xs text-foreground/50">
           Cobrado realmente: {formatArs(chargedTotal)} — {formatArs(Math.abs(surcharge))}{" "}
           {surcharge > 0 ? "de recargo" : "de descuento"} por medios de pago, no se descuenta del saldo.
+        </p>
+      )}
+      {guaranteeAmount > 0 && (
+        <p className="text-xs text-foreground/50">
+          Garantías registradas: {formatArs(guaranteeAmount)} — se devuelven, no cuentan como cobro. Se registran
+          aparte en Caja → Garantías.
         </p>
       )}
       {payments.length > 0 && (
@@ -100,6 +113,11 @@ export function PaymentsEditor({
                       {p.adjustmentPercent}%)
                     </span>
                   ) : null}
+                  {p.isGuarantee && (
+                    <span className="ml-1.5">
+                      <Badge tone="violet">Garantía</Badge>
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="font-medium">{formatArs(p.adjustedAmount)}</span>
@@ -180,6 +198,20 @@ export function PaymentsEditor({
             ) : null}
           </p>
         )}
+        <label className="mt-4 flex items-start gap-2 text-sm text-foreground/70">
+          <input
+            type="checkbox"
+            checked={payIsGuarantee}
+            onChange={(e) => setPayIsGuarantee(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-foreground/30"
+          />
+          <span>
+            Es una garantía
+            <span className="block text-xs text-foreground/50">
+              Se devuelve, no cuenta como cobro del alquiler — se registra aparte en Caja → Garantías.
+            </span>
+          </span>
+        </label>
         <div className="mt-5 flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={() => setPayModalOpen(false)}>
             Cancelar

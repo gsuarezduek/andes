@@ -90,12 +90,15 @@ export type CashPeriodDetail = {
 
 async function findMovements(
   where: Prisma.CashMovementWhereInput,
-  opts?: { take?: number },
+  opts?: { take?: number; guaranteeOnly?: boolean },
 ): Promise<CashMovementRow[]> {
   const rows = await prisma.cashMovement.findMany({
     // Nunca trae deudas de proveedor (`type: "debt"`) — esas viven en
     // `src/lib/providers.ts`, no son un ingreso/egreso de caja real todavía.
-    where: { type: { in: ["income", "expense"] }, ...where, deletedAt: null },
+    // Tampoco mezcla Garantías con Movimientos reales (y viceversa, con
+    // `guaranteeOnly`) — ver `getGuaranteeLedger` y el comentario de
+    // `isGuarantee` en el schema.
+    where: { type: { in: ["income", "expense"] }, isGuarantee: !!opts?.guaranteeOnly, ...where, deletedAt: null },
     include: {
       rental: { select: { clientName: true, wpBookingId: true } },
       edits: {
@@ -161,6 +164,37 @@ export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPerio
     totalIncome,
     totalExpense,
     net: { ars: totalIncome.ars - totalExpense.ars, usd: totalIncome.usd - totalExpense.usd },
+  };
+}
+
+export type GuaranteeLedger = {
+  incomes: CashMovementRow[]; // garantías tomadas
+  expenses: CashMovementRow[]; // garantías devueltas
+  totalIncome: CurrencyTotals;
+  totalExpense: CurrencyTotals;
+  // Garantías que la empresa tiene hoy en su poder (tomado − devuelto).
+  held: CurrencyTotals;
+};
+
+/**
+ * Garantías/depósitos (ver `RentalPayment.isGuarantee`): separadas de
+ * Movimientos porque no son un cobro/pago real del negocio, sino plata que
+ * hay que devolver — mismo criterio de "posición real de la empresa" que
+ * Cuentas propias/Caja fuerte, así que histórico completo (sin período) y
+ * admin-only (ver `caja/page.tsx`).
+ */
+export async function getGuaranteeLedger(): Promise<GuaranteeLedger> {
+  const rows = await findMovements({}, { guaranteeOnly: true });
+  const incomes = rows.filter((r) => r.type === "income");
+  const expenses = rows.filter((r) => r.type === "expense");
+  const totalIncome = sumByCurrency(incomes);
+  const totalExpense = sumByCurrency(expenses);
+  return {
+    incomes,
+    expenses,
+    totalIncome,
+    totalExpense,
+    held: { ars: totalIncome.ars - totalExpense.ars, usd: totalIncome.usd - totalExpense.usd },
   };
 }
 
@@ -259,6 +293,7 @@ export function paymentsToCashMovements(
     paymentMethodName: p.methodName,
     paymentMethodNote: p.note ?? null,
     needsConfirmation: p.unconfirmed ?? false,
+    isGuarantee: p.isGuarantee ?? false,
     rentalId: opts.rentalId,
     createdById: opts.createdById,
     createdByName: opts.createdByName,

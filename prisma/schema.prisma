@@ -1029,6 +1029,12 @@ model CashMovement {
   // ver `confirmCashMovementPaymentMethod`).
   needsConfirmation Boolean @default(false) @map("needs_confirmation")
 
+  // true = garantía/depósito tomado o devuelto (ver `RentalPayment.isGuarantee`
+  // en contract.ts): se excluye de Movimientos/Cuentas propias/Billetera/
+  // búsqueda (findMovements en cash.ts) y vive aparte en la pestaña Garantías
+  // — no es un cobro/pago real del negocio, es plata que hay que devolver.
+  isGuarantee Boolean @default(false) @map("is_guarantee")
+
   // `*Name` son nombres congelados al momento del hecho (ver
   // Inspection.userName) — sobreviven a que se borre el usuario.
   createdById   String? @map("created_by_id")

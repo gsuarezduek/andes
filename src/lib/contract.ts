@@ -81,6 +81,11 @@ export type RentalPayment = {
   // true = el medio de pago es un placeholder (no se pudo resolver a un medio
   // real de Andes) y todavía necesita que alguien lo confirme.
   unconfirmed?: boolean;
+  // true = esta línea es una garantía/depósito (se devuelve, no es un cobro
+  // real del alquiler): no suma a "Paga"/Saldo y en Caja se registra aparte,
+  // en la pestaña Garantías, no en Movimientos (ver `paymentsToCashMovements`
+  // en cash.ts y `paidTotal`/`guaranteeTotal` acá abajo).
+  isGuarantee?: boolean;
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
@@ -173,6 +178,20 @@ export function computeBalance(
 /** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
 export function roundMoney(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/**
+ * Suma de `amount` de las líneas de pago que NO son garantía — es lo que
+ * cuenta para "Paga"/Saldo (ver `RentalPayment.isGuarantee`). Una garantía
+ * se devuelve, no paga el alquiler.
+ */
+export function paidTotal(payments: RentalPayment[]): number {
+  return roundMoney(payments.filter((p) => !p.isGuarantee).reduce((a, p) => a + p.amount, 0));
+}
+
+/** Suma de `amount` de las líneas marcadas como garantía. */
+export function guaranteeTotal(payments: RentalPayment[]): number {
+  return roundMoney(payments.filter((p) => p.isGuarantee).reduce((a, p) => a + p.amount, 0));
 }
 
 /** Checklist de verificación del contrato (entrega). Configurable por el admin. */

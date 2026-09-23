@@ -9,7 +9,7 @@ import {
   kmPackKm,
   kmPackAmount,
   computeBalance,
-  roundMoney,
+  paidTotal,
   KM_PACK_SIZE,
   KM_PACK_MAX,
   type RentalPayment,
@@ -75,11 +75,12 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
   // Aplica en un solo `patch` el nuevo array de pagos + Paga (y recalcula
   // Saldo) — dos `setPay` seguidos pisarían el pricing del otro porque ambos
   // parten del mismo snapshot de `draft.pricing`. Paga suma el importe base
-  // de cada línea (no lo realmente cobrado con recargo/descuento — ver
-  // comentario de `RentalPayment` en contract.ts), así que "Total a pagar"
-  // no necesita ajustarse por el medio de pago elegido.
+  // de cada línea que no sea garantía (ni lo realmente cobrado con
+  // recargo/descuento, ni las líneas marcadas `isGuarantee` — ver
+  // `paidTotal`/comentario de `RentalPayment` en contract.ts), así que
+  // "Total a pagar" no necesita ajustarse por el medio de pago elegido.
   function applyPayments(nextPayments: RentalPayment[]) {
-    const nextPaid = roundMoney(nextPayments.reduce((a, p) => a + p.amount, 0));
+    const nextPaid = paidTotal(nextPayments);
     const nextPricing: Record<string, string> = {
       ...draft.pricing,
       paid: nextPayments.length ? String(nextPaid) : "",

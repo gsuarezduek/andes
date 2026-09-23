@@ -37,6 +37,7 @@ export function AddPaymentButton({
   const [methodId, setMethodId] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [isGuarantee, setIsGuarantee] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -47,6 +48,7 @@ export function AddPaymentButton({
     setMethodId("");
     setAmount("");
     setNote("");
+    setIsGuarantee(false);
     setError(undefined);
     setOpen(true);
   }
@@ -66,6 +68,7 @@ export function AddPaymentButton({
           amount: amt,
           adjustedAmount: paymentAdjustedAmount(amt, method.adjustmentPercent),
           note: method.requiresNote ? note.trim() : undefined,
+          isGuarantee: isGuarantee || undefined,
         });
         setOpen(false);
         router.refresh();
@@ -115,6 +118,20 @@ export function AddPaymentButton({
             Se cobra: <span className="font-semibold text-foreground">{formatArs(paymentAdjustedAmount(parseDecimal(amount) ?? 0, selectedMethod.adjustmentPercent))}</span>
           </p>
         )}
+        <label className="mt-4 flex items-start gap-2 text-sm text-foreground/70">
+          <input
+            type="checkbox"
+            checked={isGuarantee}
+            onChange={(e) => setIsGuarantee(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-foreground/30"
+          />
+          <span>
+            Es una garantía
+            <span className="block text-xs text-foreground/50">
+              Se devuelve, no cuenta como cobro del alquiler — se registra aparte en Caja → Garantías.
+            </span>
+          </span>
+        </label>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>

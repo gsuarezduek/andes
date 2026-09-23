@@ -114,6 +114,16 @@ export function CashMovementForm({
         </>
       )}
       {mode === "income" && <RentalPicker options={rentalOptions} />}
+      <label className="flex items-start gap-2 text-sm text-foreground/70">
+        <input type="checkbox" name="isGuarantee" className="mt-0.5 h-4 w-4 rounded border-foreground/30" />
+        <span>
+          Es una garantía
+          <span className="block text-xs text-foreground/50">
+            Se devuelve, no es un {mode === "income" ? "cobro" : "pago"} real del negocio — se registra aparte, en
+            la pestaña Garantías.
+          </span>
+        </span>
+      </label>
       <SubmitButton pendingLabel="Guardando…" disabled={!paymentMethodId}>
         {mode === "income" ? "Agregar ingreso" : "Agregar egreso"}
       </SubmitButton>

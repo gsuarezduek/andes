@@ -10,4 +10,5 @@ export const paymentSchema = z.object({
   note: z.string().optional(),
   cashMovementId: z.string().optional(),
   unconfirmed: z.boolean().optional(),
+  isGuarantee: z.boolean().optional(),
 });

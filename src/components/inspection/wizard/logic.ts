@@ -1,6 +1,6 @@
 import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
 import { parseDecimal } from "@/lib/number-input";
-import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, roundMoney, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, paidTotal, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
 import type { InspectionInput, PendingEvidenceInput } from "@/lib/inspection-input";
 import type { Draft, InspectionWizardProps } from "./types";
@@ -227,7 +227,7 @@ export function buildInspectionPayload(
   if (draft.guaranteeForm.trim()) pricing.guaranteeForm = draft.guaranteeForm.trim();
   if (draft.payments.length) {
     pricing.payments = draft.payments;
-    pricing.paid = roundMoney(draft.payments.reduce((a, p) => a + p.amount, 0));
+    pricing.paid = paidTotal(draft.payments);
   }
 
   // holderName en el draft es el id del conductor adicional; al persistir lo

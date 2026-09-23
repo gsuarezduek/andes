@@ -7,6 +7,7 @@ import {
   getCashPeriodDetail,
   getDeletedCashMovements,
   getCashSearchIndex,
+  getGuaranteeLedger,
   getOwnAccountBalances,
   getOwnAccountLedger,
   getOwnCashMovements,
@@ -29,6 +30,7 @@ import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
 import { AccountsSection } from "@/components/cash/accounts-section";
+import { GuaranteesSection } from "@/components/cash/guarantees-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
@@ -110,23 +112,27 @@ export default async function CajaPage({
     <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
   );
 
-  // Saldo + movimientos por cuenta propia — igual que la Caja fuerte, es la
+  // Saldo + historial por cuenta propia — igual que la Caja fuerte, es la
   // posición de plata real de la empresa, así que solo se calcula/pasa para
   // admin (ver comentario en `CajaTabs`).
-  let cuentas: ReactNode = undefined;
+  let saldos: ReactNode = undefined;
   if (isAdmin) {
     const ownAccountBalances = await getOwnAccountBalances();
-    const ownAccountsWithLedger = await Promise.all(
-      ownAccountBalances.map(async (a) => ({ ...a, ledger: await getOwnAccountLedger(a.id) })),
+    const ownAccountsWithCount = await Promise.all(
+      ownAccountBalances.map(async (a) => ({ ...a, movementCount: (await getOwnAccountLedger(a.id)).length })),
     );
-    cuentas = (
-      <AccountsSection
-        accounts={ownAccountsWithLedger}
-        paymentMethods={paymentMethods}
-        expenseCategories={expenseCategories}
-      />
-    );
+    saldos = <AccountsSection accounts={ownAccountsWithCount} />;
   }
+
+  // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — mismo criterio de
+  // sensibilidad que Saldos/Caja fuerte, admin-only.
+  const garantias = isAdmin ? (
+    <GuaranteesSection
+      ledger={await getGuaranteeLedger()}
+      paymentMethods={paymentMethods}
+      expenseCategories={expenseCategories}
+    />
+  ) : undefined;
 
   const cajaFuerte = (
     <div className="flex flex-col gap-5">
@@ -155,7 +161,8 @@ export default async function CajaPage({
         movimientos={movimientos}
         asociados={asociados}
         proveedores={proveedores}
-        cuentas={cuentas}
+        garantias={garantias}
+        saldos={saldos}
         cajaFuerte={cajaFuerte}
       />
     </div>

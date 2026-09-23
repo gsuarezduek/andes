@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { vikRentCarUnixToUtc } from "@/lib/datetime";
 import { resolveLocale } from "@/lib/i18n/config";
-import { computeBalance, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
+import { computeBalance, paidTotal, roundMoney, type ContractPricing, type RentalPayment } from "@/lib/contract";
 import type { RawBooking, RawOptional } from "./types";
 import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
@@ -218,7 +218,7 @@ export async function importBookingPayment(
       unconfirmed: needsConfirmation,
     };
     const nextPayments = [...(pricing.payments ?? []), payment];
-    const nextPaid = roundMoney(nextPayments.reduce((sum, p) => sum + p.amount, 0));
+    const nextPaid = paidTotal(nextPayments);
     const nextPricing: ContractPricing = { ...pricing, payments: nextPayments, paid: nextPaid };
     if (pricing.total != null) {
       nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
