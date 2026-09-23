@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import type { OnlineUser } from "@/lib/presence";
 
 const POLL_MS = 2 * 60_000;
-const ROLE_LABEL: Record<string, string> = { admin: "Admin", empleado: "Empleado" };
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -14,7 +13,8 @@ function initials(name: string) {
 }
 
 /**
- * Quién más está usando Andes ahora mismo. Este polling cada 2 minutos
+ * Quién está usando Andes ahora mismo (incluido quien mira la lista). Este
+ * polling cada 2 minutos
  * (pausado con la pestaña en segundo plano, mismo criterio que `AutoRefresh`)
  * es también el heartbeat real de presencia propia: `GET /api/presence` marca
  * "visto" a quien pregunta, además de devolver la lista. Hace falta porque el
@@ -91,7 +91,6 @@ export function ConnectedUsers({ initialUsers }: { initialUsers: OnlineUser[] })
               <div key={u.id} className="flex items-center gap-2 px-4 py-2 text-sm text-foreground/80">
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span className="truncate">{u.name}</span>
-                <span className="ml-auto shrink-0 text-xs text-foreground/40">{ROLE_LABEL[u.role] ?? u.role}</span>
               </div>
             ))}
           </div>

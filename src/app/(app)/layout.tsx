@@ -24,7 +24,7 @@ export default async function AppLayout({
   const [taskCount, whatsappUnread, onlineUsers] = await Promise.all([
     getAssignedPendingCount(user.id),
     countNeedsReply(),
-    getOnlineUsers(user.id),
+    getOnlineUsers(),
   ]);
   after(() => touchPresence(user.id));
 

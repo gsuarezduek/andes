@@ -42,7 +42,7 @@ export function AppNav({
   taskCount?: number;
   /** Conversaciones de WhatsApp pendientes de respuesta — mismo criterio visual que `taskCount`. */
   whatsappUnread?: number;
-  /** Otros usuarios activos ahora mismo (últimos ~5 min) — quién está conectado, sin preguntar. */
+  /** Usuarios activos ahora mismo (incluido quien mira, últimos ~15 min) — quién está conectado, sin preguntar. */
   onlineUsers?: OnlineUser[];
   /** Rol real de la sesión (no el efectivo tras "Ver como empleado"). */
   isRealAdmin?: boolean;

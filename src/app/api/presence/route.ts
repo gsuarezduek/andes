@@ -16,6 +16,6 @@ export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "no autorizado" }, { status: 401 });
 
-  const [users] = await Promise.all([getOnlineUsers(user.id), touchPresence(user.id)]);
+  const [users] = await Promise.all([getOnlineUsers(), touchPresence(user.id)]);
   return NextResponse.json(users);
 }

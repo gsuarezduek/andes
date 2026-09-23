@@ -35,14 +35,14 @@ export async function touchPresence(userId: string) {
   }
 }
 
-export type OnlineUser = { id: string; name: string; role: string };
+export type OnlineUser = { id: string; name: string };
 
-/** Otros usuarios activos vistos en los últimos `ONLINE_WINDOW_MINUTES` minutos. */
-export async function getOnlineUsers(excludeUserId: string): Promise<OnlineUser[]> {
+/** Usuarios activos (incluido quien pregunta) vistos en los últimos `ONLINE_WINDOW_MINUTES` minutos. */
+export async function getOnlineUsers(): Promise<OnlineUser[]> {
   const since = new Date(Date.now() - ONLINE_WINDOW_MINUTES * 60_000);
   const users = await prisma.user.findMany({
-    where: { id: { not: excludeUserId }, active: true, lastSeenAt: { gte: since } },
-    select: { id: true, name: true, role: true },
+    where: { active: true, lastSeenAt: { gte: since } },
+    select: { id: true, name: true },
     orderBy: { lastSeenAt: "desc" },
   });
   return users;
