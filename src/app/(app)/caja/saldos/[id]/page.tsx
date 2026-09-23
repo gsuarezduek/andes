@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink } from "@/components/ui/button";
 import { getOwnAccountBalances, getOwnAccountLedger } from "@/lib/cash";
+import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
 import { AccountLedgerMonths } from "@/components/cash/account-ledger-months";
@@ -60,7 +61,12 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <AccountLedgerMonths groups={groups} paymentMethods={paymentMethods} expenseCategories={expenseCategories} />
+      <AccountLedgerMonths
+        groups={groups}
+        currentMonthKey={formatDateInput(new Date()).slice(0, 7)}
+        paymentMethods={paymentMethods}
+        expenseCategories={expenseCategories}
+      />
 
       <ButtonLink href="/caja" variant="secondary">
         Volver a Caja

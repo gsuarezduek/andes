@@ -1,42 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
-import { MovementRow } from "./movement-row";
+import { LedgerRow } from "./ledger-row";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { sumByCurrency } from "@/lib/currency";
-import type { CashMovementRow } from "@/lib/cash";
+import type { ThirdPartyLedgerRow } from "@/lib/third-party-accounts";
 import type { ProviderLedgerMonthGroup } from "@/lib/provider-ledger-grouping";
 
 const PAGE_SIZE_MONTHS = 6;
 
-type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
-type ExpenseCategoryOption = { id: string; name: string };
+type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
 
 /**
- * Historial de una cuenta propia (`/caja/saldos/[id]`), partido por mes
- * calendario: cada mes es un `<details>` colapsable — el mes actual abierto
- * de entrada, el resto colapsados (pedido del dueño); colapsado solo se ve
- * el nombre del mes + su balance (el `<summary>`), que es lo mismo que
- * muestra abierto, así no hay nada que "aparezca" al expandir salvo el
- * detalle. Adentro, sus movimientos en dos columnas — ingresos a la
- * izquierda, egresos a la derecha, mismo criterio visual que Movimientos
- * (ver `CashMovementsBoard`). Los meses más viejos quedan detrás de "Ver
- * meses anteriores" (igual patrón que "Cargar más" en
- * `ProviderCard`/`AccountCard`, a nivel mes en vez de fila) — igual siguen
- * colapsados por default al revelarse.
+ * Historial de una cuenta ajena (proveedor o asociado, `/caja/proveedores/
+ * [id]` y `/caja/asociados/[id]`), partido por mes calendario — mismo patrón
+ * que `AccountLedgerMonths` (Saldos): cada mes es un `<details>` colapsable
+ * (el mes actual abierto de entrada), con "Deuda" a la izquierda y "Pagos"
+ * (los dos tipos que la saldan) a la derecha, mismo criterio visual que
+ * Movimientos/Saldos aunque acá no sea literalmente ingreso/egreso.
  */
-export function AccountLedgerMonths({
+export function ThirdPartyLedgerMonths({
   groups,
   currentMonthKey,
+  principalName,
+  isAdmin,
   paymentMethods,
-  expenseCategories,
 }: {
-  groups: ProviderLedgerMonthGroup<CashMovementRow>[];
+  groups: ProviderLedgerMonthGroup<ThirdPartyLedgerRow>[];
   currentMonthKey: string;
+  principalName: string;
+  isAdmin: boolean;
   paymentMethods: PaymentMethodOption[];
-  expenseCategories: ExpenseCategoryOption[];
 }) {
   const [visibleMonths, setVisibleMonths] = useState(PAGE_SIZE_MONTHS);
 
@@ -53,11 +48,11 @@ export function AccountLedgerMonths({
   return (
     <div className="flex flex-col gap-6">
       {visible.map((g) => {
-        const incomes = g.rows.filter((r) => r.type === "income");
-        const expenses = g.rows.filter((r) => r.type === "expense");
-        const incomeTotals = sumByCurrency(incomes);
-        const expenseTotals = sumByCurrency(expenses);
-        const net = { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
+        const debts = g.rows.filter((r) => r.kind === "debt");
+        const payments = g.rows.filter((r) => r.kind !== "debt");
+        const debtTotals = sumByCurrency(debts);
+        const paymentTotals = sumByCurrency(payments);
+        const net = { ars: debtTotals.ars - paymentTotals.ars, usd: debtTotals.usd - paymentTotals.usd };
         return (
           <details
             key={g.key}
@@ -67,46 +62,46 @@ export function AccountLedgerMonths({
             <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
               <h3 className="text-base font-semibold">{g.label}</h3>
               <div className="text-right">
-                <p className="text-xs text-foreground/50">Balance del mes</p>
+                <p className="text-xs text-foreground/50">Neto del mes</p>
                 <CurrencyTotalsDisplay totals={net} size="text-base" />
               </div>
             </summary>
             <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <SectionTitle>Ingresos ({incomes.length})</SectionTitle>
-                {incomes.length === 0 ? (
+                <SectionTitle>Deuda ({debts.length})</SectionTitle>
+                {debts.length === 0 ? (
                   <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-                    Sin ingresos este mes.
+                    Sin deuda cargada este mes.
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-2">
-                    {incomes.map((r) => (
-                      <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}`}
-                        movement={r}
-                        tone="emerald"
+                    {debts.map((m) => (
+                      <LedgerRow
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
+                        movement={m}
+                        isAdmin={isAdmin}
+                        principalName={principalName}
                         paymentMethods={paymentMethods}
-                        expenseCategories={expenseCategories}
                       />
                     ))}
                   </ul>
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <SectionTitle>Egresos ({expenses.length})</SectionTitle>
-                {expenses.length === 0 ? (
+                <SectionTitle>Pagos ({payments.length})</SectionTitle>
+                {payments.length === 0 ? (
                   <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-                    Sin egresos este mes.
+                    Sin pagos este mes.
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-2">
-                    {expenses.map((r) => (
-                      <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.recipientPaymentMethodName ?? ""}:${r.categoryName ?? ""}`}
-                        movement={r}
-                        tone="red"
+                    {payments.map((m) => (
+                      <LedgerRow
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
+                        movement={m}
+                        isAdmin={isAdmin}
+                        principalName={principalName}
                         paymentMethods={paymentMethods}
-                        expenseCategories={expenseCategories}
                       />
                     ))}
                   </ul>

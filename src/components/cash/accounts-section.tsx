@@ -8,11 +8,7 @@ import type { OwnAccountBalance } from "@/lib/cash";
  * (ver `caja/page.tsx`): a diferencia de Proveedores/Asociados, esto es la
  * posición de plata real de la empresa.
  */
-export function AccountsSection({
-  accounts,
-}: {
-  accounts: (OwnAccountBalance & { movementCount: number })[];
-}) {
+export function AccountsSection({ accounts }: { accounts: OwnAccountBalance[] }) {
   if (accounts.length === 0) {
     return (
       <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">

@@ -2,27 +2,23 @@
 
 import { useState } from "react";
 import { AssociateCard } from "./associate-card";
-import type { AssociateBalance, AssociateLedgerRow } from "@/lib/associates";
+import type { AssociateBalance } from "@/lib/associates";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
-type AssociateWithLedger = AssociateBalance & { ledger: AssociateLedgerRow[] };
 
 /**
- * Vista en limpio por asociado: una `AssociateCard` colapsada por defecto por
- * cada uno (saldo, alta de ingreso/egreso/deuda inline, historial completo —
- * ver ese componente), con un filtro arriba para ver uno en particular. Al
- * filtrar a uno solo, esa tarjeta se abre de entrada (no tiene sentido
- * mantenerla colapsada si es justo la que se estaba buscando). Visible para
- * cualquier rol, mismo criterio que Proveedores.
+ * Vista en limpio por asociado: una `AssociateCard` por cada uno (saldo +
+ * alta de ingreso/egreso/deuda inline) que linkea a `/caja/asociados/[id]`
+ * para el historial completo — ya no se expande inline, ver `AssociateCard`.
+ * El filtro arriba sigue sirviendo para encontrar uno entre varios. Visible
+ * para cualquier rol, mismo criterio que Proveedores.
  */
 export function AssociatesSection({
   associates,
   paymentMethods,
-  isAdmin,
 }: {
-  associates: AssociateWithLedger[];
+  associates: AssociateBalance[];
   paymentMethods: PaymentMethodOption[];
-  isAdmin: boolean;
 }) {
   const [filterId, setFilterId] = useState("");
 
@@ -35,7 +31,6 @@ export function AssociatesSection({
     );
   }
 
-  const now = new Date();
   const visible = filterId ? associates.filter((a) => a.id === filterId) : associates;
 
   return (
@@ -57,14 +52,7 @@ export function AssociatesSection({
       </label>
 
       {visible.map((a) => (
-        <AssociateCard
-          key={a.id}
-          associate={a}
-          paymentMethods={paymentMethods}
-          now={now}
-          isAdmin={isAdmin}
-          defaultOpen={a.id === filterId}
-        />
+        <AssociateCard key={a.id} associate={a} paymentMethods={paymentMethods} />
       ))}
     </div>
   );

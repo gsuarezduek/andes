@@ -209,6 +209,7 @@ model User {
   createdCashMovements           CashMovement[]          @relation("CashMovementCreator")
   deletedCashMovements           CashMovement[]          @relation("CashMovementDeleter")
   cashMovementEdits              CashMovementEdit[]      @relation("CashMovementEditor")
+  resolvedGuarantees             CashMovement[]          @relation("GuaranteeResolver")
   createdSafeMovements           SafeMovement[]          @relation("SafeMovementCreator")
   deletedSafeMovements           SafeMovement[]          @relation("SafeMovementDeleter")
   safeMovementEdits              SafeMovementEdit[]      @relation("SafeMovementEditor")
@@ -1029,11 +1030,36 @@ model CashMovement {
   // ver `confirmCashMovementPaymentMethod`).
   needsConfirmation Boolean @default(false) @map("needs_confirmation")
 
-  // true = garantía/depósito tomado o devuelto (ver `RentalPayment.isGuarantee`
-  // en contract.ts): se excluye de Movimientos/Cuentas propias/Billetera/
-  // búsqueda (findMovements en cash.ts) y vive aparte en la pestaña Garantías
-  // — no es un cobro/pago real del negocio, es plata que hay que devolver.
+  // true = este movimiento es-o-viene-de una garantía/depósito (ver
+  // `RentalPayment.isGuarantee` en contract.ts): se excluye de Movimientos/
+  // Saldos/Billetera/búsqueda (findMovements en cash.ts) y vive aparte en la
+  // pestaña Garantías — no es un cobro/pago real del negocio, es plata que
+  // hay que devolver (o, si se cobra, recién ahí pasa a serlo — ver abajo).
   isGuarantee Boolean @default(false) @map("is_guarantee")
+
+  // --- Ciclo de vida de una garantía (solo se usan en la fila que la tomó,
+  // es decir `type: income, isGuarantee: true` — esa fila ES la garantía,
+  // no hace falta una tabla aparte). `guaranteeResolvedAt` nulo = activa.
+  // Al resolver (Devolver o Cobrar, ver `caja/guarantee-actions.ts`) se
+  // completa una sola vez y nunca se vuelve a tocar — mismo criterio de
+  // inmutabilidad que el resto de los hechos ya registrados en Caja.
+  guaranteeResolvedAt     DateTime? @map("guarantee_resolved_at")
+  // Cuánto de la garantía se cobró (pasó a ser ingreso real) vs. se devolvió
+  // — ambos pueden ser >0 a la vez (cobro parcial + devolución del resto).
+  guaranteeChargedAmount  Decimal?  @map("guarantee_charged_amount") @db.Decimal(12, 2)
+  guaranteeReturnedAmount Decimal?  @map("guarantee_returned_amount") @db.Decimal(12, 2)
+  guaranteeResolvedById   String?   @map("guarantee_resolved_by_id")
+  guaranteeResolvedBy     User?     @relation("GuaranteeResolver", fields: [guaranteeResolvedById], references: [id])
+  guaranteeResolvedByName String?   @map("guarantee_resolved_by_name")
+
+  // En la fila que la tomó, esto queda null. En el/los movimiento(s) que
+  // resolverla generó (el ingreso por lo cobrado, el egreso por lo
+  // devuelto), apunta de vuelta a esa fila — así el historial de la
+  // garantía puede mostrarlos (reutilizando `MovementRow`, editables como
+  // cualquier otro movimiento) sin tener que adivinar cuáles son.
+  guaranteeSourceId String?          @map("guarantee_source_id")
+  guaranteeSource   CashMovement?    @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
+  guaranteeDerived  CashMovement[]   @relation("GuaranteeDerivative")
 
   // `*Name` son nombres congelados al momento del hecho (ver
   // Inspection.userName) — sobreviven a que se borre el usuario.
@@ -1056,6 +1082,7 @@ model CashMovement {
   @@index([rentalId])
   @@index([createdById])
   @@index([categoryId])
+  @@index([guaranteeSourceId])
   @@map("cash_movements")
 }
 

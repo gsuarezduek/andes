@@ -76,6 +76,14 @@ export type CashMovementRow = {
   // aparte, ver `MovementMetaLine`).
   lastEditedByName: string | null;
   lastEditedAt: Date | null;
+  // Ciclo de vida de una garantía (ver comentario en el schema) — solo
+  // tienen sentido en la fila que la tomó (`isGuarantee && type === "income"`);
+  // en cualquier otra fila quedan todos `null`. `guaranteeResolvedAt` nulo =
+  // todavía activa.
+  guaranteeResolvedAt: Date | null;
+  guaranteeChargedAmount: number | null;
+  guaranteeReturnedAmount: number | null;
+  guaranteeResolvedByName: string | null;
 };
 
 export type CashPeriodDetail = {
@@ -88,6 +96,47 @@ export type CashPeriodDetail = {
   net: CurrencyTotals;
 };
 
+// Selección compartida entre `findMovements` y `getGuarantees` (esta última
+// no puede reusar `findMovements` tal cual para traer los movimientos
+// derivados de una garantía — ver más abajo — porque esos mezclan
+// `isGuarantee` true/false, y `findMovements` fuerza uno de los dos).
+const MOVEMENT_INCLUDE = {
+  rental: { select: { clientName: true, wpBookingId: true } },
+  edits: { where: { action: "updated" as const }, orderBy: { createdAt: "desc" as const }, take: 1 },
+} satisfies Prisma.CashMovementInclude;
+
+type RawMovement = Prisma.CashMovementGetPayload<{ include: typeof MOVEMENT_INCLUDE }>;
+
+function toCashMovementRow(r: RawMovement): CashMovementRow {
+  return {
+    id: r.id,
+    type: r.type as "income" | "expense",
+    description: r.description,
+    amount: Number(r.amount),
+    currency: r.currency,
+    paymentMethodId: r.paymentMethodId,
+    paymentMethodName: r.paymentMethodName,
+    paymentMethodNote: r.paymentMethodNote,
+    recipientPaymentMethodId: r.recipientPaymentMethodId,
+    recipientPaymentMethodName: r.recipientPaymentMethodName,
+    recipientPaymentMethodNote: r.recipientPaymentMethodNote,
+    categoryId: r.categoryId,
+    categoryName: r.categoryName,
+    needsConfirmation: r.needsConfirmation,
+    rentalId: r.rentalId,
+    rentalClientName: r.rental?.clientName ?? null,
+    rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
+    createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
+    createdAt: r.createdAt,
+    lastEditedByName: r.edits[0]?.editedByName ?? null,
+    lastEditedAt: r.edits[0]?.createdAt ?? null,
+    guaranteeResolvedAt: r.guaranteeResolvedAt,
+    guaranteeChargedAmount: r.guaranteeChargedAmount != null ? Number(r.guaranteeChargedAmount) : null,
+    guaranteeReturnedAmount: r.guaranteeReturnedAmount != null ? Number(r.guaranteeReturnedAmount) : null,
+    guaranteeResolvedByName: r.guaranteeResolvedByName,
+  };
+}
+
 async function findMovements(
   where: Prisma.CashMovementWhereInput,
   opts?: { take?: number; guaranteeOnly?: boolean },
@@ -96,47 +145,14 @@ async function findMovements(
     // Nunca trae deudas de proveedor (`type: "debt"`) — esas viven en
     // `src/lib/providers.ts`, no son un ingreso/egreso de caja real todavía.
     // Tampoco mezcla Garantías con Movimientos reales (y viceversa, con
-    // `guaranteeOnly`) — ver `getGuaranteeLedger` y el comentario de
+    // `guaranteeOnly`) — ver `getGuarantees` y el comentario de
     // `isGuarantee` en el schema.
     where: { type: { in: ["income", "expense"] }, isGuarantee: !!opts?.guaranteeOnly, ...where, deletedAt: null },
-    include: {
-      rental: { select: { clientName: true, wpBookingId: true } },
-      edits: {
-        where: { action: "updated" },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
+    include: MOVEMENT_INCLUDE,
     orderBy: { createdAt: "desc" },
     ...(opts?.take ? { take: opts.take } : {}),
   });
-  return rows.map(
-    (r): CashMovementRow => ({
-      id: r.id,
-      // El `where` de arriba ya excluye "debt" — este cast solo estrecha el
-      // tipo para TS (Prisma no puede reflejarlo en el retorno).
-      type: r.type as "income" | "expense",
-      description: r.description,
-      amount: Number(r.amount),
-      currency: r.currency,
-      paymentMethodId: r.paymentMethodId,
-      paymentMethodName: r.paymentMethodName,
-      paymentMethodNote: r.paymentMethodNote,
-      recipientPaymentMethodId: r.recipientPaymentMethodId,
-      recipientPaymentMethodName: r.recipientPaymentMethodName,
-      recipientPaymentMethodNote: r.recipientPaymentMethodNote,
-      categoryId: r.categoryId,
-      categoryName: r.categoryName,
-      needsConfirmation: r.needsConfirmation,
-      rentalId: r.rentalId,
-      rentalClientName: r.rental?.clientName ?? null,
-      rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
-      createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
-      createdAt: r.createdAt,
-      lastEditedByName: r.edits[0]?.editedByName ?? null,
-      lastEditedAt: r.edits[0]?.createdAt ?? null,
-    }),
-  );
+  return rows.map(toCashMovementRow);
 }
 
 /**
@@ -167,34 +183,59 @@ export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPerio
   };
 }
 
-export type GuaranteeLedger = {
-  incomes: CashMovementRow[]; // garantías tomadas
-  expenses: CashMovementRow[]; // garantías devueltas
-  totalIncome: CurrencyTotals;
-  totalExpense: CurrencyTotals;
-  // Garantías que la empresa tiene hoy en su poder (tomado − devuelto).
-  held: CurrencyTotals;
+export type GuaranteeHistoryEntry = CashMovementRow & {
+  // Movimientos que generó resolverla (el ingreso por lo cobrado, el egreso
+  // por lo devuelto — puede haber uno o los dos si el cobro fue parcial). Se
+  // muestran con `MovementRow`, editables como cualquier otro movimiento.
+  derived: CashMovementRow[];
+};
+
+export type Guarantees = {
+  active: CashMovementRow[];
+  // Suma de lo tomado en las garantías activas — "en poder de la empresa
+  // hoy". Ya no es tomado-histórico menos devuelto-histórico (eso mezclaba
+  // para siempre movimientos ya resueltos); una garantía resuelta sale de
+  // acá y pasa a `history`.
+  activeTotal: CurrencyTotals;
+  history: GuaranteeHistoryEntry[];
 };
 
 /**
- * Garantías/depósitos (ver `RentalPayment.isGuarantee`): separadas de
- * Movimientos porque no son un cobro/pago real del negocio, sino plata que
- * hay que devolver — mismo criterio de "posición real de la empresa" que
- * Cuentas propias/Caja fuerte, así que histórico completo (sin período) y
- * admin-only (ver `caja/page.tsx`).
+ * Garantías/depósitos (ver `RentalPayment.isGuarantee`): cada una es la fila
+ * que la tomó (`type: income, isGuarantee: true`) — activa mientras
+ * `guaranteeResolvedAt` sea null. Se resuelve con "Devolver" o "Cobrar"
+ * (`caja/guarantee-actions.ts`, total o parcial) y ahí sale de "activas" y
+ * pasa al historial, sin volver atrás — mismo criterio de "posición real de
+ * la empresa" que Saldos/Caja fuerte, admin-only (ver `caja/page.tsx`).
  */
-export async function getGuaranteeLedger(): Promise<GuaranteeLedger> {
-  const rows = await findMovements({}, { guaranteeOnly: true });
-  const incomes = rows.filter((r) => r.type === "income");
-  const expenses = rows.filter((r) => r.type === "expense");
-  const totalIncome = sumByCurrency(incomes);
-  const totalExpense = sumByCurrency(expenses);
+export async function getGuarantees(): Promise<Guarantees> {
+  const [active, resolved] = await Promise.all([
+    findMovements({ type: "income", guaranteeResolvedAt: null }, { guaranteeOnly: true }),
+    findMovements({ type: "income", guaranteeResolvedAt: { not: null } }, { guaranteeOnly: true }),
+  ]);
+
+  // Movimientos que generó resolver cada garantía (el cobro, la devolución,
+  // o ambos si fue parcial) — `isGuarantee` mezclado (true/false), así que
+  // no puede salir de `findMovements` (fuerza uno de los dos).
+  const rawDerived =
+    resolved.length === 0
+      ? []
+      : await prisma.cashMovement.findMany({
+          where: { guaranteeSourceId: { in: resolved.map((r) => r.id) }, deletedAt: null },
+          include: MOVEMENT_INCLUDE,
+          orderBy: { createdAt: "asc" },
+        });
+  const derivedByGuaranteeId = new Map<string, CashMovementRow[]>();
+  for (const r of rawDerived) {
+    const list = derivedByGuaranteeId.get(r.guaranteeSourceId!) ?? [];
+    list.push(toCashMovementRow(r));
+    derivedByGuaranteeId.set(r.guaranteeSourceId!, list);
+  }
+
   return {
-    incomes,
-    expenses,
-    totalIncome,
-    totalExpense,
-    held: { ars: totalIncome.ars - totalExpense.ars, usd: totalIncome.usd - totalExpense.usd },
+    active,
+    activeTotal: sumByCurrency(active),
+    history: resolved.map((g) => ({ ...g, derived: derivedByGuaranteeId.get(g.id) ?? [] })),
   };
 }
 

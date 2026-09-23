@@ -4,9 +4,10 @@ import Link from "next/link";
 
 /**
  * Link directo a la conversación de WhatsApp de este proveedor/asociado (ver
- * `ThirdPartyBalance.whatsappConversationId`). `stopPropagation` porque
- * `AssociateCard` lo pone dentro de un `<summary>` — sin esto, el click
- * navegaba Y además abría/cerraba la tarjeta.
+ * `ThirdPartyBalance.whatsappConversationId`). Vive como hermano del link de
+ * navegación de la tarjeta (`ProviderCard`/`AssociateCard`), nunca anidado
+ * adentro — `stopPropagation` queda igual como defensivo por si algún caller
+ * futuro sí lo anida en algo clickeable.
  */
 export function WhatsappAccountLink({ conversationId }: { conversationId: string | null }) {
   if (!conversationId) return null;

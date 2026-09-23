@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import {
@@ -7,9 +6,8 @@ import {
   getCashPeriodDetail,
   getDeletedCashMovements,
   getCashSearchIndex,
-  getGuaranteeLedger,
+  getGuarantees,
   getOwnAccountBalances,
-  getOwnAccountLedger,
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
@@ -17,8 +15,8 @@ import {
   parseCashPeriod,
 } from "@/lib/cash";
 import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
-import { getProviderBalances, getProviderLedger } from "@/lib/providers";
-import { getAssociateBalances, getAssociateLedger } from "@/lib/associates";
+import { getProviderBalances } from "@/lib/providers";
+import { getAssociateBalances } from "@/lib/associates";
 import { MovementLauncher } from "@/components/cash/movement-launcher";
 import { CashMovementSearch } from "@/components/cash/cash-movement-search";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
@@ -95,40 +93,22 @@ export default async function CajaPage({
   // Proveedores (cuenta corriente) y Asociados (resumen) son visibles para
   // cualquier rol — a diferencia de Caja fuerte, no es info sensible: es
   // operativo (a quién le debemos, cargar un pago/ingreso/egreso) y
-  // cualquiera puede necesitarlo.
-  const providerBalances = await getProviderBalances();
-  const providersWithLedger = await Promise.all(
-    providerBalances.map(async (p) => ({ ...p, ledger: await getProviderLedger(p.id) })),
-  );
-  const proveedores = (
-    <ProvidersSection providers={providersWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
-  );
+  // cualquiera puede necesitarlo. El historial de cada uno vive en su propia
+  // página (`/caja/proveedores/[id]` y `/caja/asociados/[id]`) — acá solo
+  // hace falta el saldo, sin el N+1 de traer el ledger completo de cada uno.
+  const proveedores = <ProvidersSection providers={await getProviderBalances()} paymentMethods={paymentMethods} />;
+  const asociados = <AssociatesSection associates={await getAssociateBalances()} paymentMethods={paymentMethods} />;
 
-  const associateBalances = await getAssociateBalances();
-  const associatesWithLedger = await Promise.all(
-    associateBalances.map(async (a) => ({ ...a, ledger: await getAssociateLedger(a.id) })),
-  );
-  const asociados = (
-    <AssociatesSection associates={associatesWithLedger} paymentMethods={paymentMethods} isAdmin={isAdmin} />
-  );
-
-  // Saldo + historial por cuenta propia — igual que la Caja fuerte, es la
-  // posición de plata real de la empresa, así que solo se calcula/pasa para
-  // admin (ver comentario en `CajaTabs`).
-  let saldos: ReactNode = undefined;
-  if (isAdmin) {
-    const ownAccountBalances = await getOwnAccountBalances();
-    const ownAccountsWithCount = await Promise.all(
-      ownAccountBalances.map(async (a) => ({ ...a, movementCount: (await getOwnAccountLedger(a.id)).length })),
-    );
-    saldos = <AccountsSection accounts={ownAccountsWithCount} />;
-  }
+  // Saldo por cuenta propia — igual que la Caja fuerte, es la posición de
+  // plata real de la empresa, así que solo se calcula/pasa para admin (ver
+  // comentario en `CajaTabs`). El historial vive en `/caja/saldos/[id]`.
+  const saldos = isAdmin ? <AccountsSection accounts={await getOwnAccountBalances()} /> : undefined;
 
   // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — mismo criterio de
   // sensibilidad que Saldos/Caja fuerte, admin-only.
   const garantias = isAdmin ? (
     <GuaranteesSection
-      ledger={await getGuaranteeLedger()}
+      guarantees={await getGuarantees()}
       paymentMethods={paymentMethods}
       expenseCategories={expenseCategories}
     />

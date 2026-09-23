@@ -1,24 +1,20 @@
 import { ProviderCard } from "./provider-card";
-import type { ProviderBalance, ProviderLedgerRow } from "@/lib/providers";
+import type { ProviderBalance } from "@/lib/providers";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
-type ProviderWithLedger = ProviderBalance & { ledger: ProviderLedgerRow[] };
 
 /**
- * Cuenta corriente por proveedor: una `ProviderCard` por cada uno (saldo,
- * alta de pago/deuda inline, historial colapsado por defecto — ver ese
- * componente). Visible para cualquier rol; `isAdmin` solo gatea poder
- * editar/borrar una deuda ya cargada (`DebtRow`) — cargar pago/deuda nueva es
- * para cualquiera.
+ * Cuenta corriente por proveedor: una `ProviderCard` por cada uno (saldo +
+ * alta de pago/deuda inline) que linkea a `/caja/proveedores/[id]` para ver
+ * el historial completo — ya no se expande inline, ver `ProviderCard`.
+ * Visible para cualquier rol.
  */
 export function ProvidersSection({
   providers,
   paymentMethods,
-  isAdmin,
 }: {
-  providers: ProviderWithLedger[];
+  providers: ProviderBalance[];
   paymentMethods: PaymentMethodOption[];
-  isAdmin: boolean;
 }) {
   if (providers.length === 0) {
     return (
@@ -30,11 +26,10 @@ export function ProvidersSection({
     );
   }
 
-  const now = new Date();
   return (
     <div className="flex flex-col gap-3">
       {providers.map((p) => (
-        <ProviderCard key={p.id} provider={p} paymentMethods={paymentMethods} now={now} isAdmin={isAdmin} />
+        <ProviderCard key={p.id} provider={p} paymentMethods={paymentMethods} />
       ))}
     </div>
   );
