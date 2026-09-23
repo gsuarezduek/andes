@@ -60,6 +60,13 @@ export type CashByOwnership = {
   expenseTotal: number;
 };
 
+export type ExpenseCategoryReport = {
+  id: string | null;
+  name: string;
+  total: number;
+  percent: number;
+};
+
 export type Reports = {
   kpis: {
     fleet: number;
@@ -81,6 +88,9 @@ export type Reports = {
   highlightMonth: string | null;
   vehicles: VehicleReport[];
   cashByOwnership: CashByOwnership;
+  // Egresos del período agrupados por categoría (`CashMovementCategory`), para
+  // la torta de Reportes. Ordenado de mayor a menor monto.
+  expensesByCategory: ExpenseCategoryReport[];
   whatsapp: {
     // Conversaciones únicas (al menos un mensaje, entrante o saliente) del período elegido arriba.
     conversationsInPeriod: number;
@@ -131,8 +141,8 @@ export type ReportPeriod =
   | { kind: "month"; which: "previous" | "current" }
   | { kind: "months"; months: MonthRangeOption };
 
-/** Mes anterior (cerrado): es lo que un dueño quiere ver al entrar a hacer el cierre del mes. */
-export const DEFAULT_REPORT_PERIOD: ReportPeriod = { kind: "month", which: "previous" };
+/** Mes actual (en curso): es lo que un dueño quiere ver al entrar por defecto. */
+export const DEFAULT_REPORT_PERIOD: ReportPeriod = { kind: "month", which: "current" };
 
 const REPORT_PERIOD_PARAMS = { previous: "prev", current: "current" } as const;
 
@@ -144,8 +154,8 @@ export const REPORT_PERIOD_OPTIONS: { param: string; label: string }[] = [
 
 /** Parsea el `?period=` de la URL a un `ReportPeriod`; cualquier valor desconocido cae al default. */
 export function parseReportPeriod(raw: string | undefined): ReportPeriod {
-  if (raw === REPORT_PERIOD_PARAMS.current) return { kind: "month", which: "current" };
-  if (raw === REPORT_PERIOD_PARAMS.previous) return DEFAULT_REPORT_PERIOD;
+  if (raw === REPORT_PERIOD_PARAMS.previous) return { kind: "month", which: "previous" };
+  if (raw === REPORT_PERIOD_PARAMS.current) return DEFAULT_REPORT_PERIOD;
   const months = MONTH_RANGE_OPTIONS.find((m) => String(m) === raw);
   return months ? { kind: "months", months } : DEFAULT_REPORT_PERIOD;
 }
@@ -245,6 +255,43 @@ export function aggregateCashByOwnership(movements: CashMovementForOwnership[]):
   return result;
 }
 
+type CashMovementForCategory = {
+  categoryId: string | null;
+  categoryName: string | null;
+  amount: number;
+};
+
+// Máximo de porciones "reales" en la torta de egresos por categoría — el resto
+// (las de menor monto) se pliega en "Otros" para no terminar con una torta de
+// muchas porciones finitas ilegibles.
+const MAX_EXPENSE_CATEGORY_SLICES = 7;
+
+/**
+ * Agrupa egresos por categoría (`CashMovementCategory`, opcional en un
+ * `CashMovement`) para la torta de Reportes. Sin categoría cargada cae en
+ * "Sin categoría"; ordenado de mayor a menor monto. Pura y testeable.
+ */
+export function aggregateExpensesByCategory(movements: CashMovementForCategory[]): ExpenseCategoryReport[] {
+  const totals = new Map<string, { name: string; total: number }>();
+  for (const m of movements) {
+    const key = m.categoryId ?? "__none__";
+    const entry = totals.get(key);
+    if (entry) entry.total += m.amount;
+    else totals.set(key, { name: m.categoryId ? (m.categoryName ?? "Sin nombre") : "Sin categoría", total: m.amount });
+  }
+
+  const grandTotal = [...totals.values()].reduce((sum, e) => sum + e.total, 0);
+  const sorted = [...totals.entries()]
+    .map(([id, e]) => ({ id: id === "__none__" ? null : id, name: e.name, total: e.total }))
+    .sort((a, b) => b.total - a.total);
+
+  const head = sorted.slice(0, MAX_EXPENSE_CATEGORY_SLICES);
+  const tail = sorted.slice(MAX_EXPENSE_CATEGORY_SLICES);
+  const rows = tail.length > 0 ? [...head, { id: null, name: "Otros", total: tail.reduce((s, e) => s + e.total, 0) }] : head;
+
+  return rows.map((r) => ({ ...r, percent: grandTotal > 0 ? (r.total / grandTotal) * 100 : 0 }));
+}
+
 /**
  * Agrupa mensajes de WhatsApp por mes y cuenta conversaciones únicas por
  * bucket (una misma conversación puede sumar en varios meses si tuvo
@@ -331,7 +378,13 @@ export const getReports = unstable_cache(
             createdAt: { gte: periodRange.start, lt: periodRange.end },
             deletedAt: null,
           },
-          select: { type: true, amount: true, paymentMethod: { select: { ownership: true } } },
+          select: {
+            type: true,
+            amount: true,
+            categoryId: true,
+            categoryName: true,
+            paymentMethod: { select: { ownership: true } },
+          },
         }),
       ]);
 
@@ -472,6 +525,12 @@ export const getReports = unstable_cache(
     // coincidir con el desglose por cuenta que se muestra al lado.
     const cashIncomeTotal = cashByOwnership.incomeOwn + cashByOwnership.incomeThirdParty + cashByOwnership.incomeUnclassified;
 
+    const expensesByCategory = aggregateExpensesByCategory(
+      cashMovementsRaw
+        .filter((m): m is typeof m & { type: "expense" } => m.type === "expense")
+        .map((m) => ({ categoryId: m.categoryId, categoryName: m.categoryName, amount: Number(m.amount) })),
+    );
+
     return {
       kpis: {
         fleet: vehicles.filter((v) => v.archivedAt == null).length,
@@ -487,6 +546,7 @@ export const getReports = unstable_cache(
       highlightMonth,
       vehicles: vehicleReports,
       cashByOwnership,
+      expensesByCategory,
       whatsapp: { conversationsInPeriod: whatsappConversationsInPeriod, byMonth: whatsappByMonth },
     };
   },

@@ -40,6 +40,30 @@ body {
   border-radius: 4px;
 }
 
+/* Paleta categórica para gráficos (torta de egresos por categoría en Reportes) — orden fijo, no ciclar. */
+:root {
+  --chart-cat-1: #2a78d6; /* azul */
+  --chart-cat-2: #eb6834; /* naranja */
+  --chart-cat-3: #1baf7a; /* aqua */
+  --chart-cat-4: #eda100; /* amarillo */
+  --chart-cat-5: #e87ba4; /* magenta */
+  --chart-cat-6: #008300; /* verde */
+  --chart-cat-7: #4a3aa7; /* violeta */
+  --chart-cat-other: #898781; /* gris — "Otros" / "Sin categoría" */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-cat-1: #3987e5;
+    --chart-cat-2: #d95926;
+    --chart-cat-3: #199e70;
+    --chart-cat-4: #c98500;
+    --chart-cat-5: #d55181;
+    --chart-cat-6: #008300;
+    --chart-cat-7: #9085e9;
+    --chart-cat-other: #898781;
+  }
+}
+
 /* Loader de Andes: trazo de luz recorriendo la silueta de los picos. */
 .andes-loader-track {
   stroke: #38bdf8;

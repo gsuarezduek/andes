@@ -8,6 +8,7 @@ import {
   recentMonths,
   sortVehicleReports,
   aggregateCashByOwnership,
+  aggregateExpensesByCategory,
   bucketWhatsAppConversations,
   parseReportPeriod,
   reportPeriodParam,
@@ -38,16 +39,19 @@ describe("recentMonths", () => {
 });
 
 describe("DEFAULT_REPORT_PERIOD", () => {
-  it("es el mes anterior (cerrado)", () => {
-    expect(DEFAULT_REPORT_PERIOD).toEqual({ kind: "month", which: "previous" });
+  it("es el mes actual (en curso)", () => {
+    expect(DEFAULT_REPORT_PERIOD).toEqual({ kind: "month", which: "current" });
   });
 });
 
 describe("parseReportPeriod / reportPeriodParam", () => {
-  it("\"prev\" y valores desconocidos caen en el default (mes anterior)", () => {
+  it("valores desconocidos caen en el default (mes actual)", () => {
+    expect(parseReportPeriod(undefined)).toEqual({ kind: "month", which: "current" });
+    expect(parseReportPeriod("cualquier-cosa")).toEqual({ kind: "month", which: "current" });
+  });
+
+  it("\"prev\" es el mes anterior", () => {
     expect(parseReportPeriod("prev")).toEqual({ kind: "month", which: "previous" });
-    expect(parseReportPeriod(undefined)).toEqual({ kind: "month", which: "previous" });
-    expect(parseReportPeriod("cualquier-cosa")).toEqual({ kind: "month", which: "previous" });
   });
 
   it("\"current\" es este mes", () => {
@@ -59,7 +63,7 @@ describe("parseReportPeriod / reportPeriodParam", () => {
   });
 
   it("un número fuera de las opciones cae en el default", () => {
-    expect(parseReportPeriod("5")).toEqual({ kind: "month", which: "previous" });
+    expect(parseReportPeriod("5")).toEqual({ kind: "month", which: "current" });
   });
 
   it("reportPeriodParam es el inverso de parseReportPeriod", () => {
@@ -186,6 +190,50 @@ describe("aggregateCashByOwnership", () => {
       incomeUnclassified: 0,
       expenseTotal: 0,
     });
+  });
+});
+
+describe("aggregateExpensesByCategory", () => {
+  it("agrupa por categoría, suma montos y calcula el % sobre el total", () => {
+    const result = aggregateExpensesByCategory([
+      { categoryId: "c1", categoryName: "Sueldos", amount: 700 },
+      { categoryId: "c1", categoryName: "Sueldos", amount: 300 },
+      { categoryId: "c2", categoryName: "Combustible", amount: 500 },
+      { categoryId: null, categoryName: null, amount: 500 },
+    ]);
+    expect(result).toEqual([
+      { id: "c1", name: "Sueldos", total: 1000, percent: 50 },
+      { id: "c2", name: "Combustible", total: 500, percent: 25 },
+      { id: null, name: "Sin categoría", total: 500, percent: 25 },
+    ]);
+  });
+
+  it("ordena de mayor a menor monto", () => {
+    const result = aggregateExpensesByCategory([
+      { categoryId: "small", categoryName: "Chico", amount: 10 },
+      { categoryId: "big", categoryName: "Grande", amount: 90 },
+    ]);
+    expect(result.map((r) => r.name)).toEqual(["Grande", "Chico"]);
+  });
+
+  it("pliega la cola en \"Otros\" cuando hay más de 7 categorías", () => {
+    const movements = Array.from({ length: 9 }, (_, i) => ({
+      categoryId: `c${i}`,
+      categoryName: `Cat ${i}`,
+      // montos descendentes: c0 es la más grande, c8 la más chica
+      amount: 100 - i * 10,
+    }));
+    const result = aggregateExpensesByCategory(movements);
+    expect(result).toHaveLength(8); // 7 reales + "Otros"
+    expect(result.slice(0, 7).map((r) => r.name)).toEqual(["Cat 0", "Cat 1", "Cat 2", "Cat 3", "Cat 4", "Cat 5", "Cat 6"]);
+    const otros = result[7];
+    expect(otros.name).toBe("Otros");
+    expect(otros.id).toBeNull();
+    expect(otros.total).toBe(30 + 20); // c7 (30) + c8 (20)
+  });
+
+  it("lista vacía da lista vacía, sin dividir por cero", () => {
+    expect(aggregateExpensesByCategory([])).toEqual([]);
   });
 });
 

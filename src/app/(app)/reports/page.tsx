@@ -11,6 +11,7 @@ import {
   type MonthPoint,
   type WhatsAppMonthPoint,
   type VehicleSortKey,
+  type ExpenseCategoryReport,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -42,7 +43,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, whatsapp } =
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, whatsapp } =
     await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
@@ -114,6 +115,18 @@ export default async function ReportsPage({
             " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}
         </p>
       </section>
+
+      {/* Egresos por categoría */}
+      {expensesByCategory.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <SectionHeading description="Egresos del período (Caja), agrupados por categoría.">
+            Egresos por categoría
+          </SectionHeading>
+          <div className="rounded-xl border border-foreground/10 p-4">
+            <ExpenseCategoryPie data={expensesByCategory} />
+          </div>
+        </section>
+      )}
 
       {/* Actividad por mes */}
       <section className="flex flex-col gap-3">
@@ -257,6 +270,105 @@ function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMont
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+// Paleta categórica fija (variables definidas en globals.css, con su variante
+// para modo oscuro) — orden fijo, nunca se ciclan. Sólo 7 slots "reales":
+// `aggregateExpensesByCategory` ya pliega la cola en "Otros" antes de llegar
+// acá, que usa el color gris de "--chart-cat-other".
+const EXPENSE_CATEGORY_COLOR_VARS = [
+  "--chart-cat-1",
+  "--chart-cat-2",
+  "--chart-cat-3",
+  "--chart-cat-4",
+  "--chart-cat-5",
+  "--chart-cat-6",
+  "--chart-cat-7",
+];
+
+/** Color de una porción: gris fijo para "Otros"/"Sin categoría" plegada, si no el próximo color de la paleta en orden. */
+function expenseSliceColor(index: number, name: string): string {
+  if (name === "Otros") return "var(--chart-cat-other)";
+  return `var(${EXPENSE_CATEGORY_COLOR_VARS[index % EXPENSE_CATEGORY_COLOR_VARS.length]})`;
+}
+
+/** Punto sobre un círculo de radio `r` centrado en (cx, cy), a `angleDeg` grados desde las 12, en sentido horario. */
+function pointOnCircle(cx: number, cy: number, r: number, angleDeg: number): { x: number; y: number } {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+/**
+ * Gráfico de torta (SVG) de egresos por categoría + lista con nombre/monto/%
+ * al lado — la lista dobla como "vista de tabla" (algunos colores de la
+ * paleta no llegan a 3:1 de contraste contra el fondo; la lista con valores
+ * en texto es la mitigación, nunca depender del color solo).
+ */
+function ExpenseCategoryPie({ data }: { data: ExpenseCategoryReport[] }) {
+  const size = 160;
+  const r = 72;
+  const cx = size / 2;
+  const cy = size / 2;
+  const total = data.reduce((sum, d) => sum + d.total, 0);
+
+  const slices = data.reduce<Array<ExpenseCategoryReport & { index: number; startAngle: number; angle: number }>>(
+    (acc, d, i) => {
+      const angle = total > 0 ? (d.total / total) * 360 : 0;
+      const startAngle = acc.length > 0 ? acc[acc.length - 1].startAngle + acc[acc.length - 1].angle : 0;
+      acc.push({ ...d, index: i, startAngle, angle });
+      return acc;
+    },
+    [],
+  );
+
+  return (
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-40 w-40 shrink-0" role="img" aria-label="Egresos por categoría">
+        {total <= 0 ? (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeOpacity="0.1" />
+        ) : (
+          slices.map((s) => {
+            const color = expenseSliceColor(s.index, s.name);
+            // Una sola categoría con el 100%: un arco no puede cerrar el círculo completo, se dibuja aparte.
+            if (s.angle >= 359.99) {
+              return <circle key={s.name + s.index} cx={cx} cy={cy} r={r} fill={color} />;
+            }
+            const p1 = pointOnCircle(cx, cy, r, s.startAngle);
+            const p2 = pointOnCircle(cx, cy, r, s.startAngle + s.angle);
+            const largeArc = s.angle > 180 ? 1 : 0;
+            const path = `M ${cx} ${cy} L ${p1.x} ${p1.y} A ${r} ${r} 0 ${largeArc} 1 ${p2.x} ${p2.y} Z`;
+            return (
+              <path
+                key={s.name + s.index}
+                d={path}
+                fill={color}
+                stroke="var(--background)"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            );
+          })
+        )}
+      </svg>
+      <ul className="flex w-full min-w-0 flex-col gap-1.5 text-sm">
+        {slices.map((s) => (
+          <li key={s.name + s.index} className="flex items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: expenseSliceColor(s.index, s.name) }}
+                aria-hidden
+              />
+              <span className="truncate">{s.name}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-foreground/60">
+              {formatArs(s.total)} <span className="text-foreground/40">· {s.percent.toFixed(0)}%</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
