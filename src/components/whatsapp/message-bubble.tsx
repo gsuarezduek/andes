@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/datetime";
+import { linkifyText } from "@/lib/linkify";
 import type { WhatsAppDirection } from "@prisma/client";
 
 export type MessageData = {
@@ -24,7 +25,25 @@ export function MessageBubble({ message }: { message: MessageData }) {
         }`}
       >
         {message.media ? <MediaPreview media={message.media} /> : null}
-        {message.body ? <p className="whitespace-pre-wrap">{message.body}</p> : null}
+        {message.body ? (
+          <p className="whitespace-pre-wrap break-words">
+            {linkifyText(message.body).map((segment, i) =>
+              segment.type === "link" ? (
+                <a
+                  key={i}
+                  href={segment.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  {segment.label}
+                </a>
+              ) : (
+                <span key={i}>{segment.text}</span>
+              ),
+            )}
+          </p>
+        ) : null}
         {message.viaTemplate ? (
           <p className={`mt-1 text-xs ${out ? "text-background/70" : "text-foreground/50"}`}>
             Plantilla: {message.templateName}

@@ -568,6 +568,10 @@ El "Borrar un usuario" de v33 quedaba incompleto: `Inspection.userId` y `Conditi
 - **Verificado end-to-end contra la base local**: se creó un usuario de prueba, se le cargó una `VehicleNote` y una `Inspection` (el caso que antes crasheaba), se lo desactivó y se lo borró — sin error, y ambas filas conservan el nombre (`createdByName`/`userName`) con el `*Id` en `null`. Build/lint/tsc/tests en verde (468 tests).
 - **No incluido a propósito**: `RentalDocument.uploadedById`, `SignatureRequest.createdById` y `WhatsAppConversation.assignedToId` no se tocaron — ninguno de los tres se muestra hoy en ninguna pantalla (el de `WhatsAppConversation` es el campo de "Asignado a" que v25 sacó de la UI a pedido del dueño), así que un nombre congelado ahí no tendría ningún consumidor.
 
+## v35 — Links clicables en el chat de WhatsApp
+
+Los mensajes (entrantes y salientes) se mostraban como texto plano — una URL pegada por el cliente o el equipo aparecía completa y sin poder clickearse, a veces desbordando el ancho del bubble. `src/lib/linkify.ts` (puro, testeado — `linkify.test.ts`) separa el `body` en segmentos de texto/link con una regex (`https://…` o `www.…`, sin incluir puntuación de cierre como `).,;:!?` pegada al final) y `shortenUrlLabel` recorta el texto visible del link (dominio + path, sin `www.`, elipsis a los ~42 caracteres) **sin tocar el `href` real**, que sigue siendo la URL completa. `MessageBubble` (`src/components/whatsapp/message-bubble.tsx`) renderiza cada segmento — texto tal cual, link como `<a target="_blank">`. Verificado por HTTP autenticado contra la base local (login real + mensaje de prueba con URL larga): el link quedó recortado en pantalla y el `href` completo y funcional.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
