@@ -3,9 +3,11 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { TextareaField } from "@/components/ui/fields";
 
 /**
- * Tarjeta de confirmación de borrado in-place, para usar dentro de un <ul>
- * (reemplaza la fila mientras se confirma). Mismo patrón que ya se repetía
- * en MovementRow/SafeMovementRow — un solo lugar para el estilo y el flujo.
+ * Tarjeta de confirmación de borrado in-place. Por defecto un <li>, para usar
+ * dentro de un <ul> (reemplaza la fila mientras se confirma) — mismo patrón
+ * que ya se repetía en MovementRow/SafeMovementRow, un solo lugar para el
+ * estilo y el flujo. `as="div"` para usarla fuera de una lista (ej. dentro
+ * de un modal, ver MovementRow).
  *
  * `requireNote` agrega un campo "Motivo" obligatorio (id `note` en el
  * FormData) para cuando el caller quiere dejar constancia de por qué se
@@ -16,14 +18,16 @@ export function ConfirmDeleteCard({
   action,
   onCancel,
   requireNote = false,
+  as: Tag = "li",
 }: {
   message: ReactNode;
   action: (formData: FormData) => void | Promise<void>;
   onCancel: () => void;
   requireNote?: boolean;
+  as?: "li" | "div";
 }) {
   return (
-    <li className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
+    <Tag className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
       <p className="text-red-600">{message}</p>
       <form action={action} className="mt-2 flex flex-col gap-2">
         {requireNote && (
@@ -38,6 +42,6 @@ export function ConfirmDeleteCard({
           </SubmitButton>
         </div>
       </form>
-    </li>
+    </Tag>
   );
 }

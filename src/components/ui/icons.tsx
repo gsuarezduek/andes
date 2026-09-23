@@ -41,6 +41,15 @@ export function EditIcon({ className = "size-4" }: { className?: string }) {
   );
 }
 
+/** Flecha chica hacia la derecha — indica que una fila abre un detalle (ver MovementRow). */
+export function ChevronRightIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="m7.5 4.5 5 5.5-5 5.5" />
+    </svg>
+  );
+}
+
 /** Cámara (sacar foto) — reemplaza el emoji 📷 en la captura de documentos. */
 export function CameraIcon({ className = "size-[18px]" }: { className?: string }) {
   return (

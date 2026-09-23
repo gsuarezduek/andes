@@ -48,13 +48,15 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>
-        {account.subaccounts.length > 0 && (
-          <p className="text-sm text-foreground/60">Incluye {account.subaccounts.map((s) => s.name).join(", ")}</p>
-        )}
-        <div className="mt-2">
-          <CurrencyTotalsDisplay totals={account.balance} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>
+          {account.subaccounts.length > 0 && (
+            <p className="text-sm text-foreground/60">Incluye {account.subaccounts.map((s) => s.name).join(", ")}</p>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          <CurrencyTotalsDisplay totals={account.balance} size="text-xl" />
         </div>
       </div>
 
