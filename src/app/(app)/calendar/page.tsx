@@ -107,8 +107,6 @@ export default async function CalendarPage({
       </div>
 
       <p className="text-xs text-foreground/40">
-        Autos ordenados por su orden de calendario (editable en cada ficha). En 90 días se puede
-        desplazar la grilla hacia los costados para moverse en el tiempo, sin usar Anterior/Siguiente.
         Pasá el mouse por una barra para ver las notas de la reserva; el precio de cada auto
         (desktop) y los días con temporada especial se traen de VikRentCar. Tocá dos días vacíos de
         un auto (inicio y fin) para armar un presupuesto — queda visible para todo el equipo, no
