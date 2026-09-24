@@ -19,6 +19,8 @@ export type PaymentMethodOption = {
 };
 export type ExpenseCategoryOption = { id: string; name: string };
 
+const NO_CATEGORY = "__none__";
+
 /**
  * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
  * achicado a la izquierda) y el selector de fecha (Hoy/Semana/Mes/fecha
@@ -40,6 +42,8 @@ export function CashMovementsBoard({
   period: CashPeriod;
 }) {
   const [accountId, setAccountId] = useState("");
+  // "" = todas, NO_CATEGORY = egresos sin categoría cargada.
+  const [categoryId, setCategoryId] = useState("");
 
   // Elegir una cuenta principal (ver `PaymentMethod.parentId`) suma también
   // sus subcuentas — misma entidad, no tiene sentido partir el cálculo por
@@ -54,13 +58,19 @@ export function CashMovementsBoard({
   const filteredIncomes = accountId
     ? incomes.filter((r) => r.paymentMethodId && matchIds.includes(r.paymentMethodId))
     : incomes;
-  const filteredExpenses = accountId
+  const accountExpenses = accountId
     ? expenses.filter(
         (r) =>
           (r.paymentMethodId && matchIds.includes(r.paymentMethodId)) ||
           (r.recipientPaymentMethodId && matchIds.includes(r.recipientPaymentMethodId)),
       )
     : expenses;
+  // La categoría solo aplica a Egresos (los Ingresos no llevan categoría).
+  const filteredExpenses = categoryId
+    ? accountExpenses.filter((r) =>
+        categoryId === NO_CATEGORY ? !r.categoryId : r.categoryId === categoryId,
+      )
+    : accountExpenses;
   const selectedAccount = paymentMethods.find((m) => m.id === accountId);
   const selectedSubaccounts = paymentMethods.filter((m) => subaccountIds.includes(m.id));
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
@@ -105,6 +115,22 @@ export function CashMovementsBoard({
                 ))}
               </optgroup>
             )}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-foreground/80">Categoría (egresos)</span>
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="h-11 w-48 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
+          >
+            <option value="">Todas las categorías</option>
+            {expenseCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value={NO_CATEGORY}>Sin categoría</option>
           </select>
         </label>
         <CashPeriodPicker period={period} />
@@ -165,6 +191,7 @@ export function CashMovementsBoard({
           tone="red"
           paymentMethods={paymentMethods}
           expenseCategories={expenseCategories}
+          totals={categoryId ? sumByCurrency(filteredExpenses) : undefined}
         />
       </div>
     </div>
@@ -177,16 +204,24 @@ function MovementColumn({
   tone,
   paymentMethods,
   expenseCategories,
+  totals,
 }: {
   title: string;
   rows: CashMovementRow[];
   tone: "emerald" | "red";
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
+  totals?: { ars: number; usd: number };
 }) {
   return (
     <section className="flex flex-col gap-2">
       <SectionTitle>{title}</SectionTitle>
+      {totals && (
+        <div className="rounded-lg border border-foreground/10 p-3 text-center">
+          <p className="text-xs text-foreground/50">Total de la categoría</p>
+          <CurrencyTotalsDisplay totals={totals} toneClass="text-red-600" />
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
           Sin movimientos.
