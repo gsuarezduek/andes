@@ -3,35 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import type { SafeMovementFieldChange } from "@/lib/safe";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { currencyLabels } from "@/lib/currency";
 
-const createSafeMovementSchema = z.object({
-  description: z.string().trim().min(1).max(500),
-  amount: z.coerce.number().positive(),
-  currency: z.enum(["ars", "usd"]).default("ars"),
-});
-
-// Ingreso o retiro de efectivo de la caja fuerte. Cualquier rol puede
-// cargarlo — igual que Ingreso/Egreso, la restricción de ver el detalle completo
-// (y acá además el saldo) es de UI, no de permiso de escritura.
-export async function createSafeMovement(type: "deposit" | "withdrawal", formData: FormData) {
-  const user = await requireUser();
-  const { description, amount, currency } = createSafeMovementSchema.parse({
-    description: formData.get("description"),
-    amount: formData.get("amount"),
-    currency: formData.get("currency") || undefined,
-  });
-
-  await prisma.safeMovement.create({
-    data: { type, description, amount, currency, createdById: user.id, createdByName: displayName(user) },
-  });
-
-  revalidatePath("/caja");
-}
+// Ya no se cargan movimientos nuevos acá: para meter o sacar efectivo de la
+// caja fuerte se usa "Mover entre cuentas" (Saldos, ver `transfer-actions.ts`).
+// Los movimientos viejos siguen existiendo y se pueden corregir/borrar abajo.
 
 const updateSafeMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),

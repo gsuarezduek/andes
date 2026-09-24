@@ -30,7 +30,7 @@ export function CajaTabs({
   proveedores: ReactNode;
   garantias?: ReactNode;
   saldos?: ReactNode;
-  cajaFuerte: ReactNode;
+  cajaFuerte?: ReactNode;
 }) {
   const [section, setSection] = useState(0);
   const entries: { label: string; panel: ReactNode }[] = [
@@ -39,7 +39,7 @@ export function CajaTabs({
     { label: "Cuentas corrientes", panel: proveedores },
     ...(garantias !== undefined ? [{ label: "Garantías", panel: garantias }] : []),
     ...(saldos !== undefined ? [{ label: "Saldos", panel: saldos }] : []),
-    { label: "Caja fuerte", panel: cajaFuerte },
+    ...(cajaFuerte !== undefined ? [{ label: "Caja fuerte", panel: cajaFuerte }] : []),
   ];
 
   return (

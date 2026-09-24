@@ -7,6 +7,9 @@ import { getOwnAccountBalances, getOwnAccountLedger } from "@/lib/cash";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
+import { SectionTitle } from "@/components/ui/section-title";
+import { TransferList } from "@/components/cash/transfer-list";
+import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { AccountLedgerMonths } from "@/components/cash/account-ledger-months";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -25,9 +28,10 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
   await requireAdmin();
   const { id } = await params;
 
-  const [accounts, ledger, paymentMethods, expenseCategories] = await Promise.all([
+  const [accounts, ledger, transfers, paymentMethods, expenseCategories] = await Promise.all([
     getOwnAccountBalances(),
     getOwnAccountLedger(id),
+    getAccountTransfers({ accountId: id, limit: 100 }),
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
@@ -45,6 +49,7 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
 
   // `getOwnAccountLedger` ya viene ordenado por `createdAt` desc (ver
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
+  const perspectiveAccountIds = [account.id, ...account.subaccounts.map((s) => s.id)];
   const groups = groupProviderLedgerByMonth(ledger, new Date());
 
   return (
@@ -67,6 +72,15 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
       />
+
+      <div className="flex flex-col gap-2">
+        <SectionTitle>Traspasos</SectionTitle>
+        <TransferList
+          transfers={transfers}
+          perspectiveAccountIds={perspectiveAccountIds}
+          emptyText="Esta cuenta no tiene traspasos."
+        />
+      </div>
 
       <ButtonLink href="/caja" variant="secondary">
         Volver a Caja

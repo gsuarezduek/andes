@@ -23,6 +23,8 @@ import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import type { ContractPricing } from "@/lib/contract";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { toArs, usdRateAt } from "@/lib/usd-rate";
+import { getUsdRateHistory } from "@/lib/usd-rate-queries";
 
 export type MonthPoint = { month: string; rentals: number; km: number };
 
@@ -91,6 +93,10 @@ export type Reports = {
   // Egresos del período agrupados por categoría (`CashMovementCategory`), para
   // la torta de Reportes. Ordenado de mayor a menor monto.
   expensesByCategory: ExpenseCategoryReport[];
+  // Movimientos en USD del período que NO se pudieron pasar a pesos porque
+  // todavía no hay ningún valor de referencia cargado (quedan fuera de los
+  // totales de Caja de arriba). Normalmente 0.
+  usdUnconverted: number;
   whatsapp: {
     // Conversaciones únicas (al menos un mensaje, entrante o saliente) del período elegido arriba.
     conversationsInPeriod: number;
@@ -381,6 +387,8 @@ export const getReports = unstable_cache(
           select: {
             type: true,
             amount: true,
+            currency: true,
+            createdAt: true,
             categoryId: true,
             categoryName: true,
             paymentMethod: { select: { ownership: true } },
@@ -509,16 +517,32 @@ export const getReports = unstable_cache(
       .map((v) => ({ ...v, net: v.income - v.cost }))
       .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
 
+    // Todo el reporte de Caja va en pesos: un movimiento en USD se convierte
+    // con el valor de referencia vigente cuando se cargó (o el primero
+    // disponible si es anterior a cualquier valor — ver `usdRateAt`). Sin
+    // ningún valor cargado, un USD no se puede convertir y queda afuera (se
+    // cuenta en `usdUnconverted` para avisarlo en la UI).
+    const usdHistory = await getUsdRateHistory();
+    let usdUnconverted = 0;
+    const cashInArs = cashMovementsRaw
+      .filter((m): m is typeof m & { type: "income" | "expense" } => m.type !== "debt")
+      .flatMap((m) => {
+        const amount = toArs(Number(m.amount), m.currency, usdRateAt(usdHistory, m.createdAt));
+        if (amount == null) {
+          usdUnconverted += 1;
+          return [];
+        }
+        return [{ ...m, amountArs: amount }];
+      });
+
     const cashByOwnership = aggregateCashByOwnership(
       // El `where` de la query ya excluye "debt" (deuda de proveedor, no es
-      // caja real) — este filter solo estrecha el tipo para TS.
-      cashMovementsRaw
-        .filter((m): m is typeof m & { type: "income" | "expense" } => m.type !== "debt")
-        .map((m) => ({
-          type: m.type,
-          amount: Number(m.amount),
-          paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
-        })),
+      // caja real) — el filter de arriba solo estrecha el tipo para TS.
+      cashInArs.map((m) => ({
+        type: m.type,
+        amount: m.amountArs,
+        paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
+      })),
     );
     // "Ingresos"/"Neto" del KPI principal son de Caja (dinero real), no del
     // contrato — mismo criterio que `cashByOwnership`, así que van a
@@ -526,9 +550,9 @@ export const getReports = unstable_cache(
     const cashIncomeTotal = cashByOwnership.incomeOwn + cashByOwnership.incomeThirdParty + cashByOwnership.incomeUnclassified;
 
     const expensesByCategory = aggregateExpensesByCategory(
-      cashMovementsRaw
-        .filter((m): m is typeof m & { type: "expense" } => m.type === "expense")
-        .map((m) => ({ categoryId: m.categoryId, categoryName: m.categoryName, amount: Number(m.amount) })),
+      cashInArs
+        .filter((m) => m.type === "expense")
+        .map((m) => ({ categoryId: m.categoryId, categoryName: m.categoryName, amount: m.amountArs })),
     );
 
     return {
@@ -547,6 +571,7 @@ export const getReports = unstable_cache(
       vehicles: vehicleReports,
       cashByOwnership,
       expensesByCategory,
+      usdUnconverted,
       whatsapp: { conversationsInPeriod: whatsappConversationsInPeriod, byMonth: whatsappByMonth },
     };
   },

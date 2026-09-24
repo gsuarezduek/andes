@@ -7,6 +7,7 @@ import { computeBalance, paidTotal, roundMoney, type ContractPricing, type Renta
 import type { RawBooking, RawOptional } from "./types";
 import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
+import { syncCommission } from "@/lib/commissions-sync";
 
 export type Outcome = "imported" | "updated" | "cancelled" | "skipped";
 
@@ -196,6 +197,10 @@ export async function importBookingPayment(
         rentalId,
       },
     });
+
+    // Comisión automática del medio de pago, si ya está resuelto (si no, se
+    // genera cuando alguien confirme el medio — ver `confirmCashMovementPaymentMethod`).
+    if (!needsConfirmation) await syncCommission(tx, movement.id, { id: null, name: null });
 
     const rental = await tx.rental.findUnique({ where: { id: rentalId }, select: { pricing: true } });
     const pricing = (rental?.pricing ?? {}) as ContractPricing;

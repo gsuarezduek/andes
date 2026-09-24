@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { generateAndSendActa } from "@/lib/acta";
+import { syncCommission } from "@/lib/commissions-sync";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
@@ -193,14 +194,17 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
       // vía "Agregar pago", o importadas del sync): no se recrean.
       const newPayments = settlementForPersist?.payments?.filter((p) => !p.cashMovementId) ?? [];
       if (newPayments.length) {
-        await tx.cashMovement.createMany({
-          data: paymentsToCashMovements(newPayments, {
+        const incomeRows = paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
             createdByName: displayName(user),
             description: `Ingreso de devolución — ${rental.clientName}`,
-          }),
-        });
+          });
+        await tx.cashMovement.createMany({ data: incomeRows });
+        // Comisión automática del medio de pago de cada ingreso (si la tiene).
+        for (const row of incomeRows) {
+          await syncCommission(tx, row.id!, { id: user.id, name: displayName(user) });
+        }
       }
 
       return insp;

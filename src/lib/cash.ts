@@ -1,12 +1,14 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput } from "@/lib/datetime";
 import type { RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
-import { getSafeBalance } from "@/lib/safe";
+import { getLegacySafeBalance } from "@/lib/safe";
 import { resolveToPrincipal } from "@/lib/third-party-accounts";
+import { applyTransfersToBalances, walletDeltaFromTransfers } from "@/lib/account-transfers";
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 
@@ -64,6 +66,9 @@ export type CashMovementRow = {
   // Importado automático desde VikRentCar sin poder resolver el medio de pago
   // real — falta que alguien lo confirme (ver `confirmCashMovementPaymentMethod`).
   needsConfirmation: boolean;
+  // Egreso generado solo por la comisión de un ingreso (ver
+  // `PaymentMethod.commissionPercent`) — se muestra con una marca en el detalle.
+  isCommission: boolean;
   rentalId: string | null;
   rentalClientName: string | null;
   // Nº de orden de VikRentCar de la reserva vinculada (si tiene) — para poder
@@ -123,6 +128,7 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
     categoryId: r.categoryId,
     categoryName: r.categoryName,
     needsConfirmation: r.needsConfirmation,
+    isCommission: r.commissionSourceId != null,
     rentalId: r.rentalId,
     rentalClientName: r.rental?.clientName ?? null,
     rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
@@ -326,7 +332,11 @@ export function paymentsToCashMovements(
   payments: RentalPayment[],
   opts: { rentalId: string; createdById: string; createdByName: string; description: string },
 ): Prisma.CashMovementCreateManyInput[] {
+  // Ids generados acá (en vez de por la base) para que el llamador sepa qué
+  // ingresos acaba de crear con un `createMany` (que no devuelve filas) y les
+  // pueda generar su comisión — ver `syncCommission`.
   return payments.map((p) => ({
+    id: randomUUID(),
     type: "income" as const,
     description: opts.description,
     amount: p.adjustedAmount,
@@ -397,14 +407,16 @@ export async function getDeletedCashMovements(period: CashPeriod): Promise<Delet
  * `getSafeBalance`, representa cuánto hay HOY, no un movimiento puntual.
  * Separado por moneda (un ingreso en efectivo puede ser ARS o USD).
  *
- * Billetera = (ingresos − egresos en Caja con un medio marcado `isCash`) −
- * saldo actual de la Caja fuerte. Al depositar en la caja fuerte, ese saldo
- * sube y la Billetera baja en la misma medida (y al revés al retirar) —
- * la resta ya lo refleja sin tener que filtrar los SafeMovement acá.
+ * Billetera = (ingresos − egresos en Caja con un medio marcado `isCash`, más
+ * los traspasos que entran/salen de esas cuentas) − el saldo de los
+ * movimientos VIEJOS de la caja fuerte (`SafeMovement`, sin cuenta de origen:
+ * antes se restaban de la Billetera directo). Los traspasos nuevos hacia/desde
+ * la caja fuerte ya bajan/suben la cuenta de efectivo, así que NO se restan de
+ * nuevo acá (sería contarlos dos veces) — ver `getLegacySafeBalance`.
  * Info sensible — solo para admin (mismo criterio que la Caja fuerte).
  */
 export async function getWalletBalance(): Promise<CurrencyTotals> {
-  const [income, expense, safeBalance] = await Promise.all([
+  const [income, expense, legacySafeBalance, transfers] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["currency"],
       where: { type: "income", deletedAt: null, paymentMethod: { isCash: true } },
@@ -415,12 +427,33 @@ export async function getWalletBalance(): Promise<CurrencyTotals> {
       where: { type: "expense", deletedAt: null, paymentMethod: { isCash: true } },
       _sum: { amount: true },
     }),
-    getSafeBalance(),
+    getLegacySafeBalance(),
+    prisma.accountTransfer.findMany({
+      where: { deletedAt: null },
+      include: { fromAccount: { select: { isCash: true } }, toAccount: { select: { isCash: true } } },
+    }),
   ]);
   const totals = emptyCurrencyTotals();
   for (const row of income) totals[row.currency] += Number(row._sum.amount ?? 0);
   for (const row of expense) totals[row.currency] -= Number(row._sum.amount ?? 0);
-  return { ars: totals.ars - safeBalance.ars, usd: totals.usd - safeBalance.usd };
+  // Un traspaso que saca plata de una cuenta `isCash` (o la mete) también
+  // mueve el efectivo en mano, aunque no sea ingreso ni egreso.
+  const transferDelta = walletDeltaFromTransfers(
+    transfers.map((t) => ({
+      fromAccountId: t.fromAccountId,
+      fromAmount: Number(t.fromAmount),
+      fromCurrency: t.fromCurrency,
+      toAccountId: t.toAccountId,
+      toAmount: Number(t.toAmount),
+      toCurrency: t.toCurrency,
+      fromIsCash: t.fromAccount?.isCash ?? false,
+      toIsCash: t.toAccount?.isCash ?? false,
+    })),
+  );
+  return {
+    ars: totals.ars + transferDelta.ars - legacySafeBalance.ars,
+    usd: totals.usd + transferDelta.usd - legacySafeBalance.usd,
+  };
 }
 
 export type OwnAccountBalance = {
@@ -449,7 +482,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
   const { principals, resolve, memberIds } = await resolveToPrincipal("own");
   if (principals.length === 0) return [];
 
-  const [income, expense] = await Promise.all([
+  const [income, expense, transfers] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["paymentMethodId", "currency"],
       where: { type: "income", deletedAt: null, paymentMethodId: { in: memberIds } },
@@ -460,6 +493,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
       where: { type: "expense", deletedAt: null, paymentMethodId: { in: memberIds } },
       _sum: { amount: true },
     }),
+    prisma.accountTransfer.findMany({ where: { deletedAt: null } }),
   ]);
 
   const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
@@ -473,6 +507,19 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     const totals = principalId && balances.get(principalId);
     if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
   }
+  // Traspasos entre cuentas: no son ingreso ni egreso, solo mueven saldo.
+  applyTransfersToBalances(
+    balances,
+    resolve,
+    transfers.map((t) => ({
+      fromAccountId: t.fromAccountId,
+      fromAmount: Number(t.fromAmount),
+      fromCurrency: t.fromCurrency,
+      toAccountId: t.toAccountId,
+      toAmount: Number(t.toAmount),
+      toCurrency: t.toCurrency,
+    })),
+  );
 
   return principals.map((p) => ({
     id: p.id,

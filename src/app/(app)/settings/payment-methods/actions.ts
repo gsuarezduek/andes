@@ -57,6 +57,11 @@ export type PaymentMethodUpdateInput = {
   // Teléfono de WhatsApp de este proveedor/asociado — link directo a su
   // conversación desde la tarjeta en Caja (ver third-party-accounts.ts).
   whatsappPhone: string;
+  // Comisión que cobra esta cuenta por cada ingreso (solo cuentas propias) —
+  // ver `PaymentMethod.commissionPercent` en el schema. Vacío = sin comisión.
+  commissionPercent: string;
+  commissionFixed: string;
+  commissionCategoryId: string | null;
 };
 
 /**
@@ -94,6 +99,27 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
     }
   }
 
+  // Comisión: números positivos y categoría existente. Solo tiene sentido en
+  // cuentas propias — en las demás se guarda vacía.
+  const categoryIds = new Set((await prisma.cashMovementCategory.findMany({ select: { id: true } })).map((c) => c.id));
+  const commissions = new Map<string, { percent: number | null; fixed: number | null; categoryId: string | null }>();
+  for (const u of valid) {
+    const percent = percentOrNull(u.commissionPercent);
+    const fixed = percentOrNull(u.commissionFixed);
+    if ((percent != null && (percent < 0 || percent > 100)) || (fixed != null && fixed < 0)) {
+      throw new Error(`Comisión inválida en "${u.name.trim()}": el porcentaje va de 0 a 100 y el monto fijo no puede ser negativo.`);
+    }
+    if (u.commissionCategoryId && !categoryIds.has(u.commissionCategoryId)) {
+      throw new Error(`La categoría de la comisión de "${u.name.trim()}" ya no existe.`);
+    }
+    const own = u.ownership === "own";
+    commissions.set(u.id, {
+      percent: own && percent ? percent : null,
+      fixed: own && fixed ? fixed : null,
+      categoryId: own ? (u.commissionCategoryId ?? null) : null,
+    });
+  }
+
   await prisma.$transaction(
     valid.map((u) =>
       prisma.paymentMethod.update({
@@ -107,6 +133,9 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           ownership: u.ownership,
           parentId: u.parentId,
           whatsappPhone: strOrNull(u.whatsappPhone),
+          commissionPercent: commissions.get(u.id)!.percent,
+          commissionFixed: commissions.get(u.id)!.fixed,
+          commissionCategoryId: commissions.get(u.id)!.categoryId,
         },
       }),
     ),

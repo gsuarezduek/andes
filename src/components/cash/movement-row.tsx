@@ -36,11 +36,14 @@ export function MovementRow({
   tone,
   paymentMethods,
   expenseCategories,
+  canEdit = true,
 }: {
   movement: CashMovementRowData;
   tone: "emerald" | "red";
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
+  /** Falso para roles sin permiso de edición: el modal solo muestra el detalle. */
+  canEdit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
@@ -105,6 +108,9 @@ export function MovementRow({
                 />
               )}
               {movement.categoryName && <DetailRow label="Categoría" value={movement.categoryName} />}
+              {movement.isCommission && (
+                <DetailRow label="Generado por" value="Comisión automática de un ingreso" />
+              )}
               {movement.rentalClientName && (
                 <DetailRow
                   label="Cliente"
@@ -127,14 +133,16 @@ export function MovementRow({
                 />
               )}
             </dl>
-            <div className="mt-1 flex gap-2">
-              <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
-                Editar
-              </Button>
-              <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
-                Eliminar
-              </Button>
-            </div>
+            {canEdit && (
+              <div className="mt-1 flex gap-2">
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
+                  Editar
+                </Button>
+                <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
+                  Eliminar
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

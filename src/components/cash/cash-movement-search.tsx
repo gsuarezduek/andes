@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
+import type { PaymentMethodOwnership } from "@prisma/client";
+import { MovementRow } from "@/components/cash/movement-row";
 import type { CashMovementRow } from "@/lib/cash";
+
+type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 
 const MAX_RESULTS = 15;
 
@@ -13,9 +14,20 @@ const MAX_RESULTS = 15;
  * VikRentCar, o texto del detalle — filtra client-side sobre `index` (ya
  * traído del server sin acotar al período visible, ver `getCashSearchIndex`),
  * mismo patrón que `RentalPicker`. No navega ni cambia el período de abajo;
- * solo muestra los resultados acá mismo.
+ * solo muestra los resultados acá mismo. Cada resultado es un `MovementRow`:
+ * tocarlo abre el detalle y, si `canEdit` (admin), Editar/Eliminar.
  */
-export function CashMovementSearch({ index }: { index: CashMovementRow[] }) {
+export function CashMovementSearch({
+  index,
+  paymentMethods,
+  expenseCategories,
+  canEdit,
+}: {
+  index: CashMovementRow[];
+  paymentMethods: PaymentMethodOption[];
+  expenseCategories: { id: string; name: string }[];
+  canEdit: boolean;
+}) {
   const [query, setQuery] = useState("");
 
   const matches = useMemo(() => {
@@ -48,37 +60,14 @@ export function CashMovementSearch({ index }: { index: CashMovementRow[] }) {
         ) : (
           <ul className="flex flex-col gap-2">
             {matches.map((m) => (
-              <li key={m.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 whitespace-pre-wrap">{m.description}</p>
-                  <p className={`shrink-0 font-semibold ${m.type === "income" ? "text-emerald-600" : "text-red-600"}`}>
-                    {m.type === "income" ? "+" : "-"}
-                    {formatMoney(m.amount, m.currency)}
-                  </p>
-                </div>
-                <p className="mt-1 text-xs text-foreground/50">
-                  {m.type === "income" ? "Cuenta destino" : "Origen"}: {m.paymentMethodName}
-                  {m.rentalClientName ? (
-                    <>
-                      {" · Cliente: "}
-                      {m.rentalId ? (
-                        <Link href={`/rentals/${m.rentalId}`} className="underline hover:text-foreground/70">
-                          {m.rentalClientName}
-                        </Link>
-                      ) : (
-                        m.rentalClientName
-                      )}
-                    </>
-                  ) : null}
-                  {m.rentalBookingId ? ` · #${m.rentalBookingId}` : ""} · Cargado por: {m.createdByName} ·{" "}
-                  {formatDateTime(m.createdAt)}
-                </p>
-                {m.lastEditedAt && (
-                  <p className="mt-0.5 text-xs text-foreground/50">
-                    Editado por: {m.lastEditedByName ?? "—"} · {formatDateTime(m.lastEditedAt)}
-                  </p>
-                )}
-              </li>
+              <MovementRow
+                key={m.id}
+                movement={m}
+                tone={m.type === "income" ? "emerald" : "red"}
+                paymentMethods={paymentMethods}
+                expenseCategories={expenseCategories}
+                canEdit={canEdit}
+              />
             ))}
           </ul>
         ))}

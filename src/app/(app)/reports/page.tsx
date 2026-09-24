@@ -43,7 +43,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, whatsapp } =
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp } =
     await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
@@ -112,7 +112,10 @@ export default async function ReportsPage({
           Ingresos/Egresos/Neto son los movimientos reales de Caja del período — no el contrato de cada reserva
           (por eso no van a coincidir con la tabla &quot;Por vehículo&quot; de abajo).
           {cashByOwnership.incomeUnclassified > 0 &&
-            " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}
+            " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}{" "}
+          Todo va en pesos: los movimientos en USD se convierten con el valor de referencia vigente cuando se cargaron.
+          {usdUnconverted > 0 &&
+            ` ⚠ ${usdUnconverted} movimiento(s) en USD quedaron afuera porque todavía no hay un valor de referencia cargado (se carga arriba a la derecha en Caja).`}
         </p>
       </section>
 

@@ -10,6 +10,8 @@ const { prismaMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+// La comisión automática se prueba aparte (commissions-sync.test.ts).
+vi.mock("@/lib/commissions-sync", () => ({ syncCommission: vi.fn(), deleteCommissionOf: vi.fn() }));
 
 import { importBookingPayment } from "@/lib/sync/booking-upsert";
 

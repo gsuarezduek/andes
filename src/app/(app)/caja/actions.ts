@@ -9,6 +9,7 @@ import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
+import { syncCommission, deleteCommissionOf } from "@/lib/commissions-sync";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -82,25 +83,32 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     if (!category) throw new Error("Categoría inválida");
   }
 
-  await prisma.cashMovement.create({
-    data: {
-      type,
-      description,
-      amount,
-      currency,
-      paymentMethodId: method.id,
-      paymentMethodName: method.name,
-      paymentMethodNote: method.requiresNote ? paymentMethodNote : null,
-      recipientPaymentMethodId: recipient?.id ?? null,
-      recipientPaymentMethodName: recipient?.name ?? null,
-      recipientPaymentMethodNote: recipient?.requiresNote ? recipientPaymentMethodNote : null,
-      categoryId: category?.id ?? null,
-      categoryName: category?.name ?? null,
-      rentalId: rentalId || null,
-      isGuarantee,
-      createdById: user.id,
-      createdByName: displayName(user),
-    },
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.cashMovement.create({
+      data: {
+        type,
+        description,
+        amount,
+        currency,
+        paymentMethodId: method.id,
+        paymentMethodName: method.name,
+        paymentMethodNote: method.requiresNote ? paymentMethodNote : null,
+        recipientPaymentMethodId: recipient?.id ?? null,
+        recipientPaymentMethodName: recipient?.name ?? null,
+        recipientPaymentMethodNote: recipient?.requiresNote ? recipientPaymentMethodNote : null,
+        categoryId: category?.id ?? null,
+        categoryName: category?.name ?? null,
+        rentalId: rentalId || null,
+        isGuarantee,
+        createdById: user.id,
+        createdByName: displayName(user),
+      },
+    });
+    // Comisión automática del medio de pago (no aplica a garantías ni egresos;
+    // `syncCommission` lo resuelve solo). Atómica con el ingreso.
+    if (type === "income" && !isGuarantee) {
+      await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
+    }
   });
 
   revalidatePath("/caja");
@@ -201,8 +209,14 @@ export async function updateCashMovement(id: string, formData: FormData) {
   }
   if (changes.length === 0) return;
 
-  await prisma.$transaction([
-    prisma.cashMovement.update({
+  // Solo si cambió lo que la comisión depende (monto, moneda o cuenta) se
+  // recalcula: editar el detalle de un ingreso viejo no debe generarle una
+  // comisión retroactiva.
+  const commissionInputsChanged =
+    Number(existing.amount) !== amount || existing.currency !== currency || existing.paymentMethodId !== method.id;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cashMovement.update({
       where: { id },
       data: {
         description,
@@ -217,11 +231,14 @@ export async function updateCashMovement(id: string, formData: FormData) {
         categoryId: category?.id ?? null,
         categoryName: category?.name ?? null,
       },
-    }),
-    prisma.cashMovementEdit.create({
+    });
+    await tx.cashMovementEdit.create({
       data: { cashMovementId: id, action: "updated", changes, editedById: user.id, editedByName: displayName(user) },
-    }),
-  ]);
+    });
+    if (existing.type === "income" && commissionInputsChanged) {
+      await syncCommission(tx, id, { id: user.id, name: displayName(user) });
+    }
+  });
 
   revalidatePath("/caja");
 }
@@ -239,15 +256,17 @@ export async function deleteCashMovement(id: string, formData: FormData) {
 
   const changes: CashMovementFieldChange[] = [{ field: "Motivo", from: "—", to: note }];
 
-  await prisma.$transaction([
-    prisma.cashMovement.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.cashMovement.update({
       where: { id },
       data: { deletedAt: new Date(), deletedById: user.id, deletedByName: displayName(user) },
-    }),
-    prisma.cashMovementEdit.create({
+    });
+    await tx.cashMovementEdit.create({
       data: { cashMovementId: id, action: "deleted", changes, editedById: user.id, editedByName: displayName(user) },
-    }),
-  ]);
+    });
+    // Si este ingreso generó un egreso de comisión, se va con él.
+    await deleteCommissionOf(tx, id, { id: user.id, name: displayName(user) });
+  });
 
   revalidatePath("/caja");
 }
@@ -308,6 +327,8 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
         editedByName: displayName(user),
       },
     });
+    // Recién ahora se sabe el medio real: si tiene comisión, se genera.
+    await syncCommission(tx, id, { id: user.id, name: displayName(user) });
 
     if (existing.rentalId) {
       const rental = await tx.rental.findUnique({ where: { id: existing.rentalId }, select: { pricing: true } });

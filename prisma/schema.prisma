@@ -944,6 +944,20 @@ model PaymentMethod {
   parent      PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)
   subaccounts PaymentMethod[] @relation("PaymentMethodSubaccounts")
 
+  // Comisión que cobra esta cuenta por cada ingreso (ej. tarjeta, pasarela):
+  // porcentaje del monto y/o monto fijo (este último solo en pesos). Cada
+  // ingreso en esta cuenta genera solo un egreso por la comisión, de la misma
+  // cuenta, con la categoría indicada — ver `src/lib/commissions-sync.ts`. No
+  // aplica a garantías ni es retroactivo (solo ingresos cargados/editados
+  // después de configurarla).
+  commissionPercent    Decimal?              @map("commission_percent") @db.Decimal(6, 2)
+  commissionFixed      Decimal?              @map("commission_fixed") @db.Decimal(12, 2)
+  commissionCategoryId String?               @map("commission_category_id")
+  commissionCategory   CashMovementCategory? @relation("CommissionCategory", fields: [commissionCategoryId], references: [id], onDelete: SetNull)
+
+  transfersOut AccountTransfer[] @relation("AccountTransferFrom")
+  transfersIn  AccountTransfer[] @relation("AccountTransferTo")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1057,6 +1071,13 @@ model CashMovement {
   // devuelto), apunta de vuelta a esa fila — así el historial de la
   // garantía puede mostrarlos (reutilizando `MovementRow`, editables como
   // cualquier otro movimiento) sin tener que adivinar cuáles son.
+  // Egreso generado solo por la comisión de un ingreso (ver
+  // `PaymentMethod.commissionPercent`): apunta al ingreso que lo originó, y se
+  // recalcula/elimina junto con él. Null en cualquier otro movimiento.
+  commissionSourceId String?        @map("commission_source_id")
+  commissionSource   CashMovement?  @relation("CommissionDerivative", fields: [commissionSourceId], references: [id])
+  commissionExpenses CashMovement[] @relation("CommissionDerivative")
+
   guaranteeSourceId String?          @map("guarantee_source_id")
   guaranteeSource   CashMovement?    @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
   guaranteeDerived  CashMovement[]   @relation("GuaranteeDerivative")
@@ -1083,6 +1104,7 @@ model CashMovement {
   @@index([createdById])
   @@index([categoryId])
   @@index([guaranteeSourceId])
+  @@index([commissionSourceId])
   @@map("cash_movements")
 }
 
@@ -1096,7 +1118,8 @@ model CashMovementCategory {
   ordering Int     @default(0)
   active   Boolean @default(true)
 
-  movements CashMovement[]
+  movements         CashMovement[]
+  commissionMethods PaymentMethod[] @relation("CommissionCategory")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1839,4 +1862,63 @@ model WhatsAppBotEscalation {
 
   @@index([conversationId])
   @@map("whatsapp_bot_escalations")
+}
+
+/// Valor de referencia del USD en pesos (Caja). Historial append-only: editar
+/// el valor agrega una fila nueva, nunca pisa la anterior — así cada movimiento
+/// en USD se convierte a ARS (Reportes) con el valor vigente cuando se cargó
+/// (ver `usdRateAt` en `src/lib/usd-rate.ts`). Sin FK a `User` a propósito:
+/// alcanza con el nombre congelado (mismo criterio que el resto de la auditoría).
+model UsdRate {
+  id String @id @default(cuid())
+
+  /// Pesos por 1 USD.
+  rate Decimal @db.Decimal(12, 2)
+
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("usd_rates")
+}
+
+/// Traspaso de saldo entre dos cuentas propias (Saldos): mueve plata de una a
+/// otra sin ser ingreso ni egreso — por eso vive aparte de `CashMovement` (no
+/// entra en Movimientos, totales del período ni Reportes; solo en los saldos
+/// de cada cuenta y, si alguna es `isCash`, en la Billetera). Con monedas
+/// distintas (ARS ↔ USD) `fromAmount`/`toAmount` son dos montos: la cotización
+/// implícita es la de esa operación. Inmutable: no se edita, si está mal se
+/// elimina (soft delete con motivo) y se vuelve a cargar. Sin FK a `User`:
+/// alcanza con el nombre congelado (mismo criterio que `UsdRate`).
+model AccountTransfer {
+  id String @id @default(cuid())
+
+  // Cuenta origen/destino nula = la Caja fuerte (efectivo físico, ver
+  // `src/lib/safe.ts`) — no es un `PaymentMethod`. Nunca ambas nulas (se valida
+  // en `createAccountTransfer`).
+  fromAccountId   String?        @map("from_account_id")
+  fromAccount     PaymentMethod? @relation("AccountTransferFrom", fields: [fromAccountId], references: [id])
+  fromAccountName String         @map("from_account_name")
+  fromAmount      Decimal        @map("from_amount") @db.Decimal(12, 2)
+  fromCurrency    Currency       @map("from_currency")
+
+  toAccountId   String?        @map("to_account_id")
+  toAccount     PaymentMethod? @relation("AccountTransferTo", fields: [toAccountId], references: [id])
+  toAccountName String         @map("to_account_name")
+  toAmount      Decimal       @map("to_amount") @db.Decimal(12, 2)
+  toCurrency    Currency      @map("to_currency")
+
+  description String @default("") @db.Text
+
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  deletedAt     DateTime? @map("deleted_at")
+  deletedByName String?   @map("deleted_by_name")
+  deleteNote    String?   @map("delete_note") @db.Text
+
+  @@index([createdAt])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@map("account_transfers")
 }

@@ -23,13 +23,15 @@ import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { IncomesBoard } from "@/components/cash/incomes-board";
 import { CashOwnList } from "@/components/cash/cash-own-list";
 import { SafeSection } from "@/components/cash/safe-section";
-import { SafeLauncher } from "@/components/cash/safe-launcher";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
 import { AccountsSection } from "@/components/cash/accounts-section";
 import { GuaranteesSection } from "@/components/cash/guarantees-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
+import { UsdRateBadge } from "@/components/cash/usd-rate-badge";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { getAccountTransfers } from "@/lib/account-transfers-queries";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
 
@@ -61,7 +63,12 @@ export default async function CajaPage({
 
   const movimientos = (
     <div className="flex flex-col gap-5">
-      <CashMovementSearch index={await getCashSearchIndex(isAdmin)} />
+      <CashMovementSearch
+        index={await getCashSearchIndex(isAdmin)}
+        paymentMethods={paymentMethods}
+        expenseCategories={expenseCategories}
+        canEdit={isAdmin}
+      />
 
       <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} expenseCategories={expenseCategories} />
 
@@ -102,7 +109,16 @@ export default async function CajaPage({
   // Saldo por cuenta propia — igual que la Caja fuerte, es la posición de
   // plata real de la empresa, así que solo se calcula/pasa para admin (ver
   // comentario en `CajaTabs`). El historial vive en `/caja/saldos/[id]`.
-  const saldos = isAdmin ? <AccountsSection accounts={await getOwnAccountBalances()} /> : undefined;
+  const usdRate = await getCurrentUsdRate();
+  const safeBalance = isAdmin ? await getSafeBalance() : null;
+  const saldos = isAdmin ? (
+    <AccountsSection
+      safeBalance={safeBalance!}
+      accounts={await getOwnAccountBalances()}
+      transfers={await getAccountTransfers({ limit: 10 })}
+      usdRate={usdRate?.rate ?? null}
+    />
+  ) : undefined;
 
   // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — mismo criterio de
   // sensibilidad que Saldos/Caja fuerte, admin-only.
@@ -114,27 +130,26 @@ export default async function CajaPage({
     />
   ) : undefined;
 
-  const cajaFuerte = (
-    <div className="flex flex-col gap-5">
-      <SafeLauncher />
-      {isAdmin ? (
-        <SafeSection
-          movements={await getAllSafeMovements()}
-          balance={await getSafeBalance()}
-          walletBalance={await getWalletBalance()}
-          edits={await getSafeMovementEdits()}
-        />
-      ) : (
-        <SafeSection movements={null} balance={null} walletBalance={null} />
-      )}
-    </div>
-  );
+  // Caja fuerte: efectivo físico real — solo admin (saldo, billetera e
+  // historial). Ya no hay lanzador propio: se mueve con "Mover entre cuentas".
+  const cajaFuerte = isAdmin ? (
+    <SafeSection
+      movements={await getAllSafeMovements()}
+      transfers={await getAccountTransfers({ safe: true, limit: 50 })}
+      balance={safeBalance!}
+      walletBalance={await getWalletBalance()}
+      edits={await getSafeMovementEdits()}
+    />
+  ) : undefined;
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
-        <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
+          <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
+        </div>
+        <UsdRateBadge current={usdRate} canEdit={isAdmin} />
       </div>
 
       <CajaTabs

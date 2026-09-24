@@ -18,6 +18,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser: requireUserMock }));
 vi.mock("@/lib/acta", () => ({ generateAndSendActa: actaMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// La comisión automática se prueba aparte (commissions-sync.test.ts).
+vi.mock("@/lib/commissions-sync", () => ({ syncCommission: vi.fn(), deleteCommissionOf: vi.fn() }));
 // No ejecutamos el post-guardado asíncrono (acta/emails) en los tests.
 vi.mock("next/server", () => ({ after: vi.fn() }));
 

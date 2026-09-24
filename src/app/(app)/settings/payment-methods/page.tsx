@@ -15,6 +15,11 @@ export default async function PaymentMethodsSettingsPage() {
   await requireAdmin();
 
   const items = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const categories = await prisma.cashMovementCategory.findMany({
+    where: { active: true },
+    orderBy: { ordering: "asc" },
+    select: { id: true, name: true },
+  });
   const wpItems = await prisma.wpPaymentMethod.findMany({
     orderBy: { name: "asc" },
     include: { paymentMethods: { select: { id: true } } },
@@ -77,7 +82,7 @@ export default async function PaymentMethodsSettingsPage() {
 
       <section className="flex flex-col gap-4">
         <SectionHeading>{items.length} medios de pago</SectionHeading>
-        <PaymentMethodsEditor items={items} />
+        <PaymentMethodsEditor items={items} categories={categories} />
       </section>
 
       <section className="flex flex-col gap-3">

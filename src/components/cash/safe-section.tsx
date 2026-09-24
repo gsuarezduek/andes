@@ -4,6 +4,8 @@ import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { CURRENCIES, type CurrencyTotals } from "@/lib/currency";
 import { SafeMovementRow } from "./safe-movement-row";
+import { TransferList } from "./transfer-list";
+import type { AccountTransferRow } from "@/lib/account-transfers-queries";
 import type { SafeMovementEditRow, SafeMovementRow as SafeMovementRowData } from "@/lib/safe";
 
 /** Uno o más `moneda: monto` en línea, separados por " · " — pesos siempre
@@ -23,71 +25,68 @@ function InlineCurrencyTotals({ totals }: { totals: CurrencyTotals }) {
 }
 
 /**
- * Caja fuerte: saldo, billetera e historial son solo para admin (`null` para
- * no-admin, que sigue pudiendo cargar un ingreso/retiro desde `SafeLauncher`
- * pero no ve nada de esto — a diferencia del resto de Caja, acá ni el propio
- * historial es visible: es efectivo físico real). Editar/borrar
- * (`SafeMovementRow`) va con el resto de lo admin-only. Los saldos van
- * separados por moneda (ver `src/lib/currency.ts`) — nunca sumados entre sí.
+ * Caja fuerte (solo admin, ver `caja/page.tsx`): saldo, billetera e historial
+ * — efectivo físico real. Ya no se cargan movimientos desde acá: el efectivo
+ * entra y sale con "Mover entre cuentas" (pestaña Saldos), así que el historial
+ * tiene dos partes: los traspasos y los movimientos anteriores (cargados antes
+ * de eso, sin cuenta de origen; se conservan tal cual y se pueden corregir con
+ * `SafeMovementRow`). Los saldos van separados por moneda (ver
+ * `src/lib/currency.ts`) — nunca sumados entre sí.
  */
 export function SafeSection({
   movements,
+  transfers,
   balance,
   walletBalance,
   edits,
 }: {
-  movements: SafeMovementRowData[] | null;
-  balance: CurrencyTotals | null;
-  walletBalance: CurrencyTotals | null;
+  movements: SafeMovementRowData[];
+  transfers: AccountTransferRow[];
+  balance: CurrencyTotals;
+  walletBalance: CurrencyTotals;
   edits?: SafeMovementEditRow[];
 }) {
-  const isAdmin = movements !== null;
-
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionTitle>Caja fuerte</SectionTitle>
-        {balance !== null && (
-          <span className="text-sm font-semibold">
-            Saldo: <InlineCurrencyTotals totals={balance} />
-          </span>
-        )}
+        <span className="text-sm font-semibold">
+          Saldo: <InlineCurrencyTotals totals={balance} />
+        </span>
       </div>
       <p className="-mt-2 text-xs text-foreground/50">
-        Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas (pestaña
-        Movimientos).
+        Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas. Para meter o sacar efectivo
+        usá &quot;Mover entre cuentas&quot; en la pestaña Saldos.
       </p>
-      {walletBalance !== null && (
-        <div className="-mt-1 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
-          <div>
-            <p className="text-sm font-medium">Billetera</p>
-            <p className="text-xs text-foreground/50">
-              Efectivo en mano, todavía sin depositar acá.
-            </p>
-          </div>
-          <span className="shrink-0 text-sm font-semibold">
-            <InlineCurrencyTotals totals={walletBalance} />
-          </span>
+      <div className="-mt-1 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+        <div>
+          <p className="text-sm font-medium">Billetera</p>
+          <p className="text-xs text-foreground/50">Efectivo en mano, todavía sin depositar acá.</p>
+        </div>
+        <span className="shrink-0 text-sm font-semibold">
+          <InlineCurrencyTotals totals={walletBalance} />
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">Traspasos</h3>
+        <TransferList transfers={transfers} perspectiveSafe emptyText="Sin traspasos hacia o desde la caja fuerte." />
+      </div>
+
+      {movements.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
+            Movimientos anteriores
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {movements.map((m) => (
+              <SafeMovementRow key={`${m.id}:${m.description}:${m.amount}`} movement={m} />
+            ))}
+          </ul>
         </div>
       )}
 
-      {movements === null ? (
-        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          El saldo y el historial de caja fuerte son visibles solo para administradores.
-        </p>
-      ) : movements.length === 0 ? (
-        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-          Sin movimientos.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {movements.map((m) => (
-            <SafeMovementRow key={`${m.id}:${m.description}:${m.amount}`} movement={m} />
-          ))}
-        </ul>
-      )}
-
-      {isAdmin && edits && edits.length > 0 && (
+      {edits && edits.length > 0 && (
         <div className="mt-2 flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/50">
             Historial de ediciones (caja fuerte)

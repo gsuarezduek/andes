@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
+import { syncCommission } from "@/lib/commissions-sync";
 import { computeBalance, paidTotal, type ContractPricing, type RentalPayment } from "@/lib/contract";
 
 /**
@@ -42,6 +43,8 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
         description: `Pago — ${rental.clientName}`,
       })[0],
     });
+    // Comisión automática del medio de pago, si la tiene (no aplica a garantías).
+    await syncCommission(tx, movement.id, { id: user.id, name: displayName(user) });
     const paymentWithRef: RentalPayment = { ...payment, cashMovementId: movement.id };
     const nextPayments = [...(pricing.payments ?? []), paymentWithRef];
     const nextPaid = paidTotal(nextPayments);

@@ -26,7 +26,12 @@ type Draft = {
   isCash: boolean;
   parentId: string | null;
   whatsappPhone: string;
+  commissionPercent: string;
+  commissionFixed: string;
+  commissionCategoryId: string | null;
 };
+
+type CategoryOption = { id: string; name: string };
 
 function draftFrom(it: PaymentMethod): Draft {
   return {
@@ -38,6 +43,9 @@ function draftFrom(it: PaymentMethod): Draft {
     isCash: it.isCash,
     parentId: it.parentId,
     whatsappPhone: it.whatsappPhone ?? "",
+    commissionPercent: it.commissionPercent?.toString() ?? "",
+    commissionFixed: it.commissionFixed?.toString() ?? "",
+    commissionCategoryId: it.commissionCategoryId,
   };
 }
 
@@ -50,7 +58,10 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
     a.parentId === b.parentId &&
-    a.whatsappPhone === b.whatsappPhone
+    a.whatsappPhone === b.whatsappPhone &&
+    a.commissionPercent === b.commissionPercent &&
+    a.commissionFixed === b.commissionFixed &&
+    a.commissionCategoryId === b.commissionCategoryId
   );
 }
 
@@ -69,7 +80,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
  * entidad con más de una cuenta real — ver comentario en el schema y
  * `src/lib/providers.ts`).
  */
-export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
+export function PaymentMethodsEditor({ items, categories }: { items: PaymentMethod[]; categories: CategoryOption[] }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(items.map((it) => [it.id, draftFrom(it)])),
   );
@@ -149,6 +160,7 @@ export function PaymentMethodsEditor({ items }: { items: PaymentMethod[] }) {
         drafts={drafts}
         setField={setField}
         emptyLabel={emptyLabel}
+        categories={categories}
       />
 
       {dirtyIds.length > 0 && (
@@ -184,12 +196,14 @@ function PaymentMethodGroup({
   drafts,
   setField,
   emptyLabel,
+  categories,
 }: {
   items: PaymentMethod[];
   allItems: PaymentMethod[];
   drafts: Record<string, Draft>;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   emptyLabel: string;
+  categories: CategoryOption[];
 }) {
   if (items.length === 0) {
     return (
@@ -208,6 +222,7 @@ function PaymentMethodGroup({
             allItems={allItems}
             draft={draft}
             setField={setField}
+            categories={categories}
             isFirst={i === 0}
             isLast={i === items.length - 1}
           />
@@ -222,6 +237,7 @@ function PaymentMethodRow({
   allItems,
   draft,
   setField,
+  categories,
   isFirst,
   isLast,
 }: {
@@ -229,6 +245,7 @@ function PaymentMethodRow({
   allItems: PaymentMethod[];
   draft: Draft;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
+  categories: CategoryOption[];
   isFirst: boolean;
   isLast: boolean;
 }) {
@@ -415,6 +432,51 @@ function PaymentMethodRow({
                 onChange={(id) => setField(item.id, "parentId", id || null)}
                 placeholder="Sin cuenta principal — buscar…"
               />
+            )}
+            {draft.ownership === "own" && (
+              <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
+                <p className="text-sm font-medium text-foreground/80">Comisión por ingreso</p>
+                <p className="text-xs text-foreground/50">
+                  Cada ingreso en esta cuenta genera solo un egreso por la comisión, de la misma cuenta. Puede ser un
+                  porcentaje, un monto fijo (en pesos — no se aplica a ingresos en dólares) o ambos. No aplica a
+                  garantías ni a ingresos anteriores.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField
+                    id={`commissionPercent-${item.id}`}
+                    label="% del monto"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Ej. 3,5"
+                    value={draft.commissionPercent}
+                    onChange={(e) => setField(item.id, "commissionPercent", e.target.value)}
+                  />
+                  <TextField
+                    id={`commissionFixed-${item.id}`}
+                    label="Monto fijo"
+                    type="text"
+                    inputMode="decimal"
+                    prefix="$"
+                    placeholder="Ej. 100"
+                    value={draft.commissionFixed}
+                    onChange={(e) => setField(item.id, "commissionFixed", e.target.value)}
+                  />
+                </div>
+                <SelectField
+                  id={`commissionCategoryId-${item.id}`}
+                  label="Categoría del egreso"
+                  hint="Opcional — la categoría de gasto con la que se registra la comisión (ej. Comisiones)."
+                  value={draft.commissionCategoryId ?? ""}
+                  onChange={(e) => setField(item.id, "commissionCategoryId", e.target.value || null)}
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
             )}
             <label className="flex items-center gap-2 text-sm text-foreground/80">
               <input

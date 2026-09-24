@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
+import { syncCommission } from "@/lib/commissions-sync";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
@@ -216,14 +217,17 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
       // no se recrea, para no contarlas dos veces.
       const newPayments = data.pricing?.payments?.filter((p) => !p.cashMovementId) ?? [];
       if (newPayments.length) {
-        await tx.cashMovement.createMany({
-          data: paymentsToCashMovements(newPayments, {
+        const incomeRows = paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
             createdByName: displayName(user),
             description: `Ingreso de entrega — ${data.clientName}`,
-          }),
-        });
+          });
+        await tx.cashMovement.createMany({ data: incomeRows });
+        // Comisión automática del medio de pago de cada ingreso (si la tiene).
+        for (const row of incomeRows) {
+          await syncCommission(tx, row.id!, { id: user.id, name: displayName(user) });
+        }
       }
 
       // Documentos del cliente (licencia/DNI/pasaporte): evidencia interna.
