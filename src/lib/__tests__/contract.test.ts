@@ -10,6 +10,8 @@ import {
   kmPackPriceFor,
   paidTotal,
   paymentAdjustedAmount,
+  usdPaymentAmounts,
+  usdPaymentDetail,
   type RentalPayment,
 } from "@/lib/contract";
 
@@ -177,5 +179,34 @@ describe("formatMoney", () => {
     expect(formatMoney(null, "usd")).toBe("—");
     expect(formatMoney(undefined, "ars")).toBe("—");
     expect(formatMoney(NaN, "usd")).toBe("—");
+  });
+});
+
+describe("usdPaymentAmounts", () => {
+  it("convierte los dólares a pesos a la cotización pactada", () => {
+    expect(usdPaymentAmounts(500, 1_500)).toEqual({ amount: 750_000, adjustedAmount: 750_000, usdAdjusted: 500 });
+  });
+
+  it("aplica el % del medio de pago sobre los dólares", () => {
+    expect(usdPaymentAmounts(100, 1_500, 10)).toEqual({ amount: 150_000, adjustedAmount: 165_000, usdAdjusted: 110 });
+  });
+
+  it("una línea en dólares suma a Paga su equivalente en pesos", () => {
+    const usd = usdPaymentAmounts(500, 1_500);
+    const line = payment({ amount: usd.amount, adjustedAmount: usd.adjustedAmount, usdAmount: 500, exchangeRate: 1_500 });
+    expect(paidTotal([payment({ amount: 100_000, adjustedAmount: 100_000 }), line])).toBe(850_000);
+  });
+});
+
+describe("usdPaymentDetail", () => {
+  it("describe cuántos dólares y a qué cotización", () => {
+    const detail = usdPaymentDetail({ usdAmount: 500, exchangeRate: 1_500 });
+    expect(detail).toContain("500");
+    expect(detail).toContain("1.500");
+    expect(detail).toContain("×");
+  });
+
+  it("null en una línea en pesos", () => {
+    expect(usdPaymentDetail({})).toBeNull();
   });
 });

@@ -96,6 +96,8 @@ export type InspectionWizardProps = {
   deductibleReduced?: number;
   /** Medios de pago activos (Configuración → Medios de pago), para "Agregar pago" en la entrega. */
   paymentMethods?: { id: string; name: string; adjustmentPercent?: number; reference?: string; requiresNote?: boolean; parentId?: string | null }[];
+  /** Valor de referencia del USD (Caja): precarga la cotización de un pago en dólares. */
+  usdRate?: number | null;
   /** custdata de VikRentCar: info de la reserva escrita por el staff (solo lectura). */
   bookingNote?: string;
   /** order_total de VikRentCar (Rental.bookingTotal), para avisar en el paso

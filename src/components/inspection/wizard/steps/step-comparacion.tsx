@@ -168,6 +168,7 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
             onAdd={(payment: RentalPayment) => patch({ payments: [...draft.payments, payment] })}
             onRemove={(index) => patch({ payments: draft.payments.filter((_, i) => i !== index) })}
             totalLabel="Cobrado"
+            usdRate={props.usdRate}
           />
         </div>
       )}

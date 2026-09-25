@@ -8,6 +8,7 @@ import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveHandover } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 
 export const metadata: Metadata = { title: "Entrega — Andes" };
 
@@ -140,6 +141,7 @@ export default async function HandoverPage({
         initialPayments={initialPayments}
         deductibleBase={conditions?.deductible ? Number(conditions.deductible) : undefined}
         deductibleReduced={conditions?.deductibleReduced ? Number(conditions.deductibleReduced) : undefined}
+        usdRate={(await getCurrentUsdRate())?.rate ?? null}
         paymentMethods={paymentMethods.map((m) => ({
           id: m.id,
           name: m.name,

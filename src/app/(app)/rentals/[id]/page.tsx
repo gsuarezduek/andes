@@ -30,6 +30,7 @@ import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-sect
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getConversationForRental, isSessionWindowOpen } from "@/lib/whatsapp/conversations";
 import { ConversationThread } from "@/components/whatsapp/conversation-thread";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -96,6 +97,7 @@ export default async function RentalDetailPage({
 
   // Pago suelto (botón del header): solo tiene sentido antes de cerrar la reserva.
   const canAddPayment = rental.status === "reserved" || rental.status === "active";
+  const usdRate = canAddPayment ? ((await getCurrentUsdRate())?.rate ?? null) : null;
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
     orderBy: { ordering: "asc" },
@@ -163,7 +165,7 @@ export default async function RentalDetailPage({
               accounts={serviceAccounts}
             />
           )}
-          {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} />}
+          {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} usdRate={usdRate} />}
           {wpOrderUrl && (
             <a
               href={wpOrderUrl}
@@ -256,6 +258,7 @@ export default async function RentalDetailPage({
                 id: m.id,
                 description: m.description,
                 amount: Number(m.amount),
+                currency: m.currency,
                 paymentMethodName: m.paymentMethodName,
                 paymentMethodNote: m.paymentMethodNote,
                 needsConfirmation: m.needsConfirmation,

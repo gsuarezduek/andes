@@ -1,6 +1,6 @@
 import { View, Text } from "@react-pdf/renderer";
 import { styles } from "../styles";
-import { formatArs } from "@/lib/contract";
+import { formatArs, usdPaymentDetail } from "@/lib/contract";
 import type { ActaData } from "../types";
 
 export function SettlementSection({ data }: { data: ActaData }) {
@@ -61,6 +61,7 @@ export function SettlementSection({ data }: { data: ActaData }) {
                 ? `${p.methodName} (${p.adjustmentPercent > 0 ? "+" : ""}${p.adjustmentPercent}%)`
                 : p.methodName}
               {p.note ? ` — ${p.note}` : ""}
+              {usdPaymentDetail(p) ? ` (${usdPaymentDetail(p)})` : ""}
             </Text>
             <Text style={styles.value}>{formatArs(p.adjustedAmount)}</Text>
           </View>

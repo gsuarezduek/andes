@@ -7,8 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { PaymentIcon } from "@/components/ui/icons";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
-import { formatArs, paymentAdjustedAmount } from "@/lib/contract";
-import { parseDecimal } from "@/lib/number-input";
+import {
+  PaymentAmountFields,
+  buildPayment,
+  emptyPaymentAmount,
+  isPaymentAmountReady,
+  type PaymentAmountState,
+} from "@/components/cash/payment-amount-fields";
 import { addRentalPayment } from "@/app/(app)/rentals/[id]/payment-actions";
 
 type PaymentMethodOption = {
@@ -30,13 +35,16 @@ type PaymentMethodOption = {
 export function AddPaymentButton({
   rentalId,
   paymentMethods,
+  usdRate = null,
 }: {
   rentalId: string;
   paymentMethods: PaymentMethodOption[];
+  /** Valor de referencia del USD (Caja) — precarga la cotización de un pago en dólares. */
+  usdRate?: number | null;
 }) {
   const [open, setOpen] = useState(false);
   const [methodId, setMethodId] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState<PaymentAmountState>(emptyPaymentAmount(usdRate));
   const [note, setNote] = useState("");
   const [isGuarantee, setIsGuarantee] = useState(false);
   const [error, setError] = useState<string>();
@@ -47,7 +55,7 @@ export function AddPaymentButton({
 
   function openModal() {
     setMethodId("");
-    setAmount("");
+    setAmount(emptyPaymentAmount(usdRate));
     setNote("");
     setIsGuarantee(false);
     setError(undefined);
@@ -55,22 +63,13 @@ export function AddPaymentButton({
   }
 
   function confirm() {
-    const method = selectedMethod;
-    const amt = parseDecimal(amount) ?? 0;
-    if (!method || amt <= 0) return;
-    if (method.requiresNote && !note.trim()) return;
+    if (!selectedMethod) return;
+    const payment = buildPayment(selectedMethod, amount, { note, isGuarantee });
+    if (!payment) return;
     setError(undefined);
     start(async () => {
       try {
-        await addRentalPayment(rentalId, {
-          methodId: method.id,
-          methodName: method.name,
-          adjustmentPercent: method.adjustmentPercent,
-          amount: amt,
-          adjustedAmount: paymentAdjustedAmount(amt, method.adjustmentPercent),
-          note: method.requiresNote ? note.trim() : undefined,
-          isGuarantee: isGuarantee || undefined,
-        });
+        await addRentalPayment(rentalId, payment);
         setOpen(false);
         router.refresh();
       } catch (e) {
@@ -104,7 +103,12 @@ export function AddPaymentButton({
           }
         />
         <div className="mt-3">
-          <TextField id="add_payment_amount" label="Importe" type="text" inputMode="decimal" prefix="$" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <PaymentAmountFields
+            idPrefix="add_payment"
+            value={amount}
+            onChange={setAmount}
+            adjustmentPercent={selectedMethod?.adjustmentPercent}
+          />
         </div>
         {selectedMethod?.reference && (
           <p className="mt-2 whitespace-pre-wrap rounded-lg bg-foreground/5 p-2 text-xs text-foreground/70">{selectedMethod.reference}</p>
@@ -113,11 +117,6 @@ export function AddPaymentButton({
           <div className="mt-3">
             <TextField id="add_payment_note" label="¿A dónde fue?" hint="Obligatorio para este medio de pago" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
-        )}
-        {selectedMethod && (
-          <p className="mt-3 text-sm text-foreground/70">
-            Se cobra: <span className="font-semibold text-foreground">{formatArs(paymentAdjustedAmount(parseDecimal(amount) ?? 0, selectedMethod.adjustmentPercent))}</span>
-          </p>
         )}
         <label className="mt-4 flex items-start gap-2 text-sm text-foreground/70">
           <input
@@ -141,7 +140,7 @@ export function AddPaymentButton({
           <Button
             type="button"
             className="flex-1"
-            disabled={pending || !selectedMethod || !((parseDecimal(amount) ?? 0) > 0) || (selectedMethod?.requiresNote && !note.trim())}
+            disabled={pending || !selectedMethod || !isPaymentAmountReady(amount) || (selectedMethod?.requiresNote && !note.trim())}
             onClick={confirm}
           >
             {pending ? "Guardando…" : "Agregar"}

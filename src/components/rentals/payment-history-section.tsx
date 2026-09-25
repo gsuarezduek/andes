@@ -1,4 +1,5 @@
-import { formatArs } from "@/lib/contract";
+import { formatMoney } from "@/lib/contract";
+import type { Currency } from "@/lib/currency";
 import { formatDateTime } from "@/lib/datetime";
 import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 import { ConfirmPaymentInline } from "@/components/rentals/confirm-payment-inline";
@@ -8,6 +9,7 @@ type PaymentHistoryRow = {
   id: string;
   description: string;
   amount: number;
+  currency: Currency;
   paymentMethodName: string;
   paymentMethodNote: string | null;
   needsConfirmation: boolean;
@@ -49,7 +51,7 @@ export function PaymentHistorySection({
                 </div>
               )}
             </div>
-            <span className="shrink-0 font-medium">{formatArs(m.amount)}</span>
+            <span className="shrink-0 font-medium">{formatMoney(m.amount, m.currency)}</span>
           </li>
         ))}
       </ul>

@@ -1,6 +1,6 @@
 import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
 import { parseDecimal } from "@/lib/number-input";
-import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, paidTotal, type ContractPricing } from "@/lib/contract";
+import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, paidTotal, usdPaymentDetail, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
 import type { InspectionInput, PendingEvidenceInput } from "@/lib/inspection-input";
 import type { Draft, InspectionWizardProps } from "./types";
@@ -104,7 +104,8 @@ export function summaryConditions(
       const label =
         (pay.adjustmentPercent
           ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
-          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
+          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "") +
+          (usdPaymentDetail(pay) ? ` (${usdPaymentDetail(pay)})` : "");
       conditions.push({ label, value: formatArs(pay.adjustedAmount) });
     }
     return { conditions };
@@ -140,7 +141,8 @@ export function summaryConditions(
       const label =
         (pay.adjustmentPercent
           ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
-          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
+          : pay.methodName) + (pay.note ? ` — ${pay.note}` : "") +
+          (usdPaymentDetail(pay) ? ` (${usdPaymentDetail(pay)})` : "");
       balanceRows.push({ label, value: formatArs(pay.adjustedAmount) });
     }
     return { settlementRows: rows, balanceRows };

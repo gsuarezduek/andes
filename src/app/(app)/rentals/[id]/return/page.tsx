@@ -8,6 +8,7 @@ import type { ContractPricing } from "@/lib/contract";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveReturn } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 
 export const metadata: Metadata = { title: "Devolución — Andes" };
 
@@ -78,6 +79,7 @@ export default async function ReturnPage({
         existingDamages={existingDamages}
         maxFuel={rental.vehicle.fuelLevels}
         language={rental.language}
+        usdRate={(await getCurrentUsdRate())?.rate ?? null}
         paymentMethods={paymentMethods.map((m) => ({
           id: m.id,
           name: m.name,

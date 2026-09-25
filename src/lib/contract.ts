@@ -86,6 +86,13 @@ export type RentalPayment = {
   // en la pestaña Garantías, no en Movimientos (ver `paymentsToCashMovements`
   // en cash.ts y `paidTotal`/`guaranteeTotal` acá abajo).
   isGuarantee?: boolean;
+  // Pago recibido en dólares: `usdAmount` = US$ base (antes del % del medio) y
+  // `exchangeRate` = pesos por dólar pactados en el momento. `amount` y
+  // `adjustedAmount` siguen siendo el equivalente en PESOS (usdAmount × rate,
+  // con el % aplicado en el segundo), así saldo/"Paga"/acta no cambian. En Caja
+  // el ingreso se registra en dólares (ver `paymentsToCashMovements`).
+  usdAmount?: number;
+  exchangeRate?: number;
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
@@ -178,6 +185,29 @@ export function computeBalance(
 /** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
 export function roundMoney(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/**
+ * Importes de una línea de pago recibida en dólares: `amount`/`adjustedAmount`
+ * en pesos (a la cotización pactada), `usdAdjusted` = US$ realmente cobrados
+ * (con el % del medio) — es lo que se registra en Caja.
+ */
+export function usdPaymentAmounts(
+  usdAmount: number,
+  exchangeRate: number,
+  percent?: number | null,
+): { amount: number; adjustedAmount: number; usdAdjusted: number } {
+  return {
+    amount: roundMoney(usdAmount * exchangeRate),
+    adjustedAmount: roundMoney(paymentAdjustedAmount(usdAmount, percent) * exchangeRate),
+    usdAdjusted: paymentAdjustedAmount(usdAmount, percent),
+  };
+}
+
+/** "US$ 500 × $ 1.500" para una línea en dólares; `null` si es en pesos. */
+export function usdPaymentDetail(p: Pick<RentalPayment, "usdAmount" | "exchangeRate">): string | null {
+  if (p.usdAmount == null || p.exchangeRate == null) return null;
+  return `${formatMoney(p.usdAmount, "usd")} × ${formatMoney(p.exchangeRate, "ars")}`;
 }
 
 /**

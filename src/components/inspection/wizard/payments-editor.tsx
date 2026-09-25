@@ -6,8 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
-import { formatArs, guaranteeTotal, paidTotal, paymentAdjustedAmount, roundMoney, type RentalPayment } from "@/lib/contract";
-import { parseDecimal } from "@/lib/number-input";
+import {
+  PaymentAmountFields,
+  buildPayment,
+  emptyPaymentAmount,
+  isPaymentAmountReady,
+  type PaymentAmountState,
+} from "@/components/cash/payment-amount-fields";
+import { formatArs, guaranteeTotal, paidTotal, roundMoney, usdPaymentDetail, type RentalPayment } from "@/lib/contract";
 
 type PaymentMethodOption = {
   id: string;
@@ -31,16 +37,19 @@ export function PaymentsEditor({
   onAdd,
   onRemove,
   totalLabel = "Paga",
+  usdRate = null,
 }: {
   payments: RentalPayment[];
   paymentMethods: PaymentMethodOption[];
   onAdd: (payment: RentalPayment) => void;
   onRemove: (index: number) => void;
   totalLabel?: string;
+  /** Valor de referencia del USD (Caja) — precarga la cotización de un pago en dólares. */
+  usdRate?: number | null;
 }) {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payMethodId, setPayMethodId] = useState("");
-  const [payAmount, setPayAmount] = useState("");
+  const [payAmount, setPayAmount] = useState<PaymentAmountState>(emptyPaymentAmount(usdRate));
   const [payNote, setPayNote] = useState("");
   const [payIsGuarantee, setPayIsGuarantee] = useState(false);
 
@@ -57,26 +66,16 @@ export function PaymentsEditor({
 
   function openPayModal() {
     setPayMethodId("");
-    setPayAmount("");
+    setPayAmount(emptyPaymentAmount(usdRate));
     setPayNote("");
     setPayIsGuarantee(false);
     setPayModalOpen(true);
   }
   function confirmPayment() {
-    const method = selectedMethod;
-    const amount = parseDecimal(payAmount) ?? 0;
-    if (!method || amount <= 0) return;
-    if (method.requiresNote && !payNote.trim()) return;
-    const adjustedAmount = paymentAdjustedAmount(amount, method.adjustmentPercent);
-    onAdd({
-      methodId: method.id,
-      methodName: method.name,
-      adjustmentPercent: method.adjustmentPercent,
-      amount,
-      adjustedAmount,
-      note: method.requiresNote ? payNote.trim() : undefined,
-      isGuarantee: payIsGuarantee || undefined,
-    });
+    if (!selectedMethod) return;
+    const payment = buildPayment(selectedMethod, payAmount, { note: payNote, isGuarantee: payIsGuarantee });
+    if (!payment) return;
+    onAdd(payment);
     setPayModalOpen(false);
   }
 
@@ -127,6 +126,9 @@ export function PaymentsEditor({
                   </button>
                 </span>
               </div>
+              {usdPaymentDetail(p) && (
+                <span className="text-xs text-foreground/50">Recibido en dólares: {usdPaymentDetail(p)}</span>
+              )}
               {p.note && <span className="text-xs text-foreground/50">{p.note}</span>}
               {p.unconfirmed && (
                 <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -159,14 +161,11 @@ export function PaymentsEditor({
           }
         />
         <div className="mt-3">
-          <TextField
-            id="pay_amount"
-            label="Importe"
-            type="text"
-            inputMode="decimal"
-            prefix="$"
+          <PaymentAmountFields
+            idPrefix="pay"
             value={payAmount}
-            onChange={(e) => setPayAmount(e.target.value)}
+            onChange={setPayAmount}
+            adjustmentPercent={selectedMethod?.adjustmentPercent}
           />
         </div>
         {selectedMethod?.reference && (
@@ -184,20 +183,6 @@ export function PaymentsEditor({
               onChange={(e) => setPayNote(e.target.value)}
             />
           </div>
-        )}
-        {selectedMethod && (
-          <p className="mt-3 text-sm text-foreground/70">
-            Se cobra:{" "}
-            <span className="font-semibold text-foreground">
-              {formatArs(paymentAdjustedAmount(parseDecimal(payAmount) ?? 0, selectedMethod.adjustmentPercent))}
-            </span>
-            {selectedMethod.adjustmentPercent ? (
-              <span className="ml-1 text-xs text-foreground/50">
-                ({selectedMethod.adjustmentPercent > 0 ? "+" : ""}
-                {selectedMethod.adjustmentPercent}% aplicado)
-              </span>
-            ) : null}
-          </p>
         )}
         <label className="mt-4 flex items-start gap-2 text-sm text-foreground/70">
           <input
@@ -222,7 +207,7 @@ export function PaymentsEditor({
             className="flex-1"
             disabled={
               !selectedMethod ||
-              !((parseDecimal(payAmount) ?? 0) > 0) ||
+              !isPaymentAmountReady(payAmount) ||
               (selectedMethod.requiresNote && !payNote.trim())
             }
             onClick={confirmPayment}

@@ -213,6 +213,7 @@ export function StepCondiciones({ ctx }: { ctx: StepContext }) {
             onAdd={addPayment}
             onRemove={removePayment}
             totalLabel="Paga"
+            usdRate={props.usdRate}
           />
 
           <TextField id="pricing_balance" label="Saldo" hint="Total − Seña − Paga (editable)" type="text" inputMode="decimal" prefix="$" value={priceStr("balance")} onChange={(e) => setPay("balance", e.target.value)} />

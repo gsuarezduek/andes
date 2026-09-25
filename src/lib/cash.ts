@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput } from "@/lib/datetime";
-import type { RentalPayment } from "@/lib/contract";
+import { paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
 import { getLegacySafeBalance } from "@/lib/safe";
@@ -339,7 +339,10 @@ export function paymentsToCashMovements(
     id: randomUUID(),
     type: "income" as const,
     description: opts.description,
-    amount: p.adjustedAmount,
+    // Un pago en dólares entra a Caja en dólares (lo que realmente hay en mano),
+    // no en su equivalente en pesos.
+    amount: p.usdAmount != null ? paymentAdjustedAmount(p.usdAmount, p.adjustmentPercent) : p.adjustedAmount,
+    currency: p.usdAmount != null ? ("usd" as const) : ("ars" as const),
     paymentMethodId: p.methodId ?? null,
     paymentMethodName: p.methodName,
     paymentMethodNote: p.note ?? null,

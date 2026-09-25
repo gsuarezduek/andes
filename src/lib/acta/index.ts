@@ -12,6 +12,7 @@ import {
   PRICING_FIELDS,
   extraHourAmount,
   kmPackAmount,
+  usdPaymentDetail,
   type ContractPricing,
 } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
@@ -164,7 +165,9 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     const label =
       (pay.adjustmentPercent
         ? `${pay.methodName} (${pay.adjustmentPercent > 0 ? "+" : ""}${pay.adjustmentPercent}%)`
-        : pay.methodName) + (pay.note ? ` — ${pay.note}` : "");
+        : pay.methodName) +
+      (pay.note ? ` — ${pay.note}` : "") +
+      (usdPaymentDetail(pay) ? ` (${usdPaymentDetail(pay)})` : "");
     termRows.push({ label, value: formatArs(pay.adjustedAmount) });
   }
 
