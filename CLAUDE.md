@@ -693,6 +693,14 @@ Bug real reportado por el dueño: al cambiar la cuenta de un pago a una que exig
 
 En la sección "WhatsApp" de `/reports`: **conversión = alquileres finalizados / conversaciones únicas** (`conversionPercent`, `src/lib/reports.ts`, pura y testeada; `null` → "—" si no hubo consultas). KPI del período elegido + tabla "Conversión por mes" (consultas, alquileres, %) sobre los mismos meses del gráfico. Los "alquileres" son los mismos del gráfico "Alquileres finalizados por mes" (por fecha de devolución), no las reservas creadas en el mes: el mes en curso subestima hasta que se cierren los alquileres activos, y puede superar 100% si hubo alquileres que no vinieron por WhatsApp. tsc/lint/tests en verde; **sin probar en navegador ni desplegar**. Sin migración.
 
+## v46 — Usuarios observadores y propietario
+
+Dos flags sobre `User` (ortogonales al rol `admin`/`empleado`, sin tocar el enum). Build/lint/tsc/tests en verde (518 tests, +5 en `user-permissions.test.ts`). **Desplegadas** (migraciones `add_user_observer` + `add_user_owner`). No se probó en navegador.
+
+- **Observador** (`User.observer`, default false): entra con los permisos de su rol (típicamente admin) pero no aparece en listas operativas — selector "Asignado a" de Tareas y "en línea" (`getOnlineUsers`). Solo se ve en `/users` (badge naranja; checkbox en alta/edición). El filtro vive en un solo lugar, `OPERATOR_FILTER` (`src/lib/users.ts`, `active: true, observer: false`): cualquier selector de personas nuevo debe usarlo. Sus logins siguen en el historial de `/users`; si cargan algo, su nombre figura igual (nombre congelado, v34). **No es solo lectura**: tiene permisos de admin completos.
+- **Propietario** (`User.owner`, default false; la migración lo activa para `g.suarezduek@gmail.com`; **sin UI para otorgarlo**, solo por base/migración): la cuenta no la puede editar, desactivar, borrar ni cambiarle email/contraseña nadie más. Solo el propietario crea admins, asciende a alguien a admin o modifica a otros admins; los admins comunes (observadores incluidos) gestionan empleados y a sí mismos. Reglas puras en `src/lib/user-permissions.ts` (`userManagementError`, testeada), lectura del rol real desde la base en `src/lib/user-access.ts` (`getUserPerm`, no de la sesión, que puede venir pisada por "Ver como empleado"). Se aplica en `createUser`/`updateUser`/`deleteUser` (servidor) y en la UI: filas sin link en `/users`, redirect en la edición y selector de rol sin "Administrador" para quien no es propietario. Las guardas de autobloqueo previas (no desactivarse, no quitarse el rol, no borrarse) siguen vigentes.
+- **Descartado a propósito:** más funciones exclusivas del propietario (historial de logins de admins, Caja fuerte/Saldos, configuración sensible de WhatsApp/correos, borrados irreversibles) — evaluadas con el dueño, no se implementaron.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
