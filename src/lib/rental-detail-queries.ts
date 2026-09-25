@@ -12,6 +12,9 @@ export async function getRentalDetail(id: string) {
         orderBy: { createdAt: "asc" },
       },
       documents: { orderBy: { createdAt: "asc" } },
+      // Historial de verificación: solo se muestra a admins (ver
+      // `RentalVerificationSection`), pero es liviano, así que se trae siempre.
+      verifications: { orderBy: { createdAt: "desc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
       },

@@ -20,6 +20,7 @@ export default async function RentalsPage({
     q?: string;
     status?: string;
     confirm?: string;
+    verif?: string;
     desde?: string;
     hasta?: string;
     cp?: string;
@@ -191,6 +192,7 @@ async function FilteredResults({ filters }: { filters: ReturnType<typeof parseRe
     if (filters.query) params.set("q", filters.query);
     if (filters.statusFilter) params.set("status", filters.statusFilter);
     if (filters.confirm !== "all") params.set("confirm", filters.confirm);
+    if (filters.verif !== "all") params.set("verif", filters.verif);
     if (filters.desde) params.set("desde", filters.desde);
     if (filters.hasta) params.set("hasta", filters.hasta);
     if (section === "cp" && page > 1) params.set("cp", String(page));

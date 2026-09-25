@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { generateAndSendActa } from "@/lib/acta";
 import { syncCommission } from "@/lib/commissions-sync";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
@@ -187,6 +188,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
         where: { id: data.vehicleId },
         data: { status: "available", currentKm: data.km },
       });
+      await autoUnverifyRental(tx, rental.id, "Se registró la devolución (liquidación y pagos).");
 
       // Cada pago anotado en la liquidación queda también como ingreso en Caja,
       // vinculado a esta reserva — el empleado no lo anota dos veces. Las

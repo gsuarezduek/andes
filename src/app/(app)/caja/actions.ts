@@ -10,6 +10,7 @@ import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
 import { syncCommission, deleteCommissionOf } from "@/lib/commissions-sync";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -109,6 +110,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     if (type === "income" && !isGuarantee) {
       await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
     }
+    if (rentalId) await autoUnverifyRental(tx, rentalId, `Se cargó un movimiento de Caja (${description}).`);
   });
 
   revalidatePath("/caja");
@@ -238,6 +240,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
     if (existing.type === "income" && commissionInputsChanged) {
       await syncCommission(tx, id, { id: user.id, name: displayName(user) });
     }
+    if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se editó un movimiento de Caja de la reserva.");
   });
 
   revalidatePath("/caja");
@@ -266,6 +269,7 @@ export async function deleteCashMovement(id: string, formData: FormData) {
     });
     // Si este ingreso generó un egreso de comisión, se va con él.
     await deleteCommissionOf(tx, id, { id: user.id, name: displayName(user) });
+    if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se eliminó un movimiento de Caja de la reserva.");
   });
 
   revalidatePath("/caja");
@@ -331,6 +335,7 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
     await syncCommission(tx, id, { id: user.id, name: displayName(user) });
 
     if (existing.rentalId) {
+      await autoUnverifyRental(tx, existing.rentalId, "Se confirmó el medio de pago de un cobro de la reserva.");
       const rental = await tx.rental.findUnique({ where: { id: existing.rentalId }, select: { pricing: true } });
       const pricing = (rental?.pricing ?? {}) as ContractPricing;
       if (pricing.payments?.some((p) => p.cashMovementId === id)) {

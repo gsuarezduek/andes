@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { roundMoney } from "@/lib/contract";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 
 /**
  * Resolver una garantía (Devolver/Cobrar, ver GuaranteeCard): cualquier rol
@@ -102,6 +103,9 @@ async function applyGuaranteeResolution(
       },
     }),
   ]);
+  if (guarantee.rentalId) {
+    await autoUnverifyRental(prisma, guarantee.rentalId, "Se resolvió la garantía de la reserva.");
+  }
 }
 
 const returnSchema = z.object({

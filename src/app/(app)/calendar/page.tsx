@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import { ButtonLink } from "@/components/ui/button";
+import { VerifiedIcon } from "@/components/ui/icons";
 import { CalendarGrid } from "./calendar-grid";
 
 export const metadata: Metadata = { title: "Calendario — Andes" };
@@ -96,6 +97,12 @@ export default async function CalendarPage({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio (fila)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex size-4 items-center justify-center rounded-full bg-white text-emerald-700 ring-1 ring-emerald-700/40">
+            <VerifiedIcon className="size-2.5" />
+          </span>{" "}
+          Verificada por un admin
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" /> Temporada con aumento (día)

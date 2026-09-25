@@ -726,6 +726,18 @@ Ocho métricas de negocio nuevas en `/reports` (todas filtradas por el período 
 
 Pedido del dueño: las filas de `/caja/proveedores/[id]` y `/caja/asociados/[id]` seguían con el formato viejo (todo suelto + lápiz abajo a la izquierda). `AccountMovementRow` se reescribió con el patrón de `MovementRow` (v37): en reposo solo detalle + `{cuenta} · {fecha}` + monto (+ámbar deuda / −verde pago) + chevron; al tocar, un modal con el detalle completo (tipo, cuenta/destino con aclaración, origen con aclaración, reserva, cargado/editado por) y Editar/Eliminar (admin). Editar mantiene el toggle Pago/Deuda, Origen, Destino y aclaraciones (v46/v49) y cierra el modal al guardar; eliminar sigue pidiendo motivo. `LedgerRow` pasó a ser un passthrough: el **pago directo del cliente** usa el mismo formato pero es de solo lectura (sin Editar/Eliminar). tsc/lint en verde; verificado por navegador (420px: lista, modal, editar, eliminar, solo lectura; datos de prueba borrados). Sin migración.
 
+## v53 — Verificación de reservas por un admin
+
+Un admin revisa una reserva (pagos, datos) y la marca como **verificada**; todos ven en el Calendario cuáles lo están. Construida y probada en local (tsc/lint/554 tests en verde; verificado por navegador con Playwright a 375px: admin verifica/quita, empleado solo ve, tilde en el Calendario, filtro del listado y desverificación automática por un pago nuevo). Migración `add_rental_verification` (aplicada en local, **sin desplegar todavía**).
+
+- **Modelo**: estado actual en `Rental` (`verifiedAt`/`verifiedById`/`verifiedByName`, nombre congelado como en v34) + historial append-only `RentalVerification` (`verified`/`unverified`/`auto_unverified`, quién, cuándo, motivo). Sin nota al verificar (decisión del dueño).
+- **A qué aplica** (`canVerifyRental`, `src/lib/rental-verification.ts`): Confirmadas, Activas y Finalizadas. Pendientes/Canceladas/En service no; una marca vieja no se muestra si la reserva dejó de ser verificable (`isRentalVerified`).
+- **Detalle de la reserva**: `RentalVerificationSection` (todos ven el estado; solo admin ve el botón "Verificar reserva" / "Quitar" con confirmación y el historial). Acciones `verifyRental`/`unverifyRental` (`requireAdmin`, con guarda contra doble verificación concurrente). Los admins observadores también pueden (tienen permisos de admin).
+- **Se desverifica sola ante cambios de plata** (`autoUnverifyRental`, `src/lib/rental-verification-server.ts`, deja `auto_unverified` con el motivo y "Sistema" como autor): pago nuevo (`addRentalPayment`), entrega/devolución (`saveHandover`/`saveReturn`), movimiento de Caja vinculado a la reserva (crear/editar/borrar/confirmar medio), resolución de garantía, seña nueva o cambio de total/pagado desde VikRentCar (sync), fusión de duplicado. **Si se agrega otro lugar que cambie la plata de una reserva, hay que llamar a este helper.** El sync nunca toca los campos de verificación por sí mismo.
+- **Calendario**: tilde blanco con borde verde dentro de la barra + línea "Verificada por X · fecha" en el tooltip + entrada en la leyenda (no pisa el color de estado, el borde de pago ni el círculo de notas).
+- **Listado de Alquileres**: filtro "Verificación: todas / verificadas / pendientes de verificar" (`?verif=`; pendientes = verificables sin verificar) y marca "Verificada" en cada fila.
+- **Sin bloqueo por saldo**: un admin puede verificar una reserva con saldo pendiente (la verificación es un juicio suyo, no una validación automática).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

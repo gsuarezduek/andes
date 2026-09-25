@@ -3,7 +3,7 @@ import { after } from "next/server";
 import type { InspectionInput } from "@/lib/inspection-input";
 
 // --- Mocks (hoisted para poder referenciarlos en vi.mock) ---
-const { prismaMock, requireUserMock, actaMock } = vi.hoisted(() => ({
+const { prismaMock, requireUserMock, actaMock, autoUnverifyMock } = vi.hoisted(() => ({
   prismaMock: {
     rental: { findUnique: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
     vehicle: { findUnique: vi.fn(), update: vi.fn() },
@@ -12,6 +12,7 @@ const { prismaMock, requireUserMock, actaMock } = vi.hoisted(() => ({
   },
   requireUserMock: vi.fn(),
   actaMock: vi.fn().mockResolvedValue(undefined),
+  autoUnverifyMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -20,6 +21,8 @@ vi.mock("@/lib/acta", () => ({ generateAndSendActa: actaMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // La comisión automática se prueba aparte (commissions-sync.test.ts).
 vi.mock("@/lib/commissions-sync", () => ({ syncCommission: vi.fn(), deleteCommissionOf: vi.fn() }));
+// La desverificación automática se prueba aparte (rental-verification-server.test.ts).
+vi.mock("@/lib/rental-verification-server", () => ({ autoUnverifyRental: autoUnverifyMock }));
 // No ejecutamos el post-guardado asíncrono (acta/emails) en los tests.
 vi.mock("next/server", () => ({ after: vi.fn() }));
 
@@ -83,6 +86,7 @@ describe("saveHandover", () => {
     // El alquiler pasa a activo; el vehículo a alquilado con el km de entrega.
     expect(tx.rental.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "active" }) }));
     expect(tx.vehicle.update).toHaveBeenCalledWith({ where: { id: "v1" }, data: { status: "rented", currentKm: 10_500 } });
+    expect(autoUnverifyMock).toHaveBeenCalledWith(tx, "r1", expect.any(String));
   });
 
   it("rechaza si el alquiler no está reservado (inmutabilidad)", async () => {
@@ -302,6 +306,8 @@ describe("saveReturn", () => {
     expect(inspArg.type).toBe("return_");
     expect(tx.rental.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "finished" }) }));
     expect(tx.vehicle.update).toHaveBeenCalledWith({ where: { id: "v1" }, data: { status: "available", currentKm: 10_900 } });
+    // Cambió plata (liquidación/pagos): una verificación previa deja de valer.
+    expect(autoUnverifyMock).toHaveBeenCalledWith(tx, "r1", expect.any(String));
   });
 
   it("persiste la liquidación en la inspección de devolución", async () => {

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 
 /**
  * Fusiona una reserva "duplicada" (importada de VikRentCar solo para
@@ -82,6 +83,7 @@ export async function mergeDuplicateRental(duplicateId: string, targetId: string
       data: { rentalId: target.id, text: noteText, createdById: admin.id, createdByName: displayName(admin) },
     }),
   ]);
+  await autoUnverifyRental(prisma, target.id, "Se fusionó con una reserva de VikRentCar (cambian los datos de plata).");
 
   revalidatePath(`/rentals/${target.id}`);
   revalidatePath(`/rentals/${duplicate.id}`);

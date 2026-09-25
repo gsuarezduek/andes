@@ -15,6 +15,8 @@ import { ExternalLinkIcon } from "@/components/ui/icons";
 import { StatusBanners } from "@/components/rentals/status-banners";
 import { RentalDetailTabs } from "@/components/rentals/rental-detail-tabs";
 import { TeamNotesSection } from "@/components/team-notes-section";
+import { RentalVerificationSection } from "@/components/rentals/rental-verification-section";
+import { canVerifyRental, isRentalVerified } from "@/lib/rental-verification";
 import { addRentalNote, resolveRentalNote } from "./notes-actions";
 import { ClientInfoSection } from "@/components/rentals/client-info-section";
 import { DateInfoSection } from "@/components/rentals/date-info-section";
@@ -215,6 +217,16 @@ export default async function RentalDetailPage({
         <p className="rounded-lg bg-red-500/10 px-4 py-2 text-xs font-medium text-red-700 dark:text-red-400">
           Falta pagar {formatArs(balance)}.
         </p>
+      )}
+
+      {/* Verificación de un admin: todos ven el estado, solo admin la cambia. */}
+      {canVerifyRental(rental.status, rental.bookingConfirmed) && (
+        <RentalVerificationSection
+          rentalId={rental.id}
+          verified={isRentalVerified(rental) ? { byName: rental.verifiedByName, at: rental.verifiedAt! } : null}
+          isAdmin={isAdmin}
+          history={isAdmin ? rental.verifications : []}
+        />
       )}
 
       {/* Notas del equipo: mensajes internos entre compañeros sobre esta

@@ -102,6 +102,15 @@ enum SyncResult {
 }
 
 /// Estado de un pedido de firma remota (el cliente firma en su teléfono).
+/// Movimientos del historial de verificación de una reserva (ver
+/// `RentalVerification`): un admin la verifica / le quita la verificación, o
+/// el sistema se la quita sola porque cambió algo de plata después.
+enum RentalVerificationAction {
+  verified
+  unverified
+  auto_unverified
+}
+
 enum SignatureRequestStatus {
   pending
   signed
@@ -212,6 +221,8 @@ model User {
   resolvedVehicleNotes           VehicleNote[]           @relation("VehicleNoteResolver")
   createdRentalNotes             RentalNote[]            @relation("RentalNoteCreator")
   resolvedRentalNotes            RentalNote[]            @relation("RentalNoteResolver")
+  verifiedRentals                Rental[]                @relation("RentalVerifier")
+  rentalVerifications            RentalVerification[]    @relation("RentalVerificationActor")
   createdCashMovements           CashMovement[]          @relation("CashMovementCreator")
   deletedCashMovements           CashMovement[]          @relation("CashMovementDeleter")
   cashMovementEdits              CashMovementEdit[]      @relation("CashMovementEditor")
@@ -465,6 +476,30 @@ model RentalNote {
   @@map("rental_notes")
 }
 
+/// Historial (solo se agrega, nunca se edita) de verificaciones de una reserva:
+/// quién la verificó / le quitó la verificación y cuándo. `auto_unverified` lo
+/// genera el sistema cuando cambia algo de plata de una reserva ya verificada
+/// (`byName` = "Sistema", `reason` dice qué cambió).
+model RentalVerification {
+  id String @id @default(cuid())
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  action RentalVerificationAction
+  reason String?                  @db.Text
+
+  // Nombre congelado al momento del hecho (ver Inspection.userName).
+  byId   String? @map("by_id")
+  by     User?   @relation("RentalVerificationActor", fields: [byId], references: [id])
+  byName String  @map("by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([rentalId])
+  @@map("rental_verifications")
+}
+
 // ---------------------------------------------------------------------------
 // Alquileres
 // ---------------------------------------------------------------------------
@@ -541,10 +576,22 @@ model Rental {
   language    Language     @default(es)
   status      RentalStatus @default(reserved)
 
+  // Verificación de un admin ("revisé la reserva: pagos y datos en orden").
+  // Estado actual — null = sin verificar. Solo aplica a Confirmadas/Activas/
+  // Finalizadas (ver `canVerifyRental`). Se limpia sola si después cambia algo
+  // de plata (`autoUnverifyRental`); el historial completo vive en
+  // `RentalVerification`. El sync nunca toca estos campos.
+  verifiedAt     DateTime? @map("verified_at")
+  verifiedById   String?   @map("verified_by_id")
+  verifiedBy     User?     @relation("RentalVerifier", fields: [verifiedById], references: [id])
+  // Nombre congelado (ver Inspection.userName): sobrevive a que se borre el usuario.
+  verifiedByName String?   @map("verified_by_name")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   inspections           Inspection[]
+  verifications         RentalVerification[]
   documents             RentalDocument[]
   signatureRequests     SignatureRequest[]
   teamNotes             RentalNote[]
@@ -1093,9 +1140,9 @@ model CashMovement {
   commissionSource   CashMovement?  @relation("CommissionDerivative", fields: [commissionSourceId], references: [id])
   commissionExpenses CashMovement[] @relation("CommissionDerivative")
 
-  guaranteeSourceId String?          @map("guarantee_source_id")
-  guaranteeSource   CashMovement?    @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
-  guaranteeDerived  CashMovement[]   @relation("GuaranteeDerivative")
+  guaranteeSourceId String?        @map("guarantee_source_id")
+  guaranteeSource   CashMovement?  @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
+  guaranteeDerived  CashMovement[] @relation("GuaranteeDerivative")
 
   // `*Name` son nombres congelados al momento del hecho (ver
   // Inspection.userName) — sobreviven a que se borre el usuario.
@@ -1920,8 +1967,8 @@ model AccountTransfer {
   toAccountId   String?        @map("to_account_id")
   toAccount     PaymentMethod? @relation("AccountTransferTo", fields: [toAccountId], references: [id])
   toAccountName String         @map("to_account_name")
-  toAmount      Decimal       @map("to_amount") @db.Decimal(12, 2)
-  toCurrency    Currency      @map("to_currency")
+  toAmount      Decimal        @map("to_amount") @db.Decimal(12, 2)
+  toCurrency    Currency       @map("to_currency")
 
   description String @default("") @db.Text
 

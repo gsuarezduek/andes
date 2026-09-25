@@ -14,6 +14,7 @@ export type RentalListSearchParams = {
   q?: string;
   status?: string;
   confirm?: string;
+  verif?: string;
   desde?: string;
   hasta?: string;
   cp?: string;
@@ -24,6 +25,8 @@ export type RentalListFilters = {
   query?: string;
   statusFilter: RentalStatus | null;
   confirm: "all" | "confirmed" | "unconfirmed";
+  /** Verificación de un admin: solo entre reservas verificables (ver `canVerifyRental`). */
+  verif: "all" | "verified" | "unverified";
   desde: string;
   hasta: string;
   currentPage: number;
@@ -42,12 +45,13 @@ export function parseRentalListFilters(sp: RentalListSearchParams): RentalListFi
     ? (sp.status as RentalStatus)
     : null;
   const confirm = sp.confirm === "confirmed" || sp.confirm === "unconfirmed" ? sp.confirm : "all";
+  const verif = sp.verif === "verified" || sp.verif === "unverified" ? sp.verif : "all";
   const desde = sp.desde && DATE_RE.test(sp.desde) ? sp.desde : "";
   const hasta = sp.hasta && DATE_RE.test(sp.hasta) ? sp.hasta : "";
   const currentPage = parsePage(sp.cp);
   const pastPage = parsePage(sp.pp);
-  const hasFilters = Boolean(query || statusFilter || confirm !== "all" || desde || hasta);
-  return { query, statusFilter, confirm, desde, hasta, currentPage, pastPage, hasFilters };
+  const hasFilters = Boolean(query || statusFilter || confirm !== "all" || verif !== "all" || desde || hasta);
+  return { query, statusFilter, confirm, verif, desde, hasta, currentPage, pastPage, hasFilters };
 }
 
 /**
@@ -74,6 +78,14 @@ export function buildRentalWhereClauses(filters: RentalListFilters): {
   if (filters.statusFilter) clauses.push({ status: filters.statusFilter });
   if (filters.confirm === "confirmed") clauses.push({ bookingConfirmed: true });
   else if (filters.confirm === "unconfirmed") clauses.push({ bookingConfirmed: false });
+  // Verificación: "pendientes" = verificables (confirmadas/activas/finalizadas,
+  // ver `canVerifyRental`) que todavía no verificó un admin.
+  if (filters.verif !== "all") {
+    clauses.push({
+      OR: [{ status: { in: ["active", "finished"] } }, { status: "reserved", bookingConfirmed: true }],
+    });
+    clauses.push({ verifiedAt: filters.verif === "verified" ? { not: null } : null });
+  }
   // Rango sobre la fecha de retiro (hora de Mendoza).
   const startAt: Prisma.DateTimeFilter = {};
   if (filters.desde) startAt.gte = mendozaWallTimeToUtc(`${filters.desde}T00:00`);

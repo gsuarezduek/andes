@@ -87,6 +87,12 @@ function BarTooltipBody({ bar }: { bar: CalendarBar }) {
           Falta pagar {formatArs(bar.balance)}
         </p>
       ) : null}
+      {bar.verified ? (
+        <p className="mt-1 font-medium text-emerald-600 dark:text-emerald-400">
+          Verificada{bar.verifiedByName ? ` por ${bar.verifiedByName}` : ""}
+          {bar.verifiedAt ? ` · ${formatDateTime(bar.verifiedAt)}` : ""}
+        </p>
+      ) : null}
       {bar.extraDrivers.length > 0 ? (
         <p className="mt-1.5">
           <span className="text-foreground/45">Conductores adicionales: </span>

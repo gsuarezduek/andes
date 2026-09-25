@@ -98,3 +98,12 @@ export function PinIcon({ filled = false, className = "size-4" }: { filled?: boo
     </svg>
   );
 }
+
+/** Tilde de "verificada" (ver `Rental.verifiedAt`): trazo grueso para que se lea a tamaño chico sobre una barra de color. */
+export function VerifiedIcon({ className = "size-3" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="m4 10.5 4 4 8-9" />
+    </svg>
+  );
+}

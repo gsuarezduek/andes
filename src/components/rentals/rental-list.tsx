@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { VerifiedIcon } from "@/components/ui/icons";
+import { isRentalVerified } from "@/lib/rental-verification";
 import { rentalStatusDisplay, rentalRowBorderClass, isRentalOverdue } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { formatDateTime } from "@/lib/datetime";
@@ -78,6 +80,11 @@ export function RentalList({
                 <Badge tone={tone} ring={accent}>
                   {label}
                 </Badge>
+                {isRentalVerified(r) && (
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                    <VerifiedIcon className="size-3" /> Verificada
+                  </span>
+                )}
                 {overdue && (
                   <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
                     {r.status === "active" ? "Devolución vencida" : "Atrasada para entregar"}

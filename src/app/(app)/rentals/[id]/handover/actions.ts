@@ -10,6 +10,7 @@ import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
 import { syncCommission } from "@/lib/commissions-sync";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
@@ -209,6 +210,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         where: { id: vehicle.id },
         data: { status: "rented", currentKm: data.km },
       });
+      await autoUnverifyRental(tx, rental.id, "Se registró la entrega (contrato y pagos).");
 
       // Cada pago anotado en "Condiciones" queda también como ingreso en Caja,
       // vinculado a esta reserva — el empleado no lo anota dos veces. Las

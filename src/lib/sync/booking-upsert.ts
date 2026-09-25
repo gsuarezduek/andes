@@ -8,6 +8,12 @@ import type { RawBooking, RawOptional } from "./types";
 import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
 import { syncCommission } from "@/lib/commissions-sync";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
+
+/** ¿Cambió un importe (Decimal de Prisma | null vs. número | null)? */
+function decimalChanged(prev: { toString(): string } | null, next: number | null): boolean {
+  return Math.abs(Number(prev ?? 0) - (next ?? 0)) > 0.005; // null ≡ 0
+}
 
 export type Outcome = "imported" | "updated" | "cancelled" | "skipped";
 
@@ -110,6 +116,11 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       ...booking,
     },
   });
+  // Si VikRentCar cambió el total o lo pagado, una verificación previa ya no
+  // describe la reserva (ver `autoUnverifyRental`).
+  if (decimalChanged(existing.bookingTotal, b.orderTotal) || decimalChanged(existing.bookingPaid, b.paid)) {
+    await autoUnverifyRental(prisma, existing.id, "Cambió el total o lo pagado en VikRentCar.");
+  }
   await upsertWpPaymentMethodCatalog(b.paymentMethod);
   await importBookingPayment(
     existing.id,
@@ -233,6 +244,7 @@ export async function importBookingPayment(
       where: { id: rentalId },
       data: { pricing: nextPricing, bookingPaidImportedAmount: target },
     });
+    await autoUnverifyRental(tx, rentalId, "Entró una seña nueva desde VikRentCar.");
   });
 }
 

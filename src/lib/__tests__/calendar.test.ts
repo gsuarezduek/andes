@@ -91,6 +91,9 @@ function bar(rentalId: string, startIndex: number, span: number): CalendarBar {
     lane: 0,
     paymentAccent: null,
     balance: 0,
+    verified: false,
+    verifiedAt: null,
+    verifiedByName: null,
   };
 }
 

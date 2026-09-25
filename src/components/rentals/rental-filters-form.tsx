@@ -7,6 +7,7 @@ export function RentalFiltersForm({
   query,
   statusFilter,
   confirm,
+  verif,
   desde,
   hasta,
   hasFilters,
@@ -45,6 +46,15 @@ export function RentalFiltersForm({
           <option value="all">Confirmación: todas</option>
           <option value="confirmed">Confirmadas</option>
           <option value="unconfirmed">Sin confirmar</option>
+        </select>
+        <select
+          name="verif"
+          defaultValue={verif}
+          className={compactControlClass}
+        >
+          <option value="all">Verificación: todas</option>
+          <option value="verified">Verificadas</option>
+          <option value="unverified">Pendientes de verificar</option>
         </select>
         <label className="flex items-center gap-1 text-xs text-foreground/60">
           Retiro desde

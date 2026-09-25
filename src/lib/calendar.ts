@@ -3,6 +3,7 @@ import "server-only";
 import type { Rental, RentalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { isRentalVerified } from "@/lib/rental-verification";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/rates";
 
@@ -73,6 +74,10 @@ export type CalendarBar = {
   paymentAccent: PaymentAccent;
   /** Saldo pendiente, solo cuando `paymentAccent === "pending"` (para el tooltip). */
   balance: number | null;
+  /** Verificada por un admin (ver `isRentalVerified`) → tilde en la barra. */
+  verified: boolean;
+  verifiedAt: Date | null;
+  verifiedByName: string | null;
 };
 
 /** Nota interna del equipo sobre el auto, aún sin resolver. */
@@ -247,7 +252,7 @@ type RentalRow = {
   bookingModel: string | null;
   additionalDrivers: unknown;
   teamNotes: { id: string; text: string; createdAt: Date; createdByName: string }[];
-} & Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid">;
+} & Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid" | "verifiedAt" | "verifiedByName">;
 
 function extraDriverNames(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -273,6 +278,7 @@ function toBar(
   if (endIndex < startIndex) return null;
   const payments = computeRentalPayments(r);
   const accent = paymentAccent(r.status, r.bookingConfirmed, payments);
+  const verified = isRentalVerified(r);
   return {
     rentalId: r.id,
     startIndex,
@@ -294,6 +300,9 @@ function toBar(
     lane: 0,
     paymentAccent: accent,
     balance: accent === "pending" ? payments.balance : null,
+    verified,
+    verifiedAt: verified ? r.verifiedAt : null,
+    verifiedByName: verified ? r.verifiedByName : null,
   };
 }
 
@@ -490,6 +499,8 @@ export async function getCalendarData(opts?: {
         pricing: true,
         bookingTotal: true,
         bookingPaid: true,
+        verifiedAt: true,
+        verifiedByName: true,
         teamNotes: {
           where: { resolvedAt: null },
           orderBy: { createdAt: "asc" },

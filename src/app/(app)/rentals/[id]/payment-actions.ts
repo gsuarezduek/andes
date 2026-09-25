@@ -7,6 +7,7 @@ import { displayName } from "@/lib/user-display";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { syncCommission } from "@/lib/commissions-sync";
+import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { computeBalance, paidTotal, type ContractPricing, type RentalPayment } from "@/lib/contract";
 
 /**
@@ -53,6 +54,7 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
       nextPricing.balance = computeBalance({ total: pricing.total, sena: pricing.sena, paid: nextPaid }) ?? undefined;
     }
     await tx.rental.update({ where: { id: rentalId }, data: { pricing: nextPricing } });
+    await autoUnverifyRental(tx, rentalId, "Se cargó un pago nuevo.");
   });
 
   revalidatePath(`/rentals/${rentalId}`);

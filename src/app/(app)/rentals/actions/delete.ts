@@ -30,6 +30,7 @@ export async function deleteRental(id: string): Promise<void> {
   await prisma.$transaction([
     prisma.signatureRequest.deleteMany({ where: { rentalId: id } }),
     prisma.rentalDocument.deleteMany({ where: { rentalId: id } }),
+    prisma.rentalVerification.deleteMany({ where: { rentalId: id } }),
     prisma.rental.delete({ where: { id } }),
   ]);
 

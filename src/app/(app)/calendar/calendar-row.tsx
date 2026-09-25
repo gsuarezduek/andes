@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow } from "@/lib/calendar";
 import { formatTime } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
+import { VerifiedIcon } from "@/components/ui/icons";
 import { barClasses, paymentBorderClasses, quoteBarClasses } from "./bar-style";
 import { LABEL_W_CLASS, QUOTE_TRACK_H } from "./calendar-constants";
 
@@ -195,7 +196,19 @@ export function Row({
                 {bar.activeNotes.length}
               </span>
             )}
-            <span className="truncate">{bar.clientName}</span>
+            <span className="flex min-w-0 items-center">
+              {bar.verified && (
+                <span
+                  className="mr-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-700/40"
+                  title="Verificada"
+                  role="img"
+                  aria-label="Verificada"
+                >
+                  <VerifiedIcon className="size-2.5" />
+                </span>
+              )}
+              <span className="truncate">{bar.clientName}</span>
+            </span>
             {dense ? (
               <span className="truncate text-[11px] font-normal opacity-90">
                 {formatTime(bar.startAt)} → {formatTime(bar.endAt)}
