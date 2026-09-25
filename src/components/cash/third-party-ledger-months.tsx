@@ -117,7 +117,7 @@ export function ThirdPartyLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {debts.map((m) => (
                       <LedgerRow
-                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.accountId}`}
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.originNote ?? ""}:${m.accountId}:${m.accountNote ?? ""}`}
                         movement={m}
                         isAdmin={isAdmin}
                         principalName={principalName}
@@ -138,7 +138,7 @@ export function ThirdPartyLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {payments.map((m) => (
                       <LedgerRow
-                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.accountId}`}
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.originNote ?? ""}:${m.accountId}:${m.accountNote ?? ""}`}
                         movement={m}
                         isAdmin={isAdmin}
                         principalName={principalName}

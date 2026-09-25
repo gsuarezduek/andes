@@ -722,6 +722,10 @@ Ocho métricas de negocio nuevas en `/reports` (todas filtradas por el período 
 - **Tiempo de respuesta de WhatsApp**: cada mensaje del cliente que abre una espera (varios seguidos = una) hasta el siguiente saliente (bot, equipo desde Andes o desde la app). Mediana/promedio general, mediana solo de respuestas humanas y cantidad sin respuesta. Corrido 24 hs (incluye noches y fines de semana; no hay horario laboral configurado).
 - **Descartada a propósito** la métrica 8 del listado (origen de la reserva): no tenemos el canal real, solo web vs. manual.
 
+## v52 — Cuentas corrientes con el formato de Movimientos (fila limpia + modal)
+
+Pedido del dueño: las filas de `/caja/proveedores/[id]` y `/caja/asociados/[id]` seguían con el formato viejo (todo suelto + lápiz abajo a la izquierda). `AccountMovementRow` se reescribió con el patrón de `MovementRow` (v37): en reposo solo detalle + `{cuenta} · {fecha}` + monto (+ámbar deuda / −verde pago) + chevron; al tocar, un modal con el detalle completo (tipo, cuenta/destino con aclaración, origen con aclaración, reserva, cargado/editado por) y Editar/Eliminar (admin). Editar mantiene el toggle Pago/Deuda, Origen, Destino y aclaraciones (v46/v49) y cierra el modal al guardar; eliminar sigue pidiendo motivo. `LedgerRow` pasó a ser un passthrough: el **pago directo del cliente** usa el mismo formato pero es de solo lectura (sin Editar/Eliminar). tsc/lint en verde; verificado por navegador (420px: lista, modal, editar, eliminar, solo lectura; datos de prueba borrados). Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
