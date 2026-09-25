@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { OPERATOR_FILTER } from "@/lib/users";
 
 /**
  * Ventana de "conectado": visto en los últimos N minutos. Con el heartbeat de
@@ -41,7 +42,7 @@ export type OnlineUser = { id: string; name: string };
 export async function getOnlineUsers(): Promise<OnlineUser[]> {
   const since = new Date(Date.now() - ONLINE_WINDOW_MINUTES * 60_000);
   const users = await prisma.user.findMany({
-    where: { active: true, lastSeenAt: { gte: since } },
+    where: { ...OPERATOR_FILTER, lastSeenAt: { gte: since } },
     select: { id: true, name: true },
     orderBy: { lastSeenAt: "desc" },
   });

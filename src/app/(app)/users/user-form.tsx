@@ -48,6 +48,20 @@ export function UserForm({
         />
         Usuario activo
       </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="observer"
+          defaultChecked={user?.observer ?? false}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          Observador
+          <span className="block text-xs text-foreground/60">
+            Entra y ve según su rol, pero no aparece en las listas operativas (asignar tareas, usuarios en línea).
+          </span>
+        </span>
+      </label>
 
       <FormError>{state.error}</FormError>
 

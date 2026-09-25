@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { OPERATOR_FILTER } from "@/lib/users";
 import { requireUser } from "@/lib/auth-helpers";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
@@ -30,7 +31,7 @@ export default async function TasksPage({
   const [pending, completed, users, vehicles] = await Promise.all([
     getPendingTasks(filters),
     getCompletedTasksPage(completedPage),
-    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({ where: OPERATOR_FILTER, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       orderBy: [{ brand: "asc" }, { model: "asc" }],

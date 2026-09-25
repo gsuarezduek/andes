@@ -15,6 +15,7 @@ const baseSchema = z.object({
   email: z.email("Email inválido"),
   role: z.enum(["admin", "empleado"]),
   active: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  observer: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 function readBase(formData: FormData) {
@@ -23,6 +24,7 @@ function readBase(formData: FormData) {
     email: formData.get("email"),
     role: formData.get("role"),
     active: formData.get("active"),
+    observer: formData.get("observer"),
   });
 }
 
@@ -47,6 +49,7 @@ export async function createUser(
         email: parsed.data.email.toLowerCase(),
         role: parsed.data.role,
         active: parsed.data.active,
+        observer: parsed.data.observer,
         passwordHash: await bcrypt.hash(password, 10),
       },
     });
@@ -141,6 +144,7 @@ export async function updateUser(
         email: parsed.data.email.toLowerCase(),
         role: parsed.data.role,
         active: parsed.data.active,
+        observer: parsed.data.observer,
         ...(password.length >= 6
           ? { passwordHash: await bcrypt.hash(password, 10) }
           : {}),
