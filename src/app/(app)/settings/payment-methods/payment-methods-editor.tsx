@@ -29,6 +29,8 @@ type Draft = {
   commissionPercent: string;
   commissionFixed: string;
   commissionCategoryId: string | null;
+  balanceAdjustmentArs: string;
+  balanceAdjustmentUsd: string;
 };
 
 type CategoryOption = { id: string; name: string };
@@ -46,6 +48,8 @@ function draftFrom(it: PaymentMethod): Draft {
     commissionPercent: it.commissionPercent?.toString() ?? "",
     commissionFixed: it.commissionFixed?.toString() ?? "",
     commissionCategoryId: it.commissionCategoryId,
+    balanceAdjustmentArs: Number(it.balanceAdjustmentArs) === 0 ? "" : it.balanceAdjustmentArs.toString(),
+    balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd) === 0 ? "" : it.balanceAdjustmentUsd.toString(),
   };
 }
 
@@ -61,7 +65,9 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.whatsappPhone === b.whatsappPhone &&
     a.commissionPercent === b.commissionPercent &&
     a.commissionFixed === b.commissionFixed &&
-    a.commissionCategoryId === b.commissionCategoryId
+    a.commissionCategoryId === b.commissionCategoryId &&
+    a.balanceAdjustmentArs === b.balanceAdjustmentArs &&
+    a.balanceAdjustmentUsd === b.balanceAdjustmentUsd
   );
 }
 
@@ -476,6 +482,38 @@ function PaymentMethodRow({
                     </option>
                   ))}
                 </SelectField>
+              </div>
+            )}
+            {draft.ownership === "own" && (
+              <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
+                <p className="text-sm font-medium text-foreground/80">Ajuste de saldo</p>
+                <p className="text-xs text-foreground/50">
+                  Corrección manual, por única vez, para alinear el saldo que muestra Andes con el real (ej. al dar de
+                  alta una cuenta que ya venía operando). Se suma directo al saldo — no genera un movimiento ni queda
+                  en el historial.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField
+                    id={`balanceAdjustmentArs-${item.id}`}
+                    label="Ajuste ARS"
+                    type="text"
+                    inputMode="decimal"
+                    prefix="$"
+                    placeholder="Ej. 1000 o -500"
+                    value={draft.balanceAdjustmentArs}
+                    onChange={(e) => setField(item.id, "balanceAdjustmentArs", e.target.value)}
+                  />
+                  <TextField
+                    id={`balanceAdjustmentUsd-${item.id}`}
+                    label="Ajuste USD"
+                    type="text"
+                    inputMode="decimal"
+                    prefix="$"
+                    placeholder="Ej. 100 o -50"
+                    value={draft.balanceAdjustmentUsd}
+                    onChange={(e) => setField(item.id, "balanceAdjustmentUsd", e.target.value)}
+                  />
+                </div>
               </div>
             )}
             <label className="flex items-center gap-2 text-sm text-foreground/80">

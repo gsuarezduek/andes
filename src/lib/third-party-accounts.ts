@@ -66,14 +66,30 @@ async function resolveWhatsappConversationIds(phones: (string | null)[]): Promis
  * `ownership: "own"`.
  */
 export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
-  principals: { id: string; name: string; whatsappPhone: string | null; subaccounts: { id: string; name: string }[] }[];
+  principals: {
+    id: string;
+    name: string;
+    whatsappPhone: string | null;
+    subaccounts: { id: string; name: string }[];
+    // Ajuste manual de saldo (solo tiene sentido en `own`, ver comentario en
+    // el schema) — 0 en cualquier otra cuenta.
+    balanceAdjustment: CurrencyTotals;
+  }[];
   resolve: Map<string, string>;
   memberIds: string[];
 }> {
   const accounts = await prisma.paymentMethod.findMany({
     where: { ownership },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, parentId: true, active: true, whatsappPhone: true },
+    select: {
+      id: true,
+      name: true,
+      parentId: true,
+      active: true,
+      whatsappPhone: true,
+      balanceAdjustmentArs: true,
+      balanceAdjustmentUsd: true,
+    },
   });
   const resolve = new Map<string, string>();
   for (const a of accounts) resolve.set(a.id, a.parentId ?? a.id);
@@ -84,6 +100,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
       name: p.name,
       whatsappPhone: p.whatsappPhone,
       subaccounts: accounts.filter((a) => a.parentId === p.id).map((a) => ({ id: a.id, name: a.name })),
+      balanceAdjustment: { ars: Number(p.balanceAdjustmentArs), usd: Number(p.balanceAdjustmentUsd) },
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
 }

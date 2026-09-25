@@ -18,6 +18,11 @@ function percentOrNull(v: FormDataEntryValue | null): number | null {
   return n !== undefined ? n : null;
 }
 
+/** Monto con signo (ajuste de saldo), o 0 si viene vacío/inválido. */
+function amountOrZero(v: FormDataEntryValue | null): number {
+  return parseDecimal(String(v ?? "")) ?? 0;
+}
+
 /** Tipo de cuenta: obligatorio, sin estado "indiferente" — el select del
  *  form siempre manda uno de los tres; si algo raro llega, cae en "own". */
 function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnership {
@@ -62,6 +67,10 @@ export type PaymentMethodUpdateInput = {
   commissionPercent: string;
   commissionFixed: string;
   commissionCategoryId: string | null;
+  // Corrección manual del saldo calculado (solo cuentas propias) — ver
+  // `PaymentMethod.balanceAdjustmentArs/Usd` en el schema. Vacío = sin ajuste.
+  balanceAdjustmentArs: string;
+  balanceAdjustmentUsd: string;
 };
 
 /**
@@ -136,6 +145,9 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           commissionPercent: commissions.get(u.id)!.percent,
           commissionFixed: commissions.get(u.id)!.fixed,
           commissionCategoryId: commissions.get(u.id)!.categoryId,
+          // Solo tiene sentido en cuentas propias — en las demás se guarda en 0.
+          balanceAdjustmentArs: u.ownership === "own" ? amountOrZero(u.balanceAdjustmentArs) : 0,
+          balanceAdjustmentUsd: u.ownership === "own" ? amountOrZero(u.balanceAdjustmentUsd) : 0,
         },
       }),
     ),

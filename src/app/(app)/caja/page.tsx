@@ -11,10 +11,9 @@ import {
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
-  getWalletBalance,
   parseCashPeriod,
 } from "@/lib/cash";
-import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
+import { getSafeBalance, getSafeMonthActivity } from "@/lib/safe";
 import { getProviderBalances } from "@/lib/providers";
 import { getAssociateBalances } from "@/lib/associates";
 import { MovementLauncher } from "@/components/cash/movement-launcher";
@@ -22,7 +21,6 @@ import { CashMovementSearch } from "@/components/cash/cash-movement-search";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { IncomesBoard } from "@/components/cash/incomes-board";
 import { CashOwnList } from "@/components/cash/cash-own-list";
-import { SafeSection } from "@/components/cash/safe-section";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
@@ -106,14 +104,18 @@ export default async function CajaPage({
   const proveedores = <ProvidersSection providers={await getProviderBalances()} paymentMethods={paymentMethods} />;
   const asociados = <AssociatesSection associates={await getAssociateBalances()} paymentMethods={paymentMethods} />;
 
-  // Saldo por cuenta propia — igual que la Caja fuerte, es la posición de
-  // plata real de la empresa, así que solo se calcula/pasa para admin (ver
-  // comentario en `CajaTabs`). El historial vive en `/caja/saldos/[id]`.
+  // Saldo por cuenta propia — igual que la Caja fuerte (que ahora se muestra
+  // acá mismo, como una tarjeta más — ver `AccountsSection`, v44), es la
+  // posición de plata real de la empresa, así que solo se calcula/pasa para
+  // admin (ver comentario en `CajaTabs`). El historial de cada una vive en
+  // `/caja/saldos/[id]` (o `/caja/saldos/caja-fuerte`).
   const usdRate = await getCurrentUsdRate();
-  const safeBalance = isAdmin ? await getSafeBalance() : null;
+  const safeMonthActivity = isAdmin ? await getSafeMonthActivity() : null;
   const saldos = isAdmin ? (
     <AccountsSection
-      safeBalance={safeBalance!}
+      safeBalance={await getSafeBalance()}
+      safeMonthIncome={safeMonthActivity!.income}
+      safeMonthExpense={safeMonthActivity!.expense}
       accounts={await getOwnAccountBalances()}
       transfers={await getAccountTransfers({ limit: 10 })}
       usdRate={usdRate?.rate ?? null}
@@ -127,18 +129,6 @@ export default async function CajaPage({
       guarantees={await getGuarantees()}
       paymentMethods={paymentMethods}
       expenseCategories={expenseCategories}
-    />
-  ) : undefined;
-
-  // Caja fuerte: efectivo físico real — solo admin (saldo, billetera e
-  // historial). Ya no hay lanzador propio: se mueve con "Mover entre cuentas".
-  const cajaFuerte = isAdmin ? (
-    <SafeSection
-      movements={await getAllSafeMovements()}
-      transfers={await getAccountTransfers({ safe: true, limit: 50 })}
-      balance={safeBalance!}
-      walletBalance={await getWalletBalance()}
-      edits={await getSafeMovementEdits()}
     />
   ) : undefined;
 
@@ -158,7 +148,6 @@ export default async function CajaPage({
         proveedores={proveedores}
         garantias={garantias}
         saldos={saldos}
-        cajaFuerte={cajaFuerte}
       />
     </div>
   );

@@ -955,6 +955,15 @@ model PaymentMethod {
   commissionCategoryId String?               @map("commission_category_id")
   commissionCategory   CashMovementCategory? @relation("CommissionCategory", fields: [commissionCategoryId], references: [id], onDelete: SetNull)
 
+  // Corrección manual del saldo calculado de una cuenta propia (ej. alinear
+  // Andes contra el saldo real de una cuenta al darla de alta acá, cuando ya
+  // venía operando con movimientos previos que no están cargados). Se suma
+  // directo al saldo mostrado (`getOwnAccountBalances`) — a propósito NO es un
+  // `CashMovement`: no genera un ingreso/egreso ni queda en ningún historial,
+  // solo "ordena" el número. Solo tiene sentido en cuentas `own`.
+  balanceAdjustmentArs Decimal @default(0) @map("balance_adjustment_ars") @db.Decimal(14, 2)
+  balanceAdjustmentUsd Decimal @default(0) @map("balance_adjustment_usd") @db.Decimal(14, 2)
+
   transfersOut AccountTransfer[] @relation("AccountTransferFrom")
   transfersIn  AccountTransfer[] @relation("AccountTransferTo")
 

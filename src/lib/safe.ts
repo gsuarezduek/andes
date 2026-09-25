@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import type { FieldChange } from "@/lib/movement-audit";
 import { emptyCurrencyTotals, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { safeDeltaFromTransfers } from "@/lib/account-transfers";
+import { formatDateInput } from "@/lib/datetime";
+import { monthRangeUtc } from "@/lib/cash-period";
 
 const SAFE_MOVEMENTS_LIMIT = 100;
 
@@ -122,4 +124,44 @@ export async function getSafeBalance(): Promise<CurrencyTotals> {
     })),
   );
   return { ars: legacy.ars + delta.ars, usd: legacy.usd + delta.usd };
+}
+
+/**
+ * Ingresos/egresos de la Caja fuerte de ESTE mes (hora Mendoza) — informativo,
+ * mismo criterio que `monthIncome`/`monthExpense` de una cuenta propia
+ * (`getOwnAccountBalances`), para mostrarlo en su misma tarjeta en Saldos
+ * (ver v44: Caja fuerte pasa a ser una cuenta más ahí). "Ingreso" = entra
+ * plata (traspaso hacia la caja fuerte, o depósito viejo); "egreso" = sale
+ * (traspaso desde la caja fuerte, o retiro viejo).
+ */
+export async function getSafeMonthActivity(): Promise<{ income: CurrencyTotals; expense: CurrencyTotals }> {
+  const { start, end } = monthRangeUtc(formatDateInput(new Date()).slice(0, 7));
+  const [deposits, withdrawals, transfers] = await Promise.all([
+    prisma.safeMovement.groupBy({
+      by: ["currency"],
+      where: { type: "deposit", deletedAt: null, createdAt: { gte: start, lt: end } },
+      _sum: { amount: true },
+    }),
+    prisma.safeMovement.groupBy({
+      by: ["currency"],
+      where: { type: "withdrawal", deletedAt: null, createdAt: { gte: start, lt: end } },
+      _sum: { amount: true },
+    }),
+    prisma.accountTransfer.findMany({
+      where: {
+        deletedAt: null,
+        OR: [{ fromAccountId: null }, { toAccountId: null }],
+        createdAt: { gte: start, lt: end },
+      },
+    }),
+  ]);
+  const income = emptyCurrencyTotals();
+  const expense = emptyCurrencyTotals();
+  for (const row of deposits) income[row.currency] += Number(row._sum.amount ?? 0);
+  for (const row of withdrawals) expense[row.currency] += Number(row._sum.amount ?? 0);
+  for (const t of transfers) {
+    if (t.toAccountId === null) income[t.toCurrency] += Number(t.toAmount);
+    if (t.fromAccountId === null) expense[t.fromCurrency] += Number(t.fromAmount);
+  }
+  return { income, expense };
 }

@@ -462,6 +462,9 @@ export type OwnAccountBalance = {
   balance: CurrencyTotals;
   /** Otras cuentas reales de la misma entidad agrupadas acá (ver `PaymentMethod.parentId`). */
   subaccounts: { id: string; name: string }[];
+  /** Ingresos/egresos de ESTE mes (hora Mendoza) — informativo, en la tarjeta. */
+  monthIncome: CurrencyTotals;
+  monthExpense: CurrencyTotals;
 };
 
 /**
@@ -475,14 +478,17 @@ export type OwnAccountBalance = {
  * Egreso con esta cuenta como Origen. Distinto de la "Billetera"
  * (`getWalletBalance`): esto es el saldo de UNA cuenta puntual, no el
  * agregado de todas las marcadas `isCash` menos lo depositado en la caja
- * fuerte. Info sensible (posición de plata real) — solo para admin, mismo
- * criterio que la Caja fuerte y la Billetera.
+ * fuerte. Suma también `PaymentMethod.balanceAdjustment{Ars,Usd}` — corrección
+ * manual que no pasa por ningún movimiento (ver comentario en el schema).
+ * Info sensible (posición de plata real) — solo para admin, mismo criterio
+ * que la Caja fuerte y la Billetera.
  */
 export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
   const { principals, resolve, memberIds } = await resolveToPrincipal("own");
   if (principals.length === 0) return [];
 
-  const [income, expense, transfers] = await Promise.all([
+  const monthRange = monthRangeUtc(currentMonth());
+  const [income, expense, transfers, monthIncomeRows, monthExpenseRows] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["paymentMethodId", "currency"],
       where: { type: "income", deletedAt: null, paymentMethodId: { in: memberIds } },
@@ -494,6 +500,26 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
       _sum: { amount: true },
     }),
     prisma.accountTransfer.findMany({ where: { deletedAt: null } }),
+    prisma.cashMovement.groupBy({
+      by: ["paymentMethodId", "currency"],
+      where: {
+        type: "income",
+        deletedAt: null,
+        paymentMethodId: { in: memberIds },
+        createdAt: { gte: monthRange.start, lt: monthRange.end },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.cashMovement.groupBy({
+      by: ["paymentMethodId", "currency"],
+      where: {
+        type: "expense",
+        deletedAt: null,
+        paymentMethodId: { in: memberIds },
+        createdAt: { gte: monthRange.start, lt: monthRange.end },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
@@ -520,12 +546,33 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
       toCurrency: t.toCurrency,
     })),
   );
+  // Ajuste manual (no es traspaso ni movimiento — ver comentario en el schema).
+  for (const p of principals) {
+    const totals = balances.get(p.id)!;
+    totals.ars += p.balanceAdjustment.ars;
+    totals.usd += p.balanceAdjustment.usd;
+  }
+
+  const monthIncome = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
+  const monthExpense = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
+  for (const row of monthIncomeRows) {
+    const principalId = row.paymentMethodId && resolve.get(row.paymentMethodId);
+    const totals = principalId && monthIncome.get(principalId);
+    if (totals) totals[row.currency] += Number(row._sum.amount ?? 0);
+  }
+  for (const row of monthExpenseRows) {
+    const principalId = row.paymentMethodId && resolve.get(row.paymentMethodId);
+    const totals = principalId && monthExpense.get(principalId);
+    if (totals) totals[row.currency] += Number(row._sum.amount ?? 0);
+  }
 
   return principals.map((p) => ({
     id: p.id,
     name: p.name,
     balance: balances.get(p.id)!,
     subaccounts: p.subaccounts,
+    monthIncome: monthIncome.get(p.id)!,
+    monthExpense: monthExpense.get(p.id)!,
   }));
 }
 

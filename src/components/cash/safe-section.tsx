@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { SectionTitle } from "@/components/ui/section-title";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { CURRENCIES, type CurrencyTotals } from "@/lib/currency";
@@ -25,40 +24,34 @@ function InlineCurrencyTotals({ totals }: { totals: CurrencyTotals }) {
 }
 
 /**
- * Caja fuerte (solo admin, ver `caja/page.tsx`): saldo, billetera e historial
- * — efectivo físico real. Ya no se cargan movimientos desde acá: el efectivo
- * entra y sale con "Mover entre cuentas" (pestaña Saldos), así que el historial
- * tiene dos partes: los traspasos y los movimientos anteriores (cargados antes
- * de eso, sin cuenta de origen; se conservan tal cual y se pueden corregir con
- * `SafeMovementRow`). Los saldos van separados por moneda (ver
- * `src/lib/currency.ts`) — nunca sumados entre sí.
+ * Cuerpo del historial de la Caja fuerte (billetera + traspasos + movimientos
+ * viejos + ediciones) — vive en su propia página, `/caja/saldos/caja-fuerte`
+ * (mismo patrón que `/caja/saldos/[id]` para una cuenta propia; la Caja
+ * fuerte ya no tiene su propia pestaña en Caja, ver v44). El título y el
+ * saldo grande quedan en la página, no acá. Ya no se cargan movimientos desde
+ * acá: el efectivo entra y sale con "Mover entre cuentas" (pestaña Saldos),
+ * así que el historial tiene dos partes: los traspasos y los movimientos
+ * anteriores (cargados antes de eso, sin cuenta de origen; se conservan tal
+ * cual y se pueden corregir con `SafeMovementRow`).
  */
 export function SafeSection({
   movements,
   transfers,
-  balance,
   walletBalance,
   edits,
 }: {
   movements: SafeMovementRowData[];
   transfers: AccountTransferRow[];
-  balance: CurrencyTotals;
   walletBalance: CurrencyTotals;
   edits?: SafeMovementEditRow[];
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTitle>Caja fuerte</SectionTitle>
-        <span className="text-sm font-semibold">
-          Saldo: <InlineCurrencyTotals totals={balance} />
-        </span>
-      </div>
-      <p className="-mt-2 text-xs text-foreground/50">
+      <p className="text-xs text-foreground/50">
         Efectivo físico guardado — no se relaciona con los ingresos/egresos de reservas. Para meter o sacar efectivo
         usá &quot;Mover entre cuentas&quot; en la pestaña Saldos.
       </p>
-      <div className="-mt-1 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
         <div>
           <p className="text-sm font-medium">Billetera</p>
           <p className="text-xs text-foreground/50">Efectivo en mano, todavía sin depositar acá.</p>
