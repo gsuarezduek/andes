@@ -738,6 +738,14 @@ Un admin revisa una reserva (pagos, datos) y la marca como **verificada**; todos
 - **Listado de Alquileres**: filtro "Verificación: todas / verificadas / pendientes de verificar" (`?verif=`; pendientes = verificables sin verificar) y marca "Verificada" en cada fila.
 - **Sin bloqueo por saldo**: un admin puede verificar una reserva con saldo pendiente (la verificación es un juicio suyo, no una validación automática).
 
+## v54 — Alerta de pagos pendientes acotada por fecha, cargar pagos en finalizadas y condonar saldo
+
+Ajustes sobre la alerta "¡Urgente! Reservas terminadas con pagos pendientes" (Caja y Home). tsc/lint/557 tests en verde; verificado por navegador (375px) con reservas de prueba en la base local. **Sin migración. Sin desplegar todavía.**
+
+- **Corte de fecha**: la alerta solo cuenta reservas finalizadas con devolución (`endAt`) desde el **20/09/2026** (`UNPAID_ALERT_SINCE`, `src/lib/cash.ts`) — las anteriores son pruebas de los primeros tiempos. Ojo: solo acota la alerta; esas reservas siguen mostrando su saldo (borde/etiqueta roja) en Calendario y listado.
+- **Cargar el pago que falta en una reserva finalizada**: el botón "$" ("Agregar pago") ahora también está en reservas `finished` (antes solo reservada/activa; `addRentalPayment` lo permite). Crea el cobro en Caja como siempre.
+- **Aceptar la pérdida (condonar el saldo)** — solo admin, solo reservas finalizadas con saldo (`writeOffRentalBalance`/`undoWriteOffRentalBalance`, `rentals/[id]/balance-actions.ts`; UI `BalanceWriteOff`): el saldo pasa a 0 y la reserva sale de las alertas, con **motivo obligatorio** y registro de quién/cuándo/cuánto. Se guarda en `Rental.pricing.writeOff` (`RentalWriteOff`, `src/lib/contract.ts`; sin migración) y `computeRentalPayments` lo descuenta del saldo (expone `writeOff`). **No genera movimientos de Caja** (no entró ni salió plata). Reversible ("Deshacer"); todos los roles ven el saldo condonado. Una condonación (o deshacerla) también desverifica la reserva (v53). Como el saldo queda en 0, el Calendario la muestra con el borde verde de "pago completo".
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

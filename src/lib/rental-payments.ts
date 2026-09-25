@@ -1,5 +1,5 @@
 import type { Rental, RentalStatus } from "@prisma/client";
-import { computeBalance, type ContractPricing } from "@/lib/contract";
+import { computeBalance, roundMoney, type ContractPricing, type RentalWriteOff } from "@/lib/contract";
 
 type RentalPaymentsInput = Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid">;
 
@@ -11,7 +11,10 @@ export type RentalPayments = {
   hasRealPaid: boolean;
   totalRef: number | null;
   paidSoFar: number | null;
+  /** Saldo pendiente, ya descontado lo condonado (`writeOff`). */
   balance: number | null;
+  /** Saldo que un admin decidió no cobrar, si hay (ver `RentalWriteOff`). */
+  writeOff: RentalWriteOff | null;
   showPayments: boolean;
 };
 
@@ -36,14 +39,18 @@ export function computeRentalPayments(rental: RentalPaymentsInput): RentalPaymen
     : rental.bookingPaid
       ? Number(rental.bookingPaid)
       : null;
-  const balance = hasContract
+  const rawBalance = hasContract
     ? (pricing!.balance ?? computeBalance({ total: pricing!.total, sena: pricing!.sena, paid: pricing!.paid }))
     : totalRef != null && paidSoFar != null
       ? totalRef - paidSoFar
       : null;
+  const writeOff = pricing?.writeOff ?? null;
+  // Lo condonado se descuenta del saldo; nunca lo deja en negativo.
+  const balance =
+    rawBalance != null && writeOff && rawBalance > 0 ? Math.max(0, roundMoney(rawBalance - writeOff.amount)) : rawBalance;
   const showPayments = totalRef != null || paidSoFar != null;
 
-  return { hasContract, hasRealPaid: paidFromContract, totalRef, paidSoFar, balance, showPayments };
+  return { hasContract, hasRealPaid: paidFromContract, totalRef, paidSoFar, balance, writeOff, showPayments };
 }
 
 export type PaymentAccent = "complete" | "pending" | null;

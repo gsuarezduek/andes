@@ -25,8 +25,8 @@ export async function addRentalPayment(rentalId: string, input: unknown) {
 
   const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
   if (!rental) throw new Error("El alquiler no existe.");
-  if (rental.status !== "reserved" && rental.status !== "active") {
-    throw new Error("Solo se pueden cargar pagos en reservas pendientes de entrega o activas.");
+  if (rental.status !== "reserved" && rental.status !== "active" && rental.status !== "finished") {
+    throw new Error("Solo se pueden cargar pagos en reservas pendientes de entrega, activas o finalizadas.");
   }
 
   const pricing = (rental.pricing ?? {}) as ContractPricing;

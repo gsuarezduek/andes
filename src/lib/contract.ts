@@ -47,6 +47,22 @@ export type ContractPricing = {
   // Medios de pago con los que se cobró "Paga" (entrega). `paid` es la suma de
   // `amount` (importe base) de estas líneas — dejó de tipearse a mano.
   payments?: RentalPayment[];
+  // Saldo que la empresa decidió no cobrar (ver `RentalWriteOff`).
+  writeOff?: RentalWriteOff;
+};
+
+/**
+ * Saldo de una reserva ya finalizada que un admin decidió "aceptar como
+ * pérdida" (ej. un reclamo del cliente): deja de contar como pendiente — baja
+ * el saldo de `computeRentalPayments` y la reserva sale de las alertas de
+ * pago — pero queda registrado quién, cuándo y por qué. No genera ningún
+ * movimiento de Caja (no entró ni salió plata). `amount` es acumulado.
+ */
+export type RentalWriteOff = {
+  amount: number;
+  reason: string;
+  byName: string;
+  at: string; // ISO
 };
 
 /**

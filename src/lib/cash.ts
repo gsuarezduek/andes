@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { formatDateInput } from "@/lib/datetime";
+import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
@@ -171,6 +171,13 @@ export async function getUnconfirmedCashMovements(): Promise<CashMovementRow[]> 
   return findMovements({ needsConfirmation: true });
 }
 
+/**
+ * Las reservas que terminaron antes de esta fecha no entran en la alerta
+ * urgente: son de las pruebas de los primeros tiempos del sistema y sus
+ * saldos no significan plata real pendiente. (Devolución desde el 20/09/2026, hora de Mendoza.)
+ */
+export const UNPAID_ALERT_SINCE = mendozaWallTimeToUtc("2026-09-20T00:00");
+
 export type UnpaidFinishedRental = {
   id: string;
   clientName: string;
@@ -187,11 +194,13 @@ export type UnpaidFinishedRental = {
  * debería pasar (se cobra todo antes de cerrar la devolución), así que si
  * aparece algo se muestra como urgente en Caja. Mismo cálculo de saldo que el
  * resto de la app (`computeRentalPayments`); sin datos suficientes para saber
- * el saldo (`balance` nulo) no se marca nada. Independiente del período.
+ * el saldo (`balance` nulo) no se marca nada. Un saldo condonado por un admin
+ * (`RentalWriteOff`) ya viene descontado. Solo desde `UNPAID_ALERT_SINCE`.
+ * Independiente del período.
  */
 export async function getUnpaidFinishedRentals(): Promise<UnpaidFinishedRental[]> {
   const rentals = await prisma.rental.findMany({
-    where: { status: "finished" },
+    where: { status: "finished", endAt: { gte: UNPAID_ALERT_SINCE } },
     orderBy: { endAt: "desc" },
     select: {
       id: true,

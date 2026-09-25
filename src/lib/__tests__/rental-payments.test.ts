@@ -1,6 +1,35 @@
 import { describe, it, expect } from "vitest";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 
+describe("computeRentalPayments — saldo condonado", () => {
+  const writeOff = { amount: 4_000, reason: "Reclamo del cliente", byName: "Admin", at: "2026-09-25T12:00:00.000Z" };
+
+  it("descuenta lo condonado del saldo y lo expone", () => {
+    const r = computeRentalPayments({
+      pricing: { total: 100_000, paid: 96_000, writeOff } as never,
+      bookingTotal: null,
+      bookingPaid: null,
+    });
+    expect(r.balance).toBe(0);
+    expect(r.writeOff).toEqual(writeOff);
+  });
+
+  it("un pago posterior no deja el saldo en negativo", () => {
+    const r = computeRentalPayments({
+      pricing: { total: 100_000, paid: 98_000, writeOff } as never,
+      bookingTotal: null,
+      bookingPaid: null,
+    });
+    expect(r.balance).toBe(0);
+  });
+
+  it("sin condonación, el saldo no cambia", () => {
+    const r = computeRentalPayments({ pricing: { total: 100_000, paid: 96_000 } as never, bookingTotal: null, bookingPaid: null });
+    expect(r.balance).toBe(4_000);
+    expect(r.writeOff).toBeNull();
+  });
+});
+
 describe("computeRentalPayments", () => {
   it("antes de la entrega, sin nada cargado: no muestra nada", () => {
     const r = computeRentalPayments({ pricing: null, bookingTotal: null, bookingPaid: null });

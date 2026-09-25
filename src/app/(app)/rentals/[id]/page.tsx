@@ -15,6 +15,7 @@ import { ExternalLinkIcon } from "@/components/ui/icons";
 import { StatusBanners } from "@/components/rentals/status-banners";
 import { RentalDetailTabs } from "@/components/rentals/rental-detail-tabs";
 import { TeamNotesSection } from "@/components/team-notes-section";
+import { BalanceWriteOff } from "@/components/rentals/balance-write-off";
 import { RentalVerificationSection } from "@/components/rentals/rental-verification-section";
 import { canVerifyRental, isRentalVerified } from "@/lib/rental-verification";
 import { addRentalNote, resolveRentalNote } from "./notes-actions";
@@ -89,7 +90,7 @@ export default async function RentalDetailPage({
   const mergeCandidates = canMergeDuplicate ? await getMergeCandidates(rental.id) : [];
 
   const payments = computeRentalPayments(rental);
-  const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, showPayments } = payments;
+  const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, writeOff, showPayments } = payments;
   const accent = paymentAccent(rental.status, rental.bookingConfirmed, payments);
 
   // Link directo a la orden en el admin de VikRentCar, solo si la reserva
@@ -98,7 +99,7 @@ export default async function RentalDetailPage({
     rental.wpBookingId != null && env.wpSiteUrl ? vikrentcarOrderUrl(env.wpSiteUrl, rental.wpBookingId) : null;
 
   // Pago suelto (botón del header): solo tiene sentido antes de cerrar la reserva.
-  const canAddPayment = rental.status === "reserved" || rental.status === "active";
+  const canAddPayment = rental.status === "reserved" || rental.status === "active" || rental.status === "finished";
   const usdRate = canAddPayment ? ((await getCurrentUsdRate())?.rate ?? null) : null;
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
@@ -216,8 +217,21 @@ export default async function RentalDetailPage({
       {accent === "pending" && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2 text-xs font-medium text-red-700 dark:text-red-400">
           Falta pagar {formatArs(balance)}.
+          {rental.status === "finished" &&
+            (isAdmin
+              ? " Cargá el pago con el botón $ de arriba, o aceptá la pérdida más abajo."
+              : " Cargá el pago con el botón $ de arriba.")}
         </p>
       )}
+
+      {/* Saldo condonado / botón para aceptar la pérdida (solo admin condona). */}
+      <BalanceWriteOff
+        rentalId={rental.id}
+        balance={balance}
+        writeOff={writeOff}
+        canWriteOff={rental.status === "finished"}
+        isAdmin={isAdmin}
+      />
 
       {/* Verificación de un admin: todos ven el estado, solo admin la cambia. */}
       {canVerifyRental(rental.status, rental.bookingConfirmed) && (
