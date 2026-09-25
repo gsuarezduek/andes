@@ -84,7 +84,7 @@ export default async function CalendarPage({
           <span className="inline-block h-3 w-3 rounded bg-amber-400" /> Confirmado (pagado)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-orange-500/90" /> Pendiente
+          <span className="inline-block h-3 w-3 rounded bg-orange-500" /> Pendiente
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-red-600/90" /> Cancelado
@@ -96,7 +96,7 @@ export default async function CalendarPage({
           <span className="inline-block h-3 w-3 rounded bg-blue-600/90" /> En service
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-rose-500/20" /> Fuera de servicio (fila)
+          <span className="inline-block h-3 w-3 rounded border border-blue-600/30 bg-blue-600/10" /> Fuera de servicio (fila)
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-flex size-4 items-center justify-center rounded-full bg-white text-emerald-700 ring-1 ring-emerald-700/40">
@@ -108,7 +108,7 @@ export default async function CalendarPage({
           <span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" /> Temporada con aumento (día)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded border-2 border-dashed border-indigo-500 bg-indigo-500/25" />{" "}
+          <span className="inline-block h-3 w-3 rounded border-2 border-dashed border-orange-500 bg-orange-500/20" />{" "}
           Presupuesto (borrador)
         </span>
       </div>

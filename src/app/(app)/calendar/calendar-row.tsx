@@ -110,7 +110,7 @@ export function Row({
 
       {/* Track de días (rosa claro si el auto está fuera de servicio) */}
       <div
-        className={`relative ${row.outOfService ? "bg-rose-500/10" : ""}`}
+        className={`relative ${row.outOfService ? "bg-blue-600/10" : ""}`}
         style={{ width: trackW, height: totalH }}
       >
         {/* Líneas de grilla / resaltados por columna. Temporada con aumento
@@ -130,7 +130,7 @@ export function Row({
             }}
             className={`absolute top-0 h-full cursor-pointer border-r border-foreground/5 ${
               quotePick === i
-                ? "bg-indigo-500/30 ring-2 ring-inset ring-indigo-500"
+                ? "bg-orange-500/30 ring-2 ring-inset ring-orange-500"
                 : c.seasons.length > 0
                   ? "bg-purple-500/[0.08]"
                   : c.isToday
@@ -240,7 +240,7 @@ export function Row({
                 }
                 onQuoteClick(q);
               }}
-              className={`absolute overflow-hidden rounded px-1 text-left text-[10px] font-medium shadow-sm transition-shadow hover:ring-2 hover:ring-indigo-300 ${quoteBarClasses()}`}
+              className={`absolute overflow-hidden rounded px-1 text-left text-[10px] font-medium shadow-sm transition-shadow hover:ring-2 hover:ring-orange-300 ${quoteBarClasses()}`}
               style={{
                 left: q.startIndex * colW + 2,
                 width: q.span * colW - 4,

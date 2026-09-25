@@ -746,6 +746,10 @@ Ajustes sobre la alerta "¡Urgente! Reservas terminadas con pagos pendientes" (C
 - **Cargar el pago que falta en una reserva finalizada**: el botón "$" ("Agregar pago") ahora también está en reservas `finished` (antes solo reservada/activa; `addRentalPayment` lo permite). Crea el cobro en Caja como siempre.
 - **Aceptar la pérdida (condonar el saldo)** — solo admin, solo reservas finalizadas con saldo (`writeOffRentalBalance`/`undoWriteOffRentalBalance`, `rentals/[id]/balance-actions.ts`; UI `BalanceWriteOff`): el saldo pasa a 0 y la reserva sale de las alertas, con **motivo obligatorio** y registro de quién/cuándo/cuánto. Se guarda en `Rental.pricing.writeOff` (`RentalWriteOff`, `src/lib/contract.ts`; sin migración) y `computeRentalPayments` lo descuenta del saldo (expone `writeOff`). **No genera movimientos de Caja** (no entró ni salió plata). Reversible ("Deshacer"); todos los roles ven el saldo condonado. Una condonación (o deshacerla) también desverifica la reserva (v53). Como el saldo queda en 0, el Calendario la muestra con el borde verde de "pago completo".
 
+## v55 — Calendario: colores unificados (service y presupuesto)
+
+Ajuste de colores del Calendario (sin cambios de datos). **Service / fuera de servicio** comparten el azul: la barra "En service" (sólida) y la fila de un auto fuera de servicio (azul tenue, antes rosa). **Pendiente y presupuesto** comparten el naranja: Pendiente es **sólido** (sin transparencia); el presupuesto (borrador) es el mismo naranja pero **punteado y más transparente** (antes índigo). El chip del tooltip, el aviso y el resaltado de días al armar un presupuesto pasaron a naranja también. Ver , ,  y la leyenda de .
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

@@ -43,7 +43,7 @@ function QuoteTooltipBody({ quote }: { quote: CalendarQuoteBar }) {
         </span>
       </p>
       {quote.estimatedTotal != null ? (
-        <p className="mt-1 font-medium text-indigo-700 dark:text-indigo-400">
+        <p className="mt-1 font-medium text-orange-700 dark:text-orange-400">
           Estimado: {formatArs(quote.estimatedTotal)}
         </p>
       ) : null}

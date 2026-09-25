@@ -137,7 +137,7 @@ export function CalendarGrid({
     >
       {pick ? (
         <div className="pointer-events-none fixed inset-x-0 top-2 z-50 flex justify-center">
-          <p className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
+          <p className="rounded-full bg-orange-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
             Presupuestando: tocá el día de fin (o el mismo día para cancelar)
           </p>
         </div>
