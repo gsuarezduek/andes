@@ -20,11 +20,13 @@ export function LedgerRow({
   isAdmin,
   principalName,
   paymentMethods,
+  accountOptions,
 }: {
   movement: ThirdPartyLedgerRow;
   isAdmin: boolean;
   principalName: string;
   paymentMethods: PaymentMethodOption[];
+  accountOptions: { id: string; name: string }[];
 }) {
   if (movement.kind === "debt" || movement.kind === "company_payment") {
     return (
@@ -33,6 +35,7 @@ export function LedgerRow({
         isAdmin={isAdmin}
         principalName={principalName}
         paymentMethods={paymentMethods}
+        accountOptions={accountOptions}
       />
     );
   }

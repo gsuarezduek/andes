@@ -11,10 +11,10 @@ import { TabBar } from "@/components/ui/tabs";
  * historial de cada cuenta propia, cada una en su propia página — solo
  * admin, ver abajo). La Caja fuerte ya no tiene pestaña propia: es una
  * tarjeta más dentro de Saldos (v44, ver `AccountsSection`). Las primeras
- * tres son visibles para cualquier rol (lo que cada una muestra por dentro
- * ya varía por rol, ver `caja/page.tsx`); "Garantías" y "Saldos" directamente
- * no se pasan (quedan `undefined`) para un no-admin, así que ni sus pestañas
- * aparecen — son la posición de plata real de la empresa. Ya vienen
+ * tres y "Garantías" son visibles para cualquier rol (lo que cada una
+ * muestra por dentro ya varía por rol, ver `caja/page.tsx`); "Saldos"
+ * directamente no se pasa (queda `undefined`) para un no-admin, así que ni su
+ * pestaña aparece — es la posición de plata real de la empresa. Ya vienen
  * renderizadas desde el server component; acá solo se elige cuál mostrar
  * (mismo patrón que RentalDetailTabs).
  */

@@ -77,6 +77,7 @@ export function ProviderPaymentForm({
         value={originId}
         onChange={setOriginId}
         placeholder="Elegí de dónde sale la plata"
+        hint="Obligatorio para poder guardar."
       />
       {selectedOrigin?.requiresNote && (
         <TextField

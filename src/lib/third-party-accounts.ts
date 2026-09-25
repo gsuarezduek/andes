@@ -171,6 +171,9 @@ export type ThirdPartyLedgerRow = {
   // Nombre de la cuenta real usada (puede ser una subcuenta) — se muestra
   // solo cuando difiere de la principal.
   accountName: string;
+  // Id de esa cuenta real (principal o subcuenta) — valor inicial del
+  // selector "Cuenta" al editar un Pago/Deuda (ver `updateAccountMovement`).
+  accountId: string | null;
   createdByName: string;
   createdAt: Date;
   rentalId: string | null;
@@ -227,6 +230,7 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     amount: Number(r.amount),
     currency: r.currency,
     accountName: (r.type === "income" ? r.paymentMethodName : r.recipientPaymentMethodName) ?? "",
+    accountId: r.type === "income" ? r.paymentMethodId : r.recipientPaymentMethodId,
     createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
     rentalId: r.rentalId,

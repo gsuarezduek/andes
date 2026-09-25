@@ -21,10 +21,12 @@ export function GuaranteesSection({
   guarantees,
   paymentMethods,
   expenseCategories,
+  isAdmin,
 }: {
   guarantees: Guarantees;
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
+  isAdmin: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -47,7 +49,7 @@ export function GuaranteesSection({
         ) : (
           <ul className="flex flex-col gap-2">
             {guarantees.active.map((g) => (
-              <GuaranteeCard key={g.id} guarantee={g} paymentMethods={paymentMethods} />
+              <GuaranteeCard key={g.id} guarantee={g} paymentMethods={paymentMethods} isAdmin={isAdmin} />
             ))}
           </ul>
         )}
@@ -86,6 +88,7 @@ export function GuaranteesSection({
                         tone={d.type === "income" ? "emerald" : "red"}
                         paymentMethods={paymentMethods}
                         expenseCategories={expenseCategories}
+                        canEdit={isAdmin}
                       />
                     ))}
                   </ul>

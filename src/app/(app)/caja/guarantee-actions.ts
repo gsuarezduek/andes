@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { roundMoney } from "@/lib/contract";
 
 /**
- * Resolver una garantía (Devolver/Cobrar, ver GuaranteeCard): admin-only,
- * mismo criterio que el resto de Caja. Las dos acciones comparten la misma
+ * Resolver una garantía (Devolver/Cobrar, ver GuaranteeCard): cualquier rol
+ * puede hacerlo (el registro de quién la resolvió queda en
+ * `guaranteeResolvedByName`); eliminar una garantía cargada por error sigue
+ * siendo solo admin (`deleteCashMovement`). Las dos acciones comparten la misma
  * validación de la fila origen — tiene que ser la toma de una garantía
  * (`type: income, isGuarantee: true`) todavía activa (`guaranteeResolvedAt`
  * null); si no, la garantía ya se resolvió o el id no es de una garantía.
@@ -33,7 +35,7 @@ async function loadActiveGuarantee(id: string) {
  */
 async function applyGuaranteeResolution(
   guarantee: Awaited<ReturnType<typeof loadActiveGuarantee>>,
-  user: Awaited<ReturnType<typeof requireAdmin>>,
+  user: Awaited<ReturnType<typeof requireUser>>,
   {
     returnedAmount,
     returnMethod,
@@ -117,7 +119,7 @@ const returnSchema = z.object({
  * queda "parcialmente activa": esta acción siempre la resuelve por completo.
  */
 export async function returnGuarantee(id: string, formData: FormData) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const { amount, paymentMethodId, note } = returnSchema.parse({
     amount: formData.get("amount"),
     paymentMethodId: formData.get("paymentMethodId"),
@@ -156,7 +158,7 @@ const chargeSchema = z.object({
  * por completo.
  */
 export async function chargeGuarantee(id: string, formData: FormData) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const { amount, returnPaymentMethodId } = chargeSchema.parse({
     amount: formData.get("amount"),
     returnPaymentMethodId: formData.get("returnPaymentMethodId") || undefined,

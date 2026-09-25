@@ -660,6 +660,14 @@ Pedido del dueño sobre el ciclo de vida de garantías (v38): a veces se devuelv
 - **UI** (`GuaranteeCard`): el modal "Devolver" pasa a tener un campo "Importe a devolver" (como ya tenía "Cobrar" para "Importe a cobrar"), con el mismo aviso ámbar en vivo mientras se tipea ("La diferencia, $X, queda anotada como un ingreso.") cuando el importe es menor al total.
 - Sin cambios de schema — usa las mismas columnas (`guaranteeChargedAmount`/`guaranteeReturnedAmount`) que ya mostraba el historial, así que `GuaranteesSection` no necesitó tocarse.
 
+## v46 — Garantías para todos los roles + editar la cuenta de un pago a proveedor/asociado
+
+Dos ajustes de Caja pedidos por el dueño. tsc/lint/tests en verde (518); **sin probar todavía en navegador ni desplegar**. Sin migración.
+
+- **Garantías abiertas a cualquier rol**: la pestaña Garantías, "Devolver" y "Cobrar" (`guarantee-actions.ts`, ahora `requireUser`) las ve/opera cualquier usuario, incluido el total "En poder de la empresa hoy". **Siguen siendo solo admin**: "Se cargó por error — eliminar" (`deleteCashMovement`, oculto para no-admin vía `isAdmin` en `GuaranteeCard`) y editar los movimientos derivados del historial (`canEdit={isAdmin}`). Saldos sigue admin-only.
+- **Editar la Cuenta de un Pago/Deuda de proveedor o asociado** (`updateAccountMovement`, admin): el form de edición suma el selector "Cuenta" (principal + subcuentas), **solo dentro de la misma entidad** (validado server-side contra `parentId`; el saldo se resuelve a la principal, así que no cambia). Pasar a OTRA entidad sigue siendo borrar y recargar. El cambio queda en el historial como campo "Cuenta". `ThirdPartyLedgerRow.accountId` nuevo. De paso, el Origen muestra "Obligatorio para poder guardar." (el botón Guardar quedaba deshabilitado sin explicación).
+- **Pagar en efectivo a un proveedor** no requirió cambios: el Origen (cuenta propia, ej. "Efectivo") dice de dónde sale la plata; para reflejar efectivo dentro de la propia cuenta corriente, crear una subcuenta (ej. "Gastón Efectivo") del proveedor.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

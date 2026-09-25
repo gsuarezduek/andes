@@ -26,12 +26,14 @@ export function ThirdPartyLedgerMonths({
   principalName,
   isAdmin,
   paymentMethods,
+  accountOptions,
 }: {
   groups: ProviderLedgerMonthGroup<ThirdPartyLedgerRow>[];
   currentMonthKey: string;
   principalName: string;
   isAdmin: boolean;
   paymentMethods: PaymentMethodOption[];
+  accountOptions: { id: string; name: string }[];
 }) {
   const [visibleMonths, setVisibleMonths] = useState(PAGE_SIZE_MONTHS);
 
@@ -77,11 +79,12 @@ export function ThirdPartyLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {debts.map((m) => (
                       <LedgerRow
-                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.accountId}`}
                         movement={m}
                         isAdmin={isAdmin}
                         principalName={principalName}
                         paymentMethods={paymentMethods}
+                        accountOptions={accountOptions}
                       />
                     ))}
                   </ul>
@@ -97,11 +100,12 @@ export function ThirdPartyLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {payments.map((m) => (
                       <LedgerRow
-                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}`}
+                        key={`${m.id}:${m.description}:${m.amount}:${m.currency}:${m.kind}:${m.originId}:${m.accountId}`}
                         movement={m}
                         isAdmin={isAdmin}
                         principalName={principalName}
                         paymentMethods={paymentMethods}
+                        accountOptions={accountOptions}
                       />
                     ))}
                   </ul>

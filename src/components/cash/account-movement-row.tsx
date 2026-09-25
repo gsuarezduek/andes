@@ -57,24 +57,29 @@ function TypeToggle({ value, onChange }: { value: Kind; onChange: (kind: Kind) =
  * patrón que `MovementRow`. El tipo mismo es editable — un `TypeToggle`
  * Pago/Deuda a la izquierda de "Guardar" permite corregir un movimiento mal
  * cargado sin borrarlo: al pasar a Pago pide el Origen (obligatorio); al
- * pasar a Deuda lo saca. La cuenta (Destino) nunca se edita — si está mal,
- * se borra y se carga de nuevo, igual que antes.
+ * pasar a Deuda lo saca. La cuenta (Destino) se puede cambiar solo dentro de
+ * la misma entidad (principal ↔ subcuentas); a otra entidad, se borra y se
+ * carga de nuevo.
  */
 export function AccountMovementRow({
   movement,
   isAdmin,
   principalName,
   paymentMethods,
+  accountOptions,
 }: {
   movement: ThirdPartyLedgerRow;
   isAdmin: boolean;
   principalName: string;
   paymentMethods: PaymentMethodOption[];
+  /** Cuenta principal + subcuentas de esta entidad (opciones del selector "Cuenta" al editar). */
+  accountOptions: { id: string; name: string }[];
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
   const [kind, setKind] = useState<Kind>(movement.kind === "debt" ? "debt" : "payment");
   const [paymentMethodId, setPaymentMethodId] = useState(movement.originId ?? "");
+  const [accountId, setAccountId] = useState(movement.accountId ?? "");
   const selectedOrigin = paymentMethods.find((m) => m.id === paymentMethodId);
   const isDebt = movement.kind === "debt";
   const viaSubaccount = movement.accountName && movement.accountName !== principalName;
@@ -125,6 +130,7 @@ export function AccountMovementRow({
                 value={paymentMethodId}
                 onChange={setPaymentMethodId}
                 placeholder="Elegí de dónde sale la plata"
+                hint="Obligatorio para poder guardar."
               />
               {selectedOrigin?.requiresNote && (
                 <TextField
@@ -136,6 +142,16 @@ export function AccountMovementRow({
                 />
               )}
             </>
+          )}
+          {accountOptions.length > 1 && (
+            <PaymentMethodPicker
+              id="recipientPaymentMethodId"
+              label="Cuenta"
+              hint={`Por cuál cuenta de ${principalName} ${kind === "debt" ? "corre esta deuda" : "salió este pago"}.`}
+              options={accountOptions}
+              value={accountId}
+              onChange={setAccountId}
+            />
           )}
           <div className="mt-1 flex items-center gap-3">
             <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">

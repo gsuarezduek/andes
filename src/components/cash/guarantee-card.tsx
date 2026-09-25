@@ -36,9 +36,11 @@ const MODAL_TITLES: Record<Exclude<ModalMode, "none">, string> = {
 export function GuaranteeCard({
   guarantee,
   paymentMethods,
+  isAdmin,
 }: {
   guarantee: CashMovementRow;
   paymentMethods: PaymentMethodOption[];
+  isAdmin: boolean;
 }) {
   const [modal, setModal] = useState<ModalMode>("none");
   const [returnAmount, setReturnAmount] = useState(String(guarantee.amount));
@@ -94,13 +96,15 @@ export function GuaranteeCard({
           Cobrar
         </Button>
       </div>
-      <button
-        type="button"
-        onClick={() => openModal("delete")}
-        className="mt-2 text-xs text-foreground/40 underline hover:text-foreground/60"
-      >
-        Se cargó por error — eliminar
-      </button>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => openModal("delete")}
+          className="mt-2 text-xs text-foreground/40 underline hover:text-foreground/60"
+        >
+          Se cargó por error — eliminar
+        </button>
+      )}
 
       <Modal open={modal !== "none"} onClose={() => setModal("none")} title={modal !== "none" ? MODAL_TITLES[modal] : ""}>
         {modal === "return" && (

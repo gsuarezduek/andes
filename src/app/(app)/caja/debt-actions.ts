@@ -61,6 +61,8 @@ const updateAccountMovementSchema = z.object({
   kind: z.enum(["payment", "debt"]),
   paymentMethodId: z.string().optional(),
   paymentMethodNote: z.string().trim().max(300).optional(),
+  // Cuenta (destino) — opcional: si no llega, se deja la que tenía.
+  recipientPaymentMethodId: z.string().optional(),
 });
 
 /**
@@ -69,14 +71,17 @@ const updateAccountMovementSchema = z.object({
  * toggle Pago/Deuda permite arreglar un movimiento mal cargado (un empleado
  * anotó un pago que en realidad era una deuda, o viceversa) sin borrarlo. Al
  * pasar a Pago hace falta elegir el Origen (de dónde salió la plata); al
- * pasar a Deuda se lo saca. Solo admin. La cuenta (Destino) nunca se edita —
- * si está mal, se borra y se carga de nuevo, igual que antes. Cada cambio
+ * pasar a Deuda se lo saca. Solo admin. La cuenta (Destino) se puede cambiar
+ * pero solo dentro de la misma entidad (la principal y sus subcuentas, ej. de
+ * "Gastón BBVA" a "Gastón Efectivo") — el saldo se resuelve siempre a la
+ * principal, así que no cambia; pasar el movimiento a OTRA entidad sigue
+ * siendo "borrar y cargar de nuevo". Cada cambio
  * real queda auditado en CashMovementEdit; si no cambió nada, no se registra
  * nada.
  */
 export async function updateAccountMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
-  const { description, amount, currency, kind, paymentMethodId, paymentMethodNote } =
+  const { description, amount, currency, kind, paymentMethodId, paymentMethodNote, recipientPaymentMethodId } =
     updateAccountMovementSchema.parse({
       description: formData.get("description"),
       amount: formData.get("amount"),
@@ -84,6 +89,7 @@ export async function updateAccountMovement(id: string, formData: FormData) {
       kind: formData.get("kind"),
       paymentMethodId: formData.get("paymentMethodId") || undefined,
       paymentMethodNote: formData.get("paymentMethodNote") || undefined,
+      recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
     });
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
@@ -94,6 +100,20 @@ export async function updateAccountMovement(id: string, formData: FormData) {
     !existing.recipientPaymentMethodId
   ) {
     throw new Error("Movimiento no encontrado");
+  }
+
+  // Cuenta (destino): solo dentro de la misma entidad que la actual.
+  let nextRecipient = { id: existing.recipientPaymentMethodId, name: existing.recipientPaymentMethodName };
+  if (recipientPaymentMethodId && recipientPaymentMethodId !== existing.recipientPaymentMethodId) {
+    const [current, candidate] = await Promise.all([
+      prisma.paymentMethod.findUnique({ where: { id: existing.recipientPaymentMethodId } }),
+      prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } }),
+    ]);
+    const principalId = current?.parentId ?? current?.id;
+    if (!candidate || !principalId || (candidate.id !== principalId && candidate.parentId !== principalId)) {
+      throw new Error("La cuenta elegida no pertenece a la misma entidad.");
+    }
+    nextRecipient = { id: candidate.id, name: candidate.name };
   }
 
   let origin: { id: string; name: string; requiresNote: boolean } | null = null;
@@ -124,12 +144,17 @@ export async function updateAccountMovement(id: string, formData: FormData) {
   if ((existing.paymentMethodName || "—") !== (nextPaymentMethodName || "—")) {
     changes.push({ field: "Origen", from: existing.paymentMethodName || "—", to: nextPaymentMethodName || "—" });
   }
+  if (nextRecipient.id !== existing.recipientPaymentMethodId) {
+    changes.push({ field: "Cuenta", from: existing.recipientPaymentMethodName ?? "—", to: nextRecipient.name ?? "—" });
+  }
   if (changes.length === 0) return;
 
   await prisma.$transaction([
     prisma.cashMovement.update({
       where: { id },
       data: {
+        recipientPaymentMethodId: nextRecipient.id,
+        recipientPaymentMethodName: nextRecipient.name,
         type: nextType,
         description,
         amount,

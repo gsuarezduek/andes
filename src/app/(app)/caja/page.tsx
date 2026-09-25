@@ -122,15 +122,17 @@ export default async function CajaPage({
     />
   ) : undefined;
 
-  // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — mismo criterio de
-  // sensibilidad que Saldos/Caja fuerte, admin-only.
-  const garantias = isAdmin ? (
+  // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — visibles y
+  // operables (devolver/cobrar) para cualquier rol; eliminar una cargada por
+  // error y editar sus movimientos derivados siguen siendo solo admin.
+  const garantias = (
     <GuaranteesSection
       guarantees={await getGuarantees()}
       paymentMethods={paymentMethods}
       expenseCategories={expenseCategories}
+      isAdmin={isAdmin}
     />
-  ) : undefined;
+  );
 
   return (
     <div className="flex flex-col gap-6">
