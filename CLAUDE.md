@@ -668,6 +668,31 @@ Dos ajustes de Caja pedidos por el dueño. tsc/lint/tests en verde (518); **sin 
 - **Editar la Cuenta de un Pago/Deuda de proveedor o asociado** (`updateAccountMovement`, admin): el form de edición suma el selector "Cuenta" (principal + subcuentas), **solo dentro de la misma entidad** (validado server-side contra `parentId`; el saldo se resuelve a la principal, así que no cambia). Pasar a OTRA entidad sigue siendo borrar y recargar. El cambio queda en el historial como campo "Cuenta". `ThirdPartyLedgerRow.accountId` nuevo. De paso, el Origen muestra "Obligatorio para poder guardar." (el botón Guardar quedaba deshabilitado sin explicación).
 - **Pagar en efectivo a un proveedor** no requirió cambios: el Origen (cuenta propia, ej. "Efectivo") dice de dónde sale la plata; para reflejar efectivo dentro de la propia cuenta corriente, crear una subcuenta (ej. "Gastón Efectivo") del proveedor.
 
+## v47 — Subcuentas agrupadas bajo su cuenta principal (buscador y Configuración)
+
+Pedido del dueño. tsc/lint/tests en verde (520); verificado por navegador (Playwright, 420px) con un proveedor y dos subcuentas sembradas a propósito con `ordering` intercalado (después limpiadas). Sin migración.
+
+- **Helper puro `groupSubaccounts`** (`src/lib/subaccount-order.ts`, testeado): deja cada subcuenta (`PaymentMethod.parentId`) pegada debajo de su principal respetando el orden original; una subcuenta cuya principal no está en la lista (filtrada por búsqueda o de otro grupo) queda como de primer nivel, nunca se pierde.
+- **`PaymentMethodPicker`**: agrupa con ese helper y muestra las subcuentas con sangría y "↳". Solo agrupa si las opciones traen `parentId`, por eso se agregó `parentId` a los selects/mapeos de las páginas de Caja (proveedor/asociado/saldos), vehículo, reserva, y entrega/devolución (wizard de pagos); los destinos de proveedor (`provider-quick-actions`, `third-party-account-detail`) lo agregan a mano. Una lista que no lo traiga simplemente no se agrupa.
+- **Configuración → Medios de pago**: cada subcuenta se dibuja debajo de su principal, con margen izquierdo, borde lateral y "↳". Subir/bajar (`movePaymentMethod`) ahora mueve solo entre hermanas (mismo grupo y misma principal), para no sacar una subcuenta de debajo de su principal.
+
+## v48 — Filtro por cuenta en la página de un proveedor/asociado
+
+En `/caja/proveedores/[id]` y `/caja/asociados/[id]`, si la entidad tiene más de una cuenta (principal + subcuentas) aparecen chips arriba del historial: "Todas" + una por cuenta (`ThirdPartyLedgerMonths`, filtro client-side por `ThirdPartyLedgerRow.accountId`). Los meses sin movimientos de esa cuenta se ocultan y el "Neto del mes" pasa a ser el de esa cuenta; el saldo del encabezado sigue siendo el total. tsc/lint en verde; verificado por navegador (420px) con un proveedor de 3 cuentas (datos de prueba borrados). Sin migración.
+
+## v49 — "Destino" + aclaración ("¿a dónde fue?") del destino en pagos a proveedores/asociados
+
+Bug real reportado por el dueño: al cambiar la cuenta de un pago a una que exige aclaración (ej. "Gastón Otros") no la pedía. Causa de fondo: las cuentas/subcuentas de proveedor y asociado llegaban a los formularios **sin** el dato `requiresNote`, así que ningún form de esa sección podía pedirla (en el alta de "+ Pago" el server rechazaba sin explicar; el mismo hueco tenía "+ Ingreso" de asociado). tsc/lint en verde; verificado por navegador (420px) con un proveedor con subcuenta que exige aclaración (alta, edición y visualización; datos de prueba borrados). Sin migración.
+
+- `ThirdPartyBalance.requiresNote` + `subaccounts[].requiresNote` (`resolveToPrincipal`); `ThirdPartyLedgerRow.accountNote`. Las opciones de destino de "+ Pago" (`ProviderPaymentForm`) y de la edición (`AccountMovementRow`) piden "¿A dónde fue? (destino)" cuando la cuenta elegida lo exige; `updateAccountMovement` lo exige server-side, lo guarda en `recipientPaymentMethodNote` (o lo limpia si la cuenta nueva no lo pide) y audita "Aclaración del destino".
+- **Rótulo "Cuenta" → "Destino"** en pagos (en deuda sigue "Cuenta"); el texto de ayuda decía "por cuál cuenta salió este pago" y era incorrecto: ahora "A cuál cuenta de X le pagamos".
+- **Aclaraciones en los resúmenes**: ya salían en Movimientos/Saldos/Garantías (línea de meta y modal) y en el historial de pagos de la reserva. Se sumaron: filas del historial de proveedor/asociado (`destino: cuenta (aclaración)`, `Origen: cuenta (aclaración)`), tarjeta de garantía activa, y el CSV de Caja (aclaración entre paréntesis en Medio de pago/Destino). Además las `key` de `AccountLedgerMonths` incluyen las aclaraciones (sin eso, una fila editada quedaba con el valor viejo pegado).
+- Un pago ya cargado hacia una cuenta que exige aclaración y sin ella (como el que se editó antes del fix) se completa editándolo: el form ahora la pide.
+
+## v49 — Reportes: % de conversión de WhatsApp
+
+En la sección "WhatsApp" de `/reports`: **conversión = alquileres finalizados / conversaciones únicas** (`conversionPercent`, `src/lib/reports.ts`, pura y testeada; `null` → "—" si no hubo consultas). KPI del período elegido + tabla "Conversión por mes" (consultas, alquileres, %) sobre los mismos meses del gráfico. Los "alquileres" son los mismos del gráfico "Alquileres finalizados por mes" (por fecha de devolución), no las reservas creadas en el mes: el mes en curso subestima hasta que se cierren los alquileres activos, y puede superar 100% si hubo alquileres que no vinieron por WhatsApp. tsc/lint/tests en verde; **sin probar en navegador ni desplegar**. Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

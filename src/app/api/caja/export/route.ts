@@ -21,8 +21,10 @@ function toRow(m: CashMovementRow): (string | number)[] {
     m.description,
     m.amount,
     m.currency.toUpperCase(),
-    m.paymentMethodName,
-    m.recipientPaymentMethodName ?? "",
+    m.paymentMethodName + (m.paymentMethodNote ? ` (${m.paymentMethodNote})` : ""),
+    m.recipientPaymentMethodName
+      ? m.recipientPaymentMethodName + (m.recipientPaymentMethodNote ? ` (${m.recipientPaymentMethodNote})` : "")
+      : "",
     m.categoryName ?? "",
     m.rentalClientName ?? "",
     m.createdByName,

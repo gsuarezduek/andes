@@ -49,7 +49,7 @@ export default async function ReturnPage({
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
-      select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true },
+      select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, parentId: true },
     }),
   ]);
 
@@ -84,6 +84,7 @@ export default async function ReturnPage({
           adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
           reference: m.reference ?? undefined,
           requiresNote: m.requiresNote,
+          parentId: m.parentId,
         }))}
         createRemoteSignature={createRemoteSignature}
         returnContext={{

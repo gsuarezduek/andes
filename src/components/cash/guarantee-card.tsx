@@ -74,6 +74,7 @@ export function GuaranteeCard({
       </div>
       <p className="mt-1 text-xs text-foreground/50">
         {guarantee.paymentMethodName}
+        {guarantee.paymentMethodNote ? ` (${guarantee.paymentMethodNote})` : ""}
         {guarantee.rentalClientName && (
           <>
             {" · "}

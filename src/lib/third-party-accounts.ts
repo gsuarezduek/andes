@@ -16,11 +16,13 @@ import { phoneVariants } from "@/lib/whatsapp/phone";
 export type ThirdPartyBalance = {
   id: string;
   name: string;
+  /** La cuenta principal exige aclarar "¿a dónde fue?" al usarla (`PaymentMethod.requiresNote`). */
+  requiresNote: boolean;
   balance: CurrencyTotals;
   /** Otras cuentas reales de esta misma entidad (ver `PaymentMethod.parentId`)
    *  — para poder elegir por cuál cargar un movimiento puntual sin perder esa
    *  info, aunque el saldo ya viene sumado entre todas. */
-  subaccounts: { id: string; name: string }[];
+  subaccounts: { id: string; name: string; requiresNote: boolean }[];
   /** Conversación de WhatsApp encontrada para `PaymentMethod.whatsappPhone`
    *  (cruce best-effort por teléfono) — null si no hay teléfono cargado, o si
    *  todavía no existe ninguna conversación con ese número. */
@@ -69,8 +71,9 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
   principals: {
     id: string;
     name: string;
+    requiresNote: boolean;
     whatsappPhone: string | null;
-    subaccounts: { id: string; name: string }[];
+    subaccounts: { id: string; name: string; requiresNote: boolean }[];
     // Ajuste manual de saldo (solo tiene sentido en `own`, ver comentario en
     // el schema) — 0 en cualquier otra cuenta.
     balanceAdjustment: CurrencyTotals;
@@ -86,6 +89,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
       name: true,
       parentId: true,
       active: true,
+      requiresNote: true,
       whatsappPhone: true,
       balanceAdjustmentArs: true,
       balanceAdjustmentUsd: true,
@@ -98,8 +102,11 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
     .map((p) => ({
       id: p.id,
       name: p.name,
+      requiresNote: p.requiresNote,
       whatsappPhone: p.whatsappPhone,
-      subaccounts: accounts.filter((a) => a.parentId === p.id).map((a) => ({ id: a.id, name: a.name })),
+      subaccounts: accounts
+        .filter((a) => a.parentId === p.id)
+        .map((a) => ({ id: a.id, name: a.name, requiresNote: a.requiresNote })),
       balanceAdjustment: { ars: Number(p.balanceAdjustmentArs), usd: Number(p.balanceAdjustmentUsd) },
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
@@ -155,6 +162,7 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
   return principals.map((p) => ({
     id: p.id,
     name: p.name,
+    requiresNote: p.requiresNote,
     balance: balances.get(p.id)!,
     subaccounts: p.subaccounts,
     whatsappConversationId: p.whatsappPhone ? (conversationByPhone.get(p.whatsappPhone) ?? null) : null,
@@ -174,6 +182,8 @@ export type ThirdPartyLedgerRow = {
   // Id de esa cuenta real (principal o subcuenta) — valor inicial del
   // selector "Cuenta" al editar un Pago/Deuda (ver `updateAccountMovement`).
   accountId: string | null;
+  // Aclaración "¿a dónde fue?" de esa cuenta (si la cuenta la exige).
+  accountNote: string | null;
   createdByName: string;
   createdAt: Date;
   rentalId: string | null;
@@ -231,6 +241,7 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     currency: r.currency,
     accountName: (r.type === "income" ? r.paymentMethodName : r.recipientPaymentMethodName) ?? "",
     accountId: r.type === "income" ? r.paymentMethodId : r.recipientPaymentMethodId,
+    accountNote: r.type === "income" ? r.paymentMethodNote : r.recipientPaymentMethodNote,
     createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
     rentalId: r.rentalId,

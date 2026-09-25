@@ -99,7 +99,7 @@ export default async function RentalDetailPage({
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, ownership: true },
+    select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, ownership: true, parentId: true },
   });
   const paymentMethods = rawPaymentMethods.map((m) => ({
     id: m.id,
@@ -107,6 +107,7 @@ export default async function RentalDetailPage({
     adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
     reference: m.reference ?? undefined,
     requiresNote: m.requiresNote,
+    parentId: m.parentId,
   }));
   // Para "volver a poner en servicio": cuenta propia (pago ahora) o
   // proveedor/asociado (queda a deber, cuenta corriente de Caja).
@@ -115,6 +116,7 @@ export default async function RentalDetailPage({
     name: m.name,
     requiresNote: m.requiresNote,
     ownership: m.ownership,
+    parentId: m.parentId,
   }));
 
   // Pestaña "WhatsApp": solo si esta reserva tiene una conversación vinculada

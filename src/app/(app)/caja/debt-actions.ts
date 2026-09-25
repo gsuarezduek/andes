@@ -63,6 +63,8 @@ const updateAccountMovementSchema = z.object({
   paymentMethodNote: z.string().trim().max(300).optional(),
   // Cuenta (destino) — opcional: si no llega, se deja la que tenía.
   recipientPaymentMethodId: z.string().optional(),
+  // Aclaración "¿a dónde fue?" del destino, si esa cuenta la exige.
+  recipientPaymentMethodNote: z.string().trim().max(300).optional(),
 });
 
 /**
@@ -81,8 +83,16 @@ const updateAccountMovementSchema = z.object({
  */
 export async function updateAccountMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
-  const { description, amount, currency, kind, paymentMethodId, paymentMethodNote, recipientPaymentMethodId } =
-    updateAccountMovementSchema.parse({
+  const {
+    description,
+    amount,
+    currency,
+    kind,
+    paymentMethodId,
+    paymentMethodNote,
+    recipientPaymentMethodId,
+    recipientPaymentMethodNote,
+  } = updateAccountMovementSchema.parse({
       description: formData.get("description"),
       amount: formData.get("amount"),
       currency: formData.get("currency") || undefined,
@@ -90,6 +100,7 @@ export async function updateAccountMovement(id: string, formData: FormData) {
       paymentMethodId: formData.get("paymentMethodId") || undefined,
       paymentMethodNote: formData.get("paymentMethodNote") || undefined,
       recipientPaymentMethodId: formData.get("recipientPaymentMethodId") || undefined,
+      recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
     });
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
@@ -103,18 +114,23 @@ export async function updateAccountMovement(id: string, formData: FormData) {
   }
 
   // Cuenta (destino): solo dentro de la misma entidad que la actual.
+  const current = await prisma.paymentMethod.findUnique({ where: { id: existing.recipientPaymentMethodId } });
   let nextRecipient = { id: existing.recipientPaymentMethodId, name: existing.recipientPaymentMethodName };
+  let recipientRequiresNote = current?.requiresNote ?? false;
   if (recipientPaymentMethodId && recipientPaymentMethodId !== existing.recipientPaymentMethodId) {
-    const [current, candidate] = await Promise.all([
-      prisma.paymentMethod.findUnique({ where: { id: existing.recipientPaymentMethodId } }),
-      prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } }),
-    ]);
+    const candidate = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
     const principalId = current?.parentId ?? current?.id;
     if (!candidate || !principalId || (candidate.id !== principalId && candidate.parentId !== principalId)) {
       throw new Error("La cuenta elegida no pertenece a la misma entidad.");
     }
     nextRecipient = { id: candidate.id, name: candidate.name };
+    recipientRequiresNote = candidate.requiresNote;
   }
+  // Si la cuenta de destino exige aclaración, hace falta; si no, se descarta.
+  if (recipientRequiresNote && !recipientPaymentMethodNote) {
+    throw new Error("Este destino requiere indicar a dónde fue.");
+  }
+  const nextRecipientNote = recipientRequiresNote ? (recipientPaymentMethodNote ?? null) : null;
 
   let origin: { id: string; name: string; requiresNote: boolean } | null = null;
   if (kind === "payment") {
@@ -147,6 +163,13 @@ export async function updateAccountMovement(id: string, formData: FormData) {
   if (nextRecipient.id !== existing.recipientPaymentMethodId) {
     changes.push({ field: "Cuenta", from: existing.recipientPaymentMethodName ?? "—", to: nextRecipient.name ?? "—" });
   }
+  if ((existing.recipientPaymentMethodNote ?? "") !== (nextRecipientNote ?? "")) {
+    changes.push({
+      field: "Aclaración del destino",
+      from: existing.recipientPaymentMethodNote || "—",
+      to: nextRecipientNote || "—",
+    });
+  }
   if (changes.length === 0) return;
 
   await prisma.$transaction([
@@ -155,6 +178,7 @@ export async function updateAccountMovement(id: string, formData: FormData) {
       data: {
         recipientPaymentMethodId: nextRecipient.id,
         recipientPaymentMethodName: nextRecipient.name,
+        recipientPaymentMethodNote: nextRecipientNote,
         type: nextType,
         description,
         amount,

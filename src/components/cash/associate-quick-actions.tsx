@@ -21,7 +21,10 @@ export function AssociateQuickActions({
   paymentMethods: PaymentMethodOption[];
 }) {
   const [formOpen, setFormOpen] = useState<"none" | "income" | "expense" | "debt">("none");
-  const cuentaOptions = [{ id: associate.id, name: associate.name }, ...associate.subaccounts];
+  const cuentaOptions = [
+    { id: associate.id, name: associate.name, requiresNote: associate.requiresNote },
+    ...associate.subaccounts.map((s) => ({ ...s, parentId: associate.id })),
+  ];
 
   if (formOpen === "income") {
     return (

@@ -32,13 +32,14 @@ export function ProviderPaymentForm({
   onCancel: () => void;
   onSuccess?: () => void;
   account: { id: string; name: string };
-  destinoOptions: { id: string; name: string }[];
+  destinoOptions: { id: string; name: string; requiresNote?: boolean; parentId?: string | null }[];
   paymentMethods: PaymentMethodOption[];
 }) {
   const [originId, setOriginId] = useState("");
   const [destinoId, setDestinoId] = useState(account.id);
   const [currency, setCurrency] = useState<Currency>("ars");
   const selectedOrigin = paymentMethods.find((m) => m.id === originId);
+  const selectedDestino = destinoOptions.find((m) => m.id === destinoId);
 
   async function submit(formData: FormData) {
     await createCashMovement("expense", formData);
@@ -82,7 +83,7 @@ export function ProviderPaymentForm({
       {selectedOrigin?.requiresNote && (
         <TextField
           id="paymentMethodNote"
-          label="¿A dónde fue?"
+          label="¿A dónde fue? (origen)"
           hint="Obligatorio para este medio de pago"
           required
         />
@@ -90,11 +91,19 @@ export function ProviderPaymentForm({
       {destinoOptions.length > 1 && (
         <PaymentMethodPicker
           id="recipientPaymentMethodId"
-          label="Cuenta"
-          hint={`Por cuál cuenta de ${account.name} salió este pago.`}
+          label="Destino"
+          hint={`A cuál cuenta de ${account.name} le pagamos.`}
           options={destinoOptions}
           value={destinoId}
           onChange={setDestinoId}
+        />
+      )}
+      {selectedDestino?.requiresNote && (
+        <TextField
+          id="recipientPaymentMethodNote"
+          label="¿A dónde fue? (destino)"
+          hint="Obligatorio para esta cuenta"
+          required
         />
       )}
       <SubmitButton pendingLabel="Guardando…" disabled={!originId}>

@@ -73,7 +73,7 @@ export function AccountMovementRow({
   principalName: string;
   paymentMethods: PaymentMethodOption[];
   /** Cuenta principal + subcuentas de esta entidad (opciones del selector "Cuenta" al editar). */
-  accountOptions: { id: string; name: string }[];
+  accountOptions: { id: string; name: string; requiresNote?: boolean; parentId?: string | null }[];
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
@@ -81,6 +81,7 @@ export function AccountMovementRow({
   const [paymentMethodId, setPaymentMethodId] = useState(movement.originId ?? "");
   const [accountId, setAccountId] = useState(movement.accountId ?? "");
   const selectedOrigin = paymentMethods.find((m) => m.id === paymentMethodId);
+  const selectedAccount = accountOptions.find((m) => m.id === accountId);
   const isDebt = movement.kind === "debt";
   const viaSubaccount = movement.accountName && movement.accountName !== principalName;
 
@@ -135,7 +136,7 @@ export function AccountMovementRow({
               {selectedOrigin?.requiresNote && (
                 <TextField
                   id="paymentMethodNote"
-                  label="¿A dónde fue?"
+                  label="¿A dónde fue? (origen)"
                   hint="Obligatorio para este medio de pago"
                   defaultValue={movement.originNote ?? ""}
                   required
@@ -146,11 +147,24 @@ export function AccountMovementRow({
           {accountOptions.length > 1 && (
             <PaymentMethodPicker
               id="recipientPaymentMethodId"
-              label="Cuenta"
-              hint={`Por cuál cuenta de ${principalName} ${kind === "debt" ? "corre esta deuda" : "salió este pago"}.`}
+              label={kind === "debt" ? "Cuenta" : "Destino"}
+              hint={
+                kind === "debt"
+                  ? `A cuál cuenta de ${principalName} corresponde esta deuda.`
+                  : `A cuál cuenta de ${principalName} le pagamos.`
+              }
               options={accountOptions}
               value={accountId}
               onChange={setAccountId}
+            />
+          )}
+          {selectedAccount?.requiresNote && (
+            <TextField
+              id="recipientPaymentMethodNote"
+              label={kind === "debt" ? "¿A dónde fue?" : "¿A dónde fue? (destino)"}
+              hint="Obligatorio para esta cuenta"
+              defaultValue={accountId === movement.accountId ? (movement.accountNote ?? "") : ""}
+              required
             />
           )}
           <div className="mt-1 flex items-center gap-3">
@@ -196,7 +210,8 @@ export function AccountMovementRow({
       <p className="mt-1 text-xs text-foreground/50">
         {isDebt ? "Deuda" : "Pagado por la empresa"} · Cargado por: {movement.createdByName} ·{" "}
         {formatDateTime(movement.createdAt)}
-        {viaSubaccount && ` · vía ${movement.accountName}`}
+        {(viaSubaccount || movement.accountNote) &&
+          ` · ${isDebt ? "cuenta" : "destino"}: ${movement.accountName}${movement.accountNote ? ` (${movement.accountNote})` : ""}`}
         {movement.rentalId && (
           <>
             {" · "}
@@ -206,6 +221,12 @@ export function AccountMovementRow({
           </>
         )}
       </p>
+      {!isDebt && movement.originName && (
+        <p className="mt-0.5 text-xs text-foreground/50">
+          Origen: {movement.originName}
+          {movement.originNote ? ` (${movement.originNote})` : ""}
+        </p>
+      )}
       {movement.lastEditedAt && (
         <p className="mt-0.5 text-xs text-foreground/50">
           Editado por: {movement.lastEditedByName ?? "—"} · {formatDateTime(movement.lastEditedAt)}

@@ -26,7 +26,7 @@ export function LedgerRow({
   isAdmin: boolean;
   principalName: string;
   paymentMethods: PaymentMethodOption[];
-  accountOptions: { id: string; name: string }[];
+  accountOptions: { id: string; name: string; requiresNote?: boolean; parentId?: string | null }[];
 }) {
   if (movement.kind === "debt" || movement.kind === "company_payment") {
     return (
@@ -50,7 +50,8 @@ export function LedgerRow({
       </div>
       <p className="mt-1 text-xs text-foreground/50">
         Pago directo del cliente · Cargado por: {movement.createdByName} · {formatDateTime(movement.createdAt)}
-        {viaSubaccount && ` · vía ${movement.accountName}`}
+        {(viaSubaccount || movement.accountNote) &&
+          ` · vía ${movement.accountName}${movement.accountNote ? ` (${movement.accountNote})` : ""}`}
         {movement.rentalId && (
           <>
             {" · "}

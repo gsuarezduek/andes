@@ -181,15 +181,17 @@ export async function deletePaymentMethod(id: string): Promise<void> {
   revalidatePath("/caja");
 }
 
-/** Reordena solo dentro del mismo grupo (propia/asociado/proveedor) — la
- *  lista se muestra separada por `ownership`, así que "subir"/"bajar" no debe
- *  saltar de grupo. */
+/** Reordena solo entre "hermanas": mismo grupo (propia/asociado/proveedor) y
+ *  mismo nivel — cuentas de primer nivel entre sí, o las subcuentas de una
+ *  misma principal entre sí. La lista se muestra así (cada subcuenta debajo de
+ *  su principal), así que "subir"/"bajar" no debe saltar de grupo ni sacar una
+ *  subcuenta de debajo de su principal. */
 export async function movePaymentMethod(id: string, dir: "up" | "down") {
   await requireAdmin();
   const all = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
   const current = all.find((i) => i.id === id);
   if (!current) return;
-  const group = all.filter((i) => i.ownership === current.ownership);
+  const group = all.filter((i) => i.ownership === current.ownership && i.parentId === current.parentId);
   const idx = group.findIndex((i) => i.id === id);
   const swap = dir === "up" ? idx - 1 : idx + 1;
   if (idx < 0 || swap < 0 || swap >= group.length) return;

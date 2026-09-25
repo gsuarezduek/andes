@@ -29,7 +29,7 @@ export default async function AssociateDetailPage({ params }: { params: Promise<
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
-      select: { id: true, name: true, requiresNote: true },
+      select: { id: true, name: true, requiresNote: true, parentId: true },
     }),
   ]);
 

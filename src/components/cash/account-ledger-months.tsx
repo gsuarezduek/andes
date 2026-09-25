@@ -82,7 +82,7 @@ export function AccountLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {incomes.map((r) => (
                       <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}`}
+                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}`}
                         movement={r}
                         tone="emerald"
                         paymentMethods={paymentMethods}
@@ -102,7 +102,7 @@ export function AccountLedgerMonths({
                   <ul className="flex flex-col gap-2">
                     {expenses.map((r) => (
                       <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.recipientPaymentMethodName ?? ""}:${r.categoryName ?? ""}`}
+                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}:${r.categoryName ?? ""}`}
                         movement={r}
                         tone="red"
                         paymentMethods={paymentMethods}

@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { groupSubaccounts } from "@/lib/subaccount-order";
 
 const MAX_MATCHES = 20;
 
-export type PaymentMethodPickerOption = { id: string; name: string };
+// `parentId` (opcional): si viene, las subcuentas se listan pegadas debajo de su
+// cuenta principal, con sangría — ver `groupSubaccounts`.
+export type PaymentMethodPickerOption = { id: string; name: string; parentId?: string | null };
 
 /**
  * Selector de medio de pago con búsqueda en vivo (escribís y filtra), en vez
@@ -47,7 +50,7 @@ export function PaymentMethodPicker<T extends PaymentMethodPickerOption>({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     const pool = q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options;
-    return pool.slice(0, MAX_MATCHES);
+    return groupSubaccounts(pool).slice(0, MAX_MATCHES);
   }, [query, options]);
 
   return (
@@ -85,7 +88,7 @@ export function PaymentMethodPicker<T extends PaymentMethodPickerOption>({
           />
           {open && matches.length > 0 && (
             <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-foreground/10 bg-background py-1 shadow-lg">
-              {matches.map((o) => (
+              {matches.map(({ item: o, isChild }) => (
                 <li key={o.id}>
                   <button
                     type="button"
@@ -94,8 +97,11 @@ export function PaymentMethodPicker<T extends PaymentMethodPickerOption>({
                       setQuery("");
                       setOpen(false);
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-foreground/5"
+                    className={`block w-full py-2 pr-3 text-left text-sm hover:bg-foreground/5 ${
+                      isChild ? "pl-7 text-foreground/80" : "pl-3"
+                    }`}
                   >
+                    {isChild && <span className="mr-1 text-foreground/40">↳</span>}
                     {display(o)}
                   </button>
                 </li>

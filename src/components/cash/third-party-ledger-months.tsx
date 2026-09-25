@@ -19,6 +19,11 @@ type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
  * (el mes actual abierto de entrada), con "Deuda" a la izquierda y "Pagos"
  * (los dos tipos que la saldan) a la derecha, mismo criterio visual que
  * Movimientos/Saldos aunque acá no sea literalmente ingreso/egreso.
+ *
+ * Si la entidad tiene más de una cuenta (principal + subcuentas), arriba hay
+ * un filtro por cuenta (client-side sobre el historial ya cargado): los meses
+ * sin movimientos de esa cuenta se ocultan y el "Neto del mes" pasa a ser el
+ * de esa cuenta. El saldo del encabezado de la página sigue siendo el total.
  */
 export function ThirdPartyLedgerMonths({
   groups,
@@ -33,9 +38,10 @@ export function ThirdPartyLedgerMonths({
   principalName: string;
   isAdmin: boolean;
   paymentMethods: PaymentMethodOption[];
-  accountOptions: { id: string; name: string }[];
+  accountOptions: { id: string; name: string; requiresNote?: boolean; parentId?: string | null }[];
 }) {
   const [visibleMonths, setVisibleMonths] = useState(PAGE_SIZE_MONTHS);
+  const [accountFilter, setAccountFilter] = useState("");
 
   if (groups.length === 0) {
     return (
@@ -45,10 +51,42 @@ export function ThirdPartyLedgerMonths({
     );
   }
 
-  const visible = groups.slice(0, visibleMonths);
+  const shown = accountFilter
+    ? groups
+        .map((g) => ({ ...g, rows: g.rows.filter((r) => r.accountId === accountFilter) }))
+        .filter((g) => g.rows.length > 0)
+    : groups;
+  const visible = shown.slice(0, visibleMonths);
 
   return (
     <div className="flex flex-col gap-6">
+      {accountOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por cuenta">
+          {[{ id: "", name: "Todas" }, ...accountOptions].map((o) => (
+            <button
+              key={o.id || "all"}
+              type="button"
+              onClick={() => {
+                setAccountFilter(o.id);
+                setVisibleMonths(PAGE_SIZE_MONTHS);
+              }}
+              aria-pressed={accountFilter === o.id}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                accountFilter === o.id
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-foreground/15 text-foreground/70 hover:bg-foreground/5"
+              }`}
+            >
+              {o.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {shown.length === 0 && (
+        <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
+          Sin movimientos en esta cuenta.
+        </p>
+      )}
       {visible.map((g) => {
         const debts = g.rows.filter((r) => r.kind === "debt");
         const payments = g.rows.filter((r) => r.kind !== "debt");
@@ -115,13 +153,13 @@ export function ThirdPartyLedgerMonths({
           </details>
         );
       })}
-      {visibleMonths < groups.length && (
+      {visibleMonths < shown.length && (
         <button
           type="button"
           onClick={() => setVisibleMonths((n) => n + PAGE_SIZE_MONTHS)}
           className="self-center rounded-lg border border-foreground/15 px-3 py-1.5 text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
         >
-          Ver meses anteriores ({groups.length - visibleMonths} restantes)
+          Ver meses anteriores ({shown.length - visibleMonths} restantes)
         </button>
       )}
     </div>

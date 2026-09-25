@@ -9,6 +9,7 @@ import { EditIcon } from "@/components/ui/icons";
 import { TabBar } from "@/components/ui/tabs";
 import { TextField, TextareaField, SelectField, compactControlClass } from "@/components/ui/fields";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
+import { groupSubaccounts } from "@/lib/subaccount-order";
 import {
   togglePaymentMethod,
   deletePaymentMethod,
@@ -224,11 +225,15 @@ function PaymentMethodGroup({
       <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">{emptyLabel}</p>
     );
   }
+  // Cada subcuenta va pegada debajo de su principal y con sangría; subir/bajar
+  // mueve solo entre "hermanas" (mismo nivel, misma principal).
+  const rows = groupSubaccounts(items);
   return (
     <ul className="flex flex-col gap-3">
-      {items.map((it, i) => {
+      {rows.map(({ item: it, isChild }) => {
         const draft = drafts[it.id];
         if (!draft) return null;
+        const siblings = rows.filter((r) => r.isChild === isChild && (!isChild || r.item.parentId === it.parentId));
         return (
           <PaymentMethodRow
             key={it.id}
@@ -237,8 +242,9 @@ function PaymentMethodGroup({
             draft={draft}
             setField={setField}
             categories={categories}
-            isFirst={i === 0}
-            isLast={i === items.length - 1}
+            isChild={isChild}
+            isFirst={siblings[0]?.item.id === it.id}
+            isLast={siblings[siblings.length - 1]?.item.id === it.id}
           />
         );
       })}
@@ -252,6 +258,7 @@ function PaymentMethodRow({
   draft,
   setField,
   categories,
+  isChild,
   isFirst,
   isLast,
 }: {
@@ -260,6 +267,7 @@ function PaymentMethodRow({
   draft: Draft;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   categories: CategoryOption[];
+  isChild: boolean;
   isFirst: boolean;
   isLast: boolean;
 }) {
@@ -292,7 +300,7 @@ function PaymentMethodRow({
 
   if (confirmDelete) {
     return (
-      <li className="flex flex-col gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+      <li className={`flex flex-col gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 ${isChild ? "ml-6" : ""}`}>
         <p className="text-sm text-red-700 dark:text-red-400">
           ¿Borrar &quot;{item.name}&quot;? No se puede deshacer.
         </p>
@@ -314,7 +322,7 @@ function PaymentMethodRow({
   }
 
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
+    <li className={`flex flex-col gap-2 rounded-xl border p-3 ${isChild ? "ml-6 border-foreground/10 border-l-4 border-l-foreground/25 bg-foreground/[0.02]" : "border-foreground/10"}`}>
       <div className="flex items-center gap-2">
         <div className="flex flex-col">
           <form action={movePaymentMethod.bind(null, item.id, "up")}>
@@ -336,7 +344,10 @@ function PaymentMethodRow({
             </button>
           </form>
         </div>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.name}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          {isChild && <span className="mr-1 text-foreground/40">↳</span>}
+          {item.name}
+        </span>
         {isDirty && <Badge tone="amber">Sin guardar</Badge>}
         {draft.ownership === "provider" && <Badge tone="blue">Proveedor</Badge>}
         {draft.ownership === "associate" && <Badge tone="neutral">Asociado</Badge>}

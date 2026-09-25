@@ -17,6 +17,7 @@ type PaymentMethodOption = {
   adjustmentPercent?: number;
   reference?: string;
   requiresNote?: boolean;
+  parentId?: string | null;
 };
 
 /**

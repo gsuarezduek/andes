@@ -47,7 +47,7 @@ export default async function HandoverPage({
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
-      select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true },
+      select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, parentId: true },
     }),
   ]);
 
@@ -146,6 +146,7 @@ export default async function HandoverPage({
           adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
           reference: m.reference ?? undefined,
           requiresNote: m.requiresNote,
+          parentId: m.parentId,
         }))}
         bookingNote={rental.bookingNote ?? undefined}
         bookingTotal={rental.bookingTotal ? Number(rental.bookingTotal) : undefined}

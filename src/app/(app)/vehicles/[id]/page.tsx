@@ -36,7 +36,7 @@ export default async function VehicleDetailPage({
   const paymentMethods = await prisma.paymentMethod.findMany({
     where: { active: true },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, requiresNote: true },
+    select: { id: true, name: true, requiresNote: true, parentId: true },
   });
 
   const activeDamages = vehicle.damages.filter((d) => !d.repaired);

@@ -27,7 +27,10 @@ export function ProviderQuickActions({
         onCancel={() => setFormOpen("none")}
         onSuccess={() => setFormOpen("none")}
         account={provider}
-        destinoOptions={[{ id: provider.id, name: provider.name }, ...provider.subaccounts]}
+        destinoOptions={[
+          { id: provider.id, name: provider.name, requiresNote: provider.requiresNote },
+          ...provider.subaccounts.map((s) => ({ ...s, parentId: provider.id })),
+        ]}
         paymentMethods={paymentMethods}
       />
     );

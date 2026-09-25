@@ -60,7 +60,10 @@ export function ThirdPartyAccountDetail({
         principalName={account.name}
         isAdmin={isAdmin}
         paymentMethods={paymentMethods}
-        accountOptions={[{ id: account.id, name: account.name }, ...account.subaccounts]}
+        accountOptions={[
+          { id: account.id, name: account.name, requiresNote: account.requiresNote },
+          ...account.subaccounts.map((s) => ({ ...s, parentId: account.id })),
+        ]}
       />
 
       <ButtonLink href="/caja" variant="secondary">
