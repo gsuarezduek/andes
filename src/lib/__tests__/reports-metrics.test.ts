@@ -57,6 +57,45 @@ describe("computeOccupancy", () => {
     expect(byVehicle.get("b")).toBe(20);
   });
 
+  it("un alquiler abierto se corta en la siguiente entrega del mismo auto (se devolvió sin registrarlo)", () => {
+    const { byVehicle } = computeOccupancy(
+      [
+        // Activo desde el 1, nunca cerrado en Andes...
+        { vehicleId: "a", start: d("2026-09-01T00:00Z"), end: d("2026-09-11T00:00Z"), open: true },
+        // ...pero el 5 el auto se entregó de nuevo y volvió el 7.
+        { vehicleId: "a", start: d("2026-09-05T00:00Z"), end: d("2026-09-07T00:00Z") },
+      ],
+      ["a"],
+      pStart,
+      pEnd,
+    );
+    // 1→5 (abierto cortado) + 5→7 = 6 días de 10, no el 100%.
+    expect(byVehicle.get("a")).toBe(60);
+  });
+
+  it("un alquiler abierto sin entregas posteriores sigue hasta hoy", () => {
+    const { byVehicle } = computeOccupancy(
+      [{ vehicleId: "a", start: d("2026-09-04T00:00Z"), end: d("2026-09-11T00:00Z"), open: true }],
+      ["a"],
+      pStart,
+      pEnd,
+    );
+    expect(byVehicle.get("a")).toBe(70);
+  });
+
+  it("dos alquileres superpuestos del mismo auto no cuentan dos veces el mismo día", () => {
+    const { byVehicle } = computeOccupancy(
+      [
+        { vehicleId: "a", start: d("2026-09-01T00:00Z"), end: d("2026-09-06T00:00Z") },
+        { vehicleId: "a", start: d("2026-09-04T00:00Z"), end: d("2026-09-08T00:00Z") },
+      ],
+      ["a"],
+      pStart,
+      pEnd,
+    );
+    expect(byVehicle.get("a")).toBe(70);
+  });
+
   it("dos alquileres superpuestos del mismo auto no pasan del 100%", () => {
     const { byVehicle } = computeOccupancy(
       [

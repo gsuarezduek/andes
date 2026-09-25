@@ -658,7 +658,7 @@ export const getReports = unstable_cache(
       if (!r.vehicleId || !handover) return [];
       const ret = r.inspections.find((i) => i.type === "return_");
       // Sin devolución (alquiler activo) el intervalo llega hasta ahora.
-      return [{ vehicleId: r.vehicleId, start: handover.createdAt, end: ret?.createdAt ?? now }];
+      return [{ vehicleId: r.vehicleId, start: handover.createdAt, end: ret?.createdAt ?? now, open: !ret }];
     });
     const occupancy = computeOccupancy(
       occupancyIntervals,

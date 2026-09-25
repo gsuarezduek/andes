@@ -25,7 +25,8 @@ export function average(values: number[]): number | null {
 // Ocupación de la flota
 // ---------------------------------------------------------------------------
 
-export type OccupancyInterval = { vehicleId: string; start: Date; end: Date };
+// `open` = alquiler sin devolución registrada (activo): su fin es "hoy", no un dato.
+export type OccupancyInterval = { vehicleId: string; start: Date; end: Date; open?: boolean };
 
 export type OccupancySummary = {
   // Días alquilados / días disponibles (flota × días del período). null si no hay flota o período.
@@ -43,12 +44,40 @@ export function overlapDays(start: Date, end: Date, pStart: Date, pEnd: Date): n
 }
 
 /**
+ * Intervalos de un mismo auto, limpios para no contar de más: un auto no
+ * puede estar en dos alquileres a la vez. (1) Si un alquiler quedó abierto
+ * (activo, sin devolución cargada) y el auto se entregó de nuevo después, el
+ * abierto se corta en esa nueva entrega — casi seguro se devolvió sin
+ * registrarlo en Andes. (2) Lo que aún se superpone se une, así un mismo día
+ * cuenta una sola vez. Devuelve intervalos disjuntos ordenados.
+ */
+function cleanVehicleIntervals(intervals: OccupancyInterval[]): { start: number; end: number }[] {
+  const sorted = [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const cut = sorted.map((iv, idx) => {
+    let end = iv.end.getTime();
+    if (iv.open) {
+      const next = sorted.slice(idx + 1).find((n) => n.start.getTime() > iv.start.getTime());
+      if (next) end = Math.min(end, next.start.getTime());
+    }
+    return { start: iv.start.getTime(), end };
+  });
+  const merged: { start: number; end: number }[] = [];
+  for (const iv of cut) {
+    const last = merged[merged.length - 1];
+    if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end);
+    else merged.push({ ...iv });
+  }
+  return merged;
+}
+
+/**
  * Ocupación: días que cada auto estuvo alquilado dentro del período (desde la
  * entrega hasta la devolución, o hasta hoy si sigue activo) sobre los días
  * disponibles. El total cuenta solo la flota operativa (`fleetVehicleIds`,
  * sin archivados); `byVehicle` da el % de cada auto (incluye archivados que
- * hayan alquilado). Los días de un mismo auto se topean al largo del período
- * para que dos alquileres superpuestos no lo pasen del 100%. Pura y testeable.
+ * hayan alquilado). Los intervalos de un mismo auto se limpian antes de sumar
+ * (ver `cleanVehicleIntervals`), así nunca pasa del 100% ni cuenta dos veces
+ * un mismo día. Pura y testeable.
  */
 export function computeOccupancy(
   intervals: OccupancyInterval[],
@@ -57,17 +86,22 @@ export function computeOccupancy(
   pEnd: Date,
 ): { summary: OccupancySummary; byVehicle: Map<string, number> } {
   const periodDays = Math.max(0, pEnd.getTime() - pStart.getTime()) / DAY_MS;
-  const rentedByVehicle = new Map<string, number>();
-  for (const i of intervals) {
-    const days = overlapDays(i.start, i.end, pStart, pEnd);
-    if (days > 0) rentedByVehicle.set(i.vehicleId, (rentedByVehicle.get(i.vehicleId) ?? 0) + days);
+
+  const byVehicleIntervals = new Map<string, OccupancyInterval[]>();
+  for (const iv of intervals) {
+    const list = byVehicleIntervals.get(iv.vehicleId);
+    if (list) list.push(iv);
+    else byVehicleIntervals.set(iv.vehicleId, [iv]);
   }
 
+  const rentedByVehicle = new Map<string, number>();
   const byVehicle = new Map<string, number>();
-  for (const [id, days] of rentedByVehicle) {
-    const capped = Math.min(days, periodDays);
-    rentedByVehicle.set(id, capped);
-    byVehicle.set(id, periodDays > 0 ? (capped / periodDays) * 100 : 0);
+  for (const [id, list] of byVehicleIntervals) {
+    let days = 0;
+    for (const iv of cleanVehicleIntervals(list)) days += overlapDays(new Date(iv.start), new Date(iv.end), pStart, pEnd);
+    if (days <= 0) continue;
+    rentedByVehicle.set(id, days);
+    byVehicle.set(id, periodDays > 0 ? (days / periodDays) * 100 : 0);
   }
 
   const fleet = new Set(fleetVehicleIds);
