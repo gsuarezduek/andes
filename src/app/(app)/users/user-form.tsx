@@ -13,9 +13,12 @@ type Action = (state: FormState, formData: FormData) => Promise<FormState>;
 export function UserForm({
   action,
   user,
+  canGrantAdmin,
 }: {
   action: Action;
   user?: User;
+  /** Solo el propietario puede dejar a alguien como administrador. */
+  canGrantAdmin: boolean;
 }) {
   const [state, formAction] = useActionState(action, {});
   const editing = Boolean(user);
@@ -25,11 +28,13 @@ export function UserForm({
       <TextField id="name" label="Nombre" required defaultValue={user?.name} />
       <TextField id="email" label="Email" type="email" required defaultValue={user?.email} autoComplete="off" />
       <SelectField id="role" label="Rol" defaultValue={user?.role ?? "empleado"}>
-        {Object.entries(userRoleLabels).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
+        {Object.entries(userRoleLabels)
+          .filter(([value]) => canGrantAdmin || value !== "admin" || user?.role === "admin")
+          .map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
       </SelectField>
       <TextField
         id="password"

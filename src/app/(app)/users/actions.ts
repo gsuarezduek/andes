@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { getUserPerm } from "@/lib/user-access";
+import { userManagementError } from "@/lib/user-permissions";
 
 export type FormState = { error?: string };
 
@@ -32,11 +34,14 @@ export async function createUser(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const parsed = readBase(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
+  const actor = await getUserPerm(admin.id);
+  const denied = actor && userManagementError(actor, null, parsed.data.role);
+  if (!actor || denied) return { error: denied ?? "Sin permiso." };
   const password = String(formData.get("password") ?? "");
   if (password.length < 6) {
     return { error: "La contraseña debe tener al menos 6 caracteres." };
@@ -88,8 +93,11 @@ export async function deleteUser(id: string): Promise<DeleteUserState> {
     return { error: "No podés borrar tu propio usuario." };
   }
 
-  const user = await prisma.user.findUnique({ where: { id }, select: { active: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { active: true, role: true, owner: true } });
   if (!user) return {};
+  const actor = await getUserPerm(admin.id);
+  const denied = actor && userManagementError(actor, { id, role: user.role, owner: user.owner });
+  if (!actor || denied) return { error: denied ?? "Sin permiso." };
   if (user.active) {
     return { error: "Primero desactivá el usuario — recién ahí se puede borrar." };
   }
@@ -124,6 +132,11 @@ export async function updateUser(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
+
+  const [actor, target] = await Promise.all([getUserPerm(admin.id), getUserPerm(id)]);
+  if (!actor || !target) return { error: "Usuario no encontrado." };
+  const denied = userManagementError(actor, target, parsed.data.role);
+  if (denied) return { error: denied };
 
   // Evitar que el admin se auto-bloquee o se quite el rol.
   if (id === admin.id) {
