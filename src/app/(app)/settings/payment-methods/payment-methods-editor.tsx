@@ -35,6 +35,14 @@ type Draft = {
 
 type CategoryOption = { id: string; name: string };
 
+// Pedido del dueño (post v44): ocultar la caja "Ajuste de saldo" — ya se usó
+// una vez (Stripe) y no debería hacer falta de nuevo. El valor que ya está
+// guardado en `PaymentMethod.balanceAdjustment{Ars,Usd}` sigue aplicándose al
+// saldo igual (ver `getOwnAccountBalances`) — esto solo esconde el formulario
+// para no tentar a cargarlo de nuevo. Si hiciera falta, alcanza con volver a
+// `true`.
+const SHOW_BALANCE_ADJUSTMENT = false;
+
 function draftFrom(it: PaymentMethod): Draft {
   return {
     name: it.name,
@@ -484,7 +492,7 @@ function PaymentMethodRow({
                 </SelectField>
               </div>
             )}
-            {draft.ownership === "own" && (
+            {draft.ownership === "own" && SHOW_BALANCE_ADJUSTMENT && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
                 <p className="text-sm font-medium text-foreground/80">Ajuste de saldo</p>
                 <p className="text-xs text-foreground/50">
