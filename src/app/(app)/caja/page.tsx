@@ -11,6 +11,7 @@ import {
   getOwnCashMovements,
   getRentalPickerOptions,
   getUnconfirmedCashMovements,
+  getUnpaidFinishedRentals,
   parseCashPeriod,
 } from "@/lib/cash";
 import { getSafeBalance, getSafeMonthActivity } from "@/lib/safe";
@@ -21,6 +22,7 @@ import { CashMovementSearch } from "@/components/cash/cash-movement-search";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { IncomesBoard } from "@/components/cash/incomes-board";
 import { CashOwnList } from "@/components/cash/cash-own-list";
+import { UnpaidFinishedRentalsSection } from "@/components/cash/unpaid-finished-rentals-section";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
@@ -143,6 +145,8 @@ export default async function CajaPage({
         </div>
         <UsdRateBadge current={usdRate} canEdit={isAdmin} />
       </div>
+
+      <UnpaidFinishedRentalsSection rentals={await getUnpaidFinishedRentals()} />
 
       <CajaTabs
         movimientos={movimientos}

@@ -11,6 +11,7 @@ import { resolveToPrincipal } from "@/lib/third-party-accounts";
 import { applyTransfersToBalances, walletDeltaFromTransfers } from "@/lib/account-transfers";
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { computeRentalPayments } from "@/lib/rental-payments";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -168,6 +169,58 @@ async function findMovements(
  */
 export async function getUnconfirmedCashMovements(): Promise<CashMovementRow[]> {
   return findMovements({ needsConfirmation: true });
+}
+
+export type UnpaidFinishedRental = {
+  id: string;
+  clientName: string;
+  bookingId: string | null;
+  vehicleLabel: string;
+  endAt: Date;
+  total: number | null;
+  paid: number | null;
+  balance: number;
+};
+
+/**
+ * Alquileres ya devueltos (`finished`) que quedaron con saldo pendiente — no
+ * debería pasar (se cobra todo antes de cerrar la devolución), así que si
+ * aparece algo se muestra como urgente en Caja. Mismo cálculo de saldo que el
+ * resto de la app (`computeRentalPayments`); sin datos suficientes para saber
+ * el saldo (`balance` nulo) no se marca nada. Independiente del período.
+ */
+export async function getUnpaidFinishedRentals(): Promise<UnpaidFinishedRental[]> {
+  const rentals = await prisma.rental.findMany({
+    where: { status: "finished" },
+    orderBy: { endAt: "desc" },
+    select: {
+      id: true,
+      clientName: true,
+      wpBookingId: true,
+      endAt: true,
+      pricing: true,
+      bookingTotal: true,
+      bookingPaid: true,
+      vehicle: { select: { plate: true, name: true, brand: true, model: true } },
+    },
+  });
+
+  const result: UnpaidFinishedRental[] = [];
+  for (const r of rentals) {
+    const p = computeRentalPayments(r);
+    if (p.balance == null || p.balance <= 0) continue;
+    result.push({
+      id: r.id,
+      clientName: r.clientName,
+      bookingId: r.wpBookingId != null ? String(r.wpBookingId) : null,
+      vehicleLabel: r.vehicle ? vehicleDisplayName(r.vehicle) : "sin unidad",
+      endAt: r.endAt,
+      total: p.totalRef,
+      paid: p.paidSoFar,
+      balance: p.balance,
+    });
+  }
+  return result;
 }
 
 export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPeriodDetail> {

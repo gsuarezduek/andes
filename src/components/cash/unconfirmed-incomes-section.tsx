@@ -73,20 +73,24 @@ export function UnconfirmedIncomesSection({
 }) {
   if (movements.length === 0) return null;
   return (
-    <section className="flex flex-col gap-2">
-      <SectionTitle>
-        Señas sin confirmar medio de pago ({movements.length})
-      </SectionTitle>
-      <p className="text-xs text-foreground/50">
-        Vinieron de una reserva sincronizada con VikRentCar con algo ya pagado, pero no se pudo
-        determinar a qué medio de pago de Andes corresponde. Ya están contadas en los totales de
-        Caja como ingreso — solo falta indicar el medio real.
-      </p>
-      <ul className="flex flex-col gap-2">
-        {movements.map((m) => (
-          <ConfirmRow key={m.id} movement={m} paymentMethods={paymentMethods} />
-        ))}
-      </ul>
-    </section>
+    <details className="group flex flex-col gap-2">
+      <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <SectionTitle>Señas sin confirmar medio de pago ({movements.length})</SectionTitle>
+        <span className="text-xs text-foreground/50 group-open:hidden">Ver</span>
+        <span className="hidden text-xs text-foreground/50 group-open:inline">Ocultar</span>
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">
+        <p className="text-xs text-foreground/50">
+          Vinieron de una reserva sincronizada con VikRentCar con algo ya pagado, pero no se pudo
+          determinar a qué medio de pago de Andes corresponde. Ya están contadas en los totales de
+          Caja como ingreso — solo falta indicar el medio real.
+        </p>
+        <ul className="flex flex-col gap-2">
+          {movements.map((m) => (
+            <ConfirmRow key={m.id} movement={m} paymentMethods={paymentMethods} />
+          ))}
+        </ul>
+      </div>
+    </details>
   );
 }

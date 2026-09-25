@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { getDashboardData, type MovementState } from "@/lib/dashboard";
 import { getRentalPickerOptions } from "@/lib/cash";
+import { formatMoney } from "@/lib/contract";
 import { getHomeTasks, isTaskOverdue, isTaskDueToday } from "@/lib/tasks";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -99,10 +100,19 @@ export default async function HomePage() {
       <Section title="Alertas">
         {alerts.overdueReturns.length === 0 &&
         alerts.upcomingServices.length === 0 &&
-        alerts.unassigned.length === 0 ? (
+        alerts.unassigned.length === 0 &&
+        alerts.unpaidFinished.length === 0 ? (
           <Empty>Sin alertas. Todo al día.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
+            {alerts.unpaidFinished.map((r) => (
+              <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between gap-3 rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-sm">
+                <span className="font-bold text-red-700 dark:text-red-400">Urgente: reserva terminada con pago pendiente</span>
+                <span className="text-right text-foreground/70">
+                  {r.clientName} · {r.vehicleLabel} · falta {formatMoney(r.balance, "ars")}
+                </span>
+              </Link>
+            ))}
             {alerts.overdueReturns.map((r) => (
               <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm">
                 <span className="font-medium text-red-700 dark:text-red-400">Devolución vencida</span>

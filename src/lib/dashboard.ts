@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { getUnpaidFinishedRentals } from "@/lib/cash";
 import { serviceOverdueSeverity, DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
 
 const SERVICE_KM_THRESHOLD = 500; // avisar cuando falten ≤ 500 km para el service
@@ -31,6 +32,7 @@ export async function getDashboardData() {
     serviceCandidates,
     unassigned,
     conditionSettings,
+    unpaidFinished,
   ] = await Promise.all([
     // Entregas programadas hoy (por fecha de retiro). Excluye canceladas y
     // los placeholders "en service" (no son entregas reales a un cliente).
@@ -68,6 +70,7 @@ export async function getDashboardData() {
       orderBy: { startAt: "asc" },
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 }, select: { serviceOverdueRedPercent: true } }),
+    getUnpaidFinishedRentals(),
   ]);
 
   const handoverState = (r: (typeof todayHandovers)[number]): MovementState => {
@@ -104,6 +107,6 @@ export async function getDashboardData() {
       outOfService,
       counts: { rented: rented.length, available: available.length, outOfService: outOfService.length },
     },
-    alerts: { overdueReturns, upcomingServices, unassigned },
+    alerts: { overdueReturns, upcomingServices, unassigned, unpaidFinished },
   };
 }
