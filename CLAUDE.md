@@ -689,7 +689,7 @@ Bug real reportado por el dueño: al cambiar la cuenta de un pago a una que exig
 - **Aclaraciones en los resúmenes**: ya salían en Movimientos/Saldos/Garantías (línea de meta y modal) y en el historial de pagos de la reserva. Se sumaron: filas del historial de proveedor/asociado (`destino: cuenta (aclaración)`, `Origen: cuenta (aclaración)`), tarjeta de garantía activa, y el CSV de Caja (aclaración entre paréntesis en Medio de pago/Destino). Además las `key` de `AccountLedgerMonths` incluyen las aclaraciones (sin eso, una fila editada quedaba con el valor viejo pegado).
 - Un pago ya cargado hacia una cuenta que exige aclaración y sin ella (como el que se editó antes del fix) se completa editándolo: el form ahora la pide.
 
-## v49 — Reportes: % de conversión de WhatsApp
+## v50 — Reportes: % de conversión de WhatsApp
 
 En la sección "WhatsApp" de `/reports`: **conversión = alquileres finalizados / conversaciones únicas** (`conversionPercent`, `src/lib/reports.ts`, pura y testeada; `null` → "—" si no hubo consultas). KPI del período elegido + tabla "Conversión por mes" (consultas, alquileres, %) sobre los mismos meses del gráfico. Los "alquileres" son los mismos del gráfico "Alquileres finalizados por mes" (por fecha de devolución), no las reservas creadas en el mes: el mes en curso subestima hasta que se cierren los alquileres activos, y puede superar 100% si hubo alquileres que no vinieron por WhatsApp. tsc/lint/tests en verde; **sin probar en navegador ni desplegar**. Sin migración.
 

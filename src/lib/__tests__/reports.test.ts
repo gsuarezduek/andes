@@ -10,6 +10,7 @@ import {
   aggregateCashByOwnership,
   aggregateExpensesByCategory,
   bucketWhatsAppConversations,
+  conversionPercent,
   parseReportPeriod,
   reportPeriodParam,
   reportPeriodLabel,
@@ -262,6 +263,20 @@ describe("bucketWhatsAppConversations", () => {
       { month: "2026-07", conversations: 0 },
       { month: "2026-08", conversations: 0 },
     ]);
+  });
+});
+
+describe("conversionPercent", () => {
+  it("alquileres sobre consultas, en porcentaje", () => {
+    expect(conversionPercent(5, 20)).toBe(25);
+  });
+
+  it("sin consultas devuelve null (no hay base para el cociente)", () => {
+    expect(conversionPercent(3, 0)).toBeNull();
+  });
+
+  it("sin alquileres es 0%, no null", () => {
+    expect(conversionPercent(0, 10)).toBe(0);
   });
 });
 

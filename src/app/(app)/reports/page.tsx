@@ -10,6 +10,7 @@ import {
   DEFAULT_VEHICLE_SORT,
   type MonthPoint,
   type WhatsAppMonthPoint,
+  type ConversionMonthPoint,
   type VehicleSortKey,
   type ExpenseCategoryReport,
 } from "@/lib/reports";
@@ -152,9 +153,13 @@ export default async function ReportsPage({
         </SectionHeading>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Kpi label="Conversaciones únicas (período)" value={String(whatsapp.conversationsInPeriod)} />
+          <Kpi label="Alquileres finalizados (período)" value={String(kpis.finished)} />
+          <Kpi label="Conversión (alquileres / consultas)" value={formatPercent(whatsapp.conversionPercent)} />
         </div>
         <p className="text-xs font-medium text-foreground/60">Conversaciones únicas por mes</p>
         <WhatsAppMonthBars data={whatsapp.byMonth} />
+        <p className="text-xs font-medium text-foreground/60">Conversión por mes</p>
+        <ConversionTable data={whatsapp.conversionByMonth} />
       </section>
 
       {/* Por vehículo */}
@@ -406,6 +411,40 @@ function WhatsAppMonthBars({ data }: { data: WhatsAppMonthPoint[] }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+function formatPercent(value: number | null): string {
+  return value == null ? "—" : `${value.toFixed(1).replace(".", ",")}%`;
+}
+
+/** Seguimiento mes a mes: consultas, alquileres finalizados y % de conversión (más reciente arriba). */
+function ConversionTable({ data }: { data: ConversionMonthPoint[] }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-foreground/10">
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs text-foreground/60">
+          <tr>
+            <th className="px-3 py-2 font-medium">Mes</th>
+            <th className="px-3 py-2 text-right font-medium">Consultas</th>
+            <th className="px-3 py-2 text-right font-medium">Alquileres</th>
+            <th className="px-3 py-2 text-right font-medium">Conversión</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...data].reverse().map((d) => (
+            <tr key={d.month} className="border-t border-foreground/10">
+              <td className="px-3 py-2">
+                {d.month.slice(5)}/{d.month.slice(0, 4)}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums">{d.conversations}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{d.rentals}</td>
+              <td className="px-3 py-2 text-right font-medium tabular-nums">{formatPercent(d.percent)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

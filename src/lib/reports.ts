@@ -30,6 +30,14 @@ export type MonthPoint = { month: string; rentals: number; km: number };
 
 export type WhatsAppMonthPoint = { month: string; conversations: number };
 
+/** Consultas vs. alquileres de un mes, con el % de conversión ya resuelto (null si no hubo consultas). */
+export type ConversionMonthPoint = {
+  month: string;
+  conversations: number;
+  rentals: number;
+  percent: number | null;
+};
+
 export type VehicleReport = {
   id: string;
   label: string;
@@ -102,6 +110,10 @@ export type Reports = {
     conversationsInPeriod: number;
     // Mismo criterio, agrupado por mes — mismos meses que `byMonth` (ver chartMonthCount).
     byMonth: WhatsAppMonthPoint[];
+    // % de conversión = alquileres finalizados / conversaciones únicas. Del período elegido arriba
+    // (null si no hubo conversaciones) y mes a mes, sobre los mismos meses que `byMonth`.
+    conversionPercent: number | null;
+    conversionByMonth: ConversionMonthPoint[];
   };
 };
 
@@ -312,6 +324,16 @@ export function bucketWhatsAppConversations(
     sets.get(monthOf(msg.createdAt))?.add(msg.conversationId);
   }
   return monthList.map((m) => ({ month: m, conversations: sets.get(m)!.size }));
+}
+
+/**
+ * % de conversión: alquileres / consultas de WhatsApp. Sin consultas no hay
+ * base para el cociente, así que devuelve null (la UI muestra "—") en vez de
+ * un 0% o un infinito engañosos. Puede pasar de 100% si hubo alquileres que no
+ * vinieron por WhatsApp — es un indicador de seguimiento, no un tope.
+ */
+export function conversionPercent(rentals: number, conversations: number): number | null {
+  return conversations > 0 ? (rentals / conversations) * 100 : null;
 }
 
 /**
@@ -572,7 +594,20 @@ export const getReports = unstable_cache(
       cashByOwnership,
       expensesByCategory,
       usdUnconverted,
-      whatsapp: { conversationsInPeriod: whatsappConversationsInPeriod, byMonth: whatsappByMonth },
+      whatsapp: {
+        conversationsInPeriod: whatsappConversationsInPeriod,
+        byMonth: whatsappByMonth,
+        conversionPercent: conversionPercent(finishedCount, whatsappConversationsInPeriod),
+        conversionByMonth: whatsappByMonth.map((w) => {
+          const rentals = monthMap.get(w.month)?.rentals ?? 0;
+          return {
+            month: w.month,
+            conversations: w.conversations,
+            rentals,
+            percent: conversionPercent(rentals, w.conversations),
+          };
+        }),
+      },
     };
   },
   ["reports"],
