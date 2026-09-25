@@ -11,7 +11,15 @@ type UserOption = { id: string; name: string };
 type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
 
 /** Form de alta, colapsado detrás de "+ Nueva tarea" (mismo criterio que MovementLauncher en Caja). */
-export function TaskForm({ users, vehicles }: { users: UserOption[]; vehicles: VehicleOption[] }) {
+export function TaskForm({
+  users,
+  vehicles,
+  currentUserId,
+}: {
+  users: UserOption[];
+  vehicles: VehicleOption[];
+  currentUserId: string;
+}) {
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -40,12 +48,15 @@ export function TaskForm({ users, vehicles }: { users: UserOption[]; vehicles: V
       </div>
       <div className="grid grid-cols-2 gap-3">
         <SelectField id="assignedToId" label="Asignar a" defaultValue="">
+          {users.some((u) => u.id === currentUserId) ? <option value={currentUserId}>Yo</option> : null}
           <option value="">Sin asignar</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
+          {users
+            .filter((u) => u.id !== currentUserId)
+            .map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
         </SelectField>
         <SelectField id="vehicleId" label="Vehículo" defaultValue="">
           <option value="">Sin vehículo</option>

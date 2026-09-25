@@ -60,17 +60,22 @@ export default async function TasksPage({
         <p className="text-sm text-foreground/60">Coordinación del equipo: lavados, trámites, compras y demás.</p>
       </div>
 
-      <TaskForm users={users} vehicles={vehicles} />
+      <TaskForm users={users} vehicles={vehicles} currentUserId={user.id} />
 
       <div className="flex flex-wrap items-center gap-2">
         <form className="flex flex-wrap items-center gap-2">
           <select name="assignedTo" defaultValue={filters.assignedToId ?? ""} className={compactControlClass}>
+            <option value={user.id}>Mis tareas</option>
             <option value="">Todos los asignados</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
+            <optgroup label="Equipo">
+              {users
+                .filter((u) => u.id !== user.id)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+            </optgroup>
           </select>
           <select name="vehicle" defaultValue={filters.vehicleId ?? ""} className={compactControlClass}>
             <option value="">Todos los vehículos</option>
