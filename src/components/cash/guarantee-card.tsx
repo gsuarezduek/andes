@@ -26,10 +26,12 @@ const MODAL_TITLES: Record<Exclude<ModalMode, "none">, string> = {
 
 /**
  * Una garantía activa: descripción + monto + contexto, y las dos formas de
- * cerrarla — "Devolver" (el total, al cliente) o "Cobrar" (total o parcial;
- * si es parcial, el resto se devuelve en el mismo paso, nunca queda una
- * garantía "a medias"). Al resolverla sale de "Activas" y pasa al
- * historial (ver `getGuarantees`/`GuaranteesSection`).
+ * cerrarla — "Devolver" (total o parcial; a veces se devuelve menos, y la
+ * diferencia queda anotada como un ingreso) o "Cobrar" (total o parcial; si
+ * es parcial, el resto se devuelve en el mismo paso) — nunca queda una
+ * garantía "a medias", cualquiera de las dos siempre la resuelve del todo.
+ * Al resolverla sale de "Activas" y pasa al historial (ver
+ * `getGuarantees`/`GuaranteesSection`).
  */
 export function GuaranteeCard({
   guarantee,
@@ -39,15 +41,21 @@ export function GuaranteeCard({
   paymentMethods: PaymentMethodOption[];
 }) {
   const [modal, setModal] = useState<ModalMode>("none");
+  const [returnAmount, setReturnAmount] = useState(String(guarantee.amount));
   const [chargeAmount, setChargeAmount] = useState(String(guarantee.amount));
   const [returnMethodId, setReturnMethodId] = useState(guarantee.paymentMethodId ?? "");
   const [remainderMethodId, setRemainderMethodId] = useState(guarantee.paymentMethodId ?? "");
+
+  const returnParsed = parseDecimal(returnAmount) ?? 0;
+  const kept = roundMoney(Math.max(0, guarantee.amount - returnParsed));
+  const returnValid = returnParsed > 0 && returnParsed <= guarantee.amount;
 
   const chargeParsed = parseDecimal(chargeAmount) ?? 0;
   const remainder = roundMoney(Math.max(0, guarantee.amount - chargeParsed));
   const chargeValid = chargeParsed > 0 && chargeParsed <= guarantee.amount;
 
   function openModal(m: Exclude<ModalMode, "none">) {
+    setReturnAmount(String(guarantee.amount));
     setChargeAmount(String(guarantee.amount));
     setReturnMethodId(guarantee.paymentMethodId ?? "");
     setRemainderMethodId(guarantee.paymentMethodId ?? "");
@@ -96,31 +104,40 @@ export function GuaranteeCard({
 
       <Modal open={modal !== "none"} onClose={() => setModal("none")} title={modal !== "none" ? MODAL_TITLES[modal] : ""}>
         {modal === "return" && (
-          <>
-            <p className="text-sm text-foreground/70">
-              Se devuelve el total tomado:{" "}
-              <span className="font-semibold text-foreground">{formatMoney(guarantee.amount, guarantee.currency)}</span>
-            </p>
-            <form action={returnGuarantee.bind(null, guarantee.id)} className="mt-3 flex flex-col gap-3">
-              <PaymentMethodPicker
-                id="paymentMethodId"
-                label="Cuenta de la que sale"
-                options={paymentMethods}
-                value={returnMethodId}
-                onChange={setReturnMethodId}
-                placeholder="Buscar cuenta…"
-              />
-              <TextareaField id="note" label="Nota" hint="Opcional" rows={2} />
-              <div className="mt-1 flex gap-2">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setModal("none")}>
-                  Cancelar
-                </Button>
-                <SubmitButton pendingLabel="Guardando…" className="flex-1" disabled={!returnMethodId}>
-                  Confirmar devolución
-                </SubmitButton>
-              </div>
-            </form>
-          </>
+          <form action={returnGuarantee.bind(null, guarantee.id)} className="flex flex-col gap-3">
+            <TextField
+              id="amount"
+              label="Importe a devolver"
+              type="text"
+              inputMode="decimal"
+              prefix="$"
+              value={returnAmount}
+              onChange={(e) => setReturnAmount(e.target.value)}
+              hint={`Hasta ${formatMoney(guarantee.amount, guarantee.currency)} (el total tomado)`}
+            />
+            {returnParsed > 0 && kept > 0 && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                La diferencia, {formatMoney(kept, guarantee.currency)}, queda anotada como un ingreso.
+              </p>
+            )}
+            <PaymentMethodPicker
+              id="paymentMethodId"
+              label="Cuenta de la que sale"
+              options={paymentMethods}
+              value={returnMethodId}
+              onChange={setReturnMethodId}
+              placeholder="Buscar cuenta…"
+            />
+            <TextareaField id="note" label="Nota" hint="Opcional" rows={2} />
+            <div className="mt-1 flex gap-2">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setModal("none")}>
+                Cancelar
+              </Button>
+              <SubmitButton pendingLabel="Guardando…" className="flex-1" disabled={!returnValid || !returnMethodId}>
+                Confirmar devolución
+              </SubmitButton>
+            </div>
+          </form>
         )}
 
         {modal === "charge" && (

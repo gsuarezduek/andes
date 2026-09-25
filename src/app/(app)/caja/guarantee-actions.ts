@@ -22,51 +22,123 @@ async function loadActiveGuarantee(id: string) {
   return g;
 }
 
-const returnSchema = z.object({
-  paymentMethodId: z.string().min(1),
-  note: z.string().trim().max(300).optional(),
-});
-
-/** Devuelve la garantía completa al cliente — nunca parcial (para un cobro parcial, ver `chargeGuarantee`). */
-export async function returnGuarantee(id: string, formData: FormData) {
-  const user = await requireAdmin();
-  const { paymentMethodId, note } = returnSchema.parse({
-    paymentMethodId: formData.get("paymentMethodId"),
-    note: formData.get("note") || undefined,
-  });
-
-  const guarantee = await loadActiveGuarantee(id);
-  const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
-  if (!method) throw new Error("Cuenta inválida.");
-
+/**
+ * Resolución compartida por `returnGuarantee` y `chargeGuarantee`: una
+ * garantía siempre termina en, como mucho, dos movimientos derivados — un
+ * egreso por lo devuelto (`returnedAmount`, de `returnMethod`) y un ingreso
+ * por lo que la empresa se queda (`keptAmount`, siempre de la MISMA cuenta
+ * donde se tomó la garantía — no de `returnMethod`, que solo es el origen de
+ * la devolución). Cualquiera de los dos puede ser 0 (no se crea ese
+ * movimiento). Marca la garantía resuelta.
+ */
+async function applyGuaranteeResolution(
+  guarantee: Awaited<ReturnType<typeof loadActiveGuarantee>>,
+  user: Awaited<ReturnType<typeof requireAdmin>>,
+  {
+    returnedAmount,
+    returnMethod,
+    returnNote,
+    keptAmount,
+    keptDescription,
+  }: {
+    returnedAmount: number;
+    returnMethod: { id: string; name: string } | null;
+    returnNote: string | null;
+    keptAmount: number;
+    /** Descripción del ingreso por lo que la empresa se queda — distinta según venga de "Devolver" (diferencia) o "Cobrar" (cobro explícito). */
+    keptDescription: string;
+  },
+) {
   await prisma.$transaction([
-    prisma.cashMovement.create({
-      data: {
-        type: "expense",
-        description: `Devolución de garantía — ${guarantee.description}`,
-        amount: guarantee.amount,
-        currency: guarantee.currency,
-        paymentMethodId: method.id,
-        paymentMethodName: method.name,
-        paymentMethodNote: note ?? null,
-        rentalId: guarantee.rentalId,
-        isGuarantee: true,
-        guaranteeSourceId: guarantee.id,
-        createdById: user.id,
-        createdByName: displayName(user),
-      },
-    }),
+    ...(returnedAmount > 0 && returnMethod
+      ? [
+          prisma.cashMovement.create({
+            data: {
+              type: "expense",
+              description: `Devolución de garantía${keptAmount > 0 ? " (parcial)" : ""} — ${guarantee.description}`,
+              amount: returnedAmount,
+              currency: guarantee.currency,
+              paymentMethodId: returnMethod.id,
+              paymentMethodName: returnMethod.name,
+              paymentMethodNote: returnNote,
+              rentalId: guarantee.rentalId,
+              isGuarantee: true,
+              guaranteeSourceId: guarantee.id,
+              createdById: user.id,
+              createdByName: displayName(user),
+            },
+          }),
+        ]
+      : []),
+    ...(keptAmount > 0
+      ? [
+          prisma.cashMovement.create({
+            data: {
+              type: "income",
+              description: keptDescription,
+              amount: keptAmount,
+              currency: guarantee.currency,
+              paymentMethodId: guarantee.paymentMethodId,
+              paymentMethodName: guarantee.paymentMethodName,
+              rentalId: guarantee.rentalId,
+              isGuarantee: false,
+              guaranteeSourceId: guarantee.id,
+              createdById: user.id,
+              createdByName: displayName(user),
+            },
+          }),
+        ]
+      : []),
     prisma.cashMovement.update({
       where: { id: guarantee.id },
       data: {
         guaranteeResolvedAt: new Date(),
-        guaranteeReturnedAmount: guarantee.amount,
-        guaranteeChargedAmount: 0,
+        guaranteeReturnedAmount: returnedAmount,
+        guaranteeChargedAmount: keptAmount,
         guaranteeResolvedById: user.id,
         guaranteeResolvedByName: displayName(user),
       },
     }),
   ]);
+}
+
+const returnSchema = z.object({
+  amount: z.coerce.number().positive(),
+  paymentMethodId: z.string().min(1),
+  note: z.string().trim().max(300).optional(),
+});
+
+/**
+ * Devuelve la garantía — total o parcial. A veces se devuelve menos de lo
+ * tomado (ej. un daño chico que no justifica todo el trámite de "Cobrar"); la
+ * diferencia no devuelta queda como un ingreso real, de la misma cuenta donde
+ * se tomó la garantía — mismo criterio que lo cobrado en `chargeGuarantee`
+ * (de hecho comparten la resolución, ver `applyGuaranteeResolution`). Nunca
+ * queda "parcialmente activa": esta acción siempre la resuelve por completo.
+ */
+export async function returnGuarantee(id: string, formData: FormData) {
+  const user = await requireAdmin();
+  const { amount, paymentMethodId, note } = returnSchema.parse({
+    amount: formData.get("amount"),
+    paymentMethodId: formData.get("paymentMethodId"),
+    note: formData.get("note") || undefined,
+  });
+
+  const guarantee = await loadActiveGuarantee(id);
+  const total = Number(guarantee.amount);
+  if (amount > total) throw new Error("No podés devolver más de lo que se tomó de garantía.");
+  const kept = roundMoney(total - amount);
+
+  const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
+  if (!method) throw new Error("Cuenta inválida.");
+
+  await applyGuaranteeResolution(guarantee, user, {
+    returnedAmount: amount,
+    returnMethod: method,
+    returnNote: note ?? null,
+    keptAmount: kept,
+    keptDescription: `Diferencia no devuelta de garantía — ${guarantee.description}`,
+  });
 
   revalidatePath("/caja");
 }
@@ -103,52 +175,13 @@ export async function chargeGuarantee(id: string, formData: FormData) {
     returnMethod = found;
   }
 
-  await prisma.$transaction([
-    prisma.cashMovement.create({
-      data: {
-        type: "income",
-        description: `Garantía cobrada — ${guarantee.description}`,
-        amount,
-        currency: guarantee.currency,
-        paymentMethodId: guarantee.paymentMethodId,
-        paymentMethodName: guarantee.paymentMethodName,
-        rentalId: guarantee.rentalId,
-        isGuarantee: false,
-        guaranteeSourceId: guarantee.id,
-        createdById: user.id,
-        createdByName: displayName(user),
-      },
-    }),
-    ...(returnMethod
-      ? [
-          prisma.cashMovement.create({
-            data: {
-              type: "expense",
-              description: `Devolución de garantía (resto) — ${guarantee.description}`,
-              amount: remainder,
-              currency: guarantee.currency,
-              paymentMethodId: returnMethod.id,
-              paymentMethodName: returnMethod.name,
-              rentalId: guarantee.rentalId,
-              isGuarantee: true,
-              guaranteeSourceId: guarantee.id,
-              createdById: user.id,
-              createdByName: displayName(user),
-            },
-          }),
-        ]
-      : []),
-    prisma.cashMovement.update({
-      where: { id: guarantee.id },
-      data: {
-        guaranteeResolvedAt: new Date(),
-        guaranteeChargedAmount: amount,
-        guaranteeReturnedAmount: remainder,
-        guaranteeResolvedById: user.id,
-        guaranteeResolvedByName: displayName(user),
-      },
-    }),
-  ]);
+  await applyGuaranteeResolution(guarantee, user, {
+    returnedAmount: remainder,
+    returnMethod,
+    returnNote: null,
+    keptAmount: amount,
+    keptDescription: `Garantía cobrada — ${guarantee.description}`,
+  });
 
   revalidatePath("/caja");
 }
