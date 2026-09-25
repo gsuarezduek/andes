@@ -25,6 +25,17 @@ import type { ContractPricing } from "@/lib/contract";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 import { toArs, usdRateAt } from "@/lib/usd-rate";
 import { getUsdRateHistory } from "@/lib/usd-rate-queries";
+import {
+  computeOccupancy,
+  computeResponseWaits,
+  leadTimeDays,
+  settlementExtras,
+  summarizeLeadTimes,
+  summarizeResponseTimes,
+  type LeadTimeSummary,
+  type OccupancySummary,
+  type ResponseTimeSummary,
+} from "@/lib/reports-metrics";
 
 export type MonthPoint = { month: string; rentals: number; km: number };
 
@@ -52,6 +63,13 @@ export type VehicleReport = {
   net: number;
   damages: number;
   archived: boolean;
+  // % de los días del período que el auto estuvo alquilado (entrega→devolución, incluye activos).
+  occupancyPercent: number;
+  // Ingreso y neto por día alquilado (0 si no tuvo días alquilados — la UI muestra "—").
+  incomePerDay: number;
+  netPerDay: number;
+  // Costo de mantenimiento como % del ingreso (0 si no hubo ingreso — la UI muestra "—").
+  costPercent: number;
 };
 
 /**
@@ -105,6 +123,32 @@ export type Reports = {
   // todavía no hay ningún valor de referencia cargado (quedan fuera de los
   // totales de Caja de arriba). Normalmente 0.
   usdUnconverted: number;
+  // Ocupación de la flota operativa en el período (ver computeOccupancy).
+  occupancy: OccupancySummary;
+  // Sobre los alquileres finalizados del período (ingreso del contrato, no de Caja).
+  revenue: {
+    perRentedDay: number | null;
+    averageTicket: number | null;
+    averageDays: number | null;
+  };
+  // Lo liquidado en las devoluciones del período aparte de la tarifa (km extra, nafta, daños).
+  extras: {
+    total: number;
+    km: number;
+    fuel: number;
+    damages: number;
+    perRental: number | null;
+    percentOfIncome: number | null;
+  };
+  // Reservas cuyo retiro cae en el período (sin los bloqueos de service/arreglo).
+  bookings: {
+    total: number;
+    cancelled: number;
+    cancellationPercent: number | null;
+    // Reservas futuras sin confirmar hoy — estado actual, no del período.
+    pendingConfirmation: number;
+    leadTime: LeadTimeSummary;
+  };
   whatsapp: {
     // Conversaciones únicas (al menos un mensaje, entrante o saliente) del período elegido arriba.
     conversationsInPeriod: number;
@@ -114,6 +158,7 @@ export type Reports = {
     // (null si no hubo conversaciones) y mes a mes, sobre los mismos meses que `byMonth`.
     conversionPercent: number | null;
     conversionByMonth: ConversionMonthPoint[];
+    response: ResponseTimeSummary;
   };
 };
 
@@ -248,7 +293,19 @@ export function resolveChartMonths(now: Date, earliestFinishedMonth: string | nu
   return recentMonths(monthOf(now), chartMonthCount(now, earliestFinishedMonth));
 }
 
-export type VehicleSortKey = "rentals" | "days" | "income" | "cost" | "net" | "damages";
+export const VEHICLE_SORT_KEYS = [
+  "rentals",
+  "days",
+  "occupancyPercent",
+  "income",
+  "incomePerDay",
+  "cost",
+  "costPercent",
+  "net",
+  "netPerDay",
+  "damages",
+] as const;
+export type VehicleSortKey = (typeof VEHICLE_SORT_KEYS)[number];
 export const DEFAULT_VEHICLE_SORT: VehicleSortKey = "income";
 
 type CashMovementForOwnership = {
@@ -363,8 +420,17 @@ export const getReports = unstable_cache(
     const now = new Date();
     const periodRange = resolveReportPeriod(period, now);
 
-    const [vehicles, earliestFinished, maintenanceByVehicle, damages, activeCount, cashMovementsRaw] =
-      await Promise.all([
+    const [
+      vehicles,
+      earliestFinished,
+      maintenanceByVehicle,
+      damages,
+      activeCount,
+      cashMovementsRaw,
+      occupancyRentals,
+      bookingRentals,
+      pendingConfirmation,
+    ] = await Promise.all([
         // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
         // historial de ingresos/costos del período, aunque ya no esté en la
         // flota operativa.
@@ -416,6 +482,36 @@ export const getReports = unstable_cache(
             paymentMethod: { select: { ownership: true } },
           },
         }),
+        // Ocupación: alquileres entregados que se superponen con el período
+        // (entrega antes del fin y, o siguen activos, o se devolvieron
+        // después del inicio). Intervalo real entrega→devolución.
+        prisma.rental.findMany({
+          where: {
+            vehicleId: { not: null },
+            status: { in: ["active", "finished"] },
+            inspections: { some: { type: "handover", createdAt: { lt: periodRange.end } } },
+            OR: [
+              { status: "active" },
+              { inspections: { some: { type: "return_", createdAt: { gte: periodRange.start } } } },
+            ],
+          },
+          select: { vehicleId: true, inspections: { select: { type: true, createdAt: true } } },
+        }),
+        // Reservas con retiro en el período. Los bloqueos de service/arreglo
+        // (`maintenanceLogs`) son reservas placeholder canceladas al cerrar
+        // el service: no son cancelaciones de clientes, se excluyen.
+        prisma.rental.findMany({
+          where: {
+            status: { in: ["reserved", "active", "finished", "cancelled"] },
+            maintenanceLogs: { none: {} },
+            startAt: { gte: periodRange.start, lt: periodRange.end },
+          },
+          select: { status: true, startAt: true, bookingCreatedAt: true },
+        }),
+        // Reservas futuras todavía sin confirmar en VikRentCar (estado de hoy).
+        prisma.rental.count({
+          where: { status: "reserved", bookingConfirmed: false, startAt: { gte: now } },
+        }),
       ]);
 
     // El gráfico "por mes" es independiente del período elegido arriba
@@ -447,14 +543,14 @@ export const getReports = unstable_cache(
           pricing: true,
           bookingTotal: true,
           endAt: true,
-          inspections: { select: { type: true, km: true, createdAt: true } },
+          inspections: { select: { type: true, km: true, createdAt: true, settlement: true } },
         },
       }),
       // Misma ventana ancha que `finishedInRange` (superset de período+gráfico):
       // se bucketea por mes para el gráfico y se filtra al período para el KPI.
       prisma.whatsAppMessage.findMany({
         where: { createdAt: { gte: queryStart, lt: now } },
-        select: { conversationId: true, createdAt: true },
+        select: { conversationId: true, createdAt: true, direction: true, sentByBot: true },
       }),
     ]);
 
@@ -481,6 +577,10 @@ export const getReports = unstable_cache(
           net: 0,
           damages: 0,
           archived: v.archivedAt != null,
+          occupancyPercent: 0,
+          incomePerDay: 0,
+          netPerDay: 0,
+          costPercent: 0,
         },
       ]),
     );
@@ -488,6 +588,12 @@ export const getReports = unstable_cache(
     const monthMap = new Map<string, MonthPoint>(chartMonthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
 
     let finishedCount = 0;
+    // Acumuladores de ticket/duración/extras sobre los finalizados del período.
+    let incomeSum = 0;
+    let daysSum = 0;
+    let daysCount = 0;
+    let incomeWithDays = 0;
+    const extrasSum = { km: 0, fuel: 0, damages: 0, total: 0 };
     for (const r of finishedInRange) {
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
@@ -514,6 +620,18 @@ export const getReports = unstable_cache(
           ? Math.max(0, (ret.createdAt.getTime() - handover.createdAt.getTime()) / (1000 * 60 * 60 * 24))
           : 0;
 
+      incomeSum += income;
+      if (daysRented > 0) {
+        daysSum += daysRented;
+        daysCount += 1;
+        incomeWithDays += income;
+      }
+      const extras = settlementExtras(ret?.settlement);
+      extrasSum.km += extras.km;
+      extrasSum.fuel += extras.fuel;
+      extrasSum.damages += extras.damages;
+      extrasSum.total += extras.total;
+
       const v = r.vehicleId ? vMap.get(r.vehicleId) : undefined;
       if (v) {
         v.rentals += 1;
@@ -535,9 +653,46 @@ export const getReports = unstable_cache(
       if (v) v.damages = d._count._all;
     }
 
+    const occupancyIntervals = occupancyRentals.flatMap((r) => {
+      const handover = r.inspections.find((i) => i.type === "handover");
+      if (!r.vehicleId || !handover) return [];
+      const ret = r.inspections.find((i) => i.type === "return_");
+      // Sin devolución (alquiler activo) el intervalo llega hasta ahora.
+      return [{ vehicleId: r.vehicleId, start: handover.createdAt, end: ret?.createdAt ?? now }];
+    });
+    const occupancy = computeOccupancy(
+      occupancyIntervals,
+      vehicles.filter((v) => v.archivedAt == null).map((v) => v.id),
+      periodRange.start,
+      periodRange.end,
+    );
+
     const vehicleReports = [...vMap.values()]
-      .map((v) => ({ ...v, net: v.income - v.cost }))
+      .map((v) => {
+        const net = v.income - v.cost;
+        return {
+          ...v,
+          net,
+          occupancyPercent: occupancy.byVehicle.get(v.id) ?? 0,
+          incomePerDay: v.days > 0 ? v.income / v.days : 0,
+          netPerDay: v.days > 0 ? net / v.days : 0,
+          costPercent: v.income > 0 ? (v.cost / v.income) * 100 : 0,
+        };
+      })
       .sort((a, b) => b.income - a.income || b.rentals - a.rentals);
+
+    const cancelledCount = bookingRentals.filter((r) => r.status === "cancelled").length;
+    const leadTime = summarizeLeadTimes(
+      bookingRentals
+        .filter((r) => r.status !== "cancelled" && r.bookingCreatedAt)
+        .map((r) => leadTimeDays(r.startAt, r.bookingCreatedAt!)),
+    );
+
+    const responseWaits = computeResponseWaits(
+      whatsappMessagesInRange,
+      periodRange.start,
+      periodRange.end,
+    );
 
     // Todo el reporte de Caja va en pesos: un movimiento en USD se convierte
     // con el valor de referencia vigente cuando se cargó (o el primero
@@ -594,7 +749,26 @@ export const getReports = unstable_cache(
       cashByOwnership,
       expensesByCategory,
       usdUnconverted,
+      occupancy: occupancy.summary,
+      revenue: {
+        perRentedDay: daysSum > 0 ? incomeWithDays / daysSum : null,
+        averageTicket: finishedCount > 0 ? incomeSum / finishedCount : null,
+        averageDays: daysCount > 0 ? daysSum / daysCount : null,
+      },
+      extras: {
+        ...extrasSum,
+        perRental: finishedCount > 0 ? extrasSum.total / finishedCount : null,
+        percentOfIncome: incomeSum > 0 ? (extrasSum.total / incomeSum) * 100 : null,
+      },
+      bookings: {
+        total: bookingRentals.length,
+        cancelled: cancelledCount,
+        cancellationPercent: bookingRentals.length > 0 ? (cancelledCount / bookingRentals.length) * 100 : null,
+        pendingConfirmation,
+        leadTime,
+      },
       whatsapp: {
+        response: summarizeResponseTimes(responseWaits.waits, responseWaits.unanswered),
         conversationsInPeriod: whatsappConversationsInPeriod,
         byMonth: whatsappByMonth,
         conversionPercent: conversionPercent(finishedCount, whatsappConversationsInPeriod),

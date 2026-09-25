@@ -710,6 +710,18 @@ Un pago cargado como "Efectivo USD" se contaba como pesos en el saldo de la rese
 - **UI**: `PaymentAmountFields` (`src/components/cash/payment-amount-fields.tsx`, reusa `CurrencyToggle`) + `buildPayment`, compartido por `PaymentsEditor` (entrega/devolución) y `AddPaymentButton` (detalle de la reserva). La cotización se **precarga con el valor de referencia del USD de Caja** (`getCurrentUsdRate`, prop `usdRate`) y es editable. La línea se ve como "US$ 200 × $ 1.500" en el wizard, el acta y el resumen; el historial de pagos de la reserva formatea cada cobro en su moneda.
 - **Caso real corregido en producción**: reserva de DIEGO BUE (wp #3098) — la línea "USDT/USDC $200" pasó a "Efectivo USD" US$200 × $1.500 = $300.000 (ya enlazada a su movimiento de Caja, que Andres había corregido a mano a USD): Paga 86.200 → 386.000, saldo 303.800 → 4.000.
 
+## v51 — Reportes: ocupación, rentabilidad, extras, reservas y respuesta de WhatsApp
+
+Ocho métricas de negocio nuevas en `/reports` (todas filtradas por el período elegido salvo donde se aclara). Cálculo puro y testeado en `src/lib/reports-metrics.ts` (20 tests); `getReports` (`src/lib/reports.ts`) trae los datos con 3 queries nuevas y arma `occupancy`/`revenue`/`extras`/`bookings`/`whatsapp.response`. Sin migración. tsc/lint/548 tests en verde; **verificado por HTTP autenticado contra la base local con datos sembrados a mano** (después borrados) y comparado contra lo calculado a mano. **Sin desplegar todavía.**
+
+- **Ocupación de la flota**: días alquilados (intervalo real entrega→devolución de las inspecciones, con los activos hasta ahora) ÷ (autos de la flota actual sin archivados × días del período); tope 100% por auto. La flota se toma de hoy, no histórica.
+- **Ingreso por día alquilado, ticket promedio, duración promedio**: sobre los finalizados del período, con el ingreso del contrato (`pricing.total`, fallback `bookingTotal`), no Caja.
+- **Rentabilidad por vehículo**: la tabla suma Ocupación, Ingreso/día, Costo/ingreso y Neto/día (todas ordenables; `VEHICLE_SORT_KEYS` ahora vive en `reports.ts` y lo comparten la página y el CSV, que también trae las columnas nuevas).
+- **Extras de la devolución**: suma de `extraKmCharge`+`fuelCharge`+`damagesTotal` de la `settlement` de cada devolución del período (lo liquidado/firmado, no necesariamente cobrado), con promedio por alquiler y % sobre ingresos.
+- **Reservas**: las que tienen retiro en el período. Cancelación = canceladas ÷ todas, **excluyendo los bloqueos de service/arreglo** (reservas placeholder canceladas al cerrar el service, identificadas por `maintenanceLogs`). "Sin confirmar (próximas)" es estado de hoy (`reserved` + `bookingConfirmed=false` + retiro futuro). Anticipación = retiro − `bookingCreatedAt` (solo reservas importadas de VikRentCar), con promedio, mediana y reparto por tramos.
+- **Tiempo de respuesta de WhatsApp**: cada mensaje del cliente que abre una espera (varios seguidos = una) hasta el siguiente saliente (bot, equipo desde Andes o desde la app). Mediana/promedio general, mediana solo de respuestas humanas y cantidad sin respuesta. Corrido 24 hs (incluye noches y fines de semana; no hay horario laboral configurado).
+- **Descartada a propósito** la métrica 8 del listado (origen de la reserva): no tenemos el canal real, solo web vs. manual.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

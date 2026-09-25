@@ -8,6 +8,7 @@ import {
   reportPeriodLabel,
   REPORT_PERIOD_OPTIONS,
   DEFAULT_VEHICLE_SORT,
+  VEHICLE_SORT_KEYS,
   type MonthPoint,
   type WhatsAppMonthPoint,
   type ConversionMonthPoint,
@@ -15,17 +16,21 @@ import {
   type ExpenseCategoryReport,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
+import { formatDuration } from "@/lib/reports-metrics";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 export const metadata: Metadata = { title: "Reportes — Andes" };
 
-const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "days", "income", "cost", "net", "damages"];
 const VEHICLE_SORT_LABELS: Record<VehicleSortKey, string> = {
   rentals: "Alquileres",
   days: "Días alquilado",
+  occupancyPercent: "Ocupación",
   income: "Ingresos",
+  incomePerDay: "Ingreso/día",
   cost: "Costos",
+  costPercent: "Costo/ingreso",
   net: "Neto",
+  netPerDay: "Neto/día",
   damages: "Daños activos",
 };
 
@@ -39,12 +44,12 @@ export default async function ReportsPage({
 
   const period = parseReportPeriod(rawPeriod);
   const periodParam = reportPeriodParam(period);
-  const sort = VEHICLE_SORT_KEYS.includes(rawSort as VehicleSortKey)
+  const sort = (VEHICLE_SORT_KEYS as readonly string[]).includes(rawSort ?? "")
     ? (rawSort as VehicleSortKey)
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp } =
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, revenue, extras, bookings } =
     await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
@@ -120,6 +125,101 @@ export default async function ReportsPage({
         </p>
       </section>
 
+      {/* Ocupación y rentabilidad */}
+      <section className="flex flex-col gap-3">
+        <SectionHeading description="Qué tan usada está la flota y cuánto rinde cada día alquilado.">
+          Ocupación y rentabilidad
+        </SectionHeading>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kpi
+            label="Ocupación de la flota"
+            value={formatPercent(occupancy.percent)}
+            hint={`${occupancy.rentedDays.toFixed(0)} de ${occupancy.availableDays.toFixed(0)} días (${occupancy.fleetUnits} autos)`}
+          />
+          <Kpi label="Ingreso por día alquilado" value={formatMoneyOrDash(revenue.perRentedDay)} />
+          <Kpi label="Ticket promedio" value={formatMoneyOrDash(revenue.averageTicket)} hint="por alquiler finalizado" />
+          <Kpi
+            label="Duración promedio"
+            value={revenue.averageDays == null ? "—" : `${revenue.averageDays.toFixed(1).replace(".", ",")} días`}
+          />
+        </div>
+        <p className="text-xs text-foreground/40">
+          Ocupación = días alquilados (de la entrega a la devolución, incluidos los alquileres en curso) sobre los días
+          disponibles de la flota actual sin archivados. Ingreso por día, ticket y duración son de los alquileres
+          finalizados del período y usan el ingreso del contrato, no Caja.
+        </p>
+      </section>
+
+      {/* Extras de la devolución */}
+      <section className="flex flex-col gap-3">
+        <SectionHeading description="Lo liquidado en las devoluciones del período aparte de la tarifa.">
+          Extras de la devolución
+        </SectionHeading>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Kpi label="Total de extras" value={formatArs(extras.total)} />
+          <Kpi label="Promedio por alquiler" value={formatMoneyOrDash(extras.perRental)} />
+          <Kpi label="Sobre los ingresos" value={formatPercent(extras.percentOfIncome)} />
+          <Kpi label="Km extra" value={formatArs(extras.km)} />
+          <Kpi label="Nafta" value={formatArs(extras.fuel)} />
+          <Kpi label="Daños" value={formatArs(extras.damages)} />
+        </div>
+        <p className="text-xs text-foreground/40">
+          Son los importes de la liquidación que firma el cliente (km extra, nafta y daños); no necesariamente ya cobrados.
+        </p>
+      </section>
+
+      {/* Reservas */}
+      <section className="flex flex-col gap-3">
+        <SectionHeading description="Reservas cuyo retiro cae en el período (sin los bloqueos por service/arreglo).">
+          Reservas
+        </SectionHeading>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kpi label="Reservas del período" value={String(bookings.total)} />
+          <Kpi
+            label="Canceladas"
+            value={formatPercent(bookings.cancellationPercent)}
+            hint={`${bookings.cancelled} de ${bookings.total}`}
+          />
+          <Kpi label="Sin confirmar (próximas)" value={String(bookings.pendingConfirmation)} hint="estado de hoy" />
+          <Kpi
+            label="Anticipación promedio"
+            value={bookings.leadTime.averageDays == null ? "—" : `${bookings.leadTime.averageDays.toFixed(1).replace(".", ",")} días`}
+            hint={
+              bookings.leadTime.medianDays == null
+                ? undefined
+                : `mediana ${bookings.leadTime.medianDays.toFixed(0)} días`
+            }
+          />
+        </div>
+        {bookings.leadTime.withData > 0 && (
+          <div className="rounded-xl border border-foreground/10 p-3">
+            <p className="mb-2 text-xs font-medium text-foreground/60">
+              Con cuánta anticipación se reserva ({bookings.leadTime.withData} reservas con fecha de carga)
+            </p>
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {bookings.leadTime.buckets.map((b) => {
+                const pct = (b.count / bookings.leadTime.withData) * 100;
+                return (
+                  <li key={b.label} className="flex items-center gap-3">
+                    <span className="w-28 shrink-0 text-foreground/70">{b.label}</span>
+                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/10" aria-hidden>
+                      <span className="block h-full rounded-full bg-blue-500/70" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-foreground/60">
+                      {b.count} · {pct.toFixed(0)}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+        <p className="text-xs text-foreground/40">
+          Cancelación = reservas canceladas sobre todas las del período. La anticipación (retiro menos fecha de carga) solo
+          se conoce en las reservas importadas de VikRentCar; las cargadas a mano no cuentan.
+        </p>
+      </section>
+
       {/* Egresos por categoría */}
       {expensesByCategory.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -156,6 +256,24 @@ export default async function ReportsPage({
           <Kpi label="Alquileres finalizados (período)" value={String(kpis.finished)} />
           <Kpi label="Conversión (alquileres / consultas)" value={formatPercent(whatsapp.conversionPercent)} />
         </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kpi
+            label="Respuesta (mediana)"
+            value={formatDuration(whatsapp.response.medianMinutes)}
+            hint={`promedio ${formatDuration(whatsapp.response.averageMinutes)} · ${whatsapp.response.waits} consultas`}
+          />
+          <Kpi
+            label="Respuesta humana (mediana)"
+            value={formatDuration(whatsapp.response.humanMedianMinutes)}
+            hint={`${whatsapp.response.humanWaits} respondidas por el equipo`}
+          />
+          <Kpi label="Sin respuesta" value={String(whatsapp.response.unanswered)} tone={whatsapp.response.unanswered > 0 ? "bad" : undefined} />
+        </div>
+        <p className="text-xs text-foreground/40">
+          Tiempo desde que el cliente escribe hasta el siguiente mensaje nuestro (bot, equipo desde Andes o desde la app de
+          WhatsApp), corrido las 24 hs — incluye noches y fines de semana. Varios mensajes seguidos del cliente cuentan como
+          una sola consulta.
+        </p>
         <p className="text-xs font-medium text-foreground/60">Conversaciones únicas por mes</p>
         <WhatsAppMonthBars data={whatsapp.byMonth} />
         <p className="text-xs font-medium text-foreground/60">Conversión por mes</p>
@@ -174,7 +292,7 @@ export default async function ReportsPage({
           </a>
         </div>
         <div className="overflow-x-auto rounded-xl border border-foreground/10">
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-foreground/10 text-left text-xs uppercase tracking-wide text-foreground/50">
                 <th className="px-3 py-2 font-medium">Vehículo</th>
@@ -198,15 +316,19 @@ export default async function ReportsPage({
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{v.rentals}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{v.days.toFixed(1)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{v.occupancyPercent.toFixed(0)}%</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatArs(v.income)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{v.days > 0 ? formatArs(v.incomePerDay) : "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatArs(v.cost)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{v.income > 0 ? formatPercent(v.costPercent) : "—"}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${v.net < 0 ? "text-red-600" : ""}`}>{formatArs(v.net)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${v.netPerDay < 0 ? "text-red-600" : ""}`}>{v.days > 0 ? formatArs(v.netPerDay) : "—"}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${v.damages > 0 ? "text-amber-600 font-medium" : ""}`}>{v.damages}</td>
                 </tr>
               ))}
               {vehicles.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-foreground/50">Sin datos todavía.</td>
+                  <td colSpan={11} className="px-3 py-6 text-center text-foreground/50">Sin datos todavía.</td>
                 </tr>
               )}
             </tbody>
@@ -223,11 +345,12 @@ export default async function ReportsPage({
   );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
+function Kpi({ label, value, tone, hint }: { label: string; value: string; tone?: "good" | "bad"; hint?: string }) {
   return (
     <div className="rounded-xl border border-foreground/10 p-3">
       <p className="text-xs text-foreground/50">{label}</p>
       <p className={`mt-1 text-lg font-bold tabular-nums ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : ""}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-foreground/40">{hint}</p>}
     </div>
   );
 }
@@ -413,6 +536,10 @@ function WhatsAppMonthBars({ data }: { data: WhatsAppMonthPoint[] }) {
       </svg>
     </div>
   );
+}
+
+function formatMoneyOrDash(value: number | null): string {
+  return value == null ? "—" : formatArs(value);
 }
 
 function formatPercent(value: number | null): string {

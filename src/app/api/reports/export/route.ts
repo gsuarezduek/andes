@@ -5,11 +5,10 @@ import {
   sortVehicleReports,
   parseReportPeriod,
   DEFAULT_VEHICLE_SORT,
+  VEHICLE_SORT_KEYS,
   type VehicleSortKey,
 } from "@/lib/reports";
 import { csvResponse } from "@/lib/csv";
-
-const VEHICLE_SORT_KEYS: VehicleSortKey[] = ["rentals", "days", "income", "cost", "net", "damages"];
 
 export const runtime = "nodejs";
 
@@ -23,7 +22,7 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type") ?? "vehicles";
   const period = parseReportPeriod(req.nextUrl.searchParams.get("period") ?? undefined);
   const rawSort = req.nextUrl.searchParams.get("sort");
-  const sort = VEHICLE_SORT_KEYS.includes(rawSort as VehicleSortKey)
+  const sort = (VEHICLE_SORT_KEYS as readonly string[]).includes(rawSort ?? "")
     ? (rawSort as VehicleSortKey)
     : DEFAULT_VEHICLE_SORT;
   const dir = req.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
@@ -38,7 +37,21 @@ export async function GET(req: NextRequest) {
     name = "reporte-por-mes";
   } else {
     rows = [
-      ["Vehículo", "Patente", "Alquileres", "Días alquilado", "Ingresos", "Costos", "Neto", "Daños activos", "Archivado"],
+      [
+        "Vehículo",
+        "Patente",
+        "Alquileres",
+        "Días alquilado",
+        "Ocupación %",
+        "Ingresos",
+        "Ingreso por día",
+        "Costos",
+        "Costo / ingreso %",
+        "Neto",
+        "Neto por día",
+        "Daños activos",
+        "Archivado",
+      ],
     ];
     for (const v of sortVehicleReports(reports.vehicles, sort, dir)) {
       rows.push([
@@ -46,9 +59,13 @@ export async function GET(req: NextRequest) {
         v.plate,
         v.rentals,
         Number(v.days.toFixed(1)),
+        Number(v.occupancyPercent.toFixed(1)),
         v.income,
+        Math.round(v.incomePerDay),
         v.cost,
+        Number(v.costPercent.toFixed(1)),
         v.net,
+        Math.round(v.netPerDay),
         v.damages,
         v.archived ? "Sí" : "No",
       ]);

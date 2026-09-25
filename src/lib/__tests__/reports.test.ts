@@ -160,6 +160,10 @@ function vehicle(overrides: Partial<VehicleReport>): VehicleReport {
     net: 0,
     damages: 0,
     archived: false,
+    occupancyPercent: 0,
+    incomePerDay: 0,
+    netPerDay: 0,
+    costPercent: 0,
     ...overrides,
   };
 }
