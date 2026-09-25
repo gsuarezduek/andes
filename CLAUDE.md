@@ -748,7 +748,7 @@ Ajustes sobre la alerta "¡Urgente! Reservas terminadas con pagos pendientes" (C
 
 ## v55 — Calendario: colores unificados (service y presupuesto)
 
-Ajuste de colores del Calendario (sin cambios de datos). **Service / fuera de servicio** comparten el azul: la barra "En service" (sólida) y la fila de un auto fuera de servicio (azul tenue, antes rosa). **Pendiente y presupuesto** comparten el naranja: Pendiente es **sólido** (sin transparencia); el presupuesto (borrador) es el mismo naranja pero **punteado y más transparente** (antes índigo). El chip del tooltip, el aviso y el resaltado de días al armar un presupuesto pasaron a naranja también. Ver , ,  y la leyenda de .
+Ajuste de colores del Calendario (sin cambios de datos). **Service / fuera de servicio** comparten el azul: la barra "En service" (sólida) y la fila de un auto fuera de servicio (azul tenue, antes rosa). **Pendiente y presupuesto** comparten el naranja: Pendiente es **sólido** (sin transparencia); el presupuesto (borrador) es el mismo naranja pero **punteado y más transparente** (antes índigo). El chip del tooltip, el aviso y el resaltado de días al armar un presupuesto pasaron a naranja también. Ver `bar-style.ts`, `calendar-row.tsx`, `calendar-grid.tsx` y la leyenda de `calendar/page.tsx`.
 
 ## Pendientes que dependen del dueño
 
