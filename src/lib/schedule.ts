@@ -16,24 +16,27 @@ export const shiftLabels: Record<Shift, string> = {
   on_call: "Guardia",
 };
 
-/** Filas de la grilla semanal: mañana, tarde y guardia (aparte, en azul). */
-export type ScheduleRow = "morning" | "afternoon" | "on_call";
-export const SCHEDULE_ROWS: ScheduleRow[] = ["morning", "afternoon", "on_call"];
+/** Filas de la grilla semanal: mañana y tarde (la guardia va dentro de ambas, en azul). */
+export type ScheduleRow = "morning" | "afternoon";
+export const SCHEDULE_ROWS: ScheduleRow[] = ["morning", "afternoon"];
 
 export const rowLabels: Record<ScheduleRow, string> = {
   morning: "Mañana",
   afternoon: "Tarde",
-  on_call: "Guardia",
 };
 
-/** Un tramo horario ("HH:MM", hora de Mendoza) que un turno cubre en una fila. */
-export type Segment = { row: ScheduleRow; start: string; end: string };
+/**
+ * Un tramo horario ("HH:MM", hora de Mendoza) que un turno cubre en una fila.
+ * `onCall` marca la guardia: disponibilidad, no presencia (sin activo/inactivo).
+ */
+export type Segment = { row: ScheduleRow; start: string; end: string; onCall?: true };
 
 /**
  * Horarios de cada turno. Mañana 9 a 16 y tarde 13 a 20 (se pisan de 13 a 16).
  * El cortado es parte de cada turno con un corte en el medio: **supuesto** 9 a
  * 13 y 16 a 20 — se ajusta acá si el corte real es otro. La guardia es
- * disponibilidad, no presencia: no tiene "activo/inactivo".
+ * disponibilidad, no presencia: no tiene "activo/inactivo" y se muestra en
+ * las dos filas (mañana y tarde) para no ocupar una fila aparte.
  */
 export const SHIFT_SEGMENTS: Record<Shift, Segment[]> = {
   morning: [{ row: "morning", start: "09:00", end: "16:00" }],
@@ -42,7 +45,10 @@ export const SHIFT_SEGMENTS: Record<Shift, Segment[]> = {
     { row: "morning", start: "09:00", end: "13:00" },
     { row: "afternoon", start: "16:00", end: "20:00" },
   ],
-  on_call: [{ row: "on_call", start: "00:00", end: "24:00" }],
+  on_call: [
+    { row: "morning", start: "00:00", end: "24:00", onCall: true },
+    { row: "afternoon", start: "00:00", end: "24:00", onCall: true },
+  ],
 };
 
 export const WEEKDAY_LABELS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"] as const;
@@ -76,14 +82,14 @@ export function isSegmentActive(seg: Segment, nowMin: number): boolean {
 
 /**
  * Estado con el que se pinta a una persona en un tramo (verde/rojo/azul como
- * en el Excel que usaban): `on_call` = guardia (azul); hoy → `active` (verde,
+ * en el Excel que usaban): `onCall` = guardia (azul); hoy → `active` (verde,
  * en curso ahora) o `inactive` (rojo, todavía no empezó o ya terminó); otro
  * día → `scheduled` (neutro: no tiene sentido decir activo/inactivo).
  */
 export type ChipStatus = "active" | "inactive" | "on_call" | "scheduled";
 
 export function chipStatus(seg: Segment, isToday: boolean, nowMin: number): ChipStatus {
-  if (seg.row === "on_call") return "on_call";
+  if (seg.onCall) return "on_call";
   if (!isToday) return "scheduled";
   return isSegmentActive(seg, nowMin) ? "active" : "inactive";
 }

@@ -21,20 +21,18 @@ const chipClasses: Record<ChipStatus, string> = {
   scheduled: "bg-foreground/10 text-foreground",
 };
 
-/** Horario de cada fila, para el rótulo ("Mañana 9–16"). Guardia no tiene rango. */
-const rowRange: Record<ScheduleRow, string | null> = {
+/** Horario de cada fila, para el rótulo ("Mañana 9–16"). */
+const rowRange: Record<ScheduleRow, string> = {
   morning: segmentRange(SHIFT_SEGMENTS.morning[0]),
   afternoon: segmentRange(SHIFT_SEGMENTS.afternoon[0]),
-  on_call: null,
 };
 
 type Entry = { personId: string; name: string; seg: Segment; shift: Shift };
 
 /**
- * Semana de lunes a domingo dividida en Mañana / Tarde (y Guardia, si alguien la
- * tiene esa semana). Cada persona es un chip: verde = en turno ahora, rojo =
+ * Semana de lunes a domingo dividida en Mañana / Tarde. Cada persona es un chip: verde = en turno ahora, rojo =
  * hoy pero fuera de su horario, azul = guardia, gris = otros días. Un cortado
- * aparece en las dos filas, con las horas de cada parte.
+ * y una guardia aparecen en las dos filas (el cortado con las horas de cada parte).
  */
 export function WeekScheduleGrid({ schedule }: { schedule: WeekSchedule }) {
   const names = shortNames(schedule.people);
@@ -46,9 +44,6 @@ export function WeekScheduleGrid({ schedule }: { schedule: WeekSchedule }) {
         .filter((seg) => seg.row === row)
         .map((seg) => ({ personId: p.id, name: names.get(p.id) ?? p.name, seg, shift }));
     });
-
-  const hasOnCall = schedule.people.some((p) => Object.values(p.shifts).includes("on_call"));
-  const rows = SCHEDULE_ROWS.filter((r) => r !== "on_call" || hasOnCall);
 
   return (
     <div className="flex flex-col gap-2">
@@ -70,11 +65,11 @@ export function WeekScheduleGrid({ schedule }: { schedule: WeekSchedule }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {SCHEDULE_ROWS.map((row) => (
               <tr key={row} className="border-b border-foreground/5 last:border-0">
                 <th className="sticky left-0 z-10 bg-background px-2 py-2 text-left align-top">
                   <div className="text-xs font-semibold">{rowLabels[row]}</div>
-                  {rowRange[row] ? <div className="text-[10px] font-normal text-foreground/50">{rowRange[row]}</div> : null}
+                  <div className="text-[10px] font-normal text-foreground/50">{rowRange[row]}</div>
                 </th>
                 {schedule.days.map((d) => {
                   const entries = entriesFor(row, d.key);
@@ -86,7 +81,7 @@ export function WeekScheduleGrid({ schedule }: { schedule: WeekSchedule }) {
                           return (
                             <span
                               key={`${e.personId}-${e.seg.start}`}
-                              title={`${e.name} · ${shiftLabels[e.shift]}${row === "on_call" ? "" : ` ${segmentRange(e.seg)}`}`}
+                              title={`${e.name} · ${shiftLabels[e.shift]}${e.seg.onCall ? "" : ` ${segmentRange(e.seg)}`}`}
                               className={`truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium ${chipClasses[status]}`}
                             >
                               {e.name}

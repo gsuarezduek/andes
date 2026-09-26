@@ -61,6 +61,11 @@ describe("turnos", () => {
     expect(chipStatus(SHIFT_SEGMENTS.on_call[0], true, at("03:00"))).toBe("on_call");
   });
 
+  it("la guardia cubre las dos filas (mañana y tarde), sin fila propia", () => {
+    expect(SHIFT_SEGMENTS.on_call.map((seg) => seg.row)).toEqual(["morning", "afternoon"]);
+    expect(SHIFT_SEGMENTS.on_call.every((seg) => seg.onCall)).toBe(true);
+  });
+
   it("rangos legibles", () => {
     expect(segmentRange(morning)).toBe("9–16");
     expect(segmentRange({ row: "morning", start: "09:30", end: "13:00" })).toBe("9:30–13");
