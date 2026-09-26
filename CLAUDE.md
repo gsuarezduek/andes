@@ -753,6 +753,14 @@ Ajuste de colores del Calendario (sin cambios de datos). **Service / fuera de se
 
 - **Fix (eliminar reserva):** `deleteRental` no borraba las notas de equipo (`RentalNote`, FK obligatoria) y la base rechazaba el borrado de cualquier reserva con notas; ahora las incluye en la transacción. La guarda de evidencia (no se borra una reserva con entrega/acta) sigue igual: las reservas de prueba con entrega hubo que borrarlas con un script puntual sobre la base.
 
+## v56 — Configuración → Nube (uso de base de datos y archivos)
+
+Página admin `/settings/cloud` para ver cuánto espacio usan la base de datos y el almacenamiento de archivos. tsc/lint/tests en verde; **sin probar en navegador** (en local no hay R2, muestra "sin R2 configurado"). Sin migración.
+
+- **Archivos (R2):** `getFileUsage` (`src/lib/cloud-usage.ts`) lista el bucket completo (`ListObjectsV2` paginado, a demanda) y suma bytes/cantidad por tipo según la clave (`categorizeKey`: fotos, daños, videos, firmas, documentos, actas, WhatsApp). Barra contra los 10 GB del plan gratuito de R2 (`R2_FREE_TIER_BYTES`).
+- **Base de datos:** `getDatabaseUsage` con `pg_database_size` + las 8 tablas más pesadas (`pg_total_relation_size`, filas estimadas). Sin barra: Railway factura por uso, no hay tope fijo.
+- Ítem "Nube" en `/settings`.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
