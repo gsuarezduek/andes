@@ -8,11 +8,11 @@ export const ROW_H_WEEK = 60;
 /** A partir de esta cantidad de columnas se usa el layout compacto de Mes. */
 export const WEEK_MAX_COLUMNS = 7;
 
-// Columna fija de autos: angosta en mobile (sólo los últimos 3 de la patente,
-// sin modelo) y más ancha desde `sm:` (patente completa + modelo). El valor
+// Columna fija de autos: angosta en mobile (últimos 3 de la patente + modelo
+// abreviado) y más ancha desde `sm:` (patente completa + modelo). El valor
 // móvil se usa como piso conservador para el minWidth del contenido scrolleable.
-export const LABEL_W_MOBILE = 64;
-export const LABEL_W_CLASS = "w-16 sm:w-[168px]";
+export const LABEL_W_MOBILE = 80;
+export const LABEL_W_CLASS = "w-20 sm:w-[168px]";
 
 // Franja angosta debajo del track de barras reales donde se dibujan los
 // presupuestos (borradores, ver src/lib/rental-quotes.ts) — carril propio,

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
+import { detectLoginDevice } from "@/lib/user-agent";
 import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
-import { ButtonLink } from "@/components/ui/button";
-import { VerifiedIcon } from "@/components/ui/icons";
+import Link from "next/link";
 import { CalendarGrid } from "./calendar-grid";
+import { CalendarLegend } from "./calendar-legend";
+import { MonthPicker } from "./month-picker";
 
 export const metadata: Metadata = { title: "Calendario — Andes" };
 
@@ -15,7 +18,12 @@ export default async function CalendarPage({
 }) {
   const user = await requireUser();
   const { from, days: rawDays, month } = await searchParams;
-  const days = normalizeCalendarDays(rawDays);
+  // Sin `days` explícito (entrada desde el menú): en celular arranca en Mes
+  // (31 días) en vez de 90 — con 90 columnas de 46px no se lee casi nada.
+  // Cualquier link del propio calendario ya lleva `days`, así que esto solo
+  // define la vista inicial.
+  const isMobile = detectLoginDevice((await headers()).get("user-agent")) === "mobile";
+  const days = rawDays == null && isMobile ? MONTH_DAYS : normalizeCalendarDays(rawDays);
   const [data, conversationOptions] = await Promise.all([
     getCalendarData({ from, days, month }),
     listConversationPickerOptions(),
@@ -28,113 +36,58 @@ export default async function CalendarPage({
   const nav = (targetFrom: string) => `/calendar?from=${targetFrom}&days=${data.days}`;
   const navMonth = (targetMonth: string) => `/calendar?month=${targetMonth}`;
 
+  const modeHref = (d: number) => `/calendar?from=${data.from}&days=${d}`;
+  const navBtn =
+    "inline-flex h-9 items-center justify-center rounded-lg border border-foreground/15 px-3 text-sm font-semibold transition-colors hover:bg-foreground/5";
+  const segBtn = (active: boolean) =>
+    `inline-flex h-9 items-center justify-center px-3 text-sm font-semibold transition-colors ${
+      active ? "bg-foreground text-background" : "hover:bg-foreground/5"
+    }`;
+
   return (
-    <div className="ml-[calc(50%-50vw)] flex w-screen flex-col gap-4 px-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="ml-[calc(50%-50vw)] flex w-screen flex-col gap-3 px-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
           <p className="text-sm text-foreground/50">
             {data.month ? monthLabel(data.month) : `${fmtRange(rangeStart, rangeEnd)} · ${data.days} días`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <ButtonLink href={`/calendar?from=${data.from}&days=${WEEK_DAYS}`} variant={!data.month && data.days === WEEK_DAYS ? "primary" : "secondary"}>
-              Semana
-            </ButtonLink>
-            <ButtonLink href={`/calendar?from=${data.from}&days=${MONTH_DAYS}`} variant={!data.month && data.days === MONTH_DAYS ? "primary" : "secondary"}>
+        <div className="flex items-center gap-1.5">
+          <Link href={data.month ? navMonth(data.prevMonth) : nav(data.prevFrom)} className={navBtn} aria-label="Anterior">
+            <span aria-hidden>←</span>
+            <span className="ml-1 hidden sm:inline">Anterior</span>
+          </Link>
+          <Link href={data.month ? navMonth(data.todayMonth) : nav(data.todayFrom)} className={navBtn}>
+            Hoy
+          </Link>
+          <Link href={data.month ? navMonth(data.nextMonth) : nav(data.nextFrom)} className={navBtn} aria-label="Siguiente">
+            <span className="mr-1 hidden sm:inline">Siguiente</span>
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-foreground/15">
+            <Link href={modeHref(WEEK_DAYS)} className={segBtn(!data.month && data.days === WEEK_DAYS)}>
+              <span className="sm:hidden">Sem</span>
+              <span className="hidden sm:inline">Semana</span>
+            </Link>
+            <Link
+              href={modeHref(MONTH_DAYS)}
+              className={`border-x border-foreground/15 ${segBtn(!data.month && data.days === MONTH_DAYS)}`}
+            >
               Mes
-            </ButtonLink>
-            <ButtonLink href={`/calendar?from=${data.from}&days=${WIDE_DAYS}`} variant={!data.month && data.days === WIDE_DAYS ? "primary" : "secondary"}>
-              90 días
-            </ButtonLink>
+            </Link>
+            <Link href={modeHref(WIDE_DAYS)} className={segBtn(!data.month && data.days === WIDE_DAYS)}>
+              <span className="sm:hidden">90d</span>
+              <span className="hidden sm:inline">90 días</span>
+            </Link>
           </div>
-          <form className="flex items-center gap-2">
-            <input
-              type="month"
-              name="month"
-              defaultValue={data.month ?? undefined}
-              aria-label="Elegir mes"
-              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
-            />
-            <button className="h-9 rounded-lg border border-foreground/15 px-3 text-sm font-medium">
-              Ver mes
-            </button>
-          </form>
-          <div className="flex items-center gap-2">
-            <ButtonLink href={data.month ? navMonth(data.prevMonth) : nav(data.prevFrom)} variant="secondary">
-              ← Anterior
-            </ButtonLink>
-            <ButtonLink href={data.month ? navMonth(data.todayMonth) : nav(data.todayFrom)} variant="secondary">
-              Hoy
-            </ButtonLink>
-            <ButtonLink href={data.month ? navMonth(data.nextMonth) : nav(data.nextFrom)} variant="secondary">
-              Siguiente →
-            </ButtonLink>
-          </div>
+          <MonthPicker value={data.month} />
         </div>
       </div>
 
-      {/* Leyenda de colores de las barras */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-emerald-600/90" /> Activo
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-amber-400" /> Confirmado (pagado)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-orange-500" /> Pendiente
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-red-600/90" /> Cancelado
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-slate-400/90" /> Finalizado
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-blue-600/90" /> En service
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded border border-blue-600/30 bg-blue-600/10" /> Fuera de servicio (fila)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-flex size-4 items-center justify-center rounded-full bg-white text-emerald-700 ring-1 ring-emerald-700/40">
-            <VerifiedIcon className="size-2.5" />
-          </span>{" "}
-          Verificada por un admin
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" /> Temporada con aumento (día)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded border-2 border-dashed border-orange-500 bg-orange-500/20" />{" "}
-          Presupuesto (borrador)
-        </span>
-        {data.roomRows.length > 0 ? (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded bg-pink-500" /> Airbnb
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded bg-indigo-600" /> Booking
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded bg-teal-600" /> Habitación directa
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded bg-slate-500/70" /> Bloqueo
-            </span>
-          </>
-        ) : null}
-      </div>
-
-      <p className="text-xs text-foreground/40">
-        Pasá el mouse por una barra para ver las notas de la reserva; el precio de cada auto
-        (desktop) y los días con temporada especial se traen de VikRentCar. Tocá dos días vacíos de
-        un auto (inicio y fin) para armar un presupuesto — queda visible para todo el equipo, no
-        bloquea el auto.
-      </p>
+      <CalendarLegend showRooms={data.roomRows.length > 0} />
 
       <CalendarGrid
         columns={data.columns}

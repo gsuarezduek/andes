@@ -61,7 +61,7 @@ export function Row({
       {row.plate ? (
         <Link
           href={`/vehicles/${row.id}`}
-          className={`sticky left-0 z-10 relative flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
+          className={`sticky left-0 z-10 relative flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-2 transition-colors hover:bg-foreground/5 sm:px-3 ${LABEL_W_CLASS}`}
           style={{ height: totalH }}
         >
           {hasNotes && (
@@ -85,6 +85,11 @@ export function Row({
           <span className="truncate text-sm font-semibold leading-tight sm:hidden">
             {row.name ?? row.plate.slice(-3)}
           </span>
+          {row.name ? null : (
+            <span className="truncate text-[10px] leading-tight text-foreground/50 sm:hidden">
+              {row.model}
+            </span>
+          )}
           <span className="hidden truncate text-sm font-semibold leading-tight sm:block">
             {row.name ?? row.plate}
           </span>

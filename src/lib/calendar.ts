@@ -120,6 +120,8 @@ export type CalendarRow = {
   /** Apodo cargado en la ficha del auto — cuando existe, es la referencia
    *  principal de la fila (por delante de patente y marca/modelo). */
   name: string | null;
+  /** Solo el modelo (sin marca) — línea secundaria compacta en mobile. */
+  model: string | null;
   label: string;
   /** Tarifa de referencia (1 día), traída de VikRentCar (`Vehicle.dailyRate`).
    *  `null` si el modelo no tiene tarifa cargada, o la fila es una reserva sin
@@ -646,6 +648,7 @@ export async function getCalendarData(opts?: {
         id: r.id,
         plate: null,
         name: null,
+        model: null,
         dailyRate: null,
         label: bar.bookingModel ? `${bar.bookingModel} · sin unidad` : "Sin unidad asignada",
         outOfService: false,
@@ -680,6 +683,7 @@ export async function getCalendarData(opts?: {
       id: v.id,
       plate: v.plate,
       name: v.name,
+      model: v.model,
       dailyRate: v.dailyRate == null ? null : Number(v.dailyRate),
       label: `${v.brand} ${v.model}`,
       outOfService: v.status === "out_of_service",
