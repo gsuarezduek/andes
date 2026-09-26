@@ -100,12 +100,15 @@ export default async function WhatsAppPage({
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh intervalMs={15000} />
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">WhatsApp</h1>
-        <p className="text-sm text-foreground/60">Conversaciones con clientes.</p>
-      </div>
-
-      <BotTrainingPanel globalToggle={<GlobalBotToggle enabled={botConfig.enabled} />}>
+      <BotTrainingPanel
+        title={
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">WhatsApp</h1>
+            <p className="text-sm text-foreground/60">Conversaciones con clientes.</p>
+          </div>
+        }
+        globalToggle={<GlobalBotToggle enabled={botConfig.enabled} />}
+      >
         <BotSettingsTabs
           personality={
             <PersonalityForm
