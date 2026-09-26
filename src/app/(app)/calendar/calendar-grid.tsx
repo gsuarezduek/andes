@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow, RoomCalendarBar, RoomCalendarRow } from "@/lib/calendar";
 import {
   COL_W_MONTH,
   COL_W_WEEK,
@@ -12,6 +12,7 @@ import {
   LABEL_W_CLASS,
 } from "./calendar-constants";
 import { Row } from "./calendar-row";
+import { RoomRow } from "./room-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 import { QuoteFormModal } from "./quote-form-modal";
 import { QuoteDetailModal } from "./quote-detail-modal";
@@ -25,6 +26,7 @@ const APP_HEADER_H = 65;
 export function CalendarGrid({
   columns,
   rows,
+  roomRows,
   unassigned,
   conversationOptions,
   userId,
@@ -32,6 +34,7 @@ export function CalendarGrid({
 }: {
   columns: CalendarColumn[];
   rows: CalendarRow[];
+  roomRows: RoomCalendarRow[];
   unassigned: CalendarRow[];
   conversationOptions: ConversationPickerOption[];
   userId: string;
@@ -76,6 +79,17 @@ export function CalendarGrid({
     setHover({ type: "season", seasons, x: e.clientX, y: e.clientY });
   const showQuote = (quote: CalendarQuoteBar, e: React.MouseEvent) =>
     setHover({ type: "quote", quote, x: e.clientX, y: e.clientY });
+  const showRoom = (room: RoomCalendarBar, e: React.MouseEvent) => {
+    const r = roomRows.find((x) => x.id === room.roomId);
+    setHover({
+      type: "room",
+      room,
+      checkIn: r?.checkInTime ?? "",
+      checkOut: r?.checkOutTime ?? "",
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -88,7 +102,9 @@ export function CalendarGrid({
         ? `notes:${hover.title}`
         : hover?.type === "quote"
           ? `quote:${hover.quote.quoteId}`
-          : null;
+          : hover?.type === "room"
+            ? `room:${hover.room.bookingId}`
+            : null;
 
   // Selección de auto+rango para un presupuesto nuevo (dos toques): sin
   // selección activa, el primer toque la arranca; un segundo toque en la
@@ -234,6 +250,35 @@ export function CalendarGrid({
             <div className="px-3 py-6 text-center text-sm text-foreground/50">
               No hay vehículos en la flota.
             </div>
+          ) : null}
+
+          {/* Habitaciones (alquiler temporario) */}
+          {roomRows.length > 0 ? (
+            <>
+              <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
+                <div
+                  className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
+                >
+                  Habitaciones
+                </div>
+                <div style={{ width: trackW }} />
+              </div>
+              {roomRows.map((room) => (
+                <RoomRow
+                  key={room.id}
+                  row={room}
+                  columns={columns}
+                  trackW={trackW}
+                  colW={colW}
+                  rowH={rowH}
+                  dense={dense}
+                  activeKey={activeKey}
+                  onEnter={showRoom}
+                  onMove={move}
+                  onLeave={hide}
+                />
+              ))}
+            </>
           ) : null}
 
           {/* Reservas sin unidad asignada */}

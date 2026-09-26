@@ -6,6 +6,10 @@ import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { isRentalVerified } from "@/lib/rental-verification";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/rates";
+import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
+import { roomBarGeometry } from "@/lib/rooms/geometry";
+import { toBookingViews, bookingGuestLabel } from "@/lib/rooms/queries";
+import { addDaysToKey } from "@/lib/rooms/ical";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -169,9 +173,46 @@ export type CalendarColumn = {
   seasons: CalendarColumnSeason[];
 };
 
+/** Estadía de una habitación en la grilla. `startIndex`/`span` van en MEDIAS
+ *  columnas (la entrada y la salida caen a mediodía — ver `roomBarGeometry`). */
+export type RoomCalendarBar = {
+  bookingId: string;
+  roomId: string;
+  startIndex: number;
+  span: number;
+  clippedStart: boolean;
+  clippedEnd: boolean;
+  lane: number;
+  guest: string;
+  source: "airbnb" | "booking" | "other" | "manual";
+  isBlock: boolean;
+  /** Fechas reales ("YYYY-MM-DD"), sin recortar a la ventana. */
+  startDate: string;
+  endDate: string;
+  nights: number;
+  notes: string | null;
+  externalLabel: string | null;
+  totalAmount: number;
+  currency: "ars" | "usd";
+  /** Cobrado en la moneda del total (ingresos de Caja vinculados). */
+  paid: number;
+};
+
+export type RoomCalendarRow = {
+  id: string;
+  name: string;
+  nightlyRate: number | null;
+  checkInTime: string;
+  checkOutTime: string;
+  bars: RoomCalendarBar[];
+  laneCount: number;
+};
+
 export type CalendarData = {
   columns: CalendarColumn[];
   rows: CalendarRow[];
+  /** Habitaciones (alquiler temporario), debajo de los autos. */
+  roomRows: RoomCalendarRow[];
   /** Reservas sin unidad asignada (una fila por reserva; incluye sin confirmar). */
   unassigned: CalendarRow[];
   from: string;
@@ -460,7 +501,10 @@ export async function getCalendarData(opts?: {
   }
   const windowEnd = new Date(windowStart.getTime() + days * DAY_MS);
 
-  const [vehicles, notes, rentals, seasonRates, quotes] = await Promise.all([
+  const windowStartKey = formatDateInput(windowStart);
+  const windowEndKey = addDaysToKey(windowStartKey, days);
+
+  const [vehicles, notes, rentals, seasonRates, quotes, rooms] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
@@ -531,6 +575,21 @@ export async function getCalendarData(opts?: {
         conversation: { select: { phoneE164: true, customer: { select: { name: true } } } },
       },
       orderBy: { startAt: "asc" },
+    }),
+    prisma.room.findMany({
+      where: { archivedAt: null },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      include: {
+        bookings: {
+          // Las canceladas no se dibujan (una cancelación en Airbnb/Booking libera las fechas).
+          where: {
+            status: "confirmed",
+            startDate: { lt: keyToDate(windowEndKey) },
+            endDate: { gt: keyToDate(windowStartKey) },
+          },
+          orderBy: { startDate: "asc" },
+        },
+      },
     }),
   ]);
   const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({
@@ -634,9 +693,65 @@ export async function getCalendarData(opts?: {
     };
   });
 
+  // Cobrado por estadía (ingresos de Caja vinculados, en la moneda del total).
+  const roomBookingIds = rooms.flatMap((r) => r.bookings.map((b) => b.id));
+  const paidRows = roomBookingIds.length
+    ? await prisma.cashMovement.groupBy({
+        by: ["roomBookingId", "currency"],
+        where: { roomBookingId: { in: roomBookingIds }, type: "income", deletedAt: null },
+        _sum: { amount: true },
+      })
+    : [];
+  const paidByBooking = new Map<string, { ars: number; usd: number }>();
+  for (const p of paidRows) {
+    if (!p.roomBookingId) continue;
+    const cur = paidByBooking.get(p.roomBookingId) ?? { ars: 0, usd: 0 };
+    cur[p.currency] += Number(p._sum.amount ?? 0);
+    paidByBooking.set(p.roomBookingId, cur);
+  }
+
+  const roomRows: RoomCalendarRow[] = rooms.map((room) => {
+    const views = toBookingViews(room.bookings).filter((v) => !v.mirrored);
+    const bars: Omit<RoomCalendarBar, "lane">[] = [];
+    for (const v of views) {
+      const g = roomBarGeometry(v.startDate, v.endDate, windowStartKey, days);
+      if (!g) continue;
+      bars.push({
+        bookingId: v.id,
+        roomId: room.id,
+        startIndex: g.startHalf,
+        span: g.endHalf - g.startHalf,
+        clippedStart: g.clippedStart,
+        clippedEnd: g.clippedEnd,
+        guest: bookingGuestLabel(v),
+        source: v.source,
+        isBlock: v.isBlock,
+        startDate: v.startDate,
+        endDate: v.endDate,
+        nights: nightsBetween(v.startDate, v.endDate),
+        notes: v.notes?.trim() || null,
+        externalLabel: v.externalLabel,
+        totalAmount: v.totalAmount,
+        currency: v.currency,
+        paid: paidByBooking.get(v.id)?.[v.currency] ?? 0,
+      });
+    }
+    const { bars: laned, laneCount } = assignLanes(bars);
+    return {
+      id: room.id,
+      name: room.name,
+      nightlyRate: room.nightlyRate == null ? null : Number(room.nightlyRate),
+      checkInTime: room.checkInTime,
+      checkOutTime: room.checkOutTime,
+      bars: laned,
+      laneCount,
+    };
+  });
+
   return {
     columns,
     rows,
+    roomRows,
     unassigned,
     from,
     prevFrom: addDays(from, -days),

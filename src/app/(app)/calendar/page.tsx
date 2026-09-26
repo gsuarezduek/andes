@@ -111,6 +111,22 @@ export default async function CalendarPage({
           <span className="inline-block h-3 w-3 rounded border-2 border-dashed border-orange-500 bg-orange-500/20" />{" "}
           Presupuesto (borrador)
         </span>
+        {data.roomRows.length > 0 ? (
+          <>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded bg-pink-500" /> Airbnb
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded bg-indigo-600" /> Booking
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded bg-teal-600" /> Habitación directa
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded bg-slate-500/70" /> Bloqueo
+            </span>
+          </>
+        ) : null}
       </div>
 
       <p className="text-xs text-foreground/40">
@@ -123,6 +139,7 @@ export default async function CalendarPage({
       <CalendarGrid
         columns={data.columns}
         rows={data.rows}
+        roomRows={data.roomRows}
         unassigned={data.unassigned}
         conversationOptions={conversationOptions}
         userId={user.id}

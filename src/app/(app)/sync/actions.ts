@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/auth-helpers";
 import { runBookingSync, type SyncSummary } from "@/lib/sync/engine";
+import { runRoomSync } from "@/lib/rooms/sync";
 import { seedFleetFromWp } from "@/lib/sync/fleet-seed";
 import { importBookingPayment } from "@/lib/sync/booking-upsert";
 import { sendDailySummaryEmail } from "@/lib/daily-summary";
@@ -17,7 +18,10 @@ import { sendDailySummaryEmail } from "@/lib/daily-summary";
 export async function triggerSync(): Promise<Pick<SyncSummary, "result" | "message">> {
   await requireUser();
   const { result, message } = await runBookingSync();
+  // También las habitaciones (best-effort, no cambia el resultado mostrado).
+  await runRoomSync().catch((e) => console.error("[rooms] sync manual falló", e));
   revalidatePath("/sync");
+  revalidatePath("/calendar");
   return { result, message };
 }
 

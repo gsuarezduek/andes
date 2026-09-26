@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { vehicleStatusLabels } from "@/lib/labels";
 import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { formatArs } from "@/lib/contract";
+import { FleetTabs } from "@/components/rooms/fleet-tabs";
 import { VehicleFilters } from "./vehicle-filters";
 
 export const metadata: Metadata = { title: "Vehículos — Andes" };
@@ -71,6 +72,7 @@ export default async function VehiclesPage({
 
   return (
     <div className="flex flex-col gap-5">
+      <FleetTabs active="vehicles" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Vehículos</h1>

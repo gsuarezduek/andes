@@ -1,5 +1,5 @@
 import type { RentalStatus } from "@prisma/client";
-import type { CalendarBar } from "@/lib/calendar";
+import type { CalendarBar, RoomCalendarBar } from "@/lib/calendar";
 import { rentalStatusDisplay, paymentBorderClass } from "@/lib/rental-ui";
 
 /** Etiqueta de estado para el tooltip: la "oficial" (src/lib/rental-ui), la
@@ -59,5 +59,35 @@ export function chipClasses(bar: CalendarBar): string {
       return bar.confirmed
         ? "bg-amber-500/20 text-amber-700 dark:text-amber-500"
         : "bg-orange-500/20 text-orange-700 dark:text-orange-400";
+  }
+}
+
+/** Color de una estadía de habitación según su procedencia (ver leyenda en la página). */
+export function roomBarClasses(bar: RoomCalendarBar): string {
+  if (bar.isBlock) return "bg-slate-500/70 text-white hover:ring-slate-300";
+  switch (bar.source) {
+    case "airbnb":
+      return "bg-pink-500 text-white hover:bg-pink-500/90 hover:ring-pink-300";
+    case "booking":
+      return "bg-indigo-600 text-white hover:bg-indigo-600/90 hover:ring-indigo-300";
+    case "manual":
+      return "bg-teal-600 text-white hover:bg-teal-600/90 hover:ring-teal-300";
+    default:
+      return "bg-cyan-700 text-white hover:bg-cyan-700/90 hover:ring-cyan-300";
+  }
+}
+
+/** Chip del tooltip de una estadía (fondo suave + texto). */
+export function roomChipClasses(bar: RoomCalendarBar): string {
+  if (bar.isBlock) return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
+  switch (bar.source) {
+    case "airbnb":
+      return "bg-pink-500/20 text-pink-700 dark:text-pink-400";
+    case "booking":
+      return "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400";
+    case "manual":
+      return "bg-teal-500/20 text-teal-700 dark:text-teal-400";
+    default:
+      return "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400";
   }
 }

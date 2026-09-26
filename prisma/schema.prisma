@@ -222,6 +222,7 @@ model User {
   createdRentalNotes             RentalNote[]            @relation("RentalNoteCreator")
   resolvedRentalNotes            RentalNote[]            @relation("RentalNoteResolver")
   verifiedRentals                Rental[]                @relation("RentalVerifier")
+  createdRoomBookings            RoomBooking[]           @relation("RoomBookingCreator")
   rentalVerifications            RentalVerification[]    @relation("RentalVerificationActor")
   createdCashMovements           CashMovement[]          @relation("CashMovementCreator")
   deletedCashMovements           CashMovement[]          @relation("CashMovementDeleter")
@@ -1112,6 +1113,12 @@ model CashMovement {
 
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])
+
+  // Cobro de la reserva de una habitación (ver `RoomBooking`). Alternativa a
+  // `rentalId`: un movimiento pertenece a un alquiler de auto o a una estadía,
+  // nunca a los dos.
+  roomBookingId String?      @map("room_booking_id")
+  roomBooking   RoomBooking? @relation(fields: [roomBookingId], references: [id])
 
   // true = importado automático desde VikRentCar sin poder resolver a qué
   // medio de pago de Andes corresponde (nombre desconocido, o mapeado a más
@@ -2077,4 +2084,129 @@ model StorageExport {
 
   @@index([planHash])
   @@map("storage_exports")
+}
+
+
+// ---------------------------------------------------------------------------
+// Habitaciones (alquiler temporario: Airbnb / Booking / directas)
+// ---------------------------------------------------------------------------
+// Entidad aparte de Vehicle/Rental a propósito: una estadía no tiene
+// inspección, firma, acta ni km, y no debe contar en la flota, la ocupación ni
+// los reportes de autos. Las reservas de Airbnb/Booking entran por iCal (solo
+// lectura, ver src/lib/rooms/sync.ts); también se cargan a mano.
+
+enum RoomBookingSource {
+  airbnb
+  booking
+  other
+  manual
+}
+
+enum RoomBookingStatus {
+  confirmed
+  cancelled
+}
+
+model Room {
+  id String @id @default(cuid())
+
+  name        String
+  description String? @db.Text
+  capacity    Int?
+
+  // Tarifa por noche de referencia (lo que se cobra al huésped).
+  nightlyRate Decimal? @map("nightly_rate") @db.Decimal(12, 2)
+
+  // Horas de entrada/salida por defecto ("HH:MM", hora Mendoza). El iCal trae
+  // solo fechas, así que el horario sale de acá.
+  checkInTime  String @default("14:00") @map("check_in_time")
+  checkOutTime String @default("10:00") @map("check_out_time")
+
+  notes String? @db.Text
+
+  // Orden manual en el Calendario (menor = más arriba), nulos al final.
+  sortOrder Int? @map("sort_order")
+
+  archivedAt DateTime? @map("archived_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  feeds    RoomCalendarFeed[]
+  bookings RoomBooking[]
+
+  @@map("rooms")
+}
+
+/// Link iCal (export de Airbnb/Booking) de una habitación. Solo se lee.
+model RoomCalendarFeed {
+  id String @id @default(cuid())
+
+  roomId String @map("room_id")
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  source RoomBookingSource
+  url    String            @db.Text
+  active Boolean           @default(true)
+
+  lastSyncAt      DateTime? @map("last_sync_at")
+  lastSyncOk      Boolean?  @map("last_sync_ok")
+  lastSyncMessage String?   @map("last_sync_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bookings RoomBooking[]
+
+  @@index([roomId])
+  @@map("room_calendar_feeds")
+}
+
+model RoomBooking {
+  id String @id @default(cuid())
+
+  roomId String @map("room_id")
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  source RoomBookingSource
+
+  // Solo las importadas por iCal: de qué feed y con qué UID del evento.
+  feedId      String?           @map("feed_id")
+  feed        RoomCalendarFeed? @relation(fields: [feedId], references: [id], onDelete: SetNull)
+  externalUid String?           @map("external_uid")
+
+  // Fechas de calendario (sin hora). `endDate` es el día de SALIDA: esa noche
+  // no se ocupa, así una salida y una entrada el mismo día no se pisan.
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  guestName String? @map("guest_name")
+
+  // Textos crudos del evento iCal (el iCal casi nunca trae el nombre del huésped).
+  externalLabel       String? @map("external_label")
+  externalDescription String? @map("external_description") @db.Text
+
+  // Bloqueo de disponibilidad (no una reserva de un huésped).
+  isBlock Boolean @default(false) @map("is_block")
+
+  status      RoomBookingStatus @default(confirmed)
+  cancelledAt DateTime?         @map("cancelled_at")
+
+  notes String? @db.Text
+
+  // Total pactado de la estadía (opcional; lo carga una persona, el sync nunca lo toca).
+  totalAmount Decimal  @default(0) @map("total_amount") @db.Decimal(12, 2)
+  currency    Currency @default(ars)
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("RoomBookingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String? @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cashMovements CashMovement[]
+
+  @@unique([feedId, externalUid])
+  @@index([roomId, startDate])
+  @@map("room_bookings")
 }

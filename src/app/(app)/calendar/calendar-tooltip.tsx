@@ -1,24 +1,29 @@
-import type { CalendarBar, CalendarColumnSeason, CalendarNote, CalendarQuoteBar } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumnSeason, CalendarNote, CalendarQuoteBar, RoomCalendarBar } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
-import { formatArs } from "@/lib/contract";
-import { chipClasses, quoteChipClasses, statusLabel } from "./bar-style";
+import { formatArs, formatMoney } from "@/lib/contract";
+import { roomSourceLabels } from "@/lib/rooms/feed-url";
+import { chipClasses, quoteChipClasses, roomChipClasses, statusLabel } from "./bar-style";
 
 export type HoverContent =
   | { type: "bar"; bar: CalendarBar }
   | { type: "notes"; title: string; notes: CalendarNote[] }
   | { type: "season"; seasons: CalendarColumnSeason[] }
-  | { type: "quote"; quote: CalendarQuoteBar };
+  | { type: "quote"; quote: CalendarQuoteBar }
+  | { type: "room"; room: RoomCalendarBar; checkIn: string; checkOut: string };
 export type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
   const { x, y } = hover;
   // Se ubica cerca del cursor, corrido para no taparlo; fixed + pointer-events-none.
   const left = Math.min(x + 14, (typeof window !== "undefined" ? window.innerWidth : 9999) - 300);
-  const top = y + 18;
+  // En la mitad de abajo de la pantalla (ej. las filas de habitaciones, al
+  // final de la grilla) el tooltip se abre hacia arriba para no quedar cortado.
+  const openUp = typeof window !== "undefined" && y > window.innerHeight * 0.6;
+  const position = openUp ? { bottom: window.innerHeight - y + 18 } : { top: y + 18 };
   return (
     <div
       className="pointer-events-none fixed z-50 w-72 rounded-lg border border-foreground/15 bg-background p-3 text-xs shadow-xl"
-      style={{ left, top }}
+      style={{ left, ...position }}
     >
       {hover.type === "notes" ? (
         <NotesTooltipBody title={hover.title} notes={hover.notes} />
@@ -26,6 +31,8 @@ export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
         <SeasonTooltipBody seasons={hover.seasons} />
       ) : hover.type === "quote" ? (
         <QuoteTooltipBody quote={hover.quote} />
+      ) : hover.type === "room" ? (
+        <RoomTooltipBody room={hover.room} checkIn={hover.checkIn} checkOut={hover.checkOut} />
       ) : (
         <BarTooltipBody bar={hover.bar} />
       )}
@@ -63,6 +70,44 @@ function QuoteTooltipBody({ quote }: { quote: CalendarQuoteBar }) {
       <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">
         Tocá la barra para ver el detalle.
       </p>
+    </>
+  );
+}
+
+/** "2026-09-30" → "30/09". */
+const shortKey = (k: string) => `${k.slice(8, 10)}/${k.slice(5, 7)}`;
+
+function RoomTooltipBody({ room, checkIn, checkOut }: { room: RoomCalendarBar; checkIn: string; checkOut: string }) {
+  const remaining = room.totalAmount > 0 ? room.totalAmount - room.paid : null;
+  return (
+    <>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="truncate">{room.guest}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${roomChipClasses(room)}`}>
+          {room.isBlock ? "Bloqueo" : roomSourceLabels[room.source]}
+        </span>
+      </p>
+      <p className="mt-0.5 text-foreground/60">
+        Entra {shortKey(room.startDate)} {checkIn} → sale {shortKey(room.endDate)} {checkOut} · {room.nights} noche
+        {room.nights === 1 ? "" : "s"}
+      </p>
+      {room.totalAmount > 0 ? (
+        <p className="mt-1 font-medium">
+          {formatMoney(room.totalAmount, room.currency)}
+          {remaining != null && remaining <= 0 ? (
+            <span className="text-emerald-600 dark:text-emerald-400"> · pagada</span>
+          ) : (
+            <span className="text-red-600 dark:text-red-400"> · falta {formatMoney(remaining, room.currency)}</span>
+          )}
+        </p>
+      ) : null}
+      {room.notes ? (
+        <p className="mt-1.5 whitespace-pre-wrap border-t border-foreground/10 pt-1.5 text-foreground/80">{room.notes}</p>
+      ) : (
+        <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">
+          {room.externalLabel ? `Calendario: ${room.externalLabel}` : "Sin notas."}
+        </p>
+      )}
     </>
   );
 }

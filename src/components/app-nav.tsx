@@ -87,8 +87,13 @@ export function AppNav({
       : []),
   ];
 
+  // Habitaciones vive dentro de Vehículos (mismo ítem del menú, dos pestañas).
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+    href === "/"
+      ? pathname === "/"
+      : href === "/vehicles"
+        ? pathname.startsWith("/vehicles") || pathname.startsWith("/rooms")
+        : pathname.startsWith(href);
 
   return (
     <>
