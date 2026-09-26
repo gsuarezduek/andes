@@ -50,6 +50,16 @@ export function ChevronRightIcon({ className = "size-4" }: { className?: string 
   );
 }
 
+/** Lupa — abre la paleta de comandos en el header. */
+export function SearchIcon({ className = "size-[18px]" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.2-4.2" />
+    </svg>
+  );
+}
+
 /** Cámara (sacar foto) — reemplaza el emoji 📷 en la captura de documentos. */
 export function CameraIcon({ className = "size-[18px]" }: { className?: string }) {
   return (

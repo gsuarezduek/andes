@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import { ConnectedUsers } from "@/components/nav/connected-users";
+import { CommandPaletteButton } from "@/components/nav/command-palette";
 import type { Item } from "@/components/nav/types";
 import type { OnlineUser } from "@/lib/presence";
 
@@ -16,6 +17,7 @@ export function MobileNav({
   sync,
   onlineUsers,
   viewToggle,
+  onOpenPalette,
 }: {
   mainItems: Item[];
   menuItems: Item[];
@@ -25,6 +27,7 @@ export function MobileNav({
   sync?: () => Promise<SyncOutcome>;
   onlineUsers?: OnlineUser[];
   viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
+  onOpenPalette: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -32,6 +35,12 @@ export function MobileNav({
     <>
       {/* Mobile: ícono de sync (siempre visible) + botón hamburguesa */}
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:hidden">
+        <CommandPaletteButton
+          onOpen={() => {
+            setMobileOpen(false);
+            onOpenPalette();
+          }}
+        />
         <ConnectedUsers initialUsers={onlineUsers ?? []} />
         {sync ? <SyncButton sync={sync} /> : null}
         <button

@@ -783,6 +783,15 @@ Herramienta admin en **Configuración → Nube → "Limpiar archivos"** (`/setti
 - **Las actas nuevas ya se generan comprimidas**: `renderActaBuffer` aplica `compressPdfImages` al final (acta guardada y adjunta al email más liviana; si falla o no hay ahorro, sale el PDF original).
 - **Fuera de alcance**: archivos huérfanos (subidas de borradores nunca guardados), videos/audios, y `WhatsAppBotDocument`/foto de vehículo (no se tocan).
 
+## v57 — Paleta de comandos (Ctrl/⌘ + K)
+
+Buscador para saltar a cualquier sección sin recorrer la barra. Construida y probada en local (tsc/lint/644 tests en verde; verificado por navegador con Playwright en desktop y 375px, admin y empleado). Sin migración ni dependencias nuevas. **Sin desplegar todavía.**
+
+- **Atajo y botones**: Ctrl/⌘ + K abre/cierra (listener global en `AppNav`); además hay una lupa en el header de desktop y de mobile (`CommandPaletteButton`). Flechas para moverse, Enter para ir, Esc para cerrar.
+- **Catálogo** en `src/lib/command-palette.ts` (puro, testeado): destinos "Ir a" (barra principal + Perfil/Sincronización/GPS/Competencia), "Crear" (nueva reserva, vehículo, usuario, hoja de QR) y "Configuración" (cada sub-pantalla). Los de admin (`adminOnly`) no se ofrecen a un empleado — la guarda real sigue en cada página. **Si se agrega una pantalla nueva, sumarla a `COMMANDS`.**
+- **Búsqueda**: sin tildes ni mayúsculas, con sinónimos (`keywords`: "plata" → Caja, "chakra" → Cuenta de WhatsApp); todos los términos tienen que matchear y el título pesa más que un sinónimo.
+- **Alcance a propósito**: solo navegación a pantallas fijas. No busca reservas/clientes/vehículos puntuales (eso lo cubre el buscador del Home) ni abre pestañas internas de Caja (son estado de cliente, no URL).
+
 ## v58 — Habitaciones (alquiler temporario: Airbnb / Booking / directas)
 
 Dos (o más) habitaciones que se alquilan por Airbnb y Booking, visibles en el Calendario junto a los autos y gestionadas desde Vehículos. Construida y probada en local (tsc/lint/tests en verde; verificado por navegador con Playwright a 1280px y 375px contra feeds iCal falsos servidos localmente: alta, sync, cancelación por desaparición, deduplicación de espejos, reserva manual con choque, cobro a Caja, tooltip). Migración `add_rooms`. **Sin desplegar todavía. Falta probar con los links iCal reales** (el formato exacto del feed de Booking no está verificado — mismo criterio que la Fase 0 con VikRentCar).

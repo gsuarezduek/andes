@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DesktopNav } from "@/components/nav/desktop-nav";
 import { MobileNav } from "@/components/nav/mobile-nav";
+import { CommandPalette } from "@/components/nav/command-palette";
 import type { SyncOutcome } from "@/components/nav/sync-button";
 import type { Item } from "@/components/nav/types";
 import type { OnlineUser } from "@/lib/presence";
@@ -21,6 +23,7 @@ import type { OnlineUser } from "@/lib/presence";
  *   de la sesión de admin) y Salir — ajustes/administración menos frecuentes que
  *   la navegación operativa de la barra principal.
  * - En mobile todo colapsa en un menú hamburguesa.
+ * - Paleta de comandos (Ctrl/⌘ + K, o la lupa del header) para saltar a cualquier sección.
  */
 export function AppNav({
   isAdmin,
@@ -51,6 +54,18 @@ export function AppNav({
   disableEmployeeView?: () => Promise<void>;
 }) {
   const pathname = usePathname();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const viewToggle =
     isRealAdmin && enableEmployeeView && disableEmployeeView
@@ -108,6 +123,7 @@ export function AppNav({
         sync={sync}
         onlineUsers={onlineUsers}
         viewToggle={viewToggle}
+        onOpenPalette={() => setPaletteOpen(true)}
       />
       <MobileNav
         mainItems={mainItems}
@@ -118,7 +134,9 @@ export function AppNav({
         sync={sync}
         onlineUsers={onlineUsers}
         viewToggle={viewToggle}
+        onOpenPalette={() => setPaletteOpen(true)}
       />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} isAdmin={isAdmin} />
     </>
   );
 }

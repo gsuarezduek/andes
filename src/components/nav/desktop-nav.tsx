@@ -4,6 +4,7 @@ import { useState } from "react";
 import { NavLink } from "@/components/nav-link";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import { ConnectedUsers } from "@/components/nav/connected-users";
+import { CommandPaletteButton } from "@/components/nav/command-palette";
 import type { Item } from "@/components/nav/types";
 import type { OnlineUser } from "@/lib/presence";
 
@@ -17,6 +18,7 @@ export function DesktopNav({
   sync,
   onlineUsers,
   viewToggle,
+  onOpenPalette,
 }: {
   mainItems: Item[];
   menuItems: Item[];
@@ -26,6 +28,7 @@ export function DesktopNav({
   sync?: () => Promise<SyncOutcome>;
   onlineUsers?: OnlineUser[];
   viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
+  onOpenPalette: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -42,6 +45,7 @@ export function DesktopNav({
 
       {/* Desktop: submenú de cuenta (desplegable) */}
       <div className="relative hidden shrink-0 items-center gap-1 sm:flex">
+        <CommandPaletteButton onOpen={onOpenPalette} />
         <ConnectedUsers initialUsers={onlineUsers ?? []} />
         {sync ? <SyncButton sync={sync} /> : null}
         <button
