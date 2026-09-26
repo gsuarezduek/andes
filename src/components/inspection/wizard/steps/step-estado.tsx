@@ -1,9 +1,11 @@
 import { TextField } from "@/components/ui/fields";
 import { FuelSelector } from "@/components/inspection/fuel-selector";
 import type { StepContext } from "../context";
+import { kmWarning } from "../logic";
 
 export function StepEstado({ ctx }: { ctx: StepContext }) {
   const { draft, patch, props, maxFuel } = ctx;
+  const warning = kmWarning(draft.km, props.mode === "handover", props.vehicle?.currentKm, props.returnContext);
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -36,7 +38,22 @@ export function StepEstado({ ctx }: { ctx: StepContext }) {
           })}
         </ul>
       </div>
-      <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
+      <TextField id="km" label="Kilometraje actual" type="number" inputMode="numeric" value={draft.km} onChange={(e) => patch({ km: e.target.value, kmConfirmed: false })} min={0} hint={props.returnContext ? `Entrega: ${props.returnContext.handoverKm.toLocaleString("es-AR")} km` : undefined} />
+      {warning && (
+        <div role="alert" className="-mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-medium text-amber-800 dark:text-amber-300">Revisá el kilometraje</p>
+          <p className="mt-1 text-foreground/80">{warning}</p>
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.kmConfirmed}
+              onChange={(e) => patch({ kmConfirmed: e.target.checked })}
+              className="size-5"
+            />
+            Confirmo que el kilometraje es correcto
+          </label>
+        </div>
+      )}
       <div>
         <p className="mb-2 text-sm font-medium text-foreground/80">Nivel de nafta</p>
         <FuelSelector value={draft.fuelLevel} onChange={(v) => patch({ fuelLevel: v })} max={maxFuel} />

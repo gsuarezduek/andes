@@ -97,6 +97,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     guaranteeForm: props.pricing?.guaranteeForm ?? "",
     payments: props.initialPayments ?? [],
     km: props.vehicle ? String(props.vehicle.currentKm) : "",
+    kmConfirmed: false,
     // Arranca en 0 (tanque vacío) a propósito: obliga a elegir el nivel real en
     // vez de aceptar un default. Igual criterio en entrega y devolución.
     fuelLevel: 0,
@@ -357,7 +358,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const settlement = buildSettlement(draft, props.returnContext);
 
   async function next() {
-    const v = validateStep(current, draft, isHandover, props.checklistItems, props.returnContext);
+    const v = validateStep(
+      current,
+      draft,
+      isHandover,
+      props.checklistItems,
+      props.returnContext,
+      effectiveVehicle?.currentKm,
+    );
     if (v) return setError(v);
     if (current === "Firma") {
       const localDrawn = Boolean(sigRef.current && !sigRef.current.isEmpty());
@@ -460,6 +468,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       patch({
         vehicleId: res.vehicle.id,
         km: String(res.vehicle.currentKm),
+        kmConfirmed: false,
         fuelLevel: 0,
         checklist: {},
         damages: [],

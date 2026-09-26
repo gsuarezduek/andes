@@ -123,6 +123,8 @@ export type Reports = {
   // todavía no hay ningún valor de referencia cargado (quedan fuera de los
   // totales de Caja de arriba). Normalmente 0.
   usdUnconverted: number;
+  // Reservas que un admin excluyó a mano de las métricas de alquileres (total, no solo del período).
+  excludedRentals: number;
   // Ocupación de la flota operativa en el período (ver computeOccupancy).
   occupancy: OccupancySummary;
   // Sobre los alquileres finalizados del período (ingreso del contrato, no de Caja).
@@ -430,6 +432,7 @@ export const getReports = unstable_cache(
       occupancyRentals,
       bookingRentals,
       pendingConfirmation,
+      excludedRentals,
     ] = await Promise.all([
         // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
         // historial de ingresos/costos del período, aunque ya no esté en la
@@ -440,7 +443,7 @@ export const getReports = unstable_cache(
         // Primer alquiler finalizado (cualquiera): tope real del gráfico "por
         // mes" cuando el período elegido es un mes puntual (ver chartMonthCount).
         prisma.rental.findFirst({
-          where: { status: "finished" },
+          where: { status: "finished", reportsExcludedAt: null },
           orderBy: { endAt: "asc" },
           select: { endAt: true },
         }),
@@ -460,7 +463,7 @@ export const getReports = unstable_cache(
           where: { repaired: false },
           _count: { _all: true },
         }),
-        prisma.rental.count({ where: { status: "active" } }),
+        prisma.rental.count({ where: { status: "active", reportsExcludedAt: null } }),
         // Ingresos/egresos de Caja del período, para el desglose por cuenta
         // propia/ajena — fuente de datos distinta de `finished` (movimientos
         // de efectivo reales, no el total contractual de la reserva).
@@ -488,6 +491,7 @@ export const getReports = unstable_cache(
         prisma.rental.findMany({
           where: {
             vehicleId: { not: null },
+            reportsExcludedAt: null,
             status: { in: ["active", "finished"] },
             inspections: { some: { type: "handover", createdAt: { lt: periodRange.end } } },
             OR: [
@@ -504,14 +508,17 @@ export const getReports = unstable_cache(
           where: {
             status: { in: ["reserved", "active", "finished", "cancelled"] },
             maintenanceLogs: { none: {} },
+            reportsExcludedAt: null,
             startAt: { gte: periodRange.start, lt: periodRange.end },
           },
           select: { status: true, startAt: true, bookingCreatedAt: true },
         }),
         // Reservas futuras todavía sin confirmar en VikRentCar (estado de hoy).
         prisma.rental.count({
-          where: { status: "reserved", bookingConfirmed: false, startAt: { gte: now } },
+          where: { status: "reserved", bookingConfirmed: false, reportsExcludedAt: null, startAt: { gte: now } },
         }),
+        // Reservas excluidas a mano de estas métricas (aviso al pie de la página).
+        prisma.rental.count({ where: { reportsExcludedAt: { not: null } } }),
       ]);
 
     // El gráfico "por mes" es independiente del período elegido arriba
@@ -536,7 +543,7 @@ export const getReports = unstable_cache(
     // falta traer cada alquiler finalizado para resolverlo en JS.
     const [finishedInRange, whatsappMessagesInRange] = await Promise.all([
       prisma.rental.findMany({
-        where: { status: "finished", endAt: { gte: queryStart, lt: now } },
+        where: { status: "finished", reportsExcludedAt: null, endAt: { gte: queryStart, lt: now } },
         select: {
           id: true,
           vehicleId: true,
@@ -749,6 +756,7 @@ export const getReports = unstable_cache(
       cashByOwnership,
       expensesByCategory,
       usdUnconverted,
+      excludedRentals,
       occupancy: occupancy.summary,
       revenue: {
         perRentedDay: daysSum > 0 ? incomeWithDays / daysSum : null,

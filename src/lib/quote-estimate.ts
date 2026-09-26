@@ -39,3 +39,12 @@ export function estimateQuoteTotal(
   const total = daySeasonsByDay.reduce((sum, seasons) => sum + baseRate * seasonMultiplier(seasons), 0);
   return Math.round(total);
 }
+
+/** Precio por día = total ÷ días, redondeado a peso entero. `null` si falta
+ *  el total o no es un número válido, o si los días no son positivos. Se
+ *  calcula sobre el total que esté cargado (sugerido o editado a mano), no
+ *  sobre la tarifa: es lo que se le dice al cliente. */
+export function quotePricePerDay(total: number | null, days: number): number | null {
+  if (total == null || Number.isNaN(total) || total <= 0 || days <= 0) return null;
+  return Math.round(total / days);
+}

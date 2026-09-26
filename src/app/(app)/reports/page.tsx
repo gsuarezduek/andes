@@ -49,7 +49,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, revenue, extras, bookings } =
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, revenue, extras, bookings, excludedRentals } =
     await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
@@ -85,6 +85,14 @@ export default async function ReportsPage({
           </button>
         </form>
       </div>
+
+      {excludedRentals > 0 && (
+        <p className="-mt-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-foreground/70">
+          {excludedRentals === 1 ? "1 reserva está excluida" : `${excludedRentals} reservas están excluidas`} a mano de las métricas de
+          alquileres (finalizados, km, extras, ocupación, reservas, por vehículo). Caja no se ve afectada. El motivo está en el detalle
+          de cada reserva.
+        </p>
+      )}
 
       {/* Estado actual de la flota — no depende del período elegido */}
       <section className="flex flex-col gap-3">

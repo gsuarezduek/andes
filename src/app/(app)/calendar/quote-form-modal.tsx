@@ -8,9 +8,10 @@ import { TextField, TextareaField } from "@/components/ui/fields";
 import { ConversationPicker } from "@/components/whatsapp/conversation-picker";
 import type { ConversationPickerOption } from "@/lib/rental-quotes";
 import type { CalendarColumn, CalendarRow } from "@/lib/calendar";
-import { estimateQuoteTotal } from "@/lib/quote-estimate";
+import { estimateQuoteTotal, quotePricePerDay } from "@/lib/quote-estimate";
 import { formatArs } from "@/lib/contract";
 import { createQuote } from "./actions";
+import { PerDayBox } from "./quote-per-day-box";
 
 /** "2026-07-18" → "18/07". */
 function fmtShortDate(s: string): string {
@@ -62,6 +63,7 @@ export function QuoteFormModal({
   ];
 
   const [total, setTotal] = useState(suggested != null ? String(suggested) : "");
+  const perDay = quotePricePerDay(Number(total.replace(",", ".")), days);
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(null);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string>();
@@ -124,6 +126,7 @@ export function QuoteFormModal({
           value={total}
           onChange={(e) => setTotal(e.target.value)}
         />
+        {perDay != null ? <PerDayBox perDay={perDay} days={days} /> : null}
         <TextField id="clientName" label="Cliente" hint="Opcional" type="text" />
         <TextareaField id="note" label="Nota" hint="Opcional" />
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateQuoteTotal } from "@/lib/quote-estimate";
+import { estimateQuoteTotal, quotePricePerDay } from "@/lib/quote-estimate";
 
 const NO_SEASON: { diffPercent: number }[] = [];
 const days = (n: number) => Array.from({ length: n }, () => NO_SEASON);
@@ -38,5 +38,22 @@ describe("estimateQuoteTotal", () => {
   it("varias temporadas el mismo día se multiplican entre sí", () => {
     const total = estimateQuoteTotal(100_000, NO_SEASON, [[{ diffPercent: 10 }, { diffPercent: 5 }]]);
     expect(total).toBe(115_500); // 100.000 × 1.1 × 1.05
+  });
+});
+
+describe("quotePricePerDay", () => {
+  it("divide el total por los días", () => {
+    expect(quotePricePerDay(90_000, 3)).toBe(30_000);
+  });
+
+  it("redondea al peso entero", () => {
+    expect(quotePricePerDay(100_000, 3)).toBe(33_333);
+  });
+
+  it("devuelve null sin total, con total inválido o sin días", () => {
+    expect(quotePricePerDay(null, 3)).toBeNull();
+    expect(quotePricePerDay(Number.NaN, 3)).toBeNull();
+    expect(quotePricePerDay(0, 3)).toBeNull();
+    expect(quotePricePerDay(90_000, 0)).toBeNull();
   });
 });

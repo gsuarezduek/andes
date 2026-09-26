@@ -46,6 +46,9 @@ export type Draft = {
   // `adjustedAmount`, ya no se tipea a mano.
   payments: RentalPayment[];
   km: string;
+  // El empleado confirmó un km que el wizard marcó como sospechoso (ver
+  // `kmWarning`). Se limpia al cambiar el km o el vehículo.
+  kmConfirmed: boolean;
   fuelLevel: number;
   // Neutral por defecto: cada ítem debe decidirse OK/Falla antes de avanzar.
   checklist: Record<string, "ok" | "fail">;

@@ -1,5 +1,6 @@
 import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
 import { parseDecimal } from "@/lib/number-input";
+import { checkHandoverKm, checkReturnKm } from "@/lib/km-check";
 import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, paidTotal, usdPaymentDetail, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
 import type { InspectionInput, PendingEvidenceInput } from "@/lib/inspection-input";
@@ -150,12 +151,30 @@ export function summaryConditions(
   return {};
 }
 
+/**
+ * Aviso sobre un km que "no cierra" (ver `src/lib/km-check.ts`), o null si es
+ * razonable. Entrega: contra el último km registrado del auto. Devolución:
+ * contra el km de la entrega y los días del alquiler.
+ */
+export function kmWarning(
+  km: string,
+  isHandover: boolean,
+  vehicleCurrentKm: number | null | undefined,
+  returnContext?: { handoverKm: number; pricing?: { days?: number } },
+): string | null {
+  if (km === "") return null;
+  const value = Number(km);
+  if (isHandover) return vehicleCurrentKm == null ? null : checkHandoverKm(value, vehicleCurrentKm);
+  return returnContext ? checkReturnKm(value, returnContext.handoverKm, returnContext.pricing?.days) : null;
+}
+
 export function validateStep(
   current: string,
   draft: Draft,
   isHandover: boolean,
   checklistItems: { id: string; label: string }[],
-  returnContext?: { handoverKm: number; handoverFuel: number },
+  returnContext?: { handoverKm: number; handoverFuel: number; pricing?: { days?: number } },
+  vehicleCurrentKm?: number | null,
 ): string | undefined {
   if (current === "Datos") {
     if (!draft.vehicleId) return "Asigná un vehículo para continuar.";
@@ -165,6 +184,9 @@ export function validateStep(
     if (draft.km === "" || Number(draft.km) < 0) return "Ingresá el kilometraje.";
     if (returnContext && Number(draft.km) < returnContext.handoverKm) {
       return `El kilometraje no puede ser menor al de entrega (${returnContext.handoverKm.toLocaleString("es-AR")} km).`;
+    }
+    if (kmWarning(draft.km, isHandover, vehicleCurrentKm, returnContext) && !draft.kmConfirmed) {
+      return "El kilometraje parece incorrecto: corregilo o marcá que lo confirmás.";
     }
     const pending = checklistItems.filter((it) => draft.checklist[it.id] == null);
     if (pending.length > 0) {

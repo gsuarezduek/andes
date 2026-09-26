@@ -11,7 +11,9 @@ import type { ConversationPickerOption } from "@/lib/rental-quotes";
 import type { CalendarQuoteBar } from "@/lib/calendar";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
+import { quotePricePerDay } from "@/lib/quote-estimate";
 import { updateQuote, deleteQuote } from "./actions";
+import { PerDayBox } from "./quote-per-day-box";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -46,20 +48,31 @@ export function QuoteDetailModal({
       }
     : null;
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(initialConversation);
+  const [startValue, setStartValue] = useState(startKey);
+  const [endValue, setEndValue] = useState(lastDayKey);
+  const [totalValue, setTotalValue] = useState(quote.estimatedTotal != null ? String(quote.estimatedTotal) : "");
+
+  /** Días entre dos fechas "YYYY-MM-DD" inclusive (mismo cálculo que el guardado). */
+  function daysBetween(start: string, lastDay: string): number {
+    return Math.max(
+      1,
+      Math.round(
+        (mendozaWallTimeToUtc(`${lastDay}T00:00`).getTime() - mendozaWallTimeToUtc(`${start}T00:00`).getTime()) / DAY_MS,
+      ) + 1,
+    );
+  }
+  const liveDays = startValue && endValue ? daysBetween(startValue, endValue) : 0;
+  const perDay = quotePricePerDay(Number(totalValue.replace(",", ".")), liveDays);
+  const savedDays = daysBetween(startKey, lastDayKey);
+  const savedPerDay = quotePricePerDay(quote.estimatedTotal, savedDays);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(undefined);
     const data = new FormData(e.currentTarget);
-    const startValue = String(data.get("startDate") ?? startKey);
-    const lastDayValue = String(data.get("endDateInclusive") ?? lastDayKey);
-    const days = Math.max(
-      1,
-      Math.round(
-        (mendozaWallTimeToUtc(`${lastDayValue}T00:00`).getTime() -
-          mendozaWallTimeToUtc(`${startValue}T00:00`).getTime()) /
-          DAY_MS,
-      ) + 1,
+    const days = daysBetween(
+      String(data.get("startDate") ?? startKey),
+      String(data.get("endDateInclusive") ?? lastDayKey),
     );
     data.set("vehicleId", quote.vehicleId);
     data.set("days", String(days));
@@ -93,6 +106,7 @@ export function QuoteDetailModal({
         <div className="flex flex-col gap-2 text-sm">
           <p className="font-semibold">{quote.clientName ?? "Sin nombre de cliente"}</p>
           {quote.estimatedTotal != null ? <p>Total estimado: {formatArs(quote.estimatedTotal)}</p> : null}
+          {savedPerDay != null ? <PerDayBox perDay={savedPerDay} days={savedDays} /> : null}
           <p className="text-foreground/60">
             {quote.createdByName ? `Cargado por ${quote.createdByName}` : "Cargado por un compañero"}
           </p>
@@ -115,8 +129,8 @@ export function QuoteDetailModal({
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <fieldset disabled={!editing} className="contents">
           <div className="grid grid-cols-2 gap-3">
-            <TextField id="startDate" label="Desde" type="date" defaultValue={startKey} />
-            <TextField id="endDateInclusive" label="Hasta" type="date" defaultValue={lastDayKey} />
+            <TextField id="startDate" label="Desde" type="date" value={startValue} onChange={(e) => setStartValue(e.target.value)} />
+            <TextField id="endDateInclusive" label="Hasta" type="date" value={endValue} onChange={(e) => setEndValue(e.target.value)} />
           </div>
           <TextField
             id="estimatedTotal"
@@ -124,8 +138,10 @@ export function QuoteDetailModal({
             type="text"
             inputMode="decimal"
             prefix="$"
-            defaultValue={quote.estimatedTotal != null ? String(quote.estimatedTotal) : ""}
+            value={totalValue}
+            onChange={(e) => setTotalValue(e.target.value)}
           />
+          {perDay != null ? <PerDayBox perDay={perDay} days={liveDays} /> : null}
           <TextField id="clientName" label="Cliente" hint="Opcional" type="text" defaultValue={quote.clientName ?? ""} />
           <TextareaField id="note" label="Nota" hint="Opcional" defaultValue={quote.note ?? ""} />
           {editing ? (

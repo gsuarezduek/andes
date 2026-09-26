@@ -36,6 +36,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Cuenta conectada (Chakra), webhook y plantillas aprobadas.",
   },
   {
+    href: "/settings/cloud",
+    title: "Nube",
+    description: "Espacio usado por la base de datos y los archivos (Cloudflare R2).",
+  },
+  {
     href: "/users",
     title: "Usuarios",
     description: "Alta, edición y desactivación de empleados y administradores.",

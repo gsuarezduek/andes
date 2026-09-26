@@ -587,6 +587,17 @@ model Rental {
   // Nombre congelado (ver Inspection.userName): sobrevive a que se borre el usuario.
   verifiedByName String?   @map("verified_by_name")
 
+  // Excluida de Reportes (solo admin): la reserva sigue existiendo tal cual —
+  // acta firmada, Caja, calendario — pero no cuenta en las métricas derivadas
+  // de alquileres (finalizados, km, extras, ocupación, reservas, "por
+  // vehículo"). Es para datos que distorsionan (km mal tipeado en una entrega
+  // ya firmada, pruebas) sin tocar evidencia inmutable. Null = cuenta normal.
+  // Caja no se ve afectada: es plata real. El sync nunca toca estos campos.
+  reportsExcludedAt     DateTime? @map("reports_excluded_at")
+  reportsExcludedReason String?   @map("reports_excluded_reason")
+  // Nombre congelado (ver Inspection.userName).
+  reportsExcludedByName String?   @map("reports_excluded_by_name")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
