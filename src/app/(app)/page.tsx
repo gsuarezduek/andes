@@ -11,6 +11,11 @@ import { formatDateTime, formatDate } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 import { vehicleDisplayName, vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { formatDateInput } from "@/lib/datetime";
+import { weekStartOf } from "@/lib/schedule";
+import { getWeekSchedule } from "@/lib/schedule-queries";
+import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
@@ -72,10 +77,11 @@ function MovementRow({
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [{ today, fleet, alerts }, rentalOptions, tasks] = await Promise.all([
+  const [{ today, fleet, alerts }, rentalOptions, tasks, schedule] = await Promise.all([
     getDashboardData(),
     getRentalPickerOptions(),
     getHomeTasks(user.id),
+    getWeekSchedule(weekStartOf(formatDateInput(new Date()))),
   ]);
 
   return (
@@ -231,6 +237,28 @@ export default async function HomePage() {
           Ver todas las tareas →
         </Link>
       </Section>
+
+      {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde), fuera de horario (rojo) o de guardia (azul). */}
+      {schedule.people.length > 0 || user.role === "admin" ? (
+        <Section title="Horarios de la semana">
+          {schedule.people.length === 0 ? (
+            <Empty>
+              Nadie tiene horario todavía. Tildá «Con horario» en la ficha de cada persona, en{" "}
+              <Link href="/users" className="underline">
+                Usuarios
+              </Link>
+              .
+            </Empty>
+          ) : (
+            <WeekScheduleGrid schedule={schedule} />
+          )}
+          <Link href="/horarios" className="self-start text-xs font-medium text-foreground/60 underline">
+            {user.role === "admin" ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
+          </Link>
+          {/* Los colores dependen de la hora: se refrescan solos. */}
+          <AutoRefresh intervalMs={300_000} />
+        </Section>
+      ) : null}
 
       {/* FLOTA */}
       <Section title="Flota">

@@ -55,6 +55,7 @@ export default async function UsersPage({
                 <p className="text-sm text-foreground/60">{u.email}</p>
               </div>
               {!u.active ? <Badge tone="red">Inactivo</Badge> : null}
+              {u.hasSchedule ? <Badge tone="emerald">Con horario</Badge> : null}
               {u.observer ? <Badge tone="orange">Observador</Badge> : null}
               {u.owner ? <Badge tone="violet">Propietario</Badge> : null}
               <Badge tone={u.role === "admin" ? "blue" : "neutral"}>

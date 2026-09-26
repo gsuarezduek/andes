@@ -68,6 +68,21 @@ export function UserForm({
         </span>
       </label>
 
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="hasSchedule"
+          defaultChecked={user?.hasSchedule ?? false}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          Con horario
+          <span className="block text-xs text-foreground/60">
+            Aparece en la grilla de horarios semanales (Home y Horarios). Quienes no lo tengan no figuran.
+          </span>
+        </span>
+      </label>
+
       <FormError>{state.error}</FormError>
 
       <div className="flex gap-3">

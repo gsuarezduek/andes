@@ -76,6 +76,8 @@ export function AppNav({
     // dispositivos), pero poco frecuente — no amerita un lugar en la barra
     // principal, vive acá igual que Sincronización.
     { href: "/gps", label: "GPS" },
+    // Horarios del equipo: todos los roles lo ven (el editor es solo admin).
+    { href: "/horarios", label: "Horarios" },
     // "Competencia" queda en el menú de cuenta (no en la barra principal) a
     // propósito, mientras se sigue puliendo — pasa a la barra principal más
     // adelante.

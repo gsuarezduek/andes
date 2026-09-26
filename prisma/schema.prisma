@@ -205,6 +205,9 @@ model User {
   // Observador: entra con permisos de su rol (típicamente admin) pero no
   // aparece en listas operativas (asignar tareas, "en línea"). Solo se ve en /users.
   observer     Boolean   @default(false)
+  // Con horario: aparece en la grilla de horarios semanales (/horarios). No
+  // todos los usuarios tienen horario; el resto simplemente no figura.
+  hasSchedule  Boolean   @default(false) @map("has_schedule")
   // Propietario: cuenta protegida (nadie más puede editarla/desactivarla/borrarla)
   // y único que puede crear o modificar administradores. Se asigna por migración/base.
   owner        Boolean   @default(false)
@@ -223,6 +226,9 @@ model User {
   resolvedRentalNotes            RentalNote[]            @relation("RentalNoteResolver")
   verifiedRentals                Rental[]                @relation("RentalVerifier")
   createdRoomBookings            RoomBooking[]           @relation("RoomBookingCreator")
+  shiftAssignments               ShiftAssignment[]
+  shiftChangesAsTarget           ShiftChange[]           @relation("ShiftChangeTarget")
+  shiftChangesMade               ShiftChange[]           @relation("ShiftChangeActor")
   rentalVerifications            RentalVerification[]    @relation("RentalVerificationActor")
   createdCashMovements           CashMovement[]          @relation("CashMovementCreator")
   deletedCashMovements           CashMovement[]          @relation("CashMovementDeleter")
@@ -2209,4 +2215,59 @@ model RoomBooking {
   @@unique([feedId, externalUid])
   @@index([roomId, startDate])
   @@map("room_bookings")
+}
+
+
+// ---------------------------------------------------------------------------
+// Horarios del equipo (turnos por día, cargados por un admin)
+// ---------------------------------------------------------------------------
+
+enum ShiftType {
+  morning   // Turno mañana (9 a 16)
+  afternoon // Turno tarde (13 a 20)
+  split     // Cortado: parte de la mañana y parte de la tarde
+  on_call   // Guardia
+}
+
+/// Turno de una persona en un día. Un día sin fila = no trabaja. Se guarda por
+/// día (no como plantilla semanal) para que un cambio "entre medio" sea editar
+/// solo ese día. Las filas de un usuario borrado se van con él (sin valor legal).
+model ShiftAssignment {
+  id String @id @default(cuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Fecha de calendario (sin hora), día de Mendoza.
+  date  DateTime  @db.Date
+  shift ShiftType
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("shift_assignments")
+}
+
+/// Historial append-only de cambios de horario (quién movió qué y cuándo).
+/// `*Name` congelados: sobreviven a que se borre el usuario (ver v34).
+model ShiftChange {
+  id String @id @default(cuid())
+
+  userId   String? @map("user_id")
+  user     User?   @relation("ShiftChangeTarget", fields: [userId], references: [id], onDelete: SetNull)
+  userName String  @map("user_name")
+
+  date      DateTime   @db.Date
+  fromShift ShiftType? @map("from_shift")
+  toShift   ShiftType? @map("to_shift")
+
+  changedById   String? @map("changed_by_id")
+  changedBy     User?   @relation("ShiftChangeActor", fields: [changedById], references: [id], onDelete: SetNull)
+  changedByName String  @map("changed_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("shift_changes")
 }

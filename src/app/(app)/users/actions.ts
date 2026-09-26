@@ -18,6 +18,7 @@ const baseSchema = z.object({
   role: z.enum(["admin", "empleado"]),
   active: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
   observer: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  hasSchedule: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 function readBase(formData: FormData) {
@@ -27,6 +28,7 @@ function readBase(formData: FormData) {
     role: formData.get("role"),
     active: formData.get("active"),
     observer: formData.get("observer"),
+    hasSchedule: formData.get("hasSchedule"),
   });
 }
 
@@ -55,6 +57,7 @@ export async function createUser(
         role: parsed.data.role,
         active: parsed.data.active,
         observer: parsed.data.observer,
+        hasSchedule: parsed.data.hasSchedule,
         passwordHash: await bcrypt.hash(password, 10),
       },
     });
@@ -158,6 +161,7 @@ export async function updateUser(
         role: parsed.data.role,
         active: parsed.data.active,
         observer: parsed.data.observer,
+        hasSchedule: parsed.data.hasSchedule,
         ...(password.length >= 6
           ? { passwordHash: await bcrypt.hash(password, 10) }
           : {}),
