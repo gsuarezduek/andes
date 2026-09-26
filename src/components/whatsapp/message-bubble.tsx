@@ -12,7 +12,7 @@ export type MessageData = {
   sentViaApp: boolean;
   createdAt: Date;
   sentByName: string | null;
-  media: { storageKey: string; mimeType: string; kind: string } | null;
+  media: { storageKey: string; mimeType: string; kind: string; deletedAt?: Date | null } | null;
 };
 
 export function MessageBubble({ message }: { message: MessageData }) {
@@ -64,7 +64,22 @@ export function MessageBubble({ message }: { message: MessageData }) {
   );
 }
 
-function MediaPreview({ media }: { media: { storageKey: string; mimeType: string; kind: string } }) {
+const KIND_LABEL: Record<string, string> = {
+  image: "foto",
+  sticker: "sticker",
+  audio: "audio",
+  video: "video",
+  document: "documento",
+};
+
+function MediaPreview({ media }: { media: { storageKey: string; mimeType: string; kind: string; deletedAt?: Date | null } }) {
+  if (media.deletedAt) {
+    return (
+      <p className="mb-1.5 rounded-lg border border-current/20 px-2.5 py-1.5 text-xs opacity-70">
+        🗑 Adjunto eliminado ({KIND_LABEL[media.kind] ?? "archivo"}) para liberar espacio
+      </p>
+    );
+  }
   const href = `/api/media?key=${encodeURIComponent(media.storageKey)}`;
   if (media.kind === "image" || media.kind === "sticker") {
     // eslint-disable-next-line @next/next/no-img-element -- viene de storage propio, no de un dominio externo optimizable

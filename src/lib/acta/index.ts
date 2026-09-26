@@ -16,6 +16,7 @@ import {
   type ContractPricing,
 } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
+import { compressPdfImages } from "@/lib/file-compress";
 import type { Settlement } from "@/lib/settlement";
 import type { Resend } from "resend";
 import { ActaDocument, type ActaData, type ActaRow } from "./pdf";
@@ -228,7 +229,12 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   };
 
   const element = createElement(ActaDocument, data) as unknown as ReactElement<DocumentProps>;
-  return renderToBuffer(element);
+  const pdf = await renderToBuffer(element);
+  // Las fotos vienen a 1600 px (~300-500 KB c/u): se reducen dentro del PDF para
+  // que el acta guardada y adjunta al email pese bastante menos. Si no hay
+  // ahorro real o algo falla, queda el PDF tal cual salió.
+  const compressed = await compressPdfImages(pdf);
+  return compressed?.body ?? pdf;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

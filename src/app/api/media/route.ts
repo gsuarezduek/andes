@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
 import { storage } from "@/lib/storage";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,28 @@ export async function GET(req: NextRequest) {
 
     return new NextResponse(new Uint8Array(body), { headers: baseHeaders });
   } catch {
+    // Borrado a propósito desde Configuración → Nube → Limpiar archivos: en vez
+    // de una imagen rota, se muestra un cartel (las <img> de daños y documentos
+    // apuntan acá). Un SVG estático dentro de <img> no ejecuta nada.
+    const deleted = await prisma.deletedFile
+      .findUnique({ where: { storageKey: key }, select: { id: true } })
+      .catch(() => null);
+    if (deleted) {
+      return new NextResponse(DELETED_PLACEHOLDER_SVG, {
+        headers: {
+          "Content-Type": "image/svg+xml",
+          "Cache-Control": "private, max-age=3600",
+          "X-Content-Type-Options": "nosniff",
+          "X-Andes-File-Deleted": "1",
+        },
+      });
+    }
     return NextResponse.json({ error: "no encontrado" }, { status: 404 });
   }
 }
+
+const DELETED_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">
+<rect width="480" height="320" fill="#f3f4f6"/>
+<text x="240" y="150" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="600" fill="#4b5563">Archivo eliminado</text>
+<text x="240" y="184" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#6b7280">Se borró para liberar espacio</text>
+</svg>`;

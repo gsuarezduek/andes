@@ -45,6 +45,8 @@ export default async function CloudSettingsPage() {
         </p>
       </div>
 
+      <ButtonLink href="/settings/cloud/cleanup">Limpiar archivos (descargar, comprimir, eliminar)</ButtonLink>
+
       {/* Archivos */}
       <section className="flex flex-col gap-4">
         <SectionHeading description="Fotos, videos, firmas, documentos y actas PDF, guardados en Cloudflare R2.">

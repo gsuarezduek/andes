@@ -12,9 +12,15 @@
 
 import "server-only";
 
+export type StoredObject = { key: string; size: number; lastModified: Date };
+
 export interface Storage {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
   get(key: string): Promise<{ body: Buffer; contentType: string }>;
+  /** Borra un objeto. No falla si ya no existe. Solo lo usa la limpieza de Configuración → Nube. */
+  delete(key: string): Promise<void>;
+  /** Lista TODOS los objetos (clave, tamaño, fecha) — para el inventario de la limpieza. */
+  list(): Promise<StoredObject[]>;
 }
 
 function hasR2(): boolean {
@@ -68,6 +74,31 @@ class R2Storage implements Storage {
       contentType: res.ContentType || "application/octet-stream",
     };
   }
+
+  async delete(key: string) {
+    const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.clientPromise;
+    await client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async list() {
+    const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+    const client = await this.clientPromise;
+    const out: StoredObject[] = [];
+    let token: string | undefined;
+    // 1 llamada cada 1000 objetos.
+    do {
+      const res = await client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, ContinuationToken: token }),
+      );
+      for (const obj of res.Contents ?? []) {
+        if (!obj.Key) continue;
+        out.push({ key: obj.Key, size: obj.Size ?? 0, lastModified: obj.LastModified ?? new Date(0) });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return out;
+  }
 }
 
 // --- Local filesystem (solo dev) ------------------------------------------
@@ -103,6 +134,42 @@ class LocalStorage implements Storage {
       // sin meta: default
     }
     return { body, contentType };
+  }
+
+  async delete(key: string) {
+    const fs = await import("node:fs/promises");
+    const file = await this.pathFor(key);
+    await fs.rm(file, { force: true });
+    await fs.rm(`${file}.meta`, { force: true });
+  }
+
+  async list() {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const base = await this.baseDir();
+    const out: StoredObject[] = [];
+    async function walk(dir: string): Promise<void> {
+      let entries;
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) await walk(full);
+        else if (!e.name.endsWith(".meta")) {
+          const st = await fs.stat(full);
+          out.push({
+            key: path.relative(base, full).split(path.sep).join("/"),
+            size: st.size,
+            lastModified: st.mtime,
+          });
+        }
+      }
+    }
+    await walk(base);
+    return out;
   }
 }
 

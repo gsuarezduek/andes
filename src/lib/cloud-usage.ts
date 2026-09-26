@@ -11,17 +11,7 @@ import { usingR2 } from "@/lib/storage";
 /** Plan gratuito de Cloudflare R2 (por mes): 10 GB de almacenamiento. */
 export const R2_FREE_TIER_BYTES = 10 * 1024 ** 3;
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
-  }
-  return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[i]}`;
-}
+export { formatBytes } from "@/lib/format-bytes";
 
 // --- Base de datos ----------------------------------------------------------
 

@@ -232,6 +232,8 @@ model User {
   safeMovementEdits              SafeMovementEdit[]      @relation("SafeMovementEditor")
   conditionSettingsEdits         ConditionSettingsEdit[]
   loginEvents                    LoginEvent[]
+  storageCleanupRuns             StorageCleanupRun[]
+  storageExports                 StorageExport[]
   passwordResetTokens            PasswordResetToken[]
   createdTasks                   Task[]                  @relation("TaskCreator")
   assignedTasks                  Task[]                  @relation("TaskAssignee")
@@ -1812,6 +1814,11 @@ model WhatsAppMedia {
   mimeType   String            @map("mime_type")
   kind       WhatsAppMediaKind
 
+  // Se completa cuando el archivo se borra a propósito desde Configuración →
+  // Nube → Limpieza (el mensaje queda, el adjunto no). La UI lo muestra como
+  // "adjunto eliminado" en vez de un reproductor/imagen rotos.
+  deletedAt DateTime? @map("deleted_at")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   message WhatsAppMessage?
@@ -1994,4 +2001,80 @@ model AccountTransfer {
   @@index([fromAccountId])
   @@index([toAccountId])
   @@map("account_transfers")
+}
+
+// ---------------------------------------------------------------------------
+// Limpieza de archivos de la nube (Configuración → Nube → Limpieza)
+// ---------------------------------------------------------------------------
+
+/// Una corrida de limpieza (eliminar o comprimir archivos de R2) — auditoría de
+/// quién hizo qué y cuánto espacio liberó. Nombre congelado (v34).
+model StorageCleanupRun {
+  id String @id @default(cuid())
+
+  action     String // "delete" | "compress"
+  dateFrom   DateTime @map("date_from")
+  dateTo     DateTime @map("date_to")
+  categories String[]
+
+  /// Plan congelado al iniciar: [{key, category, size, mediaId?}] ordenado. Se
+  /// procesa por tandas con `doneCount` como cursor, así una corrida larga no
+  /// depende de una sola petición y se puede retomar si se corta.
+  plan Json?
+
+  fileCount    Int       @map("file_count")
+  doneCount    Int       @default(0) @map("done_count")
+  changedCount Int       @default(0) @map("changed_count") // comprimidos que sí se reemplazaron
+  bytesFreed   BigInt    @default(0) @map("bytes_freed")
+  completedAt  DateTime? @map("completed_at")
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  deletedFiles DeletedFile[]
+
+  @@index([createdAt])
+  @@map("storage_cleanup_runs")
+}
+
+/// Archivo que se borró a propósito de R2. Sirve para que `/api/media` muestre
+/// un cartel de "archivo eliminado" en vez de un 404 roto, y de registro de qué
+/// había (la fila que lo referenciaba —foto, daño, documento— queda intacta).
+model DeletedFile {
+  id String @id @default(cuid())
+
+  storageKey String @unique @map("storage_key")
+  category   String
+  bytes      Int
+
+  runId String            @map("run_id")
+  run   StorageCleanupRun @relation(fields: [runId], references: [id])
+
+  deletedAt DateTime @default(now()) @map("deleted_at")
+
+  @@map("deleted_files")
+}
+
+/// Descarga en ZIP de un conjunto de archivos, por partes. Eliminar exige que
+/// TODAS las partes del mismo conjunto (`planHash`) se hayan descargado hasta el
+/// final — un respaldo antes de borrar, verificado del lado del servidor.
+model StorageExport {
+  id String @id @default(cuid())
+
+  planHash String @map("plan_hash")
+  part     Int
+  parts    Int
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  @@index([planHash])
+  @@map("storage_exports")
 }
