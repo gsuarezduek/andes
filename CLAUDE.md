@@ -761,6 +761,14 @@ Página admin `/settings/cloud` para ver cuánto espacio usan la base de datos y
 - **Base de datos:** `getDatabaseUsage` con `pg_database_size` + las 8 tablas más pesadas (`pg_total_relation_size`, filas estimadas). Sin barra: Railway factura por uso, no hay tope fijo.
 - Ítem "Nube" en `/settings`.
 
+## v53 — Km mal cargado: aviso en el wizard + "Excluir de Reportes"
+
+"Extras de la devolución" mostraba $22,9 M (185% de los ingresos). Auditado contra producción (solo lectura): **dos entregas con el km mal tipeado** — Guaragna (Jeep, 4/9): entrega 12.624 en vez de ~126.6xx → 114.111 km "recorridos" → $22,6 M de km extra a $200/km; Eduardo Lage de Carvalho (Kwid CG, 15/7): entrega 22.595 en vez de ~50.000 → $5,5 M. Un barrido de toda la base encontró 24 casos con km sospechosos (saltos vs. la inspección anterior del auto o >800 km/día; algunos son pruebas viejas, otros dígitos de más/menos, ej. CR OSO con 977.674). Solo esas dos tienen liquidación con importes, por eso son las únicas que mueven "Extras". Como el acta firmada es inmutable (y ya se mandó por email), no se corrige el dato desde la app.
+
+- **Aviso de km sospechoso** (`src/lib/km-check.ts`, 9 tests; `kmWarning` en `wizard/logic.ts`; `StepEstado`): **entrega** — km menor al último registrado del auto (tolerancia 20 km) o más de 1.000 km por encima; **devolución** — recorrido > 1.000 km por día pactado. Muestra un cartel ámbar con el motivo y **exige marcar "Confirmo que el kilometraje es correcto"** para avanzar (`Draft.kmConfirmed`, se limpia al cambiar el km o el auto). **No bloquea**: si el km raro es real (auto que se movió), se confirma y sigue — no trabamos una entrega en el aeropuerto. Verificado en navegador a 375px.
+- **Excluir de Reportes** (admin; migración `add_rental_reports_exclusion`: `Rental.reportsExcludedAt/Reason/ByName`): sección en el detalle de la reserva, con motivo obligatorio y reversible (`reports-exclusion-actions.ts`, invalida el caché de Reportes). La reserva deja de contar en **todo lo derivado de alquileres** (finalizados, km, extras, ocupación, reservas, por vehículo, sin confirmar, activos) pero **no toca el acta firmada ni Caja** (plata real; los ingresos de Reportes siguen saliendo de Caja). Reportes avisa cuántas hay excluidas. El sync nunca toca estos campos.
+- **Corrección de los datos** de esas dos entregas: pendiente de que el dueño confirme los km reales (ver mensaje de la sesión); si se corrige, dejar el original en una nota de la reserva y un respaldo, y recalcular la liquidación con `computeSettlement`/`rollupSettlement`.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
