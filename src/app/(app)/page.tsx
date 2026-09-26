@@ -83,6 +83,11 @@ export default async function HomePage() {
     getHomeTasks(user.id),
     getWeekSchedule(weekStartOf(formatDateInput(new Date()))),
   ]);
+  const hasAlerts =
+    alerts.overdueReturns.length > 0 ||
+    alerts.upcomingServices.length > 0 ||
+    alerts.unassigned.length > 0 ||
+    alerts.unpaidFinished.length > 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -102,14 +107,10 @@ export default async function HomePage() {
         </ButtonLink>
       </div>
 
-      {/* ALERTAS: arriba de todo — es lo que más necesita atención al entrar. */}
-      <Section title="Alertas">
-        {alerts.overdueReturns.length === 0 &&
-        alerts.upcomingServices.length === 0 &&
-        alerts.unassigned.length === 0 &&
-        alerts.unpaidFinished.length === 0 ? (
-          <Empty>Sin alertas. Todo al día.</Empty>
-        ) : (
+      {/* ALERTAS: arriba de todo — es lo que más necesita atención al entrar.
+          Sin alertas no se muestra la sección, para no ocupar espacio. */}
+      {hasAlerts && (
+        <Section title="Alertas">
           <div className="flex flex-col gap-3">
             {alerts.unpaidFinished.map((r) => (
               <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between gap-3 rounded-lg border-2 border-red-500 bg-red-500/10 px-4 py-3 text-sm">
@@ -150,8 +151,30 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
+
+      {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde), fuera de horario (rojo) o de guardia (azul). */}
+      {schedule.people.length > 0 || user.role === "admin" ? (
+        <Section title="Horarios de la semana">
+          {schedule.people.length === 0 ? (
+            <Empty>
+              Nadie tiene horario todavía. Tildá «Con horario» en la ficha de cada persona, en{" "}
+              <Link href="/users" className="underline">
+                Usuarios
+              </Link>
+              .
+            </Empty>
+          ) : (
+            <WeekScheduleGrid schedule={schedule} />
+          )}
+          <Link href="/horarios" className="self-start text-xs font-medium text-foreground/60 underline">
+            {user.role === "admin" ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
+          </Link>
+          {/* Los colores dependen de la hora: se refrescan solos. */}
+          <AutoRefresh intervalMs={300_000} />
+        </Section>
+      ) : null}
 
       {/* HOY */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -237,28 +260,6 @@ export default async function HomePage() {
           Ver todas las tareas →
         </Link>
       </Section>
-
-      {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde), fuera de horario (rojo) o de guardia (azul). */}
-      {schedule.people.length > 0 || user.role === "admin" ? (
-        <Section title="Horarios de la semana">
-          {schedule.people.length === 0 ? (
-            <Empty>
-              Nadie tiene horario todavía. Tildá «Con horario» en la ficha de cada persona, en{" "}
-              <Link href="/users" className="underline">
-                Usuarios
-              </Link>
-              .
-            </Empty>
-          ) : (
-            <WeekScheduleGrid schedule={schedule} />
-          )}
-          <Link href="/horarios" className="self-start text-xs font-medium text-foreground/60 underline">
-            {user.role === "admin" ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
-          </Link>
-          {/* Los colores dependen de la hora: se refrescan solos. */}
-          <AutoRefresh intervalMs={300_000} />
-        </Section>
-      ) : null}
 
       {/* FLOTA */}
       <Section title="Flota">
