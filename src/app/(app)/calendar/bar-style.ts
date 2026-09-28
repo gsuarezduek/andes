@@ -62,32 +62,16 @@ export function chipClasses(bar: CalendarBar): string {
   }
 }
 
-/** Color de una estadía de habitación según su procedencia (ver leyenda en la página). */
+/** Color de una estadía de habitación: un solo color para cualquier procedencia
+ *  (Airbnb/Booking/directa ya se distinguen por texto en el tooltip) + gris para
+ *  un bloqueo — para no sumar más colores a los que ya usan los autos. */
 export function roomBarClasses(bar: RoomCalendarBar): string {
   if (bar.isBlock) return "bg-slate-500/70 text-white hover:ring-slate-300";
-  switch (bar.source) {
-    case "airbnb":
-      return "bg-pink-500 text-white hover:bg-pink-500/90 hover:ring-pink-300";
-    case "booking":
-      return "bg-indigo-600 text-white hover:bg-indigo-600/90 hover:ring-indigo-300";
-    case "manual":
-      return "bg-teal-600 text-white hover:bg-teal-600/90 hover:ring-teal-300";
-    default:
-      return "bg-cyan-700 text-white hover:bg-cyan-700/90 hover:ring-cyan-300";
-  }
+  return "bg-teal-600 text-white hover:bg-teal-600/90 hover:ring-teal-300";
 }
 
 /** Chip del tooltip de una estadía (fondo suave + texto). */
 export function roomChipClasses(bar: RoomCalendarBar): string {
   if (bar.isBlock) return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
-  switch (bar.source) {
-    case "airbnb":
-      return "bg-pink-500/20 text-pink-700 dark:text-pink-400";
-    case "booking":
-      return "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400";
-    case "manual":
-      return "bg-teal-500/20 text-teal-700 dark:text-teal-400";
-    default:
-      return "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400";
-  }
+  return "bg-teal-500/20 text-teal-700 dark:text-teal-400";
 }

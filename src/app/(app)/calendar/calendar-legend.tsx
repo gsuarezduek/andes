@@ -55,9 +55,7 @@ export function CalendarLegend({ showRooms }: { showRooms: boolean }) {
         />
         {showRooms ? (
           <>
-            <Item swatch={<span className="inline-block h-3 w-3 rounded bg-pink-500" />} label="Airbnb" />
-            <Item swatch={<span className="inline-block h-3 w-3 rounded bg-indigo-600" />} label="Booking" />
-            <Item swatch={<span className="inline-block h-3 w-3 rounded bg-teal-600" />} label="Habitación directa" />
+            <Item swatch={<span className="inline-block h-3 w-3 rounded bg-teal-600" />} label="Habitación (Airbnb/Booking/directa)" />
             <Item swatch={<span className="inline-block h-3 w-3 rounded bg-slate-500/70" />} label="Bloqueo" />
           </>
         ) : null}
