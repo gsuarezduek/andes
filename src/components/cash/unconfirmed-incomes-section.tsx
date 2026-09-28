@@ -73,7 +73,7 @@ export function UnconfirmedIncomesSection({
 }) {
   if (movements.length === 0) return null;
   return (
-    <details className="group flex flex-col gap-2">
+    <details className="group flex flex-col gap-2" open>
       <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
         <SectionTitle>Señas sin confirmar medio de pago ({movements.length})</SectionTitle>
         <span className="text-xs text-foreground/50 group-open:hidden">Ver</span>
