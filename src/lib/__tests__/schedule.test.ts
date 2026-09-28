@@ -53,12 +53,12 @@ describe("turnos", () => {
     expect(isSegmentActive(b, at("17:00"))).toBe(true);
   });
 
-  it("estado del chip: hoy verde/rojo, otro día neutro, guardia siempre azul", () => {
+  it("estado del chip: verde solo en curso ahora, azul en cualquier otro caso", () => {
     expect(chipStatus(morning, true, at("10:00"))).toBe("active");
-    expect(chipStatus(morning, true, at("17:00"))).toBe("inactive");
-    expect(chipStatus(morning, false, at("10:00"))).toBe("scheduled");
-    expect(chipStatus(SHIFT_SEGMENTS.on_call[0], false, at("03:00"))).toBe("on_call");
-    expect(chipStatus(SHIFT_SEGMENTS.on_call[0], true, at("03:00"))).toBe("on_call");
+    expect(chipStatus(morning, true, at("17:00"))).toBe("other");
+    expect(chipStatus(morning, false, at("10:00"))).toBe("other");
+    expect(chipStatus(SHIFT_SEGMENTS.on_call[0], false, at("03:00"))).toBe("other");
+    expect(chipStatus(SHIFT_SEGMENTS.on_call[0], true, at("03:00"))).toBe("other");
   });
 
   it("la guardia cubre las dos filas (mañana y tarde), sin fila propia", () => {

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
 import { formatDateInput, formatDateTime } from "@/lib/datetime";
 import { addDaysToKey } from "@/lib/rooms/ical";
-import { normalizeWeek, shiftLabels, type Shift } from "@/lib/schedule";
+import { normalizeWeek, shiftLabels, weekLabel, type Shift } from "@/lib/schedule";
 import { getPreviousWeekAsCurrent, getScheduleChanges, getWeekSchedule } from "@/lib/schedule-queries";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -12,15 +12,6 @@ import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { WeekEditor } from "@/components/schedule/week-editor";
 
 export const metadata: Metadata = { title: "Horarios — Andes" };
-
-const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
-/** "2026-09-21" + "2026-09-27" → "21 al 27 de septiembre" (o "28 de sep al 4 de oct" si cruza mes). */
-function weekLabel(start: string, end: string): string {
-  const [, sm, sd] = start.split("-").map(Number);
-  const [, em, ed] = end.split("-").map(Number);
-  return sm === em ? `${sd} al ${ed} de ${MONTHS[em - 1]}` : `${sd} de ${MONTHS[sm - 1].slice(0, 3)} al ${ed} de ${MONTHS[em - 1].slice(0, 3)}`;
-}
 
 const fmtKey = (k: string) => `${k.slice(8, 10)}/${k.slice(5, 7)}`;
 const shiftOrFree = (s: Shift | null) => (s ? shiftLabels[s] : "Libre");
@@ -80,7 +71,7 @@ export default async function HorariosPage({ searchParams }: { searchParams: Pro
           ) : null}
         </p>
       ) : (
-        <WeekScheduleGrid schedule={schedule} />
+        <WeekScheduleGrid schedule={schedule} currentUserId={user.id} />
       )}
 
       {isAdmin && people.length > 0 ? (

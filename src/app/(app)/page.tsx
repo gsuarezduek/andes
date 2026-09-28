@@ -12,10 +12,12 @@ import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 import { vehicleDisplayName, vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { formatDateInput } from "@/lib/datetime";
-import { weekStartOf } from "@/lib/schedule";
+import { normalizeWeek, weekLabel } from "@/lib/schedule";
+import { addDaysToKey } from "@/lib/rooms/ical";
 import { getWeekSchedule } from "@/lib/schedule-queries";
 import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { ChevronRightIcon } from "@/components/ui/icons";
 
 const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
@@ -75,13 +77,16 @@ function MovementRow({
   );
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const user = await requireUser();
+  const todayKey = formatDateInput(new Date());
+  const currentWeek = normalizeWeek(undefined, todayKey);
+  const weekStart = normalizeWeek((await searchParams).week, todayKey);
   const [{ today, fleet, alerts }, rentalOptions, tasks, schedule] = await Promise.all([
     getDashboardData(),
     getRentalPickerOptions(),
     getHomeTasks(user.id),
-    getWeekSchedule(weekStartOf(formatDateInput(new Date()))),
+    getWeekSchedule(weekStart),
   ]);
   const hasAlerts =
     alerts.overdueReturns.length > 0 ||
@@ -154,9 +159,35 @@ export default async function HomePage() {
         </Section>
       )}
 
-      {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde), fuera de horario (rojo) o de guardia (azul). */}
+      {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde) o activo en otro horario (azul).
+          Colapsado por defecto (ocupaba mucho lugar en el Home); título + navegación de semana
+          siempre visibles, la grilla se abre al tocar. */}
       {schedule.people.length > 0 || user.role === "admin" ? (
-        <Section title="Horarios de la semana">
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Horarios de la semana</h2>
+            <div className="flex items-center gap-0.5">
+              <Link
+                href={`/?week=${addDaysToKey(weekStart, -7)}`}
+                aria-label="Semana anterior"
+                className="rounded-md p-1 text-foreground/50 transition-colors hover:bg-foreground/5 hover:text-foreground"
+              >
+                <ChevronRightIcon className="size-4 rotate-180" />
+              </Link>
+              {weekStart !== currentWeek ? (
+                <Link href="/" className="px-1 text-[11px] font-medium text-foreground/50 underline">
+                  Hoy
+                </Link>
+              ) : null}
+              <Link
+                href={`/?week=${addDaysToKey(weekStart, 7)}`}
+                aria-label="Semana siguiente"
+                className="rounded-md p-1 text-foreground/50 transition-colors hover:bg-foreground/5 hover:text-foreground"
+              >
+                <ChevronRightIcon className="size-4" />
+              </Link>
+            </div>
+          </div>
           {schedule.people.length === 0 ? (
             <Empty>
               Nadie tiene horario todavía. Tildá «Con horario» en la ficha de cada persona, en{" "}
@@ -166,14 +197,26 @@ export default async function HomePage() {
               .
             </Empty>
           ) : (
-            <WeekScheduleGrid schedule={schedule} />
+            <details className="group rounded-xl border border-foreground/10">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <span>
+                  {weekStart === currentWeek ? "Esta semana" : weekLabel(weekStart, addDaysToKey(weekStart, 6))}
+                </span>
+                <span className="text-foreground/40 transition-transform group-open:rotate-180" aria-hidden>
+                  ▾
+                </span>
+              </summary>
+              <div className="border-t border-foreground/10 p-2">
+                <WeekScheduleGrid schedule={schedule} currentUserId={user.id} />
+              </div>
+            </details>
           )}
           <Link href="/horarios" className="self-start text-xs font-medium text-foreground/60 underline">
             {user.role === "admin" ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
           </Link>
           {/* Los colores dependen de la hora: se refrescan solos. */}
           <AutoRefresh intervalMs={300_000} />
-        </Section>
+        </section>
       ) : null}
 
       {/* HOY */}

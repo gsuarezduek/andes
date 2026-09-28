@@ -69,6 +69,15 @@ export function weekKeys(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDaysToKey(weekStart, i));
 }
 
+const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** "2026-09-21" + "2026-09-27" → "21 al 27 de septiembre" (o "28 de sep al 4 de oct" si cruza mes). */
+export function weekLabel(start: string, end: string): string {
+  const [, sm, sd] = start.split("-").map(Number);
+  const [, em, ed] = end.split("-").map(Number);
+  return sm === em ? `${sd} al ${ed} de ${MONTHS[em - 1]}` : `${sd} de ${MONTHS[sm - 1].slice(0, 3)} al ${ed} de ${MONTHS[em - 1].slice(0, 3)}`;
+}
+
 /** "HH:MM" → minutos desde medianoche. */
 export function toMinutes(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
@@ -81,17 +90,16 @@ export function isSegmentActive(seg: Segment, nowMin: number): boolean {
 }
 
 /**
- * Estado con el que se pinta a una persona en un tramo (verde/rojo/azul como
- * en el Excel que usaban): `onCall` = guardia (azul); hoy → `active` (verde,
- * en curso ahora) o `inactive` (rojo, todavía no empezó o ya terminó); otro
- * día → `scheduled` (neutro: no tiene sentido decir activo/inactivo).
+ * Estado con el que se pinta a una persona en un tramo: `active` (verde, en
+ * curso ahora mismo) o `other` (azul, activo en otro horario — hoy pero
+ * todavía no empezó/ya terminó, otro día, o guardia, que es disponibilidad
+ * y nunca cuenta como "ahora").
  */
-export type ChipStatus = "active" | "inactive" | "on_call" | "scheduled";
+export type ChipStatus = "active" | "other";
 
 export function chipStatus(seg: Segment, isToday: boolean, nowMin: number): ChipStatus {
-  if (seg.onCall) return "on_call";
-  if (!isToday) return "scheduled";
-  return isSegmentActive(seg, nowMin) ? "active" : "inactive";
+  if (seg.onCall || !isToday) return "other";
+  return isSegmentActive(seg, nowMin) ? "active" : "other";
 }
 
 /** "09:00" → "9", "16:30" → "16:30" (para chips compactos). */
