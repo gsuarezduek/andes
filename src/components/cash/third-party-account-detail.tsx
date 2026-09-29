@@ -3,6 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { WhatsappAccountLink } from "./whatsapp-link";
 import { BalanceLine } from "./balance-line";
 import { ThirdPartyLedgerMonths } from "./third-party-ledger-months";
+import { CajaSectionNav } from "./caja-section-nav";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { formatDateInput } from "@/lib/datetime";
 import type { ThirdPartyBalance, ThirdPartyLedgerRow } from "@/lib/third-party-accounts";
@@ -19,12 +20,14 @@ type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
  */
 export function ThirdPartyAccountDetail({
   account,
+  activeSection,
   ledger,
   isAdmin,
   paymentMethods,
   quickActions,
 }: {
   account: ThirdPartyBalance;
+  activeSection: "proveedores" | "asociados";
   ledger: ThirdPartyLedgerRow[];
   isAdmin: boolean;
   paymentMethods: PaymentMethodOption[];
@@ -35,6 +38,8 @@ export function ThirdPartyAccountDetail({
 
   return (
     <div className="flex flex-col gap-6">
+      <CajaSectionNav active={activeSection} showSaldos={isAdmin} />
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>

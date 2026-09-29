@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { TabBar } from "@/components/ui/tabs";
+import { CAJA_SECTIONS, type CajaSectionKey } from "./caja-sections";
 
 /**
  * Caja partida en pestañas: "Movimientos" (Ingreso/Egreso), "Asociados"
@@ -17,33 +19,63 @@ import { TabBar } from "@/components/ui/tabs";
  * pestaña aparece — es la posición de plata real de la empresa. Ya vienen
  * renderizadas desde el server component; acá solo se elige cuál mostrar
  * (mismo patrón que RentalDetailTabs).
+ *
+ * Pestaña inicial: lee `?tab=` (ver `CajaSectionNav`, usado en las páginas de
+ * detalle de proveedor/asociado/cuenta) para poder volver directo a la
+ * sección de la que se vino, en vez de siempre abrir en "Movimientos".
  */
-export function CajaTabs({
-  movimientos,
-  asociados,
-  proveedores,
-  garantias,
-  saldos,
-}: {
+export function CajaTabs(props: {
   movimientos: ReactNode;
   asociados: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
   saldos?: ReactNode;
 }) {
-  const [section, setSection] = useState(0);
-  const entries: { label: string; panel: ReactNode }[] = [
-    { label: "Movimientos", panel: movimientos },
-    { label: "Asociados", panel: asociados },
-    { label: "Cuentas corrientes", panel: proveedores },
-    ...(garantias !== undefined ? [{ label: "Garantías", panel: garantias }] : []),
-    ...(saldos !== undefined ? [{ label: "Saldos", panel: saldos }] : []),
-  ];
+  return (
+    <Suspense fallback={<CajaTabsContent {...props} initialTab={null} />}>
+      <CajaTabsWithInitialTab {...props} />
+    </Suspense>
+  );
+}
+
+function CajaTabsWithInitialTab(props: {
+  movimientos: ReactNode;
+  asociados: ReactNode;
+  proveedores: ReactNode;
+  garantias?: ReactNode;
+  saldos?: ReactNode;
+}) {
+  const searchParams = useSearchParams();
+  return <CajaTabsContent {...props} initialTab={searchParams.get("tab")} />;
+}
+
+function CajaTabsContent({
+  movimientos,
+  asociados,
+  proveedores,
+  garantias,
+  saldos,
+  initialTab,
+}: {
+  movimientos: ReactNode;
+  asociados: ReactNode;
+  proveedores: ReactNode;
+  garantias?: ReactNode;
+  saldos?: ReactNode;
+  initialTab: string | null;
+}) {
+  const panels: Partial<Record<CajaSectionKey, ReactNode>> = { movimientos, asociados, proveedores, garantias, saldos };
+  const entries = CAJA_SECTIONS.filter((s) => panels[s.key] !== undefined);
+  const initialIndex = Math.max(
+    0,
+    entries.findIndex((e) => e.key === initialTab),
+  );
+  const [section, setSection] = useState(initialIndex);
 
   return (
     <div className="flex flex-col gap-4">
       <TabBar sections={entries.map((e) => e.label)} active={section} onChange={setSection} />
-      {entries[section]?.panel}
+      {panels[entries[section]?.key ?? "movimientos"]}
     </div>
   );
 }

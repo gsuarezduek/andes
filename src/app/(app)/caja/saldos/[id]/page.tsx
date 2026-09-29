@@ -11,6 +11,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { TransferList } from "@/components/cash/transfer-list";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { AccountLedgerMonths } from "@/components/cash/account-ledger-months";
+import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -54,6 +55,8 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
+      <CajaSectionNav active="saldos" />
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>

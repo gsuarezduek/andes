@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { ButtonLink } from "@/components/ui/button";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
 import { SafeSection } from "@/components/cash/safe-section";
+import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
 import { getWalletBalance } from "@/lib/cash";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
@@ -30,6 +31,8 @@ export default async function SafeAccountPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <CajaSectionNav active="saldos" />
+
       <div className="flex items-start justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Caja fuerte</h1>
         <div className="shrink-0 text-right">

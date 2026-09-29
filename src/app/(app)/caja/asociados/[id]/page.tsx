@@ -39,6 +39,7 @@ export default async function AssociateDetailPage({ params }: { params: Promise<
   return (
     <ThirdPartyAccountDetail
       account={associate}
+      activeSection="asociados"
       ledger={ledger}
       isAdmin={user.role === "admin"}
       paymentMethods={paymentMethods}

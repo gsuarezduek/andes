@@ -39,6 +39,7 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
   return (
     <ThirdPartyAccountDetail
       account={provider}
+      activeSection="proveedores"
       ledger={ledger}
       isAdmin={user.role === "admin"}
       paymentMethods={paymentMethods}
