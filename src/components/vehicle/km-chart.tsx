@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/datetime";
 
 export type KmChartPoint = {
   id: string;
   km: number;
-  createdAt: Date;
+  date: Date; // fecha real de retiro (entrega) o devolución (devolución), no cuándo se cargó
   type: "handover" | "return_";
   clientName: string;
   userName: string | null;
@@ -42,6 +42,16 @@ function shortDate(d: Date): string {
 /** Gráfico SVG de evolución del kilometraje: referencias X/Y y detalle por punto (hover/tap). */
 export function KmChart({ data }: { data: KmChartPoint[] }) {
   const [active, setActive] = useState<{ index: number; x: number; y: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // El SVG crece de ancho con la cantidad de puntos y el contenedor scrollea
+  // horizontal — sin esto, al entrar se ve el borde izquierdo (los puntos más
+  // viejos) y el más reciente queda escondido a la derecha sin que se note
+  // que hay que scrollear.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [data.length]);
 
   if (data.length < 2) {
     return (
@@ -78,7 +88,7 @@ export function KmChart({ data }: { data: KmChartPoint[] }) {
   const hovered = active ? data[active.index] : null;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
+    <div ref={scrollRef} className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
       <svg
         viewBox={`0 0 ${w} ${h}`}
         className="h-[200px] w-full"
@@ -118,7 +128,7 @@ export function KmChart({ data }: { data: KmChartPoint[] }) {
               strokeWidth="1"
             />
             <text x={x(i)} y={h - MARGIN.bottom + 16} fontSize="10" textAnchor="middle" fill="var(--foreground)" fillOpacity="0.5">
-              {shortDate(data[i].createdAt)}
+              {shortDate(data[i].date)}
             </text>
           </g>
         ))}
@@ -174,7 +184,7 @@ export function KmChart({ data }: { data: KmChartPoint[] }) {
                 >
                   <title>
                     {(d.type === "handover" ? "Entrega" : "Devolución") +
-                      ` · ${d.km.toLocaleString("es-AR")} km · ${formatDateTime(d.createdAt)}`}
+                      ` · ${d.km.toLocaleString("es-AR")} km · ${formatDateTime(d.date)}`}
                   </title>
                 </circle>
               </g>
@@ -195,7 +205,7 @@ export function KmChart({ data }: { data: KmChartPoint[] }) {
             <span>{hovered.type === "handover" ? "Entrega" : "Devolución"}</span>
             <span className="font-normal text-foreground/50">{hovered.km.toLocaleString("es-AR")} km</span>
           </p>
-          <p className="mt-0.5 text-foreground/60">{formatDateTime(hovered.createdAt)}</p>
+          <p className="mt-0.5 text-foreground/60">{formatDateTime(hovered.date)}</p>
           <p className="mt-1 text-foreground/80">{hovered.clientName}</p>
           <p className="text-foreground/50">Responsable: {hovered.userName ?? "—"}</p>
         </div>

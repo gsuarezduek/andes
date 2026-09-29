@@ -13,7 +13,11 @@ export async function getVehicleDetail(id: string) {
       inspections: {
         orderBy: { createdAt: "asc" },
         include: {
-          rental: { select: { clientName: true } },
+          // startAt/endAt (fecha real de retiro/devolución) para el gráfico de
+          // km: createdAt es cuándo se CARGÓ la inspección en Andes, que para
+          // alquileres viejos cargados tarde (backfill) no coincide con la
+          // fecha real del evento — ver KmChart.
+          rental: { select: { clientName: true, startAt: true, endAt: true } },
         },
       },
       damages: {

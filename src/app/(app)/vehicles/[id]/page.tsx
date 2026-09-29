@@ -43,14 +43,20 @@ export default async function VehicleDetailPage({
   const activeNotes = vehicle.teamNotes.filter((n) => !n.resolvedAt);
   const resolvedNotes = vehicle.teamNotes.filter((n) => n.resolvedAt);
 
-  const kmData = vehicle.inspections.map((i) => ({
-    id: i.id,
-    km: i.km,
-    createdAt: i.createdAt,
-    type: i.type,
-    clientName: i.rental.clientName,
-    userName: i.userName,
-  }));
+  // Orden y eje X por la fecha real del evento (retiro/devolución de la
+  // reserva), no por `createdAt` (cuándo se cargó la inspección en Andes) —
+  // los alquileres viejos cargados tarde y fuera de orden quedaban con el km
+  // "bajando" en el gráfico porque createdAt no refleja la fecha real.
+  const kmData = vehicle.inspections
+    .map((i) => ({
+      id: i.id,
+      km: i.km,
+      date: i.type === "handover" ? i.rental.startAt : i.rental.endAt,
+      type: i.type,
+      clientName: i.rental.clientName,
+      userName: i.userName,
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
 
   return (
