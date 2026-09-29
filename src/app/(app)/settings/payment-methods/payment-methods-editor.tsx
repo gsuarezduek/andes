@@ -152,6 +152,7 @@ export function PaymentMethodsEditor({ items, categories }: { items: PaymentMeth
     { title: "Propias", items: filtered.filter((it) => it.ownership === "own") },
     { title: "Asociados", items: filtered.filter((it) => it.ownership === "associate") },
     { title: "Proveedores", items: filtered.filter((it) => it.ownership === "provider") },
+    { title: "Varios", items: filtered.filter((it) => it.ownership === "misc") },
   ];
   const emptyLabel = search.trim() ? "Sin coincidencias." : "Sin medios de pago en este grupo.";
 
@@ -351,6 +352,7 @@ function PaymentMethodRow({
         {isDirty && <Badge tone="amber">Sin guardar</Badge>}
         {draft.ownership === "provider" && <Badge tone="blue">Proveedor</Badge>}
         {draft.ownership === "associate" && <Badge tone="neutral">Asociado</Badge>}
+        {draft.ownership === "misc" && <Badge tone="violet">Varios</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
@@ -424,15 +426,16 @@ function PaymentMethodRow({
             <SelectField
               id={`ownership-${item.id}`}
               label="Tipo de cuenta"
-              hint="Solo Proveedor habilita cuenta corriente (deuda) en Caja."
+              hint="Asociado/Proveedor habilitan cuenta corriente (deuda) en Caja. Varios es un destino de egresos sueltos, sin cuenta corriente."
               value={draft.ownership}
               onChange={(e) => setField(item.id, "ownership", e.target.value as PaymentMethodOwnership)}
             >
               <option value="own">Propia</option>
               <option value="associate">Asociado</option>
               <option value="provider">Proveedor</option>
+              <option value="misc">Varios</option>
             </SelectField>
-            {draft.ownership !== "own" && (
+            {(draft.ownership === "associate" || draft.ownership === "provider") && (
               <TextField
                 id={`whatsappPhone-${item.id}`}
                 label="Teléfono de WhatsApp"
@@ -442,22 +445,25 @@ function PaymentMethodRow({
                 placeholder="Ej: 5492611234567"
               />
             )}
-            {children.length > 0 ? (
-              <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
-                Ya es cuenta principal de {children.length === 1 ? "otra cuenta" : "otras cuentas"} — desvinculalas
-                primero para poder convertir esta en subcuenta de otra.
-              </p>
-            ) : (
-              <PaymentMethodPicker
-                id={`parentId-${item.id}`}
-                label="Cuenta principal"
-                hint="Opcional — para unificar los cálculos con otra cuenta de la misma entidad (ej. dos cuentas del mismo proveedor)."
-                options={parentCandidates}
-                value={draft.parentId ?? ""}
-                onChange={(id) => setField(item.id, "parentId", id || null)}
-                placeholder="Sin cuenta principal — buscar…"
-              />
-            )}
+            {/* Subcuentas: solo asociados/proveedores tienen cuenta corriente
+                que agrupar (ver comentario en el schema) — own/misc no. */}
+            {(draft.ownership === "associate" || draft.ownership === "provider") &&
+              (children.length > 0 ? (
+                <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
+                  Ya es cuenta principal de {children.length === 1 ? "otra cuenta" : "otras cuentas"} — desvinculalas
+                  primero para poder convertir esta en subcuenta de otra.
+                </p>
+              ) : (
+                <PaymentMethodPicker
+                  id={`parentId-${item.id}`}
+                  label="Cuenta principal"
+                  hint="Opcional — para unificar los cálculos con otra cuenta de la misma entidad (ej. dos cuentas del mismo proveedor)."
+                  options={parentCandidates}
+                  value={draft.parentId ?? ""}
+                  onChange={(id) => setField(item.id, "parentId", id || null)}
+                  placeholder="Sin cuenta principal — buscar…"
+                />
+              ))}
             {draft.ownership === "own" && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
                 <p className="text-sm font-medium text-foreground/80">Comisión por ingreso</p>

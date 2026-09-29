@@ -60,11 +60,12 @@ export default async function PaymentMethodsSettingsPage() {
             label="Tipo de cuenta"
             required
             defaultValue="own"
-            hint="Solo Proveedor habilita cuenta corriente (deuda) en Caja."
+            hint="Asociado/Proveedor habilitan cuenta corriente (deuda) en Caja. Varios es un destino de egresos sueltos, sin cuenta corriente."
           >
             <option value="own">Propia</option>
             <option value="associate">Asociado</option>
             <option value="provider">Proveedor</option>
+            <option value="misc">Varios</option>
           </SelectField>
           <label className="flex items-center gap-2 text-sm text-foreground/80">
             <input type="checkbox" name="requiresNote" className="h-4 w-4" />

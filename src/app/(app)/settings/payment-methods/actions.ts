@@ -24,9 +24,9 @@ function amountOrZero(v: FormDataEntryValue | null): number {
 }
 
 /** Tipo de cuenta: obligatorio, sin estado "indiferente" — el select del
- *  form siempre manda uno de los tres; si algo raro llega, cae en "own". */
+ *  form siempre manda uno de los cuatro; si algo raro llega, cae en "own". */
 function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnership {
-  return v === "associate" || v === "provider" ? v : "own";
+  return v === "associate" || v === "provider" || v === "misc" ? v : "own";
 }
 
 export async function createPaymentMethod(formData: FormData) {
@@ -79,11 +79,13 @@ export type PaymentMethodUpdateInput = {
  * con nombre vacío (no debería pasar: el botón se deshabilita antes).
  *
  * Valida `parentId` contra el estado real en la base (no contra lo que manda
- * el batch, para no depender del orden): no puede apuntar a sí misma, la
- * cuenta principal elegida no puede ser a su vez subcuenta de otra (jerarquía
- * de un solo nivel), tiene que ser del mismo tipo de cuenta, y esta fila no
- * puede tener ya sus propias subcuentas (si las tiene, hay que desvincularlas
- * primero — evita que una cadena de 3 niveles quede "escondida").
+ * el batch, para no depender del orden): solo `associate`/`provider` admiten
+ * subcuentas (`own`/`misc` no tienen cuenta corriente que agrupar), no puede
+ * apuntar a sí misma, la cuenta principal elegida no puede ser a su vez
+ * subcuenta de otra (jerarquía de un solo nivel), tiene que ser del mismo
+ * tipo de cuenta, y esta fila no puede tener ya sus propias subcuentas (si
+ * las tiene, hay que desvincularlas primero — evita que una cadena de 3
+ * niveles quede "escondida").
  */
 export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) {
   await requireAdmin();
@@ -96,6 +98,9 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
 
   for (const u of valid) {
     if (!u.parentId) continue;
+    if (u.ownership !== "associate" && u.ownership !== "provider") {
+      throw new Error("Las subcuentas son solo para cuentas de asociados o proveedores.");
+    }
     if (u.parentId === u.id) throw new Error("Una cuenta no puede ser su propia principal.");
     if (parentIds.has(u.id)) {
       throw new Error("Esta cuenta ya tiene subcuentas propias — desvinculalas antes de convertirla en subcuenta de otra.");

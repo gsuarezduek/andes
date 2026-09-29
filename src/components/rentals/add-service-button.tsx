@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, unstable_rethrow } from "next/navigation";
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { TextField, SelectField } from "@/components/ui/fields";
@@ -15,7 +16,7 @@ const SERVICE_TYPES = [
   { value: "repair", label: "Arreglo" },
 ];
 
-export type AccountOption = PaymentMethodOption & { ownership: "own" | "associate" | "provider" };
+export type AccountOption = PaymentMethodOption & { ownership: PaymentMethodOwnership };
 
 /**
  * Ícono de "Service / arreglo" del header de una reserva: dos modos según el
@@ -203,8 +204,10 @@ function CloseServiceForm({
   const [accountId, setAccountId] = useState("");
   const hasCost = cost.trim() !== "" && Number(cost) > 0;
   const selectedAccount = accounts.find((a) => a.id === accountId);
-  const ownAccounts = accounts.filter((a) => a.ownership === "own");
-  const otherAccounts = accounts.filter((a) => a.ownership !== "own");
+  // Propia o Varios: se paga ahora (egreso inmediato, sin cuenta corriente).
+  // Asociado/proveedor: queda a deber (ver `service-actions.ts`).
+  const paidNowAccounts = accounts.filter((a) => a.ownership === "own" || a.ownership === "misc");
+  const debtAccounts = accounts.filter((a) => a.ownership === "associate" || a.ownership === "provider");
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
@@ -238,18 +241,18 @@ function CloseServiceForm({
             <option value="" disabled>
               Elegí una cuenta
             </option>
-            {ownAccounts.length > 0 && (
-              <optgroup label="Cuenta propia — pago ahora">
-                {ownAccounts.map((a) => (
+            {paidNowAccounts.length > 0 && (
+              <optgroup label="Pago ahora">
+                {paidNowAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
               </optgroup>
             )}
-            {otherAccounts.length > 0 && (
+            {debtAccounts.length > 0 && (
               <optgroup label="Proveedor / asociado — queda a deber">
-                {otherAccounts.map((a) => (
+                {debtAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>

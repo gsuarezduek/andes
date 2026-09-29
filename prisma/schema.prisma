@@ -133,14 +133,20 @@ enum SafeMovementType {
 }
 
 /// A quién pertenece la cuenta de un medio de pago. Todo medio de pago debe
-/// estar catalogado en uno de los tres — no hay estado "indiferente". Solo
-/// `provider` habilita cuenta corriente (deuda acumulada, ver
-/// `CashMovementType.debt` y `src/lib/providers.ts`) — un asociado usado de
-/// paso no.
+/// estar catalogado en uno de los cuatro — no hay estado "indiferente".
+/// `associate`/`provider` habilitan cuenta corriente (deuda acumulada, ver
+/// `CashMovementType.debt` y `src/lib/third-party-accounts.ts`) y subcuentas
+/// (`PaymentMethod.parentId`) — misma entidad con más de una cuenta real.
+/// `misc` es un destino catch-all para egresos que no son de un proveedor ni
+/// un asociado puntual (gastos varios, ej. "Otro (no MDZ)"): a propósito sin
+/// cuenta corriente ni saldo en Saldos (no hay "a favor"/"le debemos" que
+/// llevar) ni subcuentas — solo agrupa en Configuración y se puede elegir
+/// como Destino de un egreso, igual que `provider`/`associate`.
 enum PaymentMethodOwnership {
   own // cuenta propia
-  associate // cuenta ajena de un asociado (empleado/socio), usada de paso
-  provider // cuenta ajena de un proveedor — habilita cuenta corriente
+  associate // cuenta ajena de un asociado (empleado/socio) — cuenta corriente
+  provider // cuenta ajena de un proveedor — cuenta corriente
+  misc // gastos varios, sin cuenta corriente
 }
 
 /// Dispositivo detectado por User-Agent al iniciar sesión.
@@ -1028,8 +1034,9 @@ model PaymentMethod {
   // libre obligatorio ("¿A dónde fue?") — pensado para un medio catch-all
   // como "Otro", para pagos que no encajan en ningún medio ya configurado.
   requiresNote      Boolean                @default(false) @map("requires_note")
-  // Cuenta propia (de la empresa) o ajena (proveedor/empleado). Obligatorio:
-  // todo medio de pago tiene que estar catalogado como uno u otro.
+  // Cuenta propia (de la empresa), ajena (proveedor/asociado) o "Varios"
+  // (gastos que no son de ningún proveedor/asociado puntual, sin cuenta
+  // corriente). Obligatorio: todo medio de pago tiene que estar catalogado.
   ownership         PaymentMethodOwnership @default(own) @map("ownership")
   // Representa efectivo físico en mano (no en la caja fuerte todavía) — de
   // los movimientos de Caja con este medio sale el saldo de "Billetera"
@@ -1046,13 +1053,15 @@ model PaymentMethod {
   whatsappPhone String? @map("whatsapp_phone")
 
   // Misma entidad (persona/proveedor) con más de una cuenta real (ej. efectivo
-  // y transferencia) — la subcuenta apunta a la principal. Jerarquía de un
-  // solo nivel a propósito (una subcuenta no puede tener sus propias
-  // subcuentas; se valida en `updatePaymentMethods`). Cada cuenta sigue
-  // pudiéndose elegir individualmente al cargar un pago (para saber por qué
-  // rail salió/entró la plata) — lo único que se agrupa son los cálculos
-  // (saldo de cuenta corriente, "Total entregado", ver `src/lib/providers.ts`
-  // y `CashMovementsBoard`). Si se borra la principal, sus subcuentas quedan
+  // y transferencia) — la subcuenta apunta a la principal. Solo tiene sentido
+  // en `associate`/`provider` (cuentas con cuenta corriente propia); `own` y
+  // `misc` no admiten subcuentas, se valida en `updatePaymentMethods`.
+  // Jerarquía de un solo nivel a propósito (una subcuenta no puede tener sus
+  // propias subcuentas; también validado ahí). Cada cuenta sigue pudiéndose
+  // elegir individualmente al cargar un pago (para saber por qué rail
+  // salió/entró la plata) — lo único que se agrupa son los cálculos (saldo de
+  // cuenta corriente, "Total entregado", ver `src/lib/providers.ts` y
+  // `CashMovementsBoard`). Si se borra la principal, sus subcuentas quedan
   // sueltas (vuelven a ser principales) en vez de arrastrarse.
   parentId    String?         @map("parent_id")
   parent      PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)

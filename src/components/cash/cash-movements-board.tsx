@@ -76,6 +76,7 @@ export function CashMovementsBoard({
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
   const associateMethods = paymentMethods.filter((m) => m.ownership === "associate");
   const providerMethods = paymentMethods.filter((m) => m.ownership === "provider");
+  const miscMethods = paymentMethods.filter((m) => m.ownership === "misc");
 
   return (
     <div className="flex flex-col gap-4">
@@ -109,6 +110,15 @@ export function CashMovementsBoard({
             {providerMethods.length > 0 && (
               <optgroup label="Proveedores">
                 {providerMethods.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {miscMethods.length > 0 && (
+              <optgroup label="Varios">
+                {miscMethods.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>

@@ -198,7 +198,9 @@ export async function returnVehicleFromService(
     }),
     ...(method
       ? [
-          method.ownership === "own"
+          // "own"/"misc": egreso inmediato, sin cuenta corriente que llevar.
+          // "associate"/"provider": queda a deber (ver comentario más arriba).
+          method.ownership === "own" || method.ownership === "misc"
             ? prisma.cashMovement.create({
                 data: {
                   type: "expense" as const,
