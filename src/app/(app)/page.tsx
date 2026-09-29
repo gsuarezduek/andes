@@ -196,12 +196,17 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               </Link>
               .
             </Empty>
+          ) : weekStart === currentWeek ? (
+            // Semana actual (el caso por defecto): sin la barra de "Esta
+            // semana" + chevron — era una fila entera solo para decir algo
+            // ya obvio por contexto.
+            <div className="rounded-xl border border-foreground/10 p-2">
+              <WeekScheduleGrid schedule={schedule} currentUserId={user.id} />
+            </div>
           ) : (
             <details open className="group rounded-xl border border-foreground/10">
               <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                <span>
-                  {weekStart === currentWeek ? "Esta semana" : weekLabel(weekStart, addDaysToKey(weekStart, 6))}
-                </span>
+                <span>{weekLabel(weekStart, addDaysToKey(weekStart, 6))}</span>
                 <span className="text-foreground/40 transition-transform group-open:rotate-180" aria-hidden>
                   ▾
                 </span>
