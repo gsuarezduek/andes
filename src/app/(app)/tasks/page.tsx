@@ -5,7 +5,7 @@ import { OPERATOR_FILTER } from "@/lib/users";
 import { requireUser } from "@/lib/auth-helpers";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
-import { TaskRow } from "@/components/tasks/task-row";
+import { PendingTaskList } from "@/components/tasks/pending-task-list";
 import { getPendingTasks, getCompletedTasksPage, isTaskOverdue, isTaskDueToday, type TaskFilters } from "@/lib/tasks";
 import { groupCompletedTasksByDay } from "@/lib/task-grouping";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
@@ -108,24 +108,17 @@ export default async function TasksPage({
             No hay tareas pendientes.
           </p>
         ) : (
-          <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-            {pending.map((task) => {
-              const overdue = isTaskOverdue(task);
-              const dueToday = isTaskDueToday(task);
-              const canEdit = isAdmin || task.createdById === user.id;
-              return (
-                <TaskRow
-                  key={`${task.id}-${task.text}-${task.priority}-${task.dueDate?.getTime()}-${task.assignedToId}-${task.vehicleId}`}
-                  task={task}
-                  overdue={overdue}
-                  dueToday={dueToday}
-                  canEdit={canEdit}
-                  users={users}
-                  vehicles={vehicles}
-                />
-              );
-            })}
-          </ul>
+          <PendingTaskList
+            key={pending.map((t) => t.id).join(",")}
+            tasks={pending.map((task) => ({
+              task,
+              overdue: isTaskOverdue(task),
+              dueToday: isTaskDueToday(task),
+              canEdit: isAdmin || task.createdById === user.id,
+            }))}
+            users={users}
+            vehicles={vehicles}
+          />
         )}
       </section>
 

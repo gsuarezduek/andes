@@ -6,6 +6,11 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { createTask } from "@/app/(app)/tasks/actions";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import {
+  RECURRENCE_INTERVAL_UNIT,
+  RECURRENCE_OPTIONS,
+  type RecurrenceFormFreq,
+} from "@/components/tasks/recurrence-options";
 
 type UserOption = { id: string; name: string };
 type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
@@ -21,10 +26,20 @@ export function TaskForm({
   currentUserId: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [recurrenceFreq, setRecurrenceFreq] = useState<RecurrenceFormFreq>("none");
 
   if (!open) {
     return (
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+          // Sin esto, "Repetir" queda en lo que se eligió la última vez que
+          // se abrió el panel — y con eso, "Fecha" queda marcada obligatoria
+          // sin que se note por qué en una tarea nueva sin repetición.
+          setRecurrenceFreq("none");
+        }}
+      >
         + Nueva tarea
       </Button>
     );
@@ -44,7 +59,37 @@ export function TaskForm({
           <option value="normal">Normal</option>
           <option value="high">Alta</option>
         </SelectField>
-        <TextField id="dueDate" label="Fecha" type="date" hint="Opcional" />
+        <TextField
+          id="dueDate"
+          label="Fecha"
+          type="date"
+          hint={recurrenceFreq === "none" ? "Opcional" : "Obligatoria para poder repetir"}
+          required={recurrenceFreq !== "none"}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField
+          id="recurrenceFreq"
+          label="Repetir"
+          value={recurrenceFreq}
+          onChange={(e) => setRecurrenceFreq(e.target.value as RecurrenceFormFreq)}
+        >
+          {RECURRENCE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </SelectField>
+        {recurrenceFreq !== "none" && (
+          <TextField
+            id="recurrenceInterval"
+            label={`Cada (${RECURRENCE_INTERVAL_UNIT(recurrenceFreq)})`}
+            type="number"
+            min={1}
+            max={365}
+            defaultValue={1}
+          />
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <SelectField id="assignedToId" label="Asignar a" defaultValue="">

@@ -5,6 +5,7 @@ import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 
 const ROW_INCLUDE = {
   vehicle: { select: { id: true, name: true, brand: true, model: true, plate: true } },
+  recurrence: { select: { freq: true, interval: true, weekday: true, dayOfMonth: true, month: true, active: true } },
 } satisfies Prisma.TaskInclude;
 
 export type TaskRow = Prisma.TaskGetPayload<{ include: typeof ROW_INCLUDE }>;

@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { UserRole } from "@prisma/client";
+import type { Prisma, RecurrenceFreq, TaskRecurrence, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
+import { computeNextDueDate, ruleFromDueDate } from "@/lib/task-recurrence";
 
 function emptyToNull(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -42,19 +43,100 @@ async function parseTaskForm(formData: FormData) {
   };
 }
 
+const RECURRENCE_FREQS = ["none", "daily", "weekly", "monthly", "yearly"] as const;
+
+const recurrenceFormSchema = z.object({
+  freq: z.enum(RECURRENCE_FREQS),
+  interval: z.coerce.number().int().min(1).max(365),
+});
+
+/**
+ * Lee "Repetir" del form (freq + intervalo). El día/semana/mes de la regla
+ * NO se elige aparte — se deriva de `dueDate` (ver ruleFromDueDate), así que
+ * hace falta una fecha para poder armar la regla.
+ */
+function parseRecurrenceRule(formData: FormData, dueDate: Date | null) {
+  const parsed = recurrenceFormSchema.parse({
+    freq: formData.get("recurrenceFreq") || "none",
+    interval: formData.get("recurrenceInterval") || 1,
+  });
+  if (parsed.freq === "none") return null;
+  if (!dueDate) {
+    throw new Error("Una tarea que se repite necesita una fecha.");
+  }
+  return ruleFromDueDate(parsed.freq as RecurrenceFreq, parsed.interval, dueDate);
+}
+
+/** Crea la próxima ocurrencia de una serie, clonando su plantilla vigente. */
+async function generateNextOccurrence(
+  tx: Prisma.TransactionClient,
+  recurrence: TaskRecurrence,
+  fromDate: Date,
+) {
+  if (!recurrence.active) return;
+  const nextDueDate = computeNextDueDate(recurrence, fromDate);
+  await tx.task.create({
+    data: {
+      text: recurrence.text,
+      priority: recurrence.priority,
+      dueDate: nextDueDate,
+      assignedToId: recurrence.assignedToId,
+      assignedToName: recurrence.assignedToName,
+      vehicleId: recurrence.vehicleId,
+      recurrenceId: recurrence.id,
+      createdById: recurrence.createdById,
+      createdByName: recurrence.createdByName,
+    },
+  });
+}
+
 export async function createTask(formData: FormData) {
   const user = await requireUser();
   const data = await parseTaskForm(formData);
-  await prisma.task.create({ data: { ...data, createdById: user.id, createdByName: displayName(user) } });
+  const rule = parseRecurrenceRule(formData, data.dueDate);
+
+  if (rule) {
+    await prisma.$transaction(async (tx) => {
+      const recurrence = await tx.taskRecurrence.create({
+        data: {
+          ...rule,
+          text: data.text,
+          priority: data.priority,
+          assignedToId: data.assignedToId,
+          assignedToName: data.assignedToName,
+          vehicleId: data.vehicleId,
+          createdById: user.id,
+          createdByName: displayName(user),
+        },
+      });
+      await tx.task.create({
+        data: { ...data, recurrenceId: recurrence.id, createdById: user.id, createdByName: displayName(user) },
+      });
+    });
+  } else {
+    await prisma.task.create({ data: { ...data, createdById: user.id, createdByName: displayName(user) } });
+  }
   revalidatePath("/tasks");
   revalidatePath("/");
 }
 
 export async function completeTask(id: string) {
   const user = await requireUser();
-  await prisma.task.update({
-    where: { id },
-    data: { status: "done", completedById: user.id, completedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    // `status: "pending"` en el where es el guard de idempotencia: un doble
+    // submit (doble-tap, reintento) del mismo id no genera la próxima
+    // ocurrencia dos veces.
+    const result = await tx.task.updateMany({
+      where: { id, status: "pending" },
+      data: { status: "done", completedById: user.id, completedAt: new Date() },
+    });
+    if (result.count === 0) return;
+
+    const task = await tx.task.findUniqueOrThrow({ where: { id } });
+    if (!task.recurrenceId) return;
+    const recurrence = await tx.taskRecurrence.findUnique({ where: { id: task.recurrenceId } });
+    if (!recurrence) return;
+    await generateNextOccurrence(tx, recurrence, task.dueDate ?? new Date());
   });
   revalidatePath("/tasks");
   revalidatePath("/");
@@ -67,19 +149,69 @@ async function assertCanEditTask(taskId: string, user: { id: string; role: UserR
   }
 }
 
+/**
+ * `scope` ("instance" | "series") solo importa si la tarea es parte de una
+ * serie: "series" además actualiza la plantilla (`TaskRecurrence`) — texto,
+ * prioridad, asignado, vehículo y la regla (frecuencia/intervalo) — para que
+ * las futuras ocurrencias generadas también reflejen el cambio. "instance"
+ * (default) solo toca esta fila, la serie sigue generando con los valores
+ * de siempre.
+ */
 export async function updateTask(id: string, formData: FormData) {
   const user = await requireUser();
   await assertCanEditTask(id, user);
   const data = await parseTaskForm(formData);
-  await prisma.task.update({ where: { id }, data });
+  const scope = formData.get("scope") === "series" ? "series" : "instance";
+  const task = await prisma.task.findUniqueOrThrow({ where: { id } });
+
+  if (scope === "series" && task.recurrenceId) {
+    const rule = parseRecurrenceRule(formData, data.dueDate);
+    await prisma.$transaction([
+      prisma.task.update({ where: { id }, data }),
+      prisma.taskRecurrence.update({
+        where: { id: task.recurrenceId },
+        data: {
+          text: data.text,
+          priority: data.priority,
+          assignedToId: data.assignedToId,
+          assignedToName: data.assignedToName,
+          vehicleId: data.vehicleId,
+          ...(rule ?? {}),
+        },
+      }),
+    ]);
+  } else {
+    await prisma.task.update({ where: { id }, data });
+  }
   revalidatePath("/tasks");
   revalidatePath("/");
 }
 
-export async function deleteTask(id: string) {
+/**
+ * Sin marcar "Detener la repetición": borra esta ocurrencia y, si la serie
+ * sigue activa, genera de inmediato la próxima (si no, al no completarse
+ * nunca esta fila, la serie quedaría trabada para siempre — la próxima solo
+ * se genera al completar o al borrar). Marcando el checkbox: borra esta fila
+ * y detiene la serie (no se genera ninguna más).
+ */
+export async function deleteTask(id: string, formData: FormData) {
   const user = await requireUser();
   await assertCanEditTask(id, user);
-  await prisma.task.delete({ where: { id } });
+  const task = await prisma.task.findUniqueOrThrow({ where: { id } });
+  const stopSeries = formData.get("stopSeries") === "on";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.delete({ where: { id } });
+    if (!task.recurrenceId) return;
+
+    if (stopSeries) {
+      await tx.taskRecurrence.update({ where: { id: task.recurrenceId }, data: { active: false } });
+      return;
+    }
+    const recurrence = await tx.taskRecurrence.findUnique({ where: { id: task.recurrenceId } });
+    if (!recurrence) return;
+    await generateNextOccurrence(tx, recurrence, task.dueDate ?? new Date());
+  });
   revalidatePath("/tasks");
   revalidatePath("/");
 }

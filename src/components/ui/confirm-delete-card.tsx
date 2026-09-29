@@ -12,6 +12,8 @@ import { TextareaField } from "@/components/ui/fields";
  * `requireNote` agrega un campo "Motivo" obligatorio (id `note` en el
  * FormData) para cuando el caller quiere dejar constancia de por qué se
  * eliminó (ver MovementRow, que lo guarda en el historial de ediciones).
+ * `children` agrega campos extra al form (ej. un checkbox), antes de los
+ * botones — ver el checkbox "Detener la repetición" de TaskRow.
  */
 export function ConfirmDeleteCard({
   message,
@@ -19,12 +21,14 @@ export function ConfirmDeleteCard({
   onCancel,
   requireNote = false,
   as: Tag = "li",
+  children,
 }: {
   message: ReactNode;
   action: (formData: FormData) => void | Promise<void>;
   onCancel: () => void;
   requireNote?: boolean;
   as?: "li" | "div";
+  children?: ReactNode;
 }) {
   return (
     <Tag className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
@@ -33,6 +37,7 @@ export function ConfirmDeleteCard({
         {requireNote && (
           <TextareaField id="note" label="Motivo" hint="Por qué se elimina — queda en el historial" required rows={2} />
         )}
+        {children}
         <div className="flex items-center gap-3">
           <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
             Volver

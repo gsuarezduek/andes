@@ -245,6 +245,8 @@ model User {
   createdTasks                   Task[]                  @relation("TaskCreator")
   assignedTasks                  Task[]                  @relation("TaskAssignee")
   completedTasks                 Task[]                  @relation("TaskCompleter")
+  createdTaskRecurrences         TaskRecurrence[]        @relation("TaskRecurrenceCreator")
+  assignedTaskRecurrences        TaskRecurrence[]        @relation("TaskRecurrenceAssignee")
   assignedWhatsappConversations  WhatsAppConversation[]
   sentWhatsappMessages           WhatsAppMessage[]
   resolvedWhatsappBotEscalations WhatsAppBotEscalation[] @relation("WhatsAppBotEscalationResolver")
@@ -368,6 +370,7 @@ model Vehicle {
   maintenanceLogs MaintenanceLog[]
   teamNotes       VehicleNote[]
   tasks           Task[]
+  taskRecurrences TaskRecurrence[]
   gpsDevices      GpsDevice[]
   rentalQuotes    RentalQuote[]
 
@@ -915,6 +918,13 @@ enum TaskPriority {
   high
 }
 
+enum RecurrenceFreq {
+  daily
+  weekly
+  monthly
+  yearly
+}
+
 /// Coordinación de trabajo del equipo (lavar un auto, hacer un trámite,
 /// comprar algo): cualquiera crea una tarea, opcionalmente la asigna a otro
 /// usuario y/o a un vehículo, con fecha opcional. Cualquiera puede marcarla
@@ -947,13 +957,55 @@ model Task {
   completedBy   User?     @relation("TaskCompleter", fields: [completedById], references: [id])
   completedAt   DateTime? @map("completed_at")
 
+  // Serie de la que esta tarea es una ocurrencia (v?? tareas recurrentes).
+  // Null = tarea suelta, sin repetición.
+  recurrenceId String?         @map("recurrence_id")
+  recurrence   TaskRecurrence? @relation(fields: [recurrenceId], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([status])
   @@index([assignedToId])
   @@index([dueDate])
   @@index([vehicleId])
+  @@index([recurrenceId])
   @@map("tasks")
+}
+
+/// Regla + plantilla de una tarea recurrente. No genera filas por sí sola: al
+/// marcar "Hecha" (o borrar sin detener la serie) una `Task` con
+/// `recurrenceId`, se crea la próxima ocurrencia clonando esta plantilla con
+/// la fecha calculada por la regla (ver src/lib/task-recurrence.ts). Editar
+/// "esta y las futuras" actualiza la plantilla; editar "esta tarea nada más"
+/// solo toca la fila `Task`. `active: false` detiene la serie (no se generan
+/// más ocurrencias); las ya generadas no se tocan.
+model TaskRecurrence {
+  id         String         @id @default(cuid())
+  freq       RecurrenceFreq
+  interval   Int            @default(1) // cada N días/semanas/meses/años
+  weekday    Int?           @map("weekday") // 0=domingo..6=sábado; solo weekly
+  dayOfMonth Int?           @map("day_of_month") // 1-31; solo monthly/yearly
+  month      Int? // 1-12; solo yearly
+  active     Boolean        @default(true)
+
+  // Plantilla: se copia a cada instancia nueva que se genera.
+  text           String       @db.Text
+  priority       TaskPriority @default(normal)
+  assignedToId   String?      @map("assigned_to_id")
+  assignedTo     User?        @relation("TaskRecurrenceAssignee", fields: [assignedToId], references: [id])
+  assignedToName String?      @map("assigned_to_name")
+  vehicleId      String?      @map("vehicle_id")
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("TaskRecurrenceCreator", fields: [createdById], references: [id])
+  createdByName String  @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tasks Task[]
+
+  @@map("task_recurrences")
 }
 
 // ---------------------------------------------------------------------------
