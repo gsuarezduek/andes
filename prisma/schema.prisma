@@ -257,6 +257,7 @@ model User {
   sentWhatsappMessages           WhatsAppMessage[]
   resolvedWhatsappBotEscalations WhatsAppBotEscalation[] @relation("WhatsAppBotEscalationResolver")
   rentalQuotes                   RentalQuote[]
+  createdQuickReplies            WhatsAppQuickReply[]
 
   @@map("users")
 }
@@ -1906,6 +1907,30 @@ model WhatsAppTemplate {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("whatsapp_templates")
+}
+
+/// Plantillas prediseñadas propias del equipo ("respuestas rápidas") — se
+/// invocan escribiendo "/" en el compositor (ver quick-reply-match.ts y
+/// SendForm), igual que en la app de WhatsApp Business. Nada que ver con
+/// WhatsAppTemplate (esas son plantillas APROBADAS por Meta, solo sirven para
+/// reabrir la ventana de 24hs): esto es texto libre que se manda como un
+/// mensaje de sesión normal, compartido para todo el equipo (mismo criterio
+/// que las notas — cualquiera responde por WhatsApp indistintamente).
+model WhatsAppQuickReply {
+  id String @id @default(cuid())
+
+  shortcut String @unique // lo que se escribe después de "/" (normalizado, sin espacios/acentos)
+  text     String @db.Text
+
+  // Nombre congelado (ver Inspection.userName) — sobrevive a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_quick_replies")
 }
 
 /// Configuración del bot de IA que responde automáticamente en WhatsApp.

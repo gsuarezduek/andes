@@ -1,6 +1,7 @@
 import { MessageBubble, type MessageData } from "@/components/whatsapp/message-bubble";
 import { SendForm } from "@/components/whatsapp/send-form";
 import { ReopenForm } from "@/components/whatsapp/reopen-form";
+import type { QuickReplyOption } from "@/lib/whatsapp/quick-replies";
 
 type TemplateOption = { id: string; name: string; language: string; variableCount: number };
 
@@ -15,11 +16,13 @@ export function ConversationThread({
   messages,
   windowOpen,
   templates,
+  quickReplies,
 }: {
   conversationId: string;
   messages: MessageData[];
   windowOpen: boolean;
   templates: TemplateOption[];
+  quickReplies: QuickReplyOption[];
 }) {
   return (
     <section className="flex flex-1 flex-col gap-3 rounded-xl border border-foreground/10 p-4">
@@ -31,7 +34,11 @@ export function ConversationThread({
         )}
       </div>
 
-      {windowOpen ? <SendForm conversationId={conversationId} /> : <ReopenForm conversationId={conversationId} templates={templates} />}
+      {windowOpen ? (
+        <SendForm conversationId={conversationId} quickReplies={quickReplies} />
+      ) : (
+        <ReopenForm conversationId={conversationId} templates={templates} />
+      )}
     </section>
   );
 }

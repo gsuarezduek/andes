@@ -12,6 +12,7 @@ import {
   autoLinkRentalIfUnambiguous,
 } from "@/lib/whatsapp/conversations";
 import { getRentalPickerOptions } from "@/lib/cash";
+import { listQuickReplies } from "@/lib/whatsapp/quick-replies";
 import { formatDate } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -46,7 +47,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const windowOpen = isSessionWindowOpen(conversation.lastInboundAt);
 
-  const [relatedRentals, rentalOptions, approvedTemplates, botConfig] = await Promise.all([
+  const [relatedRentals, rentalOptions, approvedTemplates, botConfig, quickReplies] = await Promise.all([
     conversation.rental ? Promise.resolve([]) : findRelatedRentals(conversation.phoneE164),
     conversation.rental ? Promise.resolve([]) : getRentalPickerOptions(),
     windowOpen
@@ -57,6 +58,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
           select: { id: true, name: true, language: true, variableCount: true },
         }),
     prisma.whatsAppBotConfig.findUnique({ where: { id: 1 }, select: { enabled: true } }),
+    windowOpen ? listQuickReplies() : Promise.resolve([]),
   ]);
 
   return (
@@ -154,6 +156,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         messages={conversation.messages}
         windowOpen={windowOpen}
         templates={approvedTemplates}
+        quickReplies={quickReplies}
       />
     </div>
   );

@@ -35,6 +35,7 @@ import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getConversationForRental, isSessionWindowOpen } from "@/lib/whatsapp/conversations";
+import { listQuickReplies } from "@/lib/whatsapp/quick-replies";
 import { ConversationThread } from "@/components/whatsapp/conversation-thread";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -137,6 +138,7 @@ export default async function RentalDetailPage({
           select: { id: true, name: true, language: true, variableCount: true },
         })
       : [];
+  const conversationQuickReplies = conversation && conversationWindowOpen ? await listQuickReplies() : [];
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -328,6 +330,7 @@ export default async function RentalDetailPage({
                 messages={conversation.messages}
                 windowOpen={conversationWindowOpen}
                 templates={conversationTemplates}
+                quickReplies={conversationQuickReplies}
               />
             </>
           ) : undefined
