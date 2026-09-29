@@ -12,6 +12,7 @@ export type RentalFlags = {
   canCloseService: boolean;
   canEditReturn: boolean;
   returnManagedInWp: boolean;
+  canExtendRental: boolean;
 };
 
 export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
@@ -38,6 +39,10 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
   const returnManagedInWp =
     rental.origin === "vikrentcar" &&
     (rental.status === "reserved" || rental.status === "active");
+  // Extender con cargo (ver `extendRental`): a diferencia de canEditReturn,
+  // se permite en cualquier origen — es el caso real ("el cliente avisa y
+  // confirmamos si puede extender") y actualiza el saldo, no solo la fecha.
+  const canExtendRental = rental.status === "active";
 
   return {
     canStartHandover,
@@ -47,5 +52,6 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
     canCloseService,
     canEditReturn,
     returnManagedInWp,
+    canExtendRental,
   };
 }

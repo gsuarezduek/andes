@@ -8,7 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { rentalOriginLabels } from "@/lib/labels";
 import { rentalStatusDisplay } from "@/lib/rental-ui";
-import { formatArs } from "@/lib/contract";
+import { formatArs, type ContractPricing } from "@/lib/contract";
 import { env } from "@/lib/env";
 import { vikrentcarOrderUrl } from "@/lib/vikrentcar";
 import { ExternalLinkIcon } from "@/components/ui/icons";
@@ -24,6 +24,9 @@ import { DateInfoSection } from "@/components/rentals/date-info-section";
 import { PaymentsSection } from "@/components/rentals/payments-section";
 import { PaymentHistorySection } from "@/components/rentals/payment-history-section";
 import { AddPaymentButton } from "@/components/rentals/add-payment-button";
+import { ExtendRentalButton } from "@/components/rentals/extend-rental-button";
+import { RentalExtensionsSection } from "@/components/rentals/rental-extensions-section";
+import { PendingExtensionBanner } from "@/components/rentals/pending-extension-banner";
 import { AddServiceButton } from "@/components/rentals/add-service-button";
 import { ReturnEditSection } from "@/components/rentals/return-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
@@ -77,6 +80,7 @@ export default async function RentalDetailPage({
     canCloseService,
     canEditReturn,
     returnManagedInWp,
+    canExtendRental,
   } = computeRentalFlags(rental);
 
   // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
@@ -93,6 +97,13 @@ export default async function RentalDetailPage({
   const payments = computeRentalPayments(rental);
   const { hasContract, hasRealPaid, totalRef, paidSoFar, balance, writeOff, showPayments } = payments;
   const accent = paymentAccent(rental.status, rental.bookingConfirmed, payments);
+
+  // Extensiones: las detectadas por el sync (VikRentCar primero) quedan con
+  // `amount` null hasta que alguien carga el cobro (ver PendingExtensionBanner).
+  const pendingExtensions = rental.extensions.filter((e) => e.amount == null);
+  const resolvedExtensions = rental.extensions
+    .filter((e) => e.amount != null)
+    .map((e) => ({ ...e, amount: Number(e.amount) }));
 
   // Link directo a la orden en el admin de VikRentCar, solo si la reserva
   // vino sincronizada (wpBookingId) y hay un sitio de WordPress configurado.
@@ -171,6 +182,13 @@ export default async function RentalDetailPage({
             />
           )}
           {canAddPayment && <AddPaymentButton rentalId={rental.id} paymentMethods={paymentMethods} usdRate={usdRate} />}
+          {canExtendRental && (
+            <ExtendRentalButton
+              rentalId={rental.id}
+              currentEndAt={rental.endAt}
+              dailyRate={(rental.pricing as ContractPricing | null)?.dailyRate ?? null}
+            />
+          )}
           {wpOrderUrl && (
             <a
               href={wpOrderUrl}
@@ -226,6 +244,12 @@ export default async function RentalDetailPage({
         </p>
       )}
 
+      {/* Extensión detectada por el sync (se cargó primero en VikRentCar):
+          la fecha ya llegó sola, falta el cobro. */}
+      {pendingExtensions.map((e) => (
+        <PendingExtensionBanner key={e.id} extension={e} />
+      ))}
+
       {/* Saldo condonado / botón para aceptar la pérdida (solo admin condona). */}
       <BalanceWriteOff
         rentalId={rental.id}
@@ -271,6 +295,7 @@ export default async function RentalDetailPage({
             <div className="flex flex-col gap-3">
               <SectionTitle>Datos de pago y retiro</SectionTitle>
               <DateInfoSection rental={rental} />
+              <RentalExtensionsSection extensions={resolvedExtensions} />
               {showPayments && (
                 <PaymentsSection hasContract={hasContract} hasRealPaid={hasRealPaid} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
               )}

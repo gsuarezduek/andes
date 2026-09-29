@@ -15,6 +15,8 @@ export async function getRentalDetail(id: string) {
       // Historial de verificación: solo se muestra a admins (ver
       // `RentalVerificationSection`), pero es liviano, así que se trae siempre.
       verifications: { orderBy: { createdAt: "desc" } },
+      // Historial de extensiones (ver `ExtendRentalSection`).
+      extensions: { orderBy: { createdAt: "desc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
       },

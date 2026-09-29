@@ -23,8 +23,9 @@ export function ReturnEditSection({
 
       {returnManagedInWp && (
         <p className="rounded-xl border border-foreground/10 px-4 py-3 text-sm text-foreground/60">
-          Las fechas de esta reserva se gestionan desde VikRentCar (la web). Si el
-          cliente extiende el alquiler, cambiá la fecha allí y se sincroniza sola.
+          {rental.status === "active"
+            ? "Si el cliente extiende el alquiler, usá \"Extender alquiler\" (ícono de arriba): registra la nueva fecha y el cargo correspondiente. Para otros cambios de fecha, se gestionan desde VikRentCar (la web) y se sincronizan solos."
+            : "Las fechas de esta reserva se gestionan desde VikRentCar (la web) y se sincronizan solas."}
         </p>
       )}
     </>

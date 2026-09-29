@@ -42,3 +42,13 @@ describe("computeRentalFlags — service/arreglo", () => {
     }
   });
 });
+
+describe("computeRentalFlags — extender alquiler", () => {
+  it("solo se puede extender una reserva activa, sin importar el origen", () => {
+    expect(computeRentalFlags(rental("active", { origin: "manual" })).canExtendRental).toBe(true);
+    expect(computeRentalFlags(rental("active", { origin: "vikrentcar" })).canExtendRental).toBe(true);
+    for (const status of ["reserved", "finished", "cancelled", "out_of_service"] as const) {
+      expect(computeRentalFlags(rental(status)).canExtendRental).toBe(false);
+    }
+  });
+});

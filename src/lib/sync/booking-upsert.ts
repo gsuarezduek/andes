@@ -9,6 +9,8 @@ import { resolveOptionals } from "./optionals";
 import { effectiveClientName } from "./client-name";
 import { syncCommission } from "@/lib/commissions-sync";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
+import { extensionExtraDays } from "@/lib/rental-extension";
+import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 
 /** ¿Cambió un importe (Decimal de Prisma | null vs. número | null)? */
 function decimalChanged(prev: { toString(): string } | null, next: number | null): boolean {
@@ -71,18 +73,42 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
     return "imported";
   }
 
-  // ¿Cambió la fecha de devolución en VikRentCar (extensión)? VikRentCar es la
-  // única fuente de verdad de las fechas de una reserva importada: la edición de
-  // fechas en Andes está deshabilitada para estas reservas, así que la web siempre
-  // manda.
+  // ¿Cambió la fecha de devolución en VikRentCar (extensión)? Normalmente
+  // VikRentCar es la única fuente de verdad de las fechas de una reserva
+  // importada, salvo que ya se haya registrado una extensión con cargo desde
+  // Andes (`datesEditedAt`, ver `extendRental`) — ahí Andes pasa a mandar,
+  // para no perder el cargo ya cobrado si la web trae otra fecha después.
   const returnChangedInWp = endAt.getTime() !== existing.endAt.getTime();
+  const datesEdited = existing.datesEditedAt != null;
 
   // No tocamos reservas que ya arrancaron el flujo físico (entrega/devolución) ni
   // las cerradas. ÚNICA excepción: si una reserva ACTIVA (entregada, sin devolución
   // aún) extendió su fecha de devolución en la web, traemos SOLO esa fecha.
   if (hasInspection || existing.status !== "reserved") {
-    if (existing.status === "active" && returnChangedInWp) {
-      await prisma.rental.update({ where: { id: existing.id }, data: { endAt } });
+    if (existing.status === "active" && returnChangedInWp && !datesEdited) {
+      // Flujo real más común: la extensión se carga primero en VikRentCar.
+      // Traemos la fecha sola (el sync nunca toca `pricing`), pero si es una
+      // extensión real (fecha posterior) dejamos un registro con el cargo
+      // pendiente — sin esto, el saldo/semáforo de pago queda mal hasta que
+      // alguien se acuerde de cargarlo a mano (ver `completeExtensionCharge`).
+      // Si la fecha se acorta o corrige, no hay cargo que registrar.
+      const extraDays = extensionExtraDays(existing.endAt, endAt);
+      await prisma.$transaction(async (tx) => {
+        await tx.rental.update({ where: { id: existing.id }, data: { endAt } });
+        if (extraDays > 0) {
+          await tx.rentalExtension.create({
+            data: {
+              rentalId: existing.id,
+              previousEndAt: existing.endAt,
+              newEndAt: endAt,
+              extraDays,
+              amount: null,
+              createdByName: AUTO_IMPORT_CREATOR_LABEL,
+            },
+          });
+          await autoUnverifyRental(tx, existing.id, "Se extendió el alquiler en VikRentCar.");
+        }
+      });
       return "updated";
     }
     return "skipped";

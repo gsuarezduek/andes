@@ -49,7 +49,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   const inspection = await prisma.inspection.findUnique({
     where: { id: inspectionId },
     include: {
-      rental: true,
+      rental: { include: { extensions: true } },
       vehicle: true,
       media: true,
       damages: true,
@@ -160,6 +160,19 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   }
   if (pricing.guaranteeForm?.trim()) {
     termRows.push({ label: t.guaranteeForm, value: pricing.guaranteeForm.trim() });
+  }
+  // Extensión del alquiler (ver RentalExtension): días y cargo sumados al
+  // total, para que quede claro por qué subió — no solo el número final.
+  // Solo las ya cobradas (amount != null): una detectada por el sync y
+  // todavía pendiente de cargo no sumó nada a `pricing.total` todavía.
+  const extensions = (r.extensions ?? []).filter((e) => e.amount != null);
+  if (extensions.length > 0) {
+    const totalExtraDays = extensions.reduce((a, e) => a + e.extraDays, 0);
+    const totalExtraAmount = extensions.reduce((a, e) => a + Number(e.amount), 0);
+    termRows.push({
+      label: `Extensión (+${totalExtraDays} día${totalExtraDays === 1 ? "" : "s"})`,
+      value: formatArs(totalExtraAmount),
+    });
   }
   // Medios de pago usados en la entrega (sin la referencia/alias: es interna).
   for (const pay of pricing.payments ?? []) {
