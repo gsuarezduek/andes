@@ -197,7 +197,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               .
             </Empty>
           ) : (
-            <details className="group rounded-xl border border-foreground/10">
+            <details open className="group rounded-xl border border-foreground/10">
               <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
                 <span>
                   {weekStart === currentWeek ? "Esta semana" : weekLabel(weekStart, addDaysToKey(weekStart, 6))}
