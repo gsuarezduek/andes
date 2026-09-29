@@ -29,7 +29,6 @@ import { ReturnEditSection } from "@/components/rentals/return-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
-import { ReportsExclusionSection } from "@/components/rentals/reports-exclusion-section";
 import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-section";
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
@@ -241,18 +240,6 @@ export default async function RentalDetailPage({
           verified={isRentalVerified(rental) ? { byName: rental.verifiedByName, at: rental.verifiedAt! } : null}
           isAdmin={isAdmin}
           history={isAdmin ? rental.verifications : []}
-        />
-      )}
-
-      {/* Excluir de Reportes (solo admin): para datos que distorsionan las métricas. */}
-      {isAdmin && (
-        <ReportsExclusionSection
-          rentalId={rental.id}
-          excluded={
-            rental.reportsExcludedAt
-              ? { at: rental.reportsExcludedAt, reason: rental.reportsExcludedReason, byName: rental.reportsExcludedByName }
-              : null
-          }
         />
       )}
 
