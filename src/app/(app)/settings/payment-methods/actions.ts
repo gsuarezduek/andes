@@ -55,6 +55,9 @@ export type PaymentMethodUpdateInput = {
   reference: string;
   requiresNote: boolean;
   isCash: boolean;
+  // Solo cuentas propias — ver `PaymentMethod.hasInvestmentFunds` en el
+  // schema. Habilita el bloque "Fondos de inversión" en su página de Saldos.
+  hasInvestmentFunds: boolean;
   ownership: PaymentMethodOwnership;
   // Cuenta principal (misma entidad, otra cuenta real) — ver comentario en el
   // schema. `null` = cuenta principal (no es subcuenta de nadie).
@@ -144,6 +147,8 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           reference: strOrNull(u.reference),
           requiresNote: u.requiresNote,
           isCash: u.isCash,
+          // Solo tiene sentido en cuentas propias — en las demás se guarda en false.
+          hasInvestmentFunds: u.ownership === "own" ? u.hasInvestmentFunds : false,
           ownership: u.ownership,
           parentId: u.parentId,
           whatsappPhone: strOrNull(u.whatsappPhone),

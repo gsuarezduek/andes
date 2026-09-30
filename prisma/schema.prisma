@@ -1132,8 +1132,16 @@ model PaymentMethod {
   balanceAdjustmentArs Decimal @default(0) @map("balance_adjustment_ars") @db.Decimal(14, 2)
   balanceAdjustmentUsd Decimal @default(0) @map("balance_adjustment_usd") @db.Decimal(14, 2)
 
-  transfersOut AccountTransfer[] @relation("AccountTransferFrom")
-  transfersIn  AccountTransfer[] @relation("AccountTransferTo")
+  // Esta cuenta propia tiene plata invertida en un fondo (ej. Mercado Pago
+  // Fondo, FCI). Habilita el bloque "Fondos de inversión" en su página de
+  // Saldos (ver FundMovement) — puramente informativo: depositar/retirar de
+  // fondos NO genera un CashMovement ni cambia el saldo de Caja de la cuenta,
+  // solo lleva un registro aparte de cuánto de esa plata está invertida.
+  hasInvestmentFunds Boolean @default(false) @map("has_investment_funds")
+
+  transfersOut  AccountTransfer[] @relation("AccountTransferFrom")
+  transfersIn   AccountTransfer[] @relation("AccountTransferTo")
+  fundMovements FundMovement[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2133,6 +2141,42 @@ model AccountTransfer {
   @@index([fromAccountId])
   @@index([toAccountId])
   @@map("account_transfers")
+}
+
+/// Depósito o retiro de fondos de inversión (`deposit` suma al saldo del
+/// fondo, `withdrawal` resta).
+enum FundMovementType {
+  deposit
+  withdrawal
+}
+
+/// Movimiento de fondos de inversión de una cuenta propia (ver
+/// `PaymentMethod.hasInvestmentFunds`) — puramente informativo, no es un
+/// `CashMovement`: no mueve el saldo de Caja de la cuenta, solo lleva un
+/// registro aparte de cuánto de esa plata está invertida. Inmutable: solo se
+/// elimina (soft delete, motivo obligatorio), mismo criterio que
+/// `AccountTransfer`.
+model FundMovement {
+  id String @id @default(cuid())
+
+  paymentMethodId String        @map("payment_method_id")
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+
+  type     FundMovementType
+  amount   Decimal          @db.Decimal(12, 2)
+  currency Currency         @default(ars)
+  note     String?          @db.Text
+
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  deletedAt     DateTime? @map("deleted_at")
+  deletedByName String?   @map("deleted_by_name")
+  deleteNote    String?   @map("delete_note") @db.Text
+
+  @@index([paymentMethodId])
+  @@index([createdAt])
+  @@map("fund_movements")
 }
 
 // ---------------------------------------------------------------------------

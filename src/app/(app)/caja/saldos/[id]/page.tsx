@@ -12,6 +12,9 @@ import { TransferList } from "@/components/cash/transfer-list";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { AccountLedgerMonths } from "@/components/cash/account-ledger-months";
 import { CajaSectionNav } from "@/components/cash/caja-section-nav";
+import { FundsSection } from "@/components/cash/funds-section";
+import { getFundMovements } from "@/lib/investment-funds-queries";
+import { fundBalance } from "@/lib/investment-funds";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -29,7 +32,7 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
   await requireAdmin();
   const { id } = await params;
 
-  const [accounts, ledger, transfers, paymentMethods, expenseCategories] = await Promise.all([
+  const [accounts, ledger, transfers, paymentMethods, expenseCategories, pm] = await Promise.all([
     getOwnAccountBalances(),
     getOwnAccountLedger(id),
     getAccountTransfers({ accountId: id, limit: 100 }),
@@ -43,10 +46,13 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
       orderBy: { ordering: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.paymentMethod.findUnique({ where: { id }, select: { hasInvestmentFunds: true } }),
   ]);
 
   const account = accounts.find((a) => a.id === id);
   if (!account) notFound();
+
+  const fundMovements = pm?.hasInvestmentFunds ? await getFundMovements(id) : null;
 
   // `getOwnAccountLedger` ya viene ordenado por `createdAt` desc (ver
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
@@ -69,11 +75,16 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
+      {fundMovements && (
+        <FundsSection paymentMethodId={id} balance={fundBalance(fundMovements)} movements={fundMovements} />
+      )}
+
       <AccountLedgerMonths
         groups={groups}
         currentMonthKey={formatDateInput(new Date()).slice(0, 7)}
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
+        fundMovements={fundMovements}
       />
 
       <div className="flex flex-col gap-2">

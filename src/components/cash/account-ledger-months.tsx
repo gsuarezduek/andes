@@ -5,14 +5,26 @@ import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
 import { MovementRow } from "./movement-row";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
-import { sumByCurrency } from "@/lib/currency";
+import { sumByCurrency, type CurrencyTotals } from "@/lib/currency";
+import { fundBalanceAtMonthEnd } from "@/lib/investment-funds";
 import type { CashMovementRow } from "@/lib/cash";
 import type { ProviderLedgerMonthGroup } from "@/lib/provider-ledger-grouping";
+import type { FundMovementRow } from "@/lib/investment-funds-queries";
 
 const PAGE_SIZE_MONTHS = 6;
 
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 type ExpenseCategoryOption = { id: string; name: string };
+
+/** Ingresos/Egresos/En Fondos, apilados y alineados a la derecha — una columna del resumen mensual. */
+function MiniStat({ label, totals }: { label: string; totals: CurrencyTotals }) {
+  return (
+    <div>
+      <p className="text-[11px] text-foreground/50">{label}</p>
+      <CurrencyTotalsDisplay totals={totals} size="text-sm" />
+    </div>
+  );
+}
 
 /**
  * Historial de una cuenta propia (`/caja/saldos/[id]`), partido por mes
@@ -32,11 +44,16 @@ export function AccountLedgerMonths({
   currentMonthKey,
   paymentMethods,
   expenseCategories,
+  fundMovements = null,
 }: {
   groups: ProviderLedgerMonthGroup<CashMovementRow>[];
   currentMonthKey: string;
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
+  /** Si la cuenta tiene fondos de inversión habilitados: cambia "Balance del
+   *  mes" por Ingresos/Egresos/En Fondos (saldo acumulado del fondo a fin de
+   *  ese mes) — ver `FundsSection`. */
+  fundMovements?: FundMovementRow[] | null;
 }) {
   const [visibleMonths, setVisibleMonths] = useState(PAGE_SIZE_MONTHS);
 
@@ -58,18 +75,27 @@ export function AccountLedgerMonths({
         const incomeTotals = sumByCurrency(incomes);
         const expenseTotals = sumByCurrency(expenses);
         const net = { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
+        const fundEnd = fundMovements ? fundBalanceAtMonthEnd(fundMovements, g.key) : null;
         return (
           <details
             key={g.key}
             open={g.key === currentMonthKey}
             className="rounded-xl border border-foreground/10 p-4"
           >
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
               <h3 className="text-base font-semibold">{g.label}</h3>
-              <div className="text-right">
-                <p className="text-xs text-foreground/50">Balance del mes</p>
-                <CurrencyTotalsDisplay totals={net} size="text-base" />
-              </div>
+              {fundEnd ? (
+                <div className="grid grid-cols-3 gap-3 text-right">
+                  <MiniStat label="Ingresos" totals={incomeTotals} />
+                  <MiniStat label="Egresos" totals={expenseTotals} />
+                  <MiniStat label="En Fondos" totals={fundEnd} />
+                </div>
+              ) : (
+                <div className="text-right">
+                  <p className="text-xs text-foreground/50">Balance del mes</p>
+                  <CurrencyTotalsDisplay totals={net} size="text-base" />
+                </div>
+              )}
             </summary>
             <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">

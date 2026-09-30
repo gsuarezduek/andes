@@ -25,6 +25,7 @@ type Draft = {
   ownership: PaymentMethodOwnership;
   requiresNote: boolean;
   isCash: boolean;
+  hasInvestmentFunds: boolean;
   parentId: string | null;
   whatsappPhone: string;
   commissionPercent: string;
@@ -52,6 +53,7 @@ function draftFrom(it: PaymentMethod): Draft {
     ownership: it.ownership,
     requiresNote: it.requiresNote,
     isCash: it.isCash,
+    hasInvestmentFunds: it.hasInvestmentFunds,
     parentId: it.parentId,
     whatsappPhone: it.whatsappPhone ?? "",
     commissionPercent: it.commissionPercent?.toString() ?? "",
@@ -70,6 +72,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.ownership === b.ownership &&
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
+    a.hasInvestmentFunds === b.hasInvestmentFunds &&
     a.parentId === b.parentId &&
     a.whatsappPhone === b.whatsappPhone &&
     a.commissionPercent === b.commissionPercent &&
@@ -354,6 +357,7 @@ function PaymentMethodRow({
         {draft.ownership === "associate" && <Badge tone="neutral">Asociado</Badge>}
         {draft.ownership === "misc" && <Badge tone="violet">Varios</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
+        {draft.hasInvestmentFunds && <Badge tone="violet">Fondos</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
         <button
@@ -559,6 +563,17 @@ function PaymentMethodRow({
               />
               Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
             </label>
+            {draft.ownership === "own" && (
+              <label className="flex items-center gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={draft.hasInvestmentFunds}
+                  onChange={(e) => setField(item.id, "hasInvestmentFunds", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Tiene fondos de inversión
+              </label>
+            )}
           </div>
         </>
       )}
