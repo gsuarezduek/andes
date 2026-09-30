@@ -92,46 +92,52 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
   }
 
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      onSubmit={() => setSlashQuery(null)} // cierra el picker al enviar, no hace falta esperar el resultado
-      className="flex flex-col gap-2 border-t border-foreground/10 pt-3"
-    >
-      <FormError>{state.error}</FormError>
-      <div className="relative flex items-end gap-2">
-        {dropdownOpen && (
-          <QuickReplyDropdown
-            replies={filtered}
-            query={slashQuery ?? ""}
-            activeIndex={clampedIndex}
-            onHover={setActiveIndex}
-            onSelect={(r) => insertReplyText(r.text)}
-            onManage={() => openManager(slashQuery || undefined)}
-          />
-        )}
-        <textarea
-          ref={textRef}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onBlur={() => window.setTimeout(() => setSuppressed(true), 150)}
-          onFocus={() => setSuppressed(false)}
-          name="text"
-          rows={2}
-          placeholder='Escribí un mensaje… (probá "/" para una plantilla)'
-          required
-          className="max-h-[40vh] min-h-[2.5rem] w-full flex-1 resize-none rounded-lg border border-foreground/15 bg-transparent p-2.5 text-base outline-none focus:border-foreground/40"
-        />
-        <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
-      </div>
-      <button
-        type="button"
-        onClick={() => openManager()}
-        className="self-start text-xs font-medium text-foreground/50 hover:text-foreground"
+    <>
+      <form
+        ref={formRef}
+        action={formAction}
+        onSubmit={() => setSlashQuery(null)} // cierra el picker al enviar, no hace falta esperar el resultado
+        className="flex flex-col gap-2 border-t border-foreground/10 pt-3"
       >
-        🗂️ Plantillas rápidas <span className="text-foreground/35">(o escribí &quot;/&quot;)</span>
-      </button>
+        <FormError>{state.error}</FormError>
+        <div className="relative flex items-end gap-2">
+          {dropdownOpen && (
+            <QuickReplyDropdown
+              replies={filtered}
+              query={slashQuery ?? ""}
+              activeIndex={clampedIndex}
+              onHover={setActiveIndex}
+              onSelect={(r) => insertReplyText(r.text)}
+              onManage={() => openManager(slashQuery || undefined)}
+            />
+          )}
+          <textarea
+            ref={textRef}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onBlur={() => window.setTimeout(() => setSuppressed(true), 150)}
+            onFocus={() => setSuppressed(false)}
+            name="text"
+            rows={2}
+            placeholder='Escribí un mensaje… (probá "/" para una plantilla)'
+            required
+            className="max-h-[40vh] min-h-[2.5rem] w-full flex-1 resize-none rounded-lg border border-foreground/15 bg-transparent p-2.5 text-base outline-none focus:border-foreground/40"
+          />
+          <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
+        </div>
+        <button
+          type="button"
+          onClick={() => openManager()}
+          className="self-start text-xs font-medium text-foreground/50 hover:text-foreground"
+        >
+          🗂️ Plantillas rápidas <span className="text-foreground/35">(o escribí &quot;/&quot;)</span>
+        </button>
+      </form>
 
+      {/* Fuera del <form> de arriba a propósito: el modal tiene sus propios
+          <form> internos (crear/editar plantilla) y un <form> anidado dentro
+          de otro es HTML inválido — el submit del de adentro terminaba
+          disparando el de afuera (recargaba la página y no guardaba nada). */}
       <QuickReplyManagerModal
         open={managerOpen}
         onClose={() => setManagerOpen(false)}
@@ -140,6 +146,6 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
         onUse={insertReplyText}
         initialShortcut={managerSeed}
       />
-    </form>
+    </>
   );
 }
