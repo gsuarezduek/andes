@@ -7,7 +7,7 @@ import { getHomeTasks, isTaskOverdue, isTaskDueToday } from "@/lib/tasks";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { HomeSearch } from "@/components/home-search";
-import { formatDateTime, formatDate } from "@/lib/datetime";
+import { formatDateTime } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
 import { vehicleDisplayName, vehicleLabelWithPlate } from "@/lib/vehicle-ui";
@@ -18,6 +18,7 @@ import { getWeekSchedule } from "@/lib/schedule-queries";
 import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ChevronRightIcon } from "@/components/ui/icons";
+import { HomeTaskList } from "@/components/home/home-task-list";
 
 const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
@@ -274,35 +275,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         {tasks.length === 0 ? (
           <Empty>No hay tareas pendientes para hoy.</Empty>
         ) : (
-          <div className="divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-            {tasks.map((task) => {
-              const overdue = isTaskOverdue(task);
-              const dueToday = isTaskDueToday(task);
-              return (
-                <Link
-                  key={task.id}
-                  href="/tasks"
-                  className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03] ${
-                    overdue ? "border-l-4 border-l-red-500" : dueToday ? "border-l-4 border-l-amber-500" : "border-l-4 border-l-transparent"
-                  }`}
-                >
-                  <div className="flex-1">
-                    <p className="flex items-center gap-2 font-medium">
-                      {task.text}
-                      {task.priority === "high" ? <Badge tone="red">Alta</Badge> : null}
-                    </p>
-                    <p className="text-sm text-foreground/60">
-                      {task.assignedToName ?? "Sin asignar"}
-                      {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
-                    </p>
-                  </div>
-                  {task.dueDate ? (
-                    <Badge tone={overdue ? "red" : dueToday ? "amber" : "neutral"}>{formatDate(task.dueDate)}</Badge>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </div>
+          <HomeTaskList
+            key={tasks.map((t) => t.id).join(",")}
+            tasks={tasks.map((task) => ({
+              task,
+              overdue: isTaskOverdue(task),
+              dueToday: isTaskDueToday(task),
+            }))}
+          />
         )}
         <Link href="/tasks" className="self-start text-xs font-medium text-foreground/60 underline">
           Ver todas las tareas →

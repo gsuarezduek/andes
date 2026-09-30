@@ -198,7 +198,8 @@ export function TaskRow({
 
   return (
     <li
-      className={`flex items-start justify-between gap-3 px-3 py-2.5 text-sm ${
+      id={`task-${task.id}`}
+      className={`flex scroll-mt-4 items-start justify-between gap-3 px-3 py-2.5 text-sm [&:target]:ring-2 [&:target]:ring-inset [&:target]:ring-blue-500/50 ${
         overdue ? "border-l-4 border-l-red-500 bg-red-500/5" : dueToday ? "border-l-4 border-l-amber-500 bg-amber-500/5" : ""
       }`}
     >
