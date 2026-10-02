@@ -25,3 +25,8 @@ export function sumByCurrency<T extends { currency: Currency; amount: number }>(
   for (const r of rows) totals[r.currency] += r.amount;
   return totals;
 }
+
+/** Resta `b` de `a`, por moneda — para separar un total en partes (ej. saldo de cuenta menos lo invertido en fondos). */
+export function subtractCurrencyTotals(a: CurrencyTotals, b: CurrencyTotals): CurrencyTotals {
+  return { ars: a.ars - b.ars, usd: a.usd - b.usd };
+}

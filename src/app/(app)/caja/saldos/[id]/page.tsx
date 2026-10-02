@@ -7,6 +7,8 @@ import { getOwnAccountBalances, getOwnAccountLedger } from "@/lib/cash";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
+import { formatMoney } from "@/lib/contract";
+import { CURRENCIES, subtractCurrencyTotals } from "@/lib/currency";
 import { SectionTitle } from "@/components/ui/section-title";
 import { TransferList } from "@/components/cash/transfer-list";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
@@ -53,6 +55,9 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
   if (!account) notFound();
 
   const fundMovements = pm?.hasInvestmentFunds ? await getFundMovements(id) : null;
+  const liquidBalance = account.investedBalance
+    ? subtractCurrencyTotals(account.balance, account.investedBalance)
+    : null;
 
   // `getOwnAccountLedger` ya viene ordenado por `createdAt` desc (ver
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
@@ -72,6 +77,14 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
         </div>
         <div className="shrink-0 text-right">
           <CurrencyTotalsDisplay totals={account.balance} size="text-xl" />
+          {liquidBalance && (
+            <p className="mt-0.5 text-xs text-foreground/50">
+              En cuenta:{" "}
+              {CURRENCIES.filter((c) => c === "ars" || liquidBalance[c] !== 0)
+                .map((c) => formatMoney(liquidBalance[c], c))
+                .join(" · ")}
+            </p>
+          )}
         </div>
       </div>
 

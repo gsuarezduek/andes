@@ -6,6 +6,61 @@ import { TextField, FormError } from "@/components/ui/fields";
 import { Button } from "@/components/ui/button";
 import type { SignatureSummary } from "@/lib/remote-signature";
 
+/**
+ * Resumen curado (vehículo, km, nafta, daños, condiciones/liquidación) que ve
+ * el cliente por QR. Se usa tanto mientras el empleado todavía está
+ * completando el wizard (vista "en vivo", sin canvas de firma) como dentro de
+ * `RemoteSignForm`, una vez que está todo listo para firmar — mismo contenido,
+ * misma presentación en los dos casos.
+ */
+export function SignatureSummaryView({
+  summary,
+  isReturn,
+  termsTitle,
+  settlementTitle,
+}: {
+  summary?: SignatureSummary;
+  isReturn: boolean;
+  termsTitle: string;
+  settlementTitle: string;
+}) {
+  const conditionRows = isReturn ? summary?.settlementRows : summary?.conditions;
+  const conditionsTitle = isReturn ? settlementTitle : termsTitle;
+  if (!summary) return null;
+  return (
+    <>
+      <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+        <SummaryRow label="Vehículo" value={summary.vehicleLabel} />
+        {summary.datesLabel && <SummaryRow label="Período" value={summary.datesLabel} />}
+        <SummaryRow label="Kilometraje" value={`${summary.km.toLocaleString("es-AR")} km`} />
+        <SummaryRow label="Nafta" value={`${summary.fuelLevel}/${summary.maxFuel ?? 8}`} />
+        <SummaryRow
+          label="Daños"
+          value={summary.newDamages.length ? summary.newDamages.join(", ") : "Sin daños nuevos"}
+        />
+      </div>
+
+      {/* Condiciones económicas (entrega) o liquidación (devolución). */}
+      {conditionRows && conditionRows.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-foreground/80">{conditionsTitle}</h2>
+          <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+            {conditionRows.map((r, i) => (
+              <SummaryRow key={i} label={r.label} value={r.value} />
+            ))}
+            {isReturn && summary?.balanceRows?.map((r, i) => (
+              <div key={i} className="flex justify-between gap-4 py-2 text-sm font-semibold">
+                <span>{r.label}</span>
+                <span className="text-right">{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function RemoteSignForm({
   id,
   legal,
@@ -74,41 +129,9 @@ export function RemoteSignForm({
     );
   }
 
-  const conditionRows = isReturn ? summary?.settlementRows : summary?.conditions;
-  const conditionsTitle = isReturn ? settlementTitle : termsTitle;
-
   return (
     <div className="flex flex-col gap-4">
-      {summary && (
-        <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-          <SummaryRow label="Vehículo" value={summary.vehicleLabel} />
-          {summary.datesLabel && <SummaryRow label="Período" value={summary.datesLabel} />}
-          <SummaryRow label="Kilometraje" value={`${summary.km.toLocaleString("es-AR")} km`} />
-          <SummaryRow label="Nafta" value={`${summary.fuelLevel}/${summary.maxFuel ?? 8}`} />
-          <SummaryRow
-            label="Daños"
-            value={summary.newDamages.length ? summary.newDamages.join(", ") : "Sin daños nuevos"}
-          />
-        </div>
-      )}
-
-      {/* Condiciones económicas (entrega) o liquidación (devolución) que el cliente acepta. */}
-      {conditionRows && conditionRows.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-foreground/80">{conditionsTitle}</h2>
-          <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
-            {conditionRows.map((r, i) => (
-              <SummaryRow key={i} label={r.label} value={r.value} />
-            ))}
-            {isReturn && summary?.balanceRows?.map((r, i) => (
-              <div key={i} className="flex justify-between gap-4 py-2 text-sm font-semibold">
-                <span>{r.label}</span>
-                <span className="text-right">{r.value}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <SignatureSummaryView summary={summary} isReturn={isReturn} termsTitle={termsTitle} settlementTitle={settlementTitle} />
 
       {/* Condiciones generales (texto legal completo). */}
       <section className="flex flex-col gap-2">

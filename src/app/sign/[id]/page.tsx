@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import type { SignatureSummary } from "@/lib/remote-signature";
+import { missingClientFields, type SignatureSummary } from "@/lib/remote-signature";
 import { COMPANY } from "@/lib/contract";
-import { RemoteSignForm } from "./sign-form";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { RemoteSignForm, SignatureSummaryView } from "./sign-form";
+import { ClientContactForm } from "./contact-form";
 
 export const metadata: Metadata = { title: "Firma — MDZ Rent a Car" };
 
@@ -15,7 +17,14 @@ export default async function RemoteSignPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const request = await prisma.signatureRequest.findUnique({ where: { id } });
+  const request = await prisma.signatureRequest.findUnique({
+    where: { id },
+    include: {
+      rental: {
+        select: { clientName: true, clientEmail: true, clientPhone: true, clientDocNumber: true, clientAddress: true },
+      },
+    },
+  });
 
   const dict = request ? getDictionary(request.language as Locale) : getDictionary("es");
 
@@ -24,6 +33,26 @@ export default async function RemoteSignPage({
   // eslint-disable-next-line react-hooks/purity
   const expired = Boolean(request?.status === "pending" && request.expiresAt.getTime() <= Date.now());
   const status = expired ? "expired" : request?.status;
+  const summary = (request?.summary as SignatureSummary | null) ?? undefined;
+  const isReturn = request?.type === "return_";
+  // El pedido ahora arranca desde el paso "Datos" del wizard: el cliente
+  // puede estar mirando la pantalla bastante antes de que el borrador esté
+  // listo para firmar. Mientras tanto ve el resumen en vivo (sin canvas) y la
+  // página se refresca sola para reflejar lo que el empleado va cargando.
+  const waitingForCompletion = status === "pending" && !request?.readyToSign;
+  // Datos del cliente que todavía no cargó el staff (VikRentCar no siempre
+  // los trae) — el cliente los completa él mismo mientras sigue la entrega en
+  // vivo. Solo aplica a la entrega: la devolución no vuelve a pedirlos.
+  const missingFields =
+    status === "pending" && request && request.type === "handover" && request.rental
+      ? missingClientFields({
+          name: request.rental.clientName,
+          email: request.rental.clientEmail,
+          phone: request.rental.clientPhone,
+          docNumber: request.rental.clientDocNumber,
+          address: request.rental.clientAddress,
+        })
+      : [];
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 px-5 py-8">
@@ -40,27 +69,46 @@ export default async function RemoteSignPage({
         <Message text="El enlace de firma venció. Pedile al operador que genere uno nuevo." />
       ) : status === "cancelled" ? (
         <Message text="Este pedido de firma fue cancelado." />
+      ) : waitingForCompletion ? (
+        <>
+          <AutoRefresh intervalMs={3000} />
+          {missingFields.length > 0 && <ClientContactForm id={request.id} missing={missingFields} />}
+          <SignatureSummaryView
+            summary={summary}
+            isReturn={isReturn}
+            termsTitle={dict.acta.termsTitle}
+            settlementTitle={dict.acta.settlement.title}
+          />
+          <p className="rounded-xl border border-foreground/15 px-4 py-6 text-center text-sm text-foreground/60">
+            Estamos completando los datos de tu {isReturn ? "devolución" : "entrega"}. Esta pantalla se va a
+            actualizar sola — en un momento vas a poder firmar acá mismo.
+          </p>
+        </>
       ) : (
-        <RemoteSignForm
-          id={request.id}
-          legal={dict.signature.legal}
-          signerNameLabel={dict.signature.signerName}
-          clearLabel={dict.signature.clear}
-          confirmLabel={dict.signature.confirm}
-          acceptLabel={dict.signature.acceptConditions}
-          termsTitle={dict.acta.termsTitle}
-          settlementTitle={dict.acta.settlement.title}
-          generalTitle={dict.legal.title}
-          generalParagraphs={[
-            ...dict.legal.paragraphs,
-            dict.legal.photoConsent,
-            dict.legal.jurisdiction,
-            dict.legal.acceptance,
-          ]}
-          summary={(request.summary as SignatureSummary | null) ?? undefined}
-          isReturn={request.type === "return_"}
-          defaultName={request.signerName ?? ""}
-        />
+        <>
+          <AutoRefresh intervalMs={4000} />
+          {missingFields.length > 0 && <ClientContactForm id={request.id} missing={missingFields} />}
+          <RemoteSignForm
+            id={request.id}
+            legal={dict.signature.legal}
+            signerNameLabel={dict.signature.signerName}
+            clearLabel={dict.signature.clear}
+            confirmLabel={dict.signature.confirm}
+            acceptLabel={dict.signature.acceptConditions}
+            termsTitle={dict.acta.termsTitle}
+            settlementTitle={dict.acta.settlement.title}
+            generalTitle={dict.legal.title}
+            generalParagraphs={[
+              ...dict.legal.paragraphs,
+              dict.legal.photoConsent,
+              dict.legal.jurisdiction,
+              dict.legal.acceptance,
+            ]}
+            summary={summary}
+            isReturn={isReturn}
+            defaultName={request.signerName ?? ""}
+          />
+        </>
       )}
     </div>
   );

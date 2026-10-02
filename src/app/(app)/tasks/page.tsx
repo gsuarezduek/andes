@@ -6,7 +6,14 @@ import { requireUser } from "@/lib/auth-helpers";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
 import { PendingTaskList } from "@/components/tasks/pending-task-list";
-import { getPendingTasks, getCompletedTasksPage, isTaskOverdue, isTaskDueToday, type TaskFilters } from "@/lib/tasks";
+import {
+  getPendingTasks,
+  getCompletedTasksPage,
+  getAssignedPendingCount,
+  isTaskOverdue,
+  isTaskDueToday,
+  type TaskFilters,
+} from "@/lib/tasks";
 import { groupCompletedTasksByDay } from "@/lib/task-grouping";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 
@@ -28,7 +35,7 @@ export default async function TasksPage({
   };
   const completedPage = Math.max(1, Number(sp.cp) || 1);
 
-  const [pending, completed, users, vehicles] = await Promise.all([
+  const [pending, completed, users, vehicles, myPendingCount, totalPendingCount] = await Promise.all([
     getPendingTasks(filters),
     getCompletedTasksPage(completedPage),
     prisma.user.findMany({ where: OPERATOR_FILTER, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -37,10 +44,34 @@ export default async function TasksPage({
       orderBy: [{ brand: "asc" }, { model: "asc" }],
       select: { id: true, name: true, brand: true, model: true, plate: true },
     }),
+    getAssignedPendingCount(user.id),
+    prisma.task.count({ where: { status: "pending" } }),
   ]);
 
   const hasFilters = Boolean(filters.assignedToId || filters.vehicleId || filters.priority);
   const completedGroups = groupCompletedTasksByDay(completed.items, new Date());
+  const overdueCount = pending.filter((t) => isTaskOverdue(t)).length;
+  const dueTodayCount = pending.filter((t) => isTaskDueToday(t)).length;
+
+  // Preserva vehicle/priority (no assignedTo, que las pestañas ya controlan).
+  const otherFiltersQs = () => {
+    const params = new URLSearchParams();
+    if (filters.vehicleId) params.set("vehicle", filters.vehicleId);
+    if (filters.priority) params.set("priority", filters.priority);
+    return params;
+  };
+  const mineHref = (() => {
+    const params = otherFiltersQs();
+    params.set("assignedTo", user.id);
+    return `/tasks?${params.toString()}`;
+  })();
+  const allHref = (() => {
+    const params = otherFiltersQs();
+    const qs = params.toString();
+    return qs ? `/tasks?${qs}` : "/tasks";
+  })();
+  const activeTab: "mine" | "all" | "other" =
+    filters.assignedToId === user.id ? "mine" : !filters.assignedToId ? "all" : "other";
 
   // Preserva los filtros vigentes al cambiar de página del historial.
   const completedPageHref = (page: number) => {
@@ -61,6 +92,25 @@ export default async function TasksPage({
       </div>
 
       <TaskForm users={users} vehicles={vehicles} currentUserId={user.id} />
+
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-sm">
+        <Link
+          href={mineHref}
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            activeTab === "mine" ? "bg-foreground/10 text-foreground" : "text-foreground/60 hover:bg-foreground/5"
+          }`}
+        >
+          Mis tareas ({myPendingCount})
+        </Link>
+        <Link
+          href={allHref}
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            activeTab === "all" ? "bg-foreground/10 text-foreground" : "text-foreground/60 hover:bg-foreground/5"
+          }`}
+        >
+          Todas ({totalPendingCount})
+        </Link>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <form className="flex flex-wrap items-center gap-2">
@@ -100,9 +150,20 @@ export default async function TasksPage({
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
-          Pendientes{pending.length > 0 ? ` (${pending.length})` : ""}
-        </h2>
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
+            Pendientes{pending.length > 0 ? ` (${pending.length})` : ""}
+          </h2>
+          {(overdueCount > 0 || dueTodayCount > 0) && (
+            <p className="text-xs text-foreground/60">
+              {overdueCount > 0 && <span className="font-medium text-red-600">{overdueCount} vencida{overdueCount === 1 ? "" : "s"}</span>}
+              {overdueCount > 0 && dueTodayCount > 0 && " · "}
+              {dueTodayCount > 0 && (
+                <span className="font-medium text-amber-600">{dueTodayCount} para hoy</span>
+              )}
+            </p>
+          )}
+        </div>
         {pending.length === 0 ? (
           <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">
             No hay tareas pendientes.

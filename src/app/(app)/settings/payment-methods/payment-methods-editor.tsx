@@ -3,6 +3,27 @@
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
+
+/**
+ * `PaymentMethod` tal como llega desde el servidor para este editor: los
+ * campos `Decimal` de Prisma (`adjustmentPercent`, `commissionPercent`,
+ * `commissionFixed`, `balanceAdjustmentArs`, `balanceAdjustmentUsd`) ya
+ * vienen convertidos a `number` en `page.tsx` antes de pasarlos a este
+ * Client Component — un `Decimal` no es serializable a través del límite
+ * servidor/cliente (React lo acepta igual porque `Decimal` tiene `toJSON()`,
+ * pero React logea "Only plain objects can be passed to Client Components...
+ * Decimal objects are not supported" en cada carga).
+ */
+export type PlainPaymentMethod = Omit<
+  PaymentMethod,
+  "adjustmentPercent" | "commissionPercent" | "commissionFixed" | "balanceAdjustmentArs" | "balanceAdjustmentUsd"
+> & {
+  adjustmentPercent: number | null;
+  commissionPercent: number | null;
+  commissionFixed: number | null;
+  balanceAdjustmentArs: number;
+  balanceAdjustmentUsd: number;
+};
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EditIcon } from "@/components/ui/icons";
@@ -45,7 +66,7 @@ type CategoryOption = { id: string; name: string };
 // `true`.
 const SHOW_BALANCE_ADJUSTMENT = false;
 
-function draftFrom(it: PaymentMethod): Draft {
+function draftFrom(it: PlainPaymentMethod): Draft {
   return {
     name: it.name,
     adjustmentPercent: it.adjustmentPercent?.toString() ?? "",
@@ -98,7 +119,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
  * entidad con más de una cuenta real — ver comentario en el schema y
  * `src/lib/providers.ts`).
  */
-export function PaymentMethodsEditor({ items, categories }: { items: PaymentMethod[]; categories: CategoryOption[] }) {
+export function PaymentMethodsEditor({ items, categories }: { items: PlainPaymentMethod[]; categories: CategoryOption[] }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(items.map((it) => [it.id, draftFrom(it)])),
   );
@@ -217,8 +238,8 @@ function PaymentMethodGroup({
   emptyLabel,
   categories,
 }: {
-  items: PaymentMethod[];
-  allItems: PaymentMethod[];
+  items: PlainPaymentMethod[];
+  allItems: PlainPaymentMethod[];
   drafts: Record<string, Draft>;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   emptyLabel: string;
@@ -266,8 +287,8 @@ function PaymentMethodRow({
   isFirst,
   isLast,
 }: {
-  item: PaymentMethod;
-  allItems: PaymentMethod[];
+  item: PlainPaymentMethod;
+  allItems: PlainPaymentMethod[];
   draft: Draft;
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   categories: CategoryOption[];

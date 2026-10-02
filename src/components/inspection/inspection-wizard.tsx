@@ -22,7 +22,7 @@ import { computeBalance } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
 import { parseDecimal } from "@/lib/number-input";
 import type { DocumentKindInput } from "@/lib/inspection-input";
-import { cancelRemoteSignature } from "@/app/(app)/rentals/[id]/remote-sign-actions";
+import { cancelRemoteSignature, updateRemoteSignatureProgress } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 import { fetchHandoverVehicle } from "@/app/(app)/rentals/[id]/handover/actions";
 import { newId } from "./wizard/new-id";
 import { buildSettlement, summaryConditions, validateStep, buildInspectionPayload } from "./wizard/logic";
@@ -383,20 +383,55 @@ export function InspectionWizard(props: InspectionWizardProps) {
   const firmaIndex = STEPS.indexOf("Firma");
 
   /**
+   * true si el borrador ya pasa todas las validaciones de los pasos previos a
+   * "Firma" — equivalente a que el empleado pudiera llegar hasta ahí tocando
+   * "Siguiente" uno por uno. Es lo que habilita el canvas de firma en el
+   * teléfono del cliente (`SignatureRequest.readyToSign`), sin que el
+   * empleado tenga que hacer nada especial al llegar a "Firma".
+   */
+  function isDraftReadyToSign(): boolean {
+    return STEPS.slice(0, firmaIndex).every(
+      (s) => !validateStep(s, draft, isHandover, props.checklistItems, props.returnContext, effectiveVehicle?.currentKm),
+    );
+  }
+
+  // Resumen curado que ve el cliente por QR — el mismo contenido tanto para
+  // crear el pedido (paso "Datos") como para actualizarlo en cada paso.
+  function buildSignatureSummary() {
+    return {
+      vehicleLabel:
+        effectiveVehicle?.label ??
+        props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ??
+        "—",
+      km: Number(draft.km || 0),
+      fuelLevel: draft.fuelLevel,
+      maxFuel,
+      newDamages: draft.damages.map((d, i) => d.description.trim() || `Daño #${i + 1}`),
+      observations: draft.observations.trim() || undefined,
+      clientName: (draft.signerName || draft.clientName || "").trim() || undefined,
+      datesLabel: props.datesLabel,
+      ...summaryConditions(draft, isHandover, dict, settlement),
+    };
+  }
+
+  /**
    * Salta a cualquier paso ya visitado (barra de progreso clicable) o al
    * anterior/siguiente inmediato (botones Atrás/Siguiente). Nunca permite
    * saltar a un paso más allá de `maxStepReached` (todavía no validado).
    * Si el destino queda antes de "Firma" y ya había una firma (local o
-   * remota) hecha, se invalida — quedó atada a datos que se van a poder
+   * remota) HECHA, se invalida — quedó atada a datos que se van a poder
    * editar de nuevo — y se recorta `maxStepReached` para forzar volver a
    * pasar por "Firma" (re-firmar) antes de poder llegar de nuevo al Resumen.
+   * Un QR remoto todavía "esperando" (el cliente no firmó) NO se invalida:
+   * acompaña a todo el wizard desde el paso "Datos", así que ir y volver
+   * mientras tanto es normal, no una corrección post-firma.
    */
   function goToStep(target: number) {
     const clamped = Math.max(0, Math.min(STEPS.length - 1, target));
     if (clamped === step || clamped > maxStepReached) return;
     if (clamped < firmaIndex && step >= firmaIndex) {
       const hadSignature =
-        Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId) || remoteStatus !== "idle";
+        Boolean(draft.signatureKey) || Boolean(draft.signaturePendingId) || remoteStatus === "signed";
       if (hadSignature) {
         sigRef.current?.clear();
         if (draft.signaturePendingId) dropUpload(draft.signaturePendingId);
@@ -487,32 +522,22 @@ export function InspectionWizard(props: InspectionWizardProps) {
   }
 
   // Genera el pedido de firma remota y muestra el QR para que lo escanee el
-  // cliente. La firma llega por el polling de abajo.
+  // cliente — disponible desde el paso "Datos": el cliente va a poder seguir
+  // en vivo cómo se completa el resto del wizard (ver efecto de progreso más
+  // abajo) y firmar en cuanto esté listo. La firma llega por el polling de
+  // abajo.
   async function startRemoteSign() {
     if (!props.createRemoteSignature) return;
     setRemoteBusy(true);
     setError(undefined);
     try {
-      const summary = {
-        vehicleLabel:
-          effectiveVehicle?.label ??
-          props.vehicleOptions.find((v) => v.id === draft.vehicleId)?.label ??
-          "—",
-        km: Number(draft.km || 0),
-        fuelLevel: draft.fuelLevel,
-        maxFuel,
-        newDamages: draft.damages.map((d, i) => d.description.trim() || `Daño #${i + 1}`),
-        observations: draft.observations.trim() || undefined,
-        clientName: (draft.signerName || draft.clientName || "").trim() || undefined,
-        datesLabel: props.datesLabel,
-        ...summaryConditions(draft, isHandover, dict, settlement),
-      };
       const res = await props.createRemoteSignature({
         rentalId: props.rentalId,
         draftId: draft.draftId,
         type: props.mode,
         language: draft.language,
-        summary,
+        summary: buildSignatureSummary(),
+        readyToSign: isDraftReadyToSign(),
       });
       if (res.ok) {
         setRemote({ id: res.id, svg: res.svg, url: res.url });
@@ -560,6 +585,19 @@ export function InspectionWizard(props: InspectionWizardProps) {
     return () => window.clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queuedSubmit]);
+
+  // Empuja el resumen "en vivo" al cliente en cada cambio de paso (no en cada
+  // tecla — evita saturar al servidor). Best-effort: si falla, el cliente
+  // simplemente ve el resumen del paso anterior hasta el próximo cambio.
+  useEffect(() => {
+    if (!remote || remoteStatus !== "waiting") return;
+    void updateRemoteSignatureProgress({
+      id: remote.id,
+      summary: buildSignatureSummary(),
+      readyToSign: isDraftReadyToSign(),
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, remote, remoteStatus]);
 
   // Poolea el pedido de firma remota hasta que el cliente firme en su teléfono.
   useEffect(() => {

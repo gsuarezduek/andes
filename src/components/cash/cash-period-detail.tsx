@@ -58,8 +58,9 @@ export function CashPeriodDetail({
 
 /**
  * Movimientos eliminados del período — a diferencia de una edición (que se
- * ve en el lugar mismo del movimiento, ver `MovementMetaLine`), un borrado
- * hace desaparecer la fila del listado, así que necesita este lugar aparte.
+ * ve en el lugar mismo del movimiento, dentro de su `MovementRow`), un
+ * borrado hace desaparecer la fila del listado, así que necesita este lugar
+ * aparte.
  */
 function DeletedSection({ deleted }: { deleted: DeletedCashMovementRow[] }) {
   return (

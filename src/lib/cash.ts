@@ -12,6 +12,7 @@ import { applyTransfersToBalances, walletDeltaFromTransfers } from "@/lib/accoun
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 import { computeRentalPayments } from "@/lib/rental-payments";
+import { fundBalance } from "@/lib/investment-funds";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -79,7 +80,7 @@ export type CashMovementRow = {
   createdAt: Date;
   // Última edición real (no borrado) de este movimiento, si tiene — se
   // muestra en el lugar mismo donde se ve el movimiento (no en una sección
-  // aparte, ver `MovementMetaLine`).
+  // aparte), dentro del modal de `MovementRow`.
   lastEditedByName: string | null;
   lastEditedAt: Date | null;
   // Ciclo de vida de una garantía (ver comentario en el schema) — solo
@@ -433,10 +434,10 @@ export type DeletedCashMovementRow = {
  * Movimientos de Caja (Ingreso/Egreso) eliminados dentro del período visible
  * (por fecha del borrado). Solo borrados — una edición normal ya se muestra
  * en el lugar mismo del movimiento (ver `lastEditedByName`/`lastEditedAt` en
- * `CashMovementRow` y `MovementMetaLine`); un borrado, en cambio, hace
- * desaparecer la fila del listado, así que necesita este lugar aparte para
- * poder verlo. Excluye deudas de proveedor (`type: "debt"`) — esas viven en
- * la pestaña Cuentas corrientes, no acá.
+ * `CashMovementRow`, dentro del modal de `MovementRow`); un borrado, en
+ * cambio, hace desaparecer la fila del listado, así que necesita este lugar
+ * aparte para poder verlo. Excluye deudas de proveedor (`type: "debt"`) —
+ * esas viven en la pestaña Cuentas corrientes, no acá.
  */
 export async function getDeletedCashMovements(period: CashPeriod): Promise<DeletedCashMovementRow[]> {
   const { start, end } = resolveCashPeriod(period);
@@ -530,6 +531,13 @@ export type OwnAccountBalance = {
   /** Ingresos/egresos de ESTE mes (hora Mendoza) — informativo, en la tarjeta. */
   monthIncome: CurrencyTotals;
   monthExpense: CurrencyTotals;
+  /**
+   * Cuánto de `balance` está en fondos de inversión (ver
+   * `PaymentMethod.hasInvestmentFunds`) — null si la cuenta no tiene el flag
+   * activo. `balance` ya incluye esta plata (es solo una etiqueta, no resta
+   * el saldo real de Caja); `balance` menos esto es lo líquido "en cuenta".
+   */
+  investedBalance: CurrencyTotals | null;
 };
 
 /**
@@ -552,8 +560,9 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
   const { principals, resolve, memberIds } = await resolveToPrincipal("own");
   if (principals.length === 0) return [];
 
+  const fundAccountIds = principals.filter((p) => p.hasInvestmentFunds).map((p) => p.id);
   const monthRange = monthRangeUtc(currentMonth());
-  const [income, expense, transfers, monthIncomeRows, monthExpenseRows] = await Promise.all([
+  const [income, expense, transfers, monthIncomeRows, monthExpenseRows, fundRows] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["paymentMethodId", "currency"],
       where: { type: "income", deletedAt: null, paymentMethodId: { in: memberIds } },
@@ -585,6 +594,12 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
       },
       _sum: { amount: true },
     }),
+    fundAccountIds.length > 0
+      ? prisma.fundMovement.findMany({
+          where: { paymentMethodId: { in: fundAccountIds }, deletedAt: null },
+          select: { paymentMethodId: true, type: true, amount: true, currency: true, createdAt: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
@@ -631,6 +646,16 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     if (totals) totals[row.currency] += Number(row._sum.amount ?? 0);
   }
 
+  // Fondos de inversión (ver `PaymentMethod.hasInvestmentFunds`) — solo
+  // tienen sentido en la cuenta principal (`createFundMovement` los rechaza
+  // en cualquier otra), así que no hace falta resolver contra `resolve`.
+  const fundMovementsByAccount = new Map<string, Parameters<typeof fundBalance>[0]>();
+  for (const row of fundRows) {
+    const list = fundMovementsByAccount.get(row.paymentMethodId) ?? [];
+    list.push({ type: row.type, amount: Number(row.amount), currency: row.currency, createdAt: row.createdAt });
+    fundMovementsByAccount.set(row.paymentMethodId, list);
+  }
+
   return principals.map((p) => ({
     id: p.id,
     name: p.name,
@@ -638,6 +663,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     subaccounts: p.subaccounts,
     monthIncome: monthIncome.get(p.id)!,
     monthExpense: monthExpense.get(p.id)!,
+    investedBalance: p.hasInvestmentFunds ? fundBalance(fundMovementsByAccount.get(p.id) ?? []) : null,
   }));
 }
 

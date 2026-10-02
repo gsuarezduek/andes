@@ -7,27 +7,39 @@ import { env } from "@/lib/env";
 import { qrSvg } from "@/lib/qr";
 import { SIGNATURE_REQUEST_TTL_MS } from "@/lib/remote-signature";
 
+const summarySchema = z.object({
+  vehicleLabel: z.string(),
+  km: z.number(),
+  fuelLevel: z.number(),
+  maxFuel: z.number().optional(),
+  newDamages: z.array(z.string()),
+  observations: z.string().optional(),
+  clientName: z.string().optional(),
+  datesLabel: z.string().optional(),
+  conditions: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  settlementRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  balanceRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+});
+
 const inputSchema = z.object({
   rentalId: z.string().min(1),
   draftId: z.string().regex(/^[a-zA-Z0-9_-]+$/),
   type: z.enum(["handover", "return"]),
   language: z.enum(["es", "en"]),
-  summary: z.object({
-    vehicleLabel: z.string(),
-    km: z.number(),
-    fuelLevel: z.number(),
-    maxFuel: z.number().optional(),
-    newDamages: z.array(z.string()),
-    observations: z.string().optional(),
-    clientName: z.string().optional(),
-    datesLabel: z.string().optional(),
-    conditions: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-    settlementRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-    balanceRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-  }),
+  summary: summarySchema,
+  // true si el borrador ya pasó todas las validaciones previas a "Firma" —
+  // normalmente false al crear el pedido desde el paso "Datos" (recién
+  // arranca), se actualiza con `updateRemoteSignatureProgress` más adelante.
+  readyToSign: z.boolean().optional().default(false),
 });
 
 export type CreateRemoteSignatureInput = z.infer<typeof inputSchema>;
+
+const progressInputSchema = z.object({
+  id: z.string().min(1),
+  summary: summarySchema,
+  readyToSign: z.boolean(),
+});
 
 export type CreateRemoteSignatureResult =
   | { ok: true; id: string; url: string; svg: string }
@@ -57,6 +69,7 @@ export async function createRemoteSignature(
       type: data.type === "handover" ? "handover" : "return_",
       language: data.language,
       summary: data.summary,
+      readyToSign: data.readyToSign,
       signerName: data.summary.clientName ?? null,
       createdById: user.id,
       expiresAt: new Date(Date.now() + SIGNATURE_REQUEST_TTL_MS),
@@ -70,11 +83,32 @@ export async function createRemoteSignature(
 }
 
 /**
+ * Actualiza el resumen que ve el cliente en vivo, mientras el empleado sigue
+ * completando el wizard — se llama en cada cambio de paso, no en cada tecla.
+ * Solo afecta pedidos aún `pending` (guard atómico con `updateMany`); si el
+ * cliente ya firmó o el pedido venció/se canceló, no hace nada. Renueva
+ * `expiresAt` en cada llamada (ver comentario de `SIGNATURE_REQUEST_TTL_MS`).
+ * Best-effort: si falla, no bloquea al empleado.
+ */
+export async function updateRemoteSignatureProgress(
+  input: z.infer<typeof progressInputSchema>,
+): Promise<void> {
+  await requireUser();
+  const parsed = progressInputSchema.safeParse(input);
+  if (!parsed.success) return;
+  const { id, summary, readyToSign } = parsed.data;
+  await prisma.signatureRequest.updateMany({
+    where: { id, status: "pending" },
+    data: { summary, readyToSign, expiresAt: new Date(Date.now() + SIGNATURE_REQUEST_TTL_MS) },
+  });
+}
+
+/**
  * Cancela un pedido de firma remota (el empleado tocó "Cancelar", o volvió a
- * editar datos posteriores a la firma). Solo afecta pedidos aún `pending`
- * (guard atómico con `updateMany`) — si el cliente ya firmó o el pedido ya
- * venció/se canceló, no hace nada. Best-effort: si falla, no bloquea al
- * empleado (el pedido igual expira solo a los 30 min).
+ * editar datos posteriores a la firma ya recibida). Solo afecta pedidos aún
+ * `pending` (guard atómico con `updateMany`) — si el cliente ya firmó o el
+ * pedido ya venció/se canceló, no hace nada. Best-effort: si falla, no
+ * bloquea al empleado (el pedido igual expira solo, ver TTL).
  */
 export async function cancelRemoteSignature(id: string): Promise<void> {
   await requireUser();

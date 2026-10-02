@@ -77,6 +77,9 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
     // Ajuste manual de saldo (solo tiene sentido en `own`, ver comentario en
     // el schema) — 0 en cualquier otra cuenta.
     balanceAdjustment: CurrencyTotals;
+    // Fondos de inversión (solo tiene sentido en `own`, ver comentario en el
+    // schema) — false en cualquier otra cuenta.
+    hasInvestmentFunds: boolean;
   }[];
   resolve: Map<string, string>;
   memberIds: string[];
@@ -93,6 +96,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
       whatsappPhone: true,
       balanceAdjustmentArs: true,
       balanceAdjustmentUsd: true,
+      hasInvestmentFunds: true,
     },
   });
   const resolve = new Map<string, string>();
@@ -108,6 +112,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
         .filter((a) => a.parentId === p.id)
         .map((a) => ({ id: a.id, name: a.name, requiresNote: a.requiresNote })),
       balanceAdjustment: { ars: Number(p.balanceAdjustmentArs), usd: Number(p.balanceAdjustmentUsd) },
+      hasInvestmentFunds: p.hasInvestmentFunds,
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
 }

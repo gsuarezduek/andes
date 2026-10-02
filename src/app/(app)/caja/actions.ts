@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireAdmin } from "@/lib/auth-helpers";
+import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import type { CashMovementFieldChange } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
@@ -24,9 +24,10 @@ const createMovementSchema = z.object({
   rentalId: z.string().optional(),
 });
 
-// Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo — la
-// restricción de "solo agregar" para empleados es de UI (no ven el detalle),
-// no de permisos de escritura. Editar/eliminar es solo para admin (ver abajo).
+// Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo, y
+// también editar/eliminar lo que ya ve (ver abajo) — la restricción de un
+// no-admin sigue siendo de UI (no ve los egresos de otros en "Movimientos",
+// solo los propios en "Mis movimientos"), no de permisos de escritura.
 //
 // En un Egreso, `paymentMethodId` es el Origen (obligatorio, cualquier cuenta
 // — propia o ajena) y `recipientPaymentMethodId` el Destino (opcional, tiene
@@ -128,12 +129,13 @@ const updateMovementSchema = z.object({
 });
 
 // Corrección de un error de carga (monto, medio de pago, detalle, y en un
-// Egreso también Origen/Destino). Solo admin. Tipo y reserva vinculada no se
+// Egreso también Origen/Destino). Cualquier rol — antes era solo admin,
+// abierto a todos a pedido del dueño. Tipo y reserva vinculada no se
 // editan — si están mal, se borra el movimiento y se carga de nuevo. Cada
-// cambio real queda auditado en CashMovementEdit; si no cambió nada, no se
-// registra nada.
+// cambio real queda auditado en CashMovementEdit (quién editó, quede quien
+// quede); si no cambió nada, no se registra nada.
 export async function updateCashMovement(id: string, formData: FormData) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const {
     description,
     amount,
@@ -246,12 +248,13 @@ export async function updateCashMovement(id: string, formData: FormData) {
   revalidatePath("/caja");
 }
 
-// Borrado de un movimiento mal cargado. Solo admin. Soft delete: la fila
-// queda (deletedAt/deletedById) para que el historial de ediciones pueda
-// seguir mostrando qué era. El motivo (obligatorio) queda en `changes` para
-// que el historial lo muestre junto al resto de la auditoría.
+// Borrado de un movimiento mal cargado. Cualquier rol — antes era solo
+// admin. Soft delete: la fila queda (deletedAt/deletedById) para que el
+// historial de ediciones pueda seguir mostrando qué era. El motivo
+// (obligatorio) queda en `changes` para que el historial lo muestre junto al
+// resto de la auditoría.
 export async function deleteCashMovement(id: string, formData: FormData) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const note = z.string().trim().min(1).max(300).parse(formData.get("note"));
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
