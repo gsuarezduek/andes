@@ -14,7 +14,19 @@ export const metadata: Metadata = { title: "Medios de pago — Andes" };
 export default async function PaymentMethodsSettingsPage() {
   await requireAdmin();
 
-  const items = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const rawItems = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  // Los campos `Decimal` de Prisma no son serializables a un Client
+  // Component (`PaymentMethodsEditor`) — se convierten a `number` acá mismo,
+  // antes de cruzar ese límite (mismo criterio que el resto de la app, ver
+  // `Number(...)` en src/lib/cash.ts).
+  const items = rawItems.map((it) => ({
+    ...it,
+    adjustmentPercent: it.adjustmentPercent ? Number(it.adjustmentPercent) : null,
+    commissionPercent: it.commissionPercent ? Number(it.commissionPercent) : null,
+    commissionFixed: it.commissionFixed ? Number(it.commissionFixed) : null,
+    balanceAdjustmentArs: Number(it.balanceAdjustmentArs),
+    balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd),
+  }));
   const categories = await prisma.cashMovementCategory.findMany({
     where: { active: true },
     orderBy: { ordering: "asc" },
