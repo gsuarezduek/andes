@@ -8,7 +8,7 @@ import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/
 import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/rates";
 import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
 import { roomBarGeometry } from "@/lib/rooms/geometry";
-import { toBookingViews, bookingGuestLabel } from "@/lib/rooms/queries";
+import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
 import { addDaysToKey } from "@/lib/rooms/ical";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -715,7 +715,7 @@ export async function getCalendarData(opts?: {
   }
 
   const roomRows: RoomCalendarRow[] = rooms.map((room) => {
-    const views = toBookingViews(room.bookings).filter((v) => !v.mirrored);
+    const views = toBookingViews(room.bookings).filter((v) => !v.mirrored && countsAsOccupancy(v));
     const bars: Omit<RoomCalendarBar, "lane">[] = [];
     for (const v of views) {
       const g = roomBarGeometry(v.startDate, v.endDate, windowStartKey, days);

@@ -94,6 +94,18 @@ export function bookingGuestLabel(b: Pick<RoomBookingView, "guestName" | "extern
   return `Reserva de ${roomSourceLabels[b.source]}`;
 }
 
+/**
+ * ¿Esta fila representa que alguien ocupa (o va a ocupar) la habitación? Un
+ * bloqueo que llega por sync (Airbnb/Booking/otro) nunca lo es — solo dice que
+ * esa plataforma no deja reservar ahí (ej. la política "reservar con 1 día de
+ * anticipación" de Airbnb bloquea "hoy" todos los días, para siempre, sin que
+ * haya ningún huésped real). Un bloqueo cargado a mano en Andes (`source:
+ * "manual"`) sí cuenta, porque ahí lo decidió alguien del equipo a propósito.
+ */
+export function countsAsOccupancy(b: Pick<RoomBookingView, "isBlock" | "source">): boolean {
+  return !b.isBlock || b.source === "manual";
+}
+
 export async function listRooms(opts: { archived: boolean }): Promise<RoomListItem[]> {
   const todayKey = formatDateInput(new Date());
   const rooms = await prisma.room.findMany({
@@ -108,7 +120,7 @@ export async function listRooms(opts: { archived: boolean }): Promise<RoomListIt
     },
   });
   return rooms.map((r) => {
-    const views = toBookingViews(r.bookings).filter((b) => !b.mirrored);
+    const views = toBookingViews(r.bookings).filter((b) => !b.mirrored && countsAsOccupancy(b));
     const next = views[0];
     const syncTimes = r.feeds.map((f) => f.lastSyncAt).filter((d): d is Date => d != null);
     return {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
-import { getRoomDetail, bookingGuestLabel, type RoomBookingView } from "@/lib/rooms/queries";
+import { getRoomDetail, bookingGuestLabel, countsAsOccupancy, type RoomBookingView } from "@/lib/rooms/queries";
 import { nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import { formatDateInput } from "@/lib/datetime";
@@ -56,10 +56,14 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
   const { room, feeds, bookings } = detail;
 
   const todayKey = formatDateInput(new Date());
-  const upcoming = bookings
+  // Un bloqueo que llega por sync nunca es una ocupación real (ver
+  // `countsAsOccupancy`) — no tiene sentido mostrarlo como si fuera una
+  // reserva, ni próxima ni pasada.
+  const relevant = bookings.filter(countsAsOccupancy);
+  const upcoming = relevant
     .filter((b) => b.status === "confirmed" && b.endDate >= todayKey)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const past = bookings.filter((b) => !(b.status === "confirmed" && b.endDate >= todayKey));
+  const past = relevant.filter((b) => !(b.status === "confirmed" && b.endDate >= todayKey));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8">

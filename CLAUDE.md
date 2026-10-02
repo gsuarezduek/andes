@@ -904,6 +904,14 @@ Bug real reportado por el dueño ya con habitaciones en uso: con Airbnb y Bookin
 - **Se mantiene la protección contra ocultar un overbooking real**: si un grupo solapado de distintas procedencias **no** tiene ningún artefacto de disponibilidad (dos reservas que simplemente parecen reales y se pisan), no se oculta nada — sigue siendo la señal de un posible doble booking entre canales que hay que ver.
 - **No se tocó el ingreso de datos** (`sync.ts` sigue creando una fila por evento del feed, sin deduplicar en el guardado) — el fix es puramente de la capa de visualización (`toBookingViews`, usada por el Calendario, la ficha de la habitación y el detalle de una reserva), que es donde ya vivía la lógica de espejos.
 
+## v69 — Fix: el bloqueo diario de Airbnb por "anticipación mínima" dejaba la habitación marcada como ocupada
+
+Bug real reportado por el dueño: con la política de Airbnb "hay que reservar con 1 día de anticipación", Airbnb bloquea automáticamente **"hoy"** en su calendario — todos los días, para siempre, sin que haya ningún huésped real (es un efecto colateral de la política, no una reserva). Ese bloqueo llegaba a Andes como cualquier otro (`isBlock: true`, source `airbnb`) y **sí se usaba como si fuera ocupación real**: en `/rooms` hacía que el "estado actual" de la habitación mostrara "Bloqueado" todos los días, y en el Calendario se dibujaba como barra gris todos los días — ambos dando a entender que la habitación estaba ocupada cuando en realidad estaba libre. Build/lint/tsc/tests en verde (730 tests, +9 nuevos en `queries.test.ts`). **Sin desplegar todavía.**
+
+- **`countsAsOccupancy` (`src/lib/rooms/queries.ts`, pura, testeada)**: un bloqueo que llega por **sync** (Airbnb/Booking/otro) nunca cuenta como ocupación — solo dice que esa plataforma no deja reservar ahí, no que haya alguien. Un bloqueo cargado **a mano en Andes** (`source: "manual"`, vía el checkbox "Bloqueo" del formulario de reserva manual) sigue contando, porque ahí lo decidió el equipo a propósito (ej. bloquear por una limpieza puntual).
+- **Aplicado en los tres lugares que decían "ocupada"**: el "estado actual" de `/rooms` (`listRooms`), las barras del Calendario (`calendar.ts`) y la lista "reservas próximas o en curso" de la ficha de la habitación (`/rooms/[id]`) — los tres filtran ahora por `countsAsOccupancy` además del `mirrored` de v68. La fila sigue existiendo en la base (no se borra nada, el sync sigue trayéndola igual); solo deja de mostrarse como si fuera una estadía.
+- **Decisión tomada con el dueño:** alcance amplio — cualquier bloqueo sincronizado deja de contar, no solo el de "hoy" puntual (más simple y cubre el mismo problema si algún día se bloquea una fecha futura desde la propia Airbnb).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
