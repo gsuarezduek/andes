@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { TextField, SelectField } from "@/components/ui/fields";
+import { SelectField, DateField } from "@/components/ui/fields";
 import { CameraIcon, GalleryIcon, CloseIcon } from "@/components/ui/icons";
 import { dropUpload } from "@/lib/client/upload-queue";
 import { languageLabels, documentKindLabels } from "@/lib/labels";
 import { DOC_KINDS, type Lang } from "../types";
 import { newId } from "../new-id";
+import { RemoteSignaturePanel } from "../remote-signature-panel";
 import type { StepContext } from "../context";
 
 function VehicleField({ ctx }: { ctx: StepContext }) {
@@ -69,6 +70,7 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
           </p>
         )}
       </div>
+      <RemoteSignaturePanel ctx={ctx} variant="early" />
       {isHandover && props.bookingNote ? (
         <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-3">
           <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
@@ -116,7 +118,7 @@ export function StepDatos({ ctx }: { ctx: StepContext }) {
         </div>
       )}
       {isHandover && (
-        <TextField id="licenseExpiry" label="Venc. licencia de conducir" type="date" value={draft.licenseExpiry} onChange={(e) => patch({ licenseExpiry: e.target.value })} />
+        <DateField id="licenseExpiry" label="Venc. licencia de conducir" value={draft.licenseExpiry} onChange={(licenseExpiry) => patch({ licenseExpiry })} />
       )}
       {isHandover && (
         <div className="flex flex-col gap-2">

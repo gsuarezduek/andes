@@ -13,6 +13,7 @@ import { syncCommission } from "@/lib/commissions-sync";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
+import { isClientNameMissing } from "@/lib/remote-signature";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
@@ -194,11 +195,24 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
           status: "active",
           vehicleId: vehicle.id,
           language: data.language,
-          clientName: data.clientName,
-          clientEmail: data.clientEmail || null,
-          clientPhone: data.clientPhone || null,
-          clientDocNumber: data.clientDocNumber || null,
-          clientAddress: data.clientAddress || null,
+          // Estos 5 campos son de solo lectura en el wizard (se editan en el
+          // detalle del alquiler, o el cliente los completa él mismo desde
+          // /sign/[id] mientras sigue la entrega en vivo — ver
+          // `/api/sign/[id]/contact`). Si el draft trae un valor vacío (o,
+          // para el nombre, el sentinel "Sin nombre" con el que arrancó el
+          // wizard), NO hay que pisar lo que ya esté en la base: podría ser
+          // justo lo que el cliente acaba de cargar por esa vía, después de
+          // que el wizard se abrió con el campo todavía vacío (`clientName`
+          // es obligatorio en el wizard, así que siempre viaja — por eso
+          // compara contra el sentinel en vez de contra vacío).
+          clientName:
+            isClientNameMissing(data.clientName) && !isClientNameMissing(rental.clientName)
+              ? rental.clientName
+              : data.clientName,
+          clientEmail: data.clientEmail || rental.clientEmail,
+          clientPhone: data.clientPhone || rental.clientPhone,
+          clientDocNumber: data.clientDocNumber || rental.clientDocNumber,
+          clientAddress: data.clientAddress || rental.clientAddress,
           ...(licenseExpiry ? { licenseExpiry } : {}),
           ...(hasPricing ? { pricing: data.pricing } : {}),
           ...(data.additionalDrivers?.length

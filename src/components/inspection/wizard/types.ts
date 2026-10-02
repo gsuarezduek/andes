@@ -1,6 +1,7 @@
 import type { ContractPricing, RentalPayment } from "@/lib/contract";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
+import type { SignatureSummary } from "@/lib/remote-signature";
 
 export type Lang = "es" | "en";
 export type Mode = "handover" | "return";
@@ -108,23 +109,14 @@ export type InspectionWizardProps = {
    *  original — no bloquea, es solo una alerta contra errores de tipeo. */
   bookingTotal?: number;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
-  /** Server action para firma remota (el cliente firma en su propio teléfono). */
+  /** Server action para firma remota (el cliente sigue la entrega/devolución
+   *  en vivo desde su teléfono y firma ahí cuando el borrador está listo). */
   createRemoteSignature?: (input: {
     rentalId: string;
     draftId: string;
     type: Mode;
     language: Lang;
-    summary: {
-      vehicleLabel: string;
-      km: number;
-      fuelLevel: number;
-      newDamages: string[];
-      observations?: string;
-      clientName?: string;
-      datesLabel?: string;
-      conditions?: { label: string; value: string }[];
-      settlementRows?: { label: string; value: string }[];
-      balanceRows?: { label: string; value: string }[];
-    };
+    summary: SignatureSummary;
+    readyToSign: boolean;
   }) => Promise<CreateRemoteSignatureResult>;
 };

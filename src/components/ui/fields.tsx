@@ -1,6 +1,8 @@
 "use client";
 
-import type { ComponentProps, ReactNode, WheelEvent } from "react";
+import { useState, type ChangeEvent, type ReactNode, type WheelEvent } from "react";
+import { digitsToDisplay, digitsToIso, isoToDigits } from "@/lib/date-mask";
+import type { ComponentProps } from "react";
 
 const inputBase =
   "h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40";
@@ -102,6 +104,59 @@ export function TextField({
           {...props}
         />
       )}
+    </FieldShell>
+  );
+}
+
+/**
+ * Fecha con máscara DD/MM/AAAA y teclado numérico, en vez de
+ * `<input type="date">` nativo — en iOS Safari ese input solo se opera con
+ * el selector tipo "rueda" al tocarlo, no se puede tipear directamente (lo
+ * que se percibe como "no me deja escribir la fecha").
+ *
+ * El valor expuesto hacia afuera sigue siendo un string ISO "YYYY-MM-DD" (o
+ * "" si está vacío/incompleto) — mismo contrato que ya esperaban el resto de
+ * los componentes y las server actions.
+ */
+export function DateField({
+  label,
+  hint,
+  error,
+  id,
+  value,
+  onChange,
+  className = "",
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  id: string;
+  value: string;
+  onChange: (isoValue: string) => void;
+  className?: string;
+}) {
+  const [digits, setDigits] = useState(() => isoToDigits(value));
+
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    const newDigits = e.target.value.replace(/\D/g, "").slice(0, 8);
+    setDigits(newDigits);
+    onChange(digitsToIso(newDigits) ?? (newDigits.length === 0 ? "" : value));
+  }
+
+  return (
+    <FieldShell label={label} htmlFor={id} hint={hint} error={error}>
+      <input
+        id={id}
+        name={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="DD/MM/AAAA"
+        aria-invalid={error ? true : undefined}
+        className={`${inputBase} ${error ? inputErrorClass : ""} ${className}`}
+        value={digitsToDisplay(digits)}
+        onChange={handleChange}
+      />
     </FieldShell>
   );
 }

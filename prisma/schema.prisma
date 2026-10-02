@@ -747,13 +747,18 @@ model RentalDocument {
 }
 
 // ---------------------------------------------------------------------------
-// Firma remota (el cliente firma en su propio teléfono escaneando un QR)
+// Firma remota (el cliente sigue la entrega/devolución en vivo y firma desde
+// su propio teléfono escaneando un QR)
 // ---------------------------------------------------------------------------
 //
-// El empleado, en el paso "Firma" del wizard, genera un pedido y muestra un QR
-// en su pantalla. El cliente lo escanea, abre la página pública /sign/[id] (sin
-// sesión, id no adivinable, con expiración y de un solo uso), ve el resumen y
-// firma. El wizard poolea el estado y, al detectar `signed`, toma la firma.
+// El empleado genera el pedido desde el paso "Datos" (el primero del wizard)
+// y muestra un QR en su pantalla. El cliente lo escanea, abre la página
+// pública /sign/[id] (sin sesión, id no adivinable, con expiración y de un
+// solo uso) y ve `summary` actualizarse a medida que el empleado avanza por
+// los pasos (el wizard lo reescribe en cada cambio de paso — no es un
+// snapshot único). El canvas de firma se habilita recién cuando `readyToSign`
+// pasa a true. El wizard del empleado poolea el estado y, al detectar
+// `signed`, toma la firma.
 model SignatureRequest {
   id String @id @default(cuid())
 
@@ -773,6 +778,11 @@ model SignatureRequest {
   signerName   String?                @map("signer_name")
   signatureKey String?                @map("signature_key")
   status       SignatureRequestStatus @default(pending)
+
+  // true cuando el borrador ya pasó todas las validaciones previas a "Firma"
+  // (equivalente a poder avanzar manualmente hasta ahí) — recién ahí
+  // `/sign/[id]` habilita el canvas de firma en el teléfono del cliente.
+  readyToSign Boolean @default(false) @map("ready_to_sign")
 
   createdById String? @map("created_by_id")
   createdBy   User?   @relation(fields: [createdById], references: [id])

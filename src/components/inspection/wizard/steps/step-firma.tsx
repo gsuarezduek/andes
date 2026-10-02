@@ -1,16 +1,15 @@
 import { TextField } from "@/components/ui/fields";
-import { Button } from "@/components/ui/button";
 import { SignatureCanvas } from "@/components/inspection/signature-canvas";
 import { dropUpload } from "@/lib/client/upload-queue";
 import { formatArs } from "@/lib/contract";
 import { Row } from "@/components/ui/row";
+import { RemoteSignaturePanel } from "../remote-signature-panel";
 import type { StepContext } from "../context";
 
 export function StepFirma({ ctx }: { ctx: StepContext }) {
   const {
     draft,
     patch,
-    props,
     dict,
     isHandover,
     settlement,
@@ -19,11 +18,6 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
     clientAccepted,
     setClientAccepted,
     sigRef,
-    remote,
-    remoteStatus,
-    remoteBusy,
-    startRemoteSign,
-    cancelRemote,
   } = ctx;
   return (
     <div className="flex flex-col gap-3">
@@ -84,31 +78,9 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
         <TextField id="signerName" label={dict.signature.signerName} value={draft.signerName} onChange={(e) => patch({ signerName: e.target.value })} />
       </div>
 
-      {props.createRemoteSignature && (
-        <div className="flex flex-col gap-2 border-t border-foreground/10 pt-3">
-          <p className="text-xs font-medium text-foreground/70">¿El cliente prefiere firmar en su teléfono?</p>
-          {remoteStatus === "signed" ? (
-            <p className="text-sm font-medium text-emerald-600">Firma del cliente recibida ✓</p>
-          ) : !remote ? (
-            <Button type="button" variant="secondary" onClick={startRemoteSign} disabled={remoteBusy}>
-              {remoteBusy ? "Generando…" : "Generar QR para el cliente"}
-            </Button>
-          ) : (
-            <div className="flex flex-col items-center gap-2 rounded-xl border border-foreground/10 p-3">
-              {/* SVG del QR generado en el servidor */}
-              <div className="h-44 w-44 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: remote.svg }} />
-              <p className="text-center text-xs text-foreground/60">
-                {remoteStatus === "error"
-                  ? "El pedido venció. Generá uno nuevo."
-                  : "El cliente escanea este QR y firma en su teléfono. Esperando la firma…"}
-              </p>
-              <button type="button" className="text-xs text-foreground/60 underline" onClick={cancelRemote}>
-                {remoteStatus === "error" ? "Cerrar" : "Cancelar"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="border-t border-foreground/10 pt-3">
+        <RemoteSignaturePanel ctx={ctx} variant="firma" />
+      </div>
     </div>
   );
 }
