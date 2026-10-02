@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
 import { MovementRow } from "./movement-row";
+import { movementRowKey } from "./movement-row-key";
 import { CashPeriodPicker } from "./cash-period-picker";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { sumByCurrency } from "@/lib/currency";
@@ -239,11 +240,8 @@ function MovementColumn({
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((r) => (
-            // La key incluye los campos editables: tras guardar una edición,
-            // cambia y el componente se remonta con los valores nuevos (evita
-            // quedar con el form de edición pegado a los datos viejos).
             <MovementRow
-              key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}:${r.categoryName ?? ""}`}
+              key={movementRowKey(r)}
               movement={r}
               tone={tone}
               paymentMethods={paymentMethods}

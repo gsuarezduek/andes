@@ -4,7 +4,7 @@ import { TransferList } from "./transfer-list";
 import { SectionTitle } from "@/components/ui/section-title";
 import { formatMoney } from "@/lib/contract";
 import { SAFE_ACCOUNT_ID, SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
-import { CURRENCIES, emptyCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
+import { CURRENCIES, emptyCurrencyTotals, subtractCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
 import type { OwnAccountBalance } from "@/lib/cash";
 import type { AccountTransferRow } from "@/lib/account-transfers-queries";
 
@@ -14,8 +14,10 @@ import type { AccountTransferRow } from "@/lib/account-transfers-queries";
  * una `AccountCard` cuadrada por cuenta, varias por fila, que linkea a su
  * historial completo (`/caja/saldos/[id]`, o `/caja/saldos/caja-fuerte`).
  * Arriba, el saldo total de hoy (todas las cuentas + Caja fuerte, separado
- * por moneda). Solo admin (ver `caja/page.tsx`): a diferencia de
- * Proveedores/Asociados, esto es la posición de plata real de la empresa.
+ * por moneda) y, si alguna cuenta tiene fondos de inversión, el mismo
+ * desglose "En cuenta"/"En fondos" agregado de todas ellas. Solo admin (ver
+ * `caja/page.tsx`): a diferencia de Proveedores/Asociados, esto es la
+ * posición de plata real de la empresa.
  */
 export function AccountsSection({
   accounts,
@@ -47,12 +49,20 @@ export function AccountsSection({
   const balances = { ...Object.fromEntries(accounts.map((a) => [a.id, a.balance])), [SAFE_ACCOUNT_ID]: safeBalance };
 
   const total = emptyCurrencyTotals();
+  const totalInvested = emptyCurrencyTotals();
+  let anyInvested = false;
   for (const a of accounts) {
     total.ars += a.balance.ars;
     total.usd += a.balance.usd;
+    if (a.investedBalance) {
+      anyInvested = true;
+      totalInvested.ars += a.investedBalance.ars;
+      totalInvested.usd += a.investedBalance.usd;
+    }
   }
   total.ars += safeBalance.ars;
   total.usd += safeBalance.usd;
+  const totalInAccount = subtractCurrencyTotals(total, totalInvested);
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,6 +73,18 @@ export function AccountsSection({
             .map((c) => formatMoney(total[c], c))
             .join(" · ")}
         </p>
+        {anyInvested && (
+          <p className="mt-1 text-xs text-foreground/50">
+            En cuenta:{" "}
+            {CURRENCIES.filter((c) => c === "ars" || totalInAccount[c] !== 0)
+              .map((c) => formatMoney(totalInAccount[c], c))
+              .join(" · ")}{" "}
+            · En fondos:{" "}
+            {CURRENCIES.filter((c) => c === "ars" || totalInvested[c] !== 0)
+              .map((c) => formatMoney(totalInvested[c], c))
+              .join(" · ")}
+          </p>
+        )}
       </div>
 
       <TransferLauncher accounts={options} balances={balances} usdRate={usdRate} />
@@ -81,6 +103,7 @@ export function AccountsSection({
               name={a.name}
               caption={a.subaccounts.length > 0 ? `Incluye ${a.subaccounts.map((s) => s.name).join(", ")}` : undefined}
               balance={a.balance}
+              investedBalance={a.investedBalance}
               monthIncome={a.monthIncome}
               monthExpense={a.monthExpense}
             />

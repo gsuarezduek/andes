@@ -67,7 +67,6 @@ export default async function CajaPage({
         index={await getCashSearchIndex(isAdmin)}
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
-        canEdit={isAdmin}
       />
 
       <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} expenseCategories={expenseCategories} />
@@ -89,9 +88,20 @@ export default async function CajaPage({
         <>
           {/* Los ingresos se ven completos, sin restricción, para cualquier
               rol — a diferencia de los egresos, que un no-admin sigue viendo
-              solo entre "Mis movimientos" (más abajo). */}
-          <IncomesBoard incomes={periodDetail.incomes} totalIncome={periodDetail.totalIncome} period={period} />
-          <CashOwnList items={await getOwnCashMovements(user.id, currentMonth())} />
+              solo entre "Mis movimientos" (más abajo). Ambas listas son
+              editables/eliminables igual que la vista admin. */}
+          <IncomesBoard
+            incomes={periodDetail.incomes}
+            totalIncome={periodDetail.totalIncome}
+            period={period}
+            paymentMethods={paymentMethods}
+            expenseCategories={expenseCategories}
+          />
+          <CashOwnList
+            items={await getOwnCashMovements(user.id, currentMonth())}
+            paymentMethods={paymentMethods}
+            expenseCategories={expenseCategories}
+          />
         </>
       )}
     </div>
@@ -125,14 +135,13 @@ export default async function CajaPage({
   ) : undefined;
 
   // Garantías/depósitos (ver `RentalPayment.isGuarantee`) — visibles y
-  // operables (devolver/cobrar) para cualquier rol; eliminar una cargada por
-  // error y editar sus movimientos derivados siguen siendo solo admin.
+  // operables (devolver/cobrar/eliminar una cargada por error/editar sus
+  // movimientos derivados) para cualquier rol.
   const garantias = (
     <GuaranteesSection
       guarantees={await getGuarantees()}
       paymentMethods={paymentMethods}
       expenseCategories={expenseCategories}
-      isAdmin={isAdmin}
     />
   );
 

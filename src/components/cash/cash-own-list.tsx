@@ -1,9 +1,25 @@
+import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
-import { MovementMetaLine } from "./movement-meta-line";
-import { formatMoney } from "@/lib/contract";
+import { MovementRow } from "./movement-row";
+import { movementRowKey } from "./movement-row-key";
 import type { CashMovementRow } from "@/lib/cash";
 
-export function CashOwnList({ items }: { items: CashMovementRow[] }) {
+type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
+type ExpenseCategoryOption = { id: string; name: string };
+
+/**
+ * Egresos propios del mes (un no-admin no ve los de otros — ver
+ * `getOwnCashMovements`), editables/eliminables como cualquier movimiento.
+ */
+export function CashOwnList({
+  items,
+  paymentMethods,
+  expenseCategories,
+}: {
+  items: CashMovementRow[];
+  paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
+}) {
   return (
     <section className="flex flex-col gap-2">
       <SectionTitle>Mis movimientos de este mes</SectionTitle>
@@ -14,18 +30,13 @@ export function CashOwnList({ items }: { items: CashMovementRow[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((r) => (
-            <li key={r.id} className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 whitespace-pre-wrap">{r.description}</p>
-                <p
-                  className={`shrink-0 font-semibold ${r.type === "income" ? "text-emerald-600" : "text-red-600"}`}
-                >
-                  {r.type === "income" ? "+" : "-"}
-                  {formatMoney(r.amount, r.currency)}
-                </p>
-              </div>
-              <MovementMetaLine movement={r} />
-            </li>
+            <MovementRow
+              key={movementRowKey(r)}
+              movement={r}
+              tone={r.type === "income" ? "emerald" : "red"}
+              paymentMethods={paymentMethods}
+              expenseCategories={expenseCategories}
+            />
           ))}
         </ul>
       )}

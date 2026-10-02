@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { formatMoney } from "@/lib/contract";
-import { CURRENCIES, type CurrencyTotals } from "@/lib/currency";
+import { CURRENCIES, subtractCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
 
 /** "Ingresos: $X" / "Egresos: $X", una línea por moneda con movimiento — chico, al pie de la tarjeta. */
 function MonthLine({ label, totals }: { label: string; totals: CurrencyTotals }) {
@@ -18,16 +18,20 @@ function MonthLine({ label, totals }: { label: string; totals: CurrencyTotals })
  * Tarjeta de una cuenta propia (Efectivo, banco, Mercado Pago, Caja fuerte,
  * etc.): nombre + saldo actual arriba, ingresos/egresos de este mes chico
  * abajo — más cuadrada que horizontal para poder mostrar varias por fila
- * (pedido del dueño). Tarjeta entera clickeable hacia la página con el
- * historial completo. Genérica (no depende de `OwnAccountBalance`/
- * `PaymentMethod`) para que la Caja fuerte pueda usarla igual que el resto
- * (ver `AccountsSection`, v44).
+ * (pedido del dueño). Si la cuenta tiene fondos de inversión (v61), suma el
+ * desglose "En cuenta" (líquido) / "En fondos" entre el saldo y el mes —
+ * sin eso, había que entrar a la cuenta y restar a mano contra "Fondos de
+ * inversión" para saber cuánto quedaba disponible. Tarjeta entera clickeable
+ * hacia la página con el historial completo. Genérica (no depende de
+ * `OwnAccountBalance`/`PaymentMethod`) para que la Caja fuerte pueda usarla
+ * igual que el resto (ver `AccountsSection`, v44).
  */
 export function AccountCard({
   href,
   name,
   caption,
   balance,
+  investedBalance,
   monthIncome,
   monthExpense,
 }: {
@@ -36,6 +40,8 @@ export function AccountCard({
   /** Aclaración chica bajo el nombre (subcuentas incluidas, o "Efectivo físico" para la Caja fuerte). */
   caption?: string;
   balance: CurrencyTotals;
+  /** Cuánto de `balance` está en fondos de inversión — ver `OwnAccountBalance.investedBalance`. `null`/`undefined` = la cuenta no tiene fondos habilitados. */
+  investedBalance?: CurrencyTotals | null;
   monthIncome: CurrencyTotals;
   monthExpense: CurrencyTotals;
 }) {
@@ -54,6 +60,12 @@ export function AccountCard({
       <div>
         <CurrencyTotalsDisplay totals={balance} size="text-lg" />
       </div>
+      {investedBalance && (
+        <div className="flex flex-col gap-0.5">
+          <MonthLine label="En cuenta" totals={subtractCurrencyTotals(balance, investedBalance)} />
+          <MonthLine label="En fondos" totals={investedBalance} />
+        </div>
+      )}
       <div className="mt-auto flex flex-col gap-0.5 border-t border-foreground/10 pt-2">
         <MonthLine label="Ingresos" totals={monthIncome} />
         <MonthLine label="Egresos" totals={monthExpense} />

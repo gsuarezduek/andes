@@ -23,27 +23,25 @@ type ExpenseCategoryOption = { id: string; name: string };
 const MODAL_TITLES = { view: "Movimiento", edit: "Editar movimiento", confirmDelete: "Eliminar movimiento" } as const;
 
 /**
- * Fila de un movimiento (solo vista admin). En reposo muestra lo esencial —
- * detalle, monto, cuenta y fecha — para poder escanear la lista rápido; el
- * resto (destino, categoría, cliente, quién lo cargó/editó) y las acciones
- * de Editar/Eliminar viven en un modal que se abre al tocar la fila. Antes
- * todo eso iba suelto en la fila (con el "Cliente" muchas veces repitiendo
- * lo que ya decía el Detalle) y el editar era un ícono aparte — pedido del
- * dueño para bajar el ruido visual.
+ * Fila de un movimiento — editable por cualquier rol (ver `updateCashMovement`/
+ * `deleteCashMovement`). En reposo muestra lo esencial — detalle, monto,
+ * cuenta y fecha — para poder escanear la lista rápido; el resto (destino,
+ * categoría, cliente, quién lo cargó/editó) y las acciones de Editar/Eliminar
+ * viven en un modal que se abre al tocar la fila. Antes todo eso iba suelto
+ * en la fila (con el "Cliente" muchas veces repitiendo lo que ya decía el
+ * Detalle) y el editar era un ícono aparte — pedido del dueño para bajar el
+ * ruido visual.
  */
 export function MovementRow({
   movement,
   tone,
   paymentMethods,
   expenseCategories,
-  canEdit = true,
 }: {
   movement: CashMovementRowData;
   tone: "emerald" | "red";
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
-  /** Falso para roles sin permiso de edición: el modal solo muestra el detalle. */
-  canEdit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
@@ -133,16 +131,14 @@ export function MovementRow({
                 />
               )}
             </dl>
-            {canEdit && (
-              <div className="mt-1 flex gap-2">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
-                  Editar
-                </Button>
-                <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
-                  Eliminar
-                </Button>
-              </div>
-            )}
+            <div className="mt-1 flex gap-2">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
+                Editar
+              </Button>
+              <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
+                Eliminar
+              </Button>
+            </div>
           </div>
         )}
 

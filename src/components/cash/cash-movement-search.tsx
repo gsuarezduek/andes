@@ -15,18 +15,16 @@ const MAX_RESULTS = 15;
  * traído del server sin acotar al período visible, ver `getCashSearchIndex`),
  * mismo patrón que `RentalPicker`. No navega ni cambia el período de abajo;
  * solo muestra los resultados acá mismo. Cada resultado es un `MovementRow`:
- * tocarlo abre el detalle y, si `canEdit` (admin), Editar/Eliminar.
+ * tocarlo abre el detalle con Editar/Eliminar (cualquier rol).
  */
 export function CashMovementSearch({
   index,
   paymentMethods,
   expenseCategories,
-  canEdit,
 }: {
   index: CashMovementRow[];
   paymentMethods: PaymentMethodOption[];
   expenseCategories: { id: string; name: string }[];
-  canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
 
@@ -66,7 +64,6 @@ export function CashMovementSearch({
                 tone={m.type === "income" ? "emerald" : "red"}
                 paymentMethods={paymentMethods}
                 expenseCategories={expenseCategories}
-                canEdit={canEdit}
               />
             ))}
           </ul>

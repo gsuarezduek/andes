@@ -2,6 +2,7 @@ import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
 import { GuaranteeCard } from "./guarantee-card";
 import { MovementRow } from "./movement-row";
+import { movementRowKey } from "./movement-row-key";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
@@ -21,12 +22,10 @@ export function GuaranteesSection({
   guarantees,
   paymentMethods,
   expenseCategories,
-  isAdmin,
 }: {
   guarantees: Guarantees;
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
-  isAdmin: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -49,7 +48,7 @@ export function GuaranteesSection({
         ) : (
           <ul className="flex flex-col gap-2">
             {guarantees.active.map((g) => (
-              <GuaranteeCard key={g.id} guarantee={g} paymentMethods={paymentMethods} isAdmin={isAdmin} />
+              <GuaranteeCard key={g.id} guarantee={g} paymentMethods={paymentMethods} />
             ))}
           </ul>
         )}
@@ -83,12 +82,11 @@ export function GuaranteesSection({
                   <ul className="mt-2 flex flex-col gap-2 border-t border-foreground/10 pt-2">
                     {g.derived.map((d) => (
                       <MovementRow
-                        key={`${d.id}:${d.description}:${d.amount}:${d.currency}`}
+                        key={movementRowKey(d)}
                         movement={d}
                         tone={d.type === "income" ? "emerald" : "red"}
                         paymentMethods={paymentMethods}
                         expenseCategories={expenseCategories}
-                        canEdit={isAdmin}
                       />
                     ))}
                   </ul>
