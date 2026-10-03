@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
+import { CloseIcon } from "@/components/ui/icons";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -85,9 +86,21 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {title ? (
-          <p id={titleId} className="mb-4 text-sm font-semibold text-foreground/90">
-            {title}
-          </p>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <p id={titleId} className="text-sm font-semibold text-foreground/90">
+              {title}
+            </p>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Cerrar"
+                className="-mr-1 -mt-1 shrink-0 rounded-md p-1 text-foreground/40 hover:text-foreground/70"
+              >
+                <CloseIcon className="size-4" />
+              </button>
+            )}
+          </div>
         ) : null}
         {children}
       </div>
