@@ -102,6 +102,29 @@ export function chipStatus(seg: Segment, isToday: boolean, nowMin: number): Chip
   return isSegmentActive(seg, nowMin) ? "active" : "other";
 }
 
+/** Mismo criterio que `chipStatus` pero para un turno con varios tramos (cortado/guardia unificados). */
+export function chipStatusMulti(segs: Segment[], isToday: boolean, nowMin: number): ChipStatus {
+  if (!isToday) return "other";
+  return segs.some((seg) => !seg.onCall && isSegmentActive(seg, nowMin)) ? "active" : "other";
+}
+
+/** ¿El turno ocupa más de una fila (cortado, guardia)? Se muestra una sola vez (en Mañana) en vez de repetido. */
+export function spansFullDay(shift: Shift): boolean {
+  return new Set(SHIFT_SEGMENTS[shift].map((s) => s.row)).size > 1;
+}
+
+/** "9–13 y 16–20" para los tramos de un turno; "" si es guardia (disponibilidad, sin horario que mostrar). */
+export function rangeLabel(segs: Segment[]): string {
+  if (segs.some((s) => s.onCall)) return "";
+  return segs.map(segmentRange).join(" y ");
+}
+
+/** Sábado o domingo de una fecha "YYYY-MM-DD". */
+export function isWeekendKey(dateKey: string): boolean {
+  const dow = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
 /** "09:00" → "9", "16:30" → "16:30" (para chips compactos). */
 export function shortHour(hm: string): string {
   const [h, m] = hm.split(":");

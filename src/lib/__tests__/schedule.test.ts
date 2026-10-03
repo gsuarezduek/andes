@@ -5,8 +5,12 @@ import {
   weekKeys,
   isSegmentActive,
   chipStatus,
+  chipStatusMulti,
+  isWeekendKey,
+  rangeLabel,
   segmentRange,
   shortNames,
+  spansFullDay,
   SHIFT_SEGMENTS,
   toMinutes,
 } from "../schedule";
@@ -69,6 +73,36 @@ describe("turnos", () => {
   it("rangos legibles", () => {
     expect(segmentRange(morning)).toBe("9–16");
     expect(segmentRange({ row: "morning", start: "09:30", end: "13:00" })).toBe("9:30–13");
+  });
+
+  it("solo el cortado y la guardia ocupan las dos filas (se unifican en un solo chip)", () => {
+    expect(spansFullDay("morning")).toBe(false);
+    expect(spansFullDay("afternoon")).toBe(false);
+    expect(spansFullDay("split")).toBe(true);
+    expect(spansFullDay("on_call")).toBe(true);
+  });
+
+  it("rango combinado del turno unificado", () => {
+    expect(rangeLabel(SHIFT_SEGMENTS.split)).toBe("9–13 y 16–20");
+    expect(rangeLabel(SHIFT_SEGMENTS.on_call)).toBe(""); // guardia: disponibilidad, sin horario
+    expect(rangeLabel(SHIFT_SEGMENTS.morning)).toBe("9–16");
+  });
+
+  it("estado del chip unificado: verde si cualquiera de los tramos está en curso", () => {
+    expect(chipStatusMulti(SHIFT_SEGMENTS.split, true, at("10:00"))).toBe("active");
+    expect(chipStatusMulti(SHIFT_SEGMENTS.split, true, at("14:30"))).toBe("other"); // en el corte
+    expect(chipStatusMulti(SHIFT_SEGMENTS.split, true, at("17:00"))).toBe("active");
+    expect(chipStatusMulti(SHIFT_SEGMENTS.split, false, at("10:00"))).toBe("other");
+    expect(chipStatusMulti(SHIFT_SEGMENTS.on_call, true, at("03:00"))).toBe("other");
+  });
+});
+
+describe("fin de semana", () => {
+  it("sábado y domingo distintos de los días de semana", () => {
+    expect(isWeekendKey("2026-09-26")).toBe(true); // sábado
+    expect(isWeekendKey("2026-09-27")).toBe(true); // domingo
+    expect(isWeekendKey("2026-09-28")).toBe(false); // lunes
+    expect(isWeekendKey("2026-10-02")).toBe(false); // viernes
   });
 });
 

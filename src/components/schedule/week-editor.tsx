@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/fields";
-import { SHIFTS, shiftLabels, type Shift } from "@/lib/schedule";
+import { SHIFTS, isWeekendKey, shiftLabels, type Shift } from "@/lib/schedule";
 import type { WeekDay } from "@/lib/schedule-queries";
 import { saveWeekSchedule } from "@/app/(app)/horarios/actions";
 
@@ -95,12 +95,15 @@ export function WeekEditor({
           <thead>
             <tr className="border-b border-foreground/10">
               <th className="sticky left-0 z-10 w-28 bg-background px-2 py-2 text-left text-xs font-semibold text-foreground/50">Persona</th>
-              {days.map((d) => (
-                <th key={d.key} className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : ""}`}>
-                  <div className="text-[10px] uppercase text-foreground/40">{d.weekday}</div>
-                  <div className="text-base tabular-nums text-foreground/70">{d.day}</div>
-                </th>
-              ))}
+              {days.map((d) => {
+                const weekend = isWeekendKey(d.key);
+                return (
+                  <th key={d.key} className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : weekend ? "bg-amber-500/10" : ""}`}>
+                    <div className={`text-[10px] uppercase ${weekend && !d.isToday ? "text-amber-700 dark:text-amber-500" : "text-foreground/40"}`}>{d.weekday}</div>
+                    <div className={`text-base tabular-nums ${weekend && !d.isToday ? "font-medium text-amber-700 dark:text-amber-500" : "text-foreground/70"}`}>{d.day}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -111,8 +114,9 @@ export function WeekEditor({
                   const k = cellKey(p.id, d.key);
                   const v = values[k] ?? "";
                   const dirty = v !== (initial[k] ?? "");
+                  const weekend = isWeekendKey(d.key);
                   return (
-                    <td key={d.key} className="px-1 py-1">
+                    <td key={d.key} className={`px-1 py-1 ${weekend && !d.isToday ? "bg-amber-500/5" : ""}`}>
                       <select
                         aria-label={`${p.name}, ${d.weekday} ${d.day}`}
                         value={v}
