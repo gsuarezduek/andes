@@ -58,12 +58,14 @@ type Draft = {
 
 type CategoryOption = { id: string; name: string };
 
-// Pedido del dueño (post v44): ocultar la caja "Ajuste de saldo" — ya se usó
-// una vez (Stripe) y no debería hacer falta de nuevo. El valor que ya está
-// guardado en `PaymentMethod.balanceAdjustment{Ars,Usd}` sigue aplicándose al
-// saldo igual (ver `getOwnAccountBalances`) — esto solo esconde el formulario
-// para no tentar a cargarlo de nuevo. Si hiciera falta, alcanza con volver a
-// `true`.
+// Pedido del dueño (post v44): ocultar la caja "Ajuste de saldo" en cuentas
+// PROPIAS — ya se usó una vez (Stripe) y no debería hacer falta de nuevo. El
+// valor que ya está guardado en `PaymentMethod.balanceAdjustment{Ars,Usd}`
+// sigue aplicándose al saldo igual (ver `getOwnAccountBalances`) — esto solo
+// esconde el formulario para no tentar a cargarlo de nuevo ahí. Si hiciera
+// falta, alcanza con volver a `true`. No aplica a asociados/proveedores (ver
+// más abajo): ahí el mismo mecanismo sigue visible, para corregir cuentas
+// corrientes desfasadas (v70) sin inventar una deuda ni un movimiento falso.
 const SHOW_BALANCE_ADJUSTMENT = false;
 
 function draftFrom(it: PlainPaymentMethod): Draft {
@@ -534,13 +536,17 @@ function PaymentMethodRow({
                 </SelectField>
               </div>
             )}
-            {draft.ownership === "own" && SHOW_BALANCE_ADJUSTMENT && (
+            {((draft.ownership === "own" && SHOW_BALANCE_ADJUSTMENT) ||
+              draft.ownership === "associate" ||
+              draft.ownership === "provider") && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
                 <p className="text-sm font-medium text-foreground/80">Ajuste de saldo</p>
                 <p className="text-xs text-foreground/50">
                   Corrección manual, por única vez, para alinear el saldo que muestra Andes con el real (ej. al dar de
-                  alta una cuenta que ya venía operando). Se suma directo al saldo — no genera un movimiento ni queda
-                  en el historial.
+                  alta una cuenta que ya venía operando, o para dejar en $0 una cuenta corriente desfasada de antes de
+                  llevarla por Andes). Se suma directo al saldo — no genera un movimiento ni queda en el historial. Fijate
+                  el saldo actual en Caja antes de cargar el ajuste: para dejarlo en $0, el ajuste es el saldo actual
+                  con el signo invertido.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <TextField

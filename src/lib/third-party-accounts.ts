@@ -120,8 +120,10 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
 /**
  * Saldo de cuenta corriente de cada cuenta ajena de este `ownership`, solo
  * cuentas principales (las subcuentas se suman ahí), histórico completo — es
- * "cuánto se debe hoy", no un corte por período. Info operativa, visible para
- * cualquier rol.
+ * "cuánto se debe hoy", no un corte por período. Suma también
+ * `PaymentMethod.balanceAdjustment{Ars,Usd}` — corrección manual que no pasa
+ * por ningún movimiento (ver comentario en el schema; mismo mecanismo que
+ * `getOwnAccountBalances`). Info operativa, visible para cualquier rol.
  */
 export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): Promise<ThirdPartyBalance[]> {
   const { principals, resolve, memberIds } = await resolveToPrincipal(ownership);
@@ -160,6 +162,12 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
     const principalId = row.recipientPaymentMethodId && resolve.get(row.recipientPaymentMethodId);
     const totals = principalId && balances.get(principalId);
     if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
+  }
+  // Ajuste manual (no es un movimiento — ver comentario en el schema).
+  for (const p of principals) {
+    const totals = balances.get(p.id)!;
+    totals.ars += p.balanceAdjustment.ars;
+    totals.usd += p.balanceAdjustment.usd;
   }
 
   const conversationByPhone = await resolveWhatsappConversationIds(principals.map((p) => p.whatsappPhone));

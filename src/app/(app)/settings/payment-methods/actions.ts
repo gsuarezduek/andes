@@ -70,8 +70,9 @@ export type PaymentMethodUpdateInput = {
   commissionPercent: string;
   commissionFixed: string;
   commissionCategoryId: string | null;
-  // Corrección manual del saldo calculado (solo cuentas propias) — ver
-  // `PaymentMethod.balanceAdjustmentArs/Usd` en el schema. Vacío = sin ajuste.
+  // Corrección manual del saldo calculado (no tiene sentido en `misc`, que no
+  // lleva cuenta corriente) — ver `PaymentMethod.balanceAdjustmentArs/Usd` en
+  // el schema. Vacío = sin ajuste.
   balanceAdjustmentArs: string;
   balanceAdjustmentUsd: string;
 };
@@ -155,9 +156,9 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           commissionPercent: commissions.get(u.id)!.percent,
           commissionFixed: commissions.get(u.id)!.fixed,
           commissionCategoryId: commissions.get(u.id)!.categoryId,
-          // Solo tiene sentido en cuentas propias — en las demás se guarda en 0.
-          balanceAdjustmentArs: u.ownership === "own" ? amountOrZero(u.balanceAdjustmentArs) : 0,
-          balanceAdjustmentUsd: u.ownership === "own" ? amountOrZero(u.balanceAdjustmentUsd) : 0,
+          // No tiene sentido en `misc` (sin cuenta corriente) — ahí se guarda en 0.
+          balanceAdjustmentArs: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentArs),
+          balanceAdjustmentUsd: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentUsd),
         },
       }),
     ),

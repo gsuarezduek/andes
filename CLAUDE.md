@@ -912,6 +912,15 @@ Bug real reportado por el dueño: con la política de Airbnb "hay que reservar c
 - **Aplicado en los tres lugares que decían "ocupada"**: el "estado actual" de `/rooms` (`listRooms`), las barras del Calendario (`calendar.ts`) y la lista "reservas próximas o en curso" de la ficha de la habitación (`/rooms/[id]`) — los tres filtran ahora por `countsAsOccupancy` además del `mirrored` de v68. La fila sigue existiendo en la base (no se borra nada, el sync sigue trayéndola igual); solo deja de mostrarse como si fuera una estadía.
 - **Decisión tomada con el dueño:** alcance amplio — cualquier bloqueo sincronizado deja de contar, no solo el de "hoy" puntual (más simple y cubre el mismo problema si algún día se bloquea una fecha futura desde la propia Airbnb).
 
+## v70 — Ajuste de saldo también en cuentas de Asociados/Proveedores
+
+Pedido del dueño: 4 cuentas de asociados (Antonella, Cristian, Sharbel, Cinthia) quedaron desfasadas de antes de llevar la cuenta corriente por Andes (desde septiembre/octubre de 2026 se lleva bien) y hay que dejarlas en $0 **sin** cargar una deuda/pago ficticio (eso ensuciaría el historial y no reflejaría la realidad). El mecanismo "Ajuste de saldo" ya existía para cuentas propias (v44, caso Stripe) pero estaba restringido a `ownership: "own"` tanto en el cálculo (`getOwnAccountBalances`) como en la acción que lo guarda y el formulario — no aplicaba a `associate`/`provider`. tsc/lint/736 tests en verde; **verificado extremo a extremo con Playwright contra la base local** (asociado de prueba con una deuda de $10.000 y un pago directo de $4.000 → saldo $6.000 en Caja; cargado el ajuste -$6.000 en Configuración → Medios de pago → Guardar; Caja vuelve a mostrar "Sin saldo pendiente"; confirmado en la base que no se creó ningún `CashMovement` nuevo, solo se escribió `PaymentMethod.balanceAdjustmentArs`). Datos de prueba borrados después. **Sin migración** (la columna ya existía). **Sin desplegar todavía.**
+
+- **`getThirdPartyBalances`** (`src/lib/third-party-accounts.ts`) ahora suma `PaymentMethod.balanceAdjustment{Ars,Usd}` al saldo calculado, mismo mecanismo que ya usaba `getOwnAccountBalances`.
+- **`updatePaymentMethods`** (`settings/payment-methods/actions.ts`) ya no fuerza el ajuste a 0 fuera de `own` — solo lo sigue forzando en `misc` (sin cuenta corriente, no tiene saldo que ajustar).
+- **UI** (`payment-methods-editor.tsx`): la caja "Ajuste de saldo" se muestra para `associate`/`provider` sin pasar por el flag `SHOW_BALANCE_ADJUSTMENT` (que sigue en `false` y sigue ocultándola en cuentas propias, a pedido del dueño post-Stripe — ahí ya no hace falta). El texto de ayuda aclara que para dejar una cuenta en $0 el ajuste es el saldo actual (visible en Caja) con el signo invertido.
+- **Para zanjar las 4 cuentas reales**, una vez desplegado: Configuración → Medios de pago → pestaña Asociados → "Editar" en cada una → ver su saldo actual en Caja → Asociados → cargar ese monto con el signo invertido en "Ajuste ARS" (o "Ajuste USD" si corresponde) → Guardar cambios.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
@@ -924,6 +933,7 @@ Bug real reportado por el dueño: con la política de Airbnb "hay que reservar c
 - **Cron diario de `/api/daily-summary` (v12, UX-24):** falta programarlo en Railway (mismo mecanismo que ya existe para `/api/sync`) para que el resumen de alertas vencidas se mande solo todos los días.
 - **PROD-03 (v12):** decidir cómo se arman las plantillas de condiciones económicas por modelo/segmento (ver las 3 opciones arriba) antes de implementarlo.
 - **Ajuste de saldo de Stripe (v44):** cargar el ajuste puntual ($16.435.207 / -US$1.922,54) desde Configuración → Medios de pago una vez desplegado — ver v44.
+- **Ajuste de saldo de los 4 asociados (v70):** una vez desplegado, cargar en Configuración → Medios de pago el ajuste de saldo (negativo del saldo actual) para dejar en $0 las cuentas de Antonella, Cristian, Sharbel y Cinthia — ver v70.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
