@@ -224,41 +224,44 @@ model User {
   inspections                    Inspection[]
   rentalDocuments                RentalDocument[]
   signatureRequests              SignatureRequest[]
-  reportedDamages                Damage[]                @relation("DamageReporter")
-  repairedDamages                Damage[]                @relation("DamageRepairer")
-  createdVehicleNotes            VehicleNote[]           @relation("VehicleNoteCreator")
-  resolvedVehicleNotes           VehicleNote[]           @relation("VehicleNoteResolver")
-  createdRentalNotes             RentalNote[]            @relation("RentalNoteCreator")
-  resolvedRentalNotes            RentalNote[]            @relation("RentalNoteResolver")
-  verifiedRentals                Rental[]                @relation("RentalVerifier")
-  createdRoomBookings            RoomBooking[]           @relation("RoomBookingCreator")
+  reportedDamages                Damage[]                 @relation("DamageReporter")
+  repairedDamages                Damage[]                 @relation("DamageRepairer")
+  createdVehicleNotes            VehicleNote[]            @relation("VehicleNoteCreator")
+  resolvedVehicleNotes           VehicleNote[]            @relation("VehicleNoteResolver")
+  createdRentalNotes             RentalNote[]             @relation("RentalNoteCreator")
+  resolvedRentalNotes            RentalNote[]             @relation("RentalNoteResolver")
+  verifiedRentals                Rental[]                 @relation("RentalVerifier")
+  createdRoomBookings            RoomBooking[]            @relation("RoomBookingCreator")
   shiftAssignments               ShiftAssignment[]
-  shiftChangesAsTarget           ShiftChange[]           @relation("ShiftChangeTarget")
-  shiftChangesMade               ShiftChange[]           @relation("ShiftChangeActor")
-  rentalVerifications            RentalVerification[]    @relation("RentalVerificationActor")
-  rentalExtensions               RentalExtension[]       @relation("RentalExtensionActor")
-  createdCashMovements           CashMovement[]          @relation("CashMovementCreator")
-  deletedCashMovements           CashMovement[]          @relation("CashMovementDeleter")
-  cashMovementEdits              CashMovementEdit[]      @relation("CashMovementEditor")
-  resolvedGuarantees             CashMovement[]          @relation("GuaranteeResolver")
-  createdSafeMovements           SafeMovement[]          @relation("SafeMovementCreator")
-  deletedSafeMovements           SafeMovement[]          @relation("SafeMovementDeleter")
-  safeMovementEdits              SafeMovementEdit[]      @relation("SafeMovementEditor")
+  shiftChangesAsTarget           ShiftChange[]            @relation("ShiftChangeTarget")
+  shiftChangesMade               ShiftChange[]            @relation("ShiftChangeActor")
+  rentalVerifications            RentalVerification[]     @relation("RentalVerificationActor")
+  rentalExtensions               RentalExtension[]        @relation("RentalExtensionActor")
+  createdCashMovements           CashMovement[]           @relation("CashMovementCreator")
+  deletedCashMovements           CashMovement[]           @relation("CashMovementDeleter")
+  cashMovementEdits              CashMovementEdit[]       @relation("CashMovementEditor")
+  resolvedGuarantees             CashMovement[]           @relation("GuaranteeResolver")
+  createdSafeMovements           SafeMovement[]           @relation("SafeMovementCreator")
+  deletedSafeMovements           SafeMovement[]           @relation("SafeMovementDeleter")
+  safeMovementEdits              SafeMovementEdit[]       @relation("SafeMovementEditor")
   conditionSettingsEdits         ConditionSettingsEdit[]
   loginEvents                    LoginEvent[]
   storageCleanupRuns             StorageCleanupRun[]
   storageExports                 StorageExport[]
   passwordResetTokens            PasswordResetToken[]
-  createdTasks                   Task[]                  @relation("TaskCreator")
-  assignedTasks                  Task[]                  @relation("TaskAssignee")
-  completedTasks                 Task[]                  @relation("TaskCompleter")
-  createdTaskRecurrences         TaskRecurrence[]        @relation("TaskRecurrenceCreator")
-  assignedTaskRecurrences        TaskRecurrence[]        @relation("TaskRecurrenceAssignee")
+  createdTasks                   Task[]                   @relation("TaskCreator")
+  assignedTasks                  Task[]                   @relation("TaskAssignee")
+  completedTasks                 Task[]                   @relation("TaskCompleter")
+  createdTaskRecurrences         TaskRecurrence[]         @relation("TaskRecurrenceCreator")
+  assignedTaskRecurrences        TaskRecurrence[]         @relation("TaskRecurrenceAssignee")
   assignedWhatsappConversations  WhatsAppConversation[]
   sentWhatsappMessages           WhatsAppMessage[]
-  resolvedWhatsappBotEscalations WhatsAppBotEscalation[] @relation("WhatsAppBotEscalationResolver")
+  resolvedWhatsappBotEscalations WhatsAppBotEscalation[]  @relation("WhatsAppBotEscalationResolver")
   rentalQuotes                   RentalQuote[]
   createdQuickReplies            WhatsAppQuickReply[]
+  createdAccessCredentials       AccessCredential[]       @relation("AccessCredentialCreator")
+  updatedAccessCredentials       AccessCredential[]       @relation("AccessCredentialUpdater")
+  accessCredentialReveals        AccessCredentialReveal[]
 
   @@map("users")
 }
@@ -525,7 +528,6 @@ model RentalVerification {
  * de devolver, o antes): historial append-only de cada extensión, con el
  * cargo que se sumó al contrato — reemplaza a la nota de texto libre, que no
  * dejaba rastro estructurado ni afectaba el saldo/semáforo de pago.
- *
  * `amount` puede quedar en null: es el caso de una extensión detectada por el
  * sync (el cliente extendió y ya se cargó en VikRentCar primero — el flujo
  * real más común) — el sync trae la fecha sola pero nunca toca `pricing`, así
@@ -2441,4 +2443,77 @@ model ShiftChange {
 
   @@index([createdAt])
   @@map("shift_changes")
+}
+
+// ---------------------------------------------------------------------------
+// Accesos (gestor de contraseñas compartido del equipo)
+// ---------------------------------------------------------------------------
+//
+// Credenciales de sitios/servicios de terceros (ej. Railway, Resend,
+// Hostinger) — nada que ver con el login de Andes. Cualquier rol puede
+// cargar, editar o borrar un acceso. Sitio/servicio y usuario quedan en
+// claro (hacen falta para identificar la fila al escanear la lista);
+// contraseña y "extra" (segundo factor u otro dato sensible) se cifran en
+// reposo (ver src/lib/encryption.ts) y nunca se mandan al cliente salvo que
+// alguien pida explícitamente "Mostrar". `adminOnly` restringe quién puede
+// revelarlas — el resto de los campos siguen visibles para cualquiera.
+
+/// Qué campo sensible de un AccessCredential se reveló (ver AccessCredentialReveal).
+enum AccessCredentialField {
+  password
+  extra
+}
+
+model AccessCredential {
+  id       String  @id @default(cuid())
+  service  String // sitio web o servicio, ej. "Railway", "Resend"
+  username String?
+
+  // Cifrados en reposo ("iv:tag:ciphertext", ver encrypt/decrypt). Null = ese
+  // campo no se cargó para este acceso.
+  passwordEnc String? @map("password_enc") @db.Text
+  extraEnc    String? @map("extra_enc") @db.Text // segundo factor, códigos de recuperación, u otro dato sensible
+
+  // Si está activo, solo un admin puede revelar password/extra de este
+  // acceso (el resto de los campos sigue visible para cualquiera).
+  adminOnly Boolean @default(false) @map("admin_only")
+
+  // `*Name` son nombres congelados al momento del hecho (ver
+  // Inspection.userName) — sobreviven a que se borre el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("AccessCredentialCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  updatedById   String? @map("updated_by_id")
+  updatedBy     User?   @relation("AccessCredentialUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedByName String? @map("updated_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reveals AccessCredentialReveal[]
+
+  @@map("access_credentials")
+}
+
+/// Registro append-only de cada vez que alguien revela la contraseña o el
+/// "extra" de un acceso (quién, cuándo, qué campo) — trazabilidad de quién
+/// vio qué, independiente de si el acceso es `adminOnly` o no.
+model AccessCredentialReveal {
+  id String @id @default(cuid())
+
+  accessCredentialId String           @map("access_credential_id")
+  accessCredential   AccessCredential @relation(fields: [accessCredentialId], references: [id], onDelete: Cascade)
+
+  field AccessCredentialField
+
+  // Nombre congelado al momento del hecho (ver Inspection.userName).
+  userId   String? @map("user_id")
+  user     User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName String  @map("user_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([accessCredentialId])
+  @@map("access_credential_reveals")
 }

@@ -31,6 +31,7 @@ const COMMANDS: Command[] = [
   { id: "reports", label: "Reportes", href: "/reports", group: "Ir a", keywords: ["estadisticas", "ocupacion", "ingresos", "metricas"], adminOnly: true },
   { id: "competitor-prices", label: "Precios de la competencia", href: "/competitor-prices", group: "Ir a", keywords: ["competencia", "tarifas", "comparar"], adminOnly: true },
   { id: "gps", label: "GPS", href: "/gps", group: "Ir a", keywords: ["dispositivos", "rastreo"] },
+  { id: "access", label: "Accesos", href: "/access", group: "Ir a", keywords: ["contraseñas", "passwords", "credenciales", "usuarios"] },
   { id: "sync", label: "Sincronización", href: "/sync", group: "Ir a", keywords: ["vikrentcar", "wordpress", "importar", "flota"] },
   { id: "profile", label: "Perfil", href: "/profile", group: "Ir a", keywords: ["contraseña", "cuenta"] },
 

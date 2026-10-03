@@ -93,6 +93,8 @@ export function AppNav({
     { href: "/gps", label: "GPS" },
     // Horarios del equipo: todos los roles lo ven (el editor es solo admin).
     { href: "/horarios", label: "Horarios" },
+    // Gestor de contraseñas compartido del equipo — cualquier rol carga/ve.
+    { href: "/access", label: "Accesos" },
     // "Competencia" queda en el menú de cuenta (no en la barra principal) a
     // propósito, mientras se sigue puliendo — pasa a la barra principal más
     // adelante.
