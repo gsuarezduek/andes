@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
   let rows: (string | number)[][];
   let name: string;
   if (type === "months") {
-    rows = [["Mes", "Alquileres finalizados", "Km recorridos"]];
-    for (const m of reports.byMonth) rows.push([m.month, m.rentals, m.km]);
+    rows = [["Mes", "Alquileres finalizados", "Km recorridos", "Ingresos", "Extras liquidados"]];
+    for (const m of reports.byMonth) rows.push([m.month, m.rentals, m.km, m.income, m.extrasTotal]);
     name = "reporte-por-mes";
   } else {
     rows = [

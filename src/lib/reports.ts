@@ -29,6 +29,7 @@ import {
   computeOccupancy,
   computeResponseWaits,
   leadTimeDays,
+  overlapDays,
   settlementExtras,
   summarizeLeadTimes,
   summarizeResponseTimes,
@@ -37,7 +38,7 @@ import {
   type ResponseTimeSummary,
 } from "@/lib/reports-metrics";
 
-export type MonthPoint = { month: string; rentals: number; km: number };
+export type MonthPoint = { month: string; rentals: number; km: number; income: number; extrasTotal: number };
 
 export type WhatsAppMonthPoint = { month: string; conversations: number };
 
@@ -48,6 +49,9 @@ export type ConversionMonthPoint = {
   rentals: number;
   percent: number | null;
 };
+
+/** Ocupación % de un mes puntual del gráfico de tendencia (null si no hay flota/período — ver computeOccupancy). */
+export type OccupancyMonthPoint = { month: string; percent: number | null };
 
 export type VehicleReport = {
   id: string;
@@ -97,10 +101,7 @@ export type ExpenseCategoryReport = {
 
 export type Reports = {
   kpis: {
-    fleet: number;
-    rentedNow: number;
     finished: number;
-    active: number;
     // Ingresos/egresos/neto: movimientos reales de Caja del período (ver
     // comentario de módulo). `costTotal` es aparte: costo de mantenimiento
     // registrado (no siempre pasa también por Caja como egreso).
@@ -123,8 +124,11 @@ export type Reports = {
   // todavía no hay ningún valor de referencia cargado (quedan fuera de los
   // totales de Caja de arriba). Normalmente 0.
   usdUnconverted: number;
-  // Ocupación de la flota operativa en el período (ver computeOccupancy).
-  occupancy: OccupancySummary;
+  // Ocupación de la flota operativa en el período (ver computeOccupancy), más
+  // la cantidad de autos distintos que tuvieron algún alquiler superpuesto
+  // con el período ("flota activa") y la misma ocupación % mes a mes (mismos
+  // meses que `byMonth`) para contextualizar el % puntual de arriba.
+  occupancy: OccupancySummary & { activeFleetUnits: number; byMonth: OccupancyMonthPoint[] };
   // Sobre los alquileres finalizados del período (ingreso del contrato, no de Caja).
   revenue: {
     perRentedDay: number | null;
@@ -244,6 +248,12 @@ export function reportPeriodLabel(period: ReportPeriod, now: Date = new Date()):
 /** Primer instante (00:00 hora Mendoza) del mes "YYYY-MM", como UTC. */
 function monthStartUtc(ym: string): Date {
   return mendozaWallTimeToUtc(`${ym}-01T00:00`);
+}
+
+/** Mes siguiente a "YYYY-MM", con rollover de año. */
+function nextYm(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
 /**
@@ -418,6 +428,7 @@ export function sortVehicleReports(
 export const getReports = unstable_cache(
   async (period: ReportPeriod = DEFAULT_REPORT_PERIOD): Promise<Reports> => {
     const now = new Date();
+    const currentYm = monthOf(now);
     const periodRange = resolveReportPeriod(period, now);
 
     const [
@@ -425,9 +436,7 @@ export const getReports = unstable_cache(
       earliestFinished,
       maintenanceByVehicle,
       damages,
-      activeCount,
       cashMovementsRaw,
-      occupancyRentals,
       bookingRentals,
       pendingConfirmation,
     ] = await Promise.all([
@@ -460,7 +469,6 @@ export const getReports = unstable_cache(
           where: { repaired: false },
           _count: { _all: true },
         }),
-        prisma.rental.count({ where: { status: "active" } }),
         // Ingresos/egresos de Caja del período, para el desglose por cuenta
         // propia/ajena — fuente de datos distinta de `finished` (movimientos
         // de efectivo reales, no el total contractual de la reserva).
@@ -481,21 +489,6 @@ export const getReports = unstable_cache(
             categoryName: true,
             paymentMethod: { select: { ownership: true } },
           },
-        }),
-        // Ocupación: alquileres entregados que se superponen con el período
-        // (entrega antes del fin y, o siguen activos, o se devolvieron
-        // después del inicio). Intervalo real entrega→devolución.
-        prisma.rental.findMany({
-          where: {
-            vehicleId: { not: null },
-            status: { in: ["active", "finished"] },
-            inspections: { some: { type: "handover", createdAt: { lt: periodRange.end } } },
-            OR: [
-              { status: "active" },
-              { inspections: { some: { type: "return_", createdAt: { gte: periodRange.start } } } },
-            ],
-          },
-          select: { vehicleId: true, inspections: { select: { type: true, createdAt: true } } },
         }),
         // Reservas con retiro en el período. Los bloqueos de service/arreglo
         // (`maintenanceLogs`) son reservas placeholder canceladas al cerrar
@@ -534,7 +527,7 @@ export const getReports = unstable_cache(
     // El ingreso sale de un campo Json (`pricing`, con fallback a
     // `bookingTotal`) que no se puede sumar a nivel base de datos — hace
     // falta traer cada alquiler finalizado para resolverlo en JS.
-    const [finishedInRange, whatsappMessagesInRange] = await Promise.all([
+    const [finishedInRange, whatsappMessagesInRange, occupancyRentals] = await Promise.all([
       prisma.rental.findMany({
         where: { status: "finished", endAt: { gte: queryStart, lt: now } },
         select: {
@@ -551,6 +544,25 @@ export const getReports = unstable_cache(
       prisma.whatsAppMessage.findMany({
         where: { createdAt: { gte: queryStart, lt: now } },
         select: { conversationId: true, createdAt: true, direction: true, sentByBot: true },
+      }),
+      // Ocupación: alquileres entregados que se superponen con la ventana
+      // amplia (`queryStart`..`now`, superset del período elegido y del
+      // gráfico "por mes") — entrega antes de ahora y, o siguen activos, o se
+      // devolvieron después del inicio de la ventana. Intervalo real
+      // entrega→devolución. Acotar al período elegido alcanzaba cuando sólo
+      // hacía falta la ocupación puntual; ahora también alimenta "Ocupación
+      // por mes" (ver occupancyByMonth más abajo).
+      prisma.rental.findMany({
+        where: {
+          vehicleId: { not: null },
+          status: { in: ["active", "finished"] },
+          inspections: { some: { type: "handover", createdAt: { lt: now } } },
+          OR: [
+            { status: "active" },
+            { inspections: { some: { type: "return_", createdAt: { gte: queryStart } } } },
+          ],
+        },
+        select: { vehicleId: true, inspections: { select: { type: true, createdAt: true } } },
       }),
     ]);
 
@@ -585,7 +597,9 @@ export const getReports = unstable_cache(
       ]),
     );
 
-    const monthMap = new Map<string, MonthPoint>(chartMonthList.map((m) => [m, { month: m, rentals: 0, km: 0 }]));
+    const monthMap = new Map<string, MonthPoint>(
+      chartMonthList.map((m) => [m, { month: m, rentals: 0, km: 0, income: 0, extrasTotal: 0 }]),
+    );
 
     let finishedCount = 0;
     // Acumuladores de ticket/duración/extras sobre los finalizados del período.
@@ -598,6 +612,9 @@ export const getReports = unstable_cache(
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
       const kmDriven = handover && ret ? Math.max(0, ret.km - handover.km) : 0;
+      const pricing = (r.pricing ?? {}) as ContractPricing;
+      const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
+      const extras = settlementExtras(ret?.settlement);
 
       // El gráfico "por mes" siempre suma esta fila si su mes está en el
       // gráfico, sin importar si cae dentro del período elegido para los
@@ -606,6 +623,8 @@ export const getReports = unstable_cache(
       if (bucket) {
         bucket.rentals += 1;
         bucket.km += kmDriven;
+        bucket.income += income;
+        bucket.extrasTotal += extras.total;
       }
 
       const inPeriod =
@@ -613,8 +632,6 @@ export const getReports = unstable_cache(
       if (!inPeriod) continue;
 
       finishedCount += 1;
-      const pricing = (r.pricing ?? {}) as ContractPricing;
-      const income = pricing.total ?? (r.bookingTotal ? Number(r.bookingTotal) : 0);
       const daysRented =
         handover && ret
           ? Math.max(0, (ret.createdAt.getTime() - handover.createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -626,7 +643,6 @@ export const getReports = unstable_cache(
         daysCount += 1;
         incomeWithDays += income;
       }
-      const extras = settlementExtras(ret?.settlement);
       extrasSum.km += extras.km;
       extrasSum.fuel += extras.fuel;
       extrasSum.damages += extras.damages;
@@ -660,12 +676,23 @@ export const getReports = unstable_cache(
       // Sin devolución (alquiler activo) el intervalo llega hasta ahora.
       return [{ vehicleId: r.vehicleId, start: handover.createdAt, end: ret?.createdAt ?? now, open: !ret }];
     });
-    const occupancy = computeOccupancy(
-      occupancyIntervals,
-      vehicles.filter((v) => v.archivedAt == null).map((v) => v.id),
-      periodRange.start,
-      periodRange.end,
-    );
+    const fleetVehicleIds = vehicles.filter((v) => v.archivedAt == null).map((v) => v.id);
+    const occupancy = computeOccupancy(occupancyIntervals, fleetVehicleIds, periodRange.start, periodRange.end);
+    // "Flota activa" = autos distintos (no cuántos días) que tuvieron algún
+    // alquiler superpuesto con el período elegido — mismo criterio de
+    // superposición que ya usa `computeOccupancy` por adentro (`overlapDays`).
+    const activeFleetUnits = new Set(
+      occupancyIntervals
+        .filter((iv) => overlapDays(iv.start, iv.end, periodRange.start, periodRange.end) > 0)
+        .map((iv) => iv.vehicleId),
+    ).size;
+    // Ocupación % mes a mes (mismos meses que `byMonth`), contra la flota
+    // actual — contextualiza el % puntual del período elegido de arriba.
+    const occupancyByMonth: OccupancyMonthPoint[] = chartMonthList.map((m) => {
+      const mStart = monthStartUtc(m);
+      const mEnd = m === currentYm ? now : monthStartUtc(nextYm(m));
+      return { month: m, percent: computeOccupancy(occupancyIntervals, fleetVehicleIds, mStart, mEnd).summary.percent };
+    });
 
     const vehicleReports = [...vMap.values()]
       // Un archivado sin ningún alquiler en el período es ruido puro (autos
@@ -738,10 +765,7 @@ export const getReports = unstable_cache(
 
     return {
       kpis: {
-        fleet: vehicles.filter((v) => v.archivedAt == null).length,
-        rentedNow: vehicles.filter((v) => v.status === "rented").length,
         finished: finishedCount,
-        active: activeCount,
         incomeTotal: cashIncomeTotal,
         expenseTotal: cashByOwnership.expenseTotal,
         costTotal,
@@ -753,7 +777,7 @@ export const getReports = unstable_cache(
       cashByOwnership,
       expensesByCategory,
       usdUnconverted,
-      occupancy: occupancy.summary,
+      occupancy: { ...occupancy.summary, activeFleetUnits, byMonth: occupancyByMonth },
       revenue: {
         perRentedDay: daysSum > 0 ? incomeWithDays / daysSum : null,
         averageTicket: finishedCount > 0 ? incomeSum / finishedCount : null,

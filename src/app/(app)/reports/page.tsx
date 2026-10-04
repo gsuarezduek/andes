@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth-helpers";
 import {
   getReports,
@@ -9,15 +10,16 @@ import {
   REPORT_PERIOD_OPTIONS,
   DEFAULT_VEHICLE_SORT,
   VEHICLE_SORT_KEYS,
-  type MonthPoint,
-  type WhatsAppMonthPoint,
   type ConversionMonthPoint,
+  type OccupancyMonthPoint,
   type VehicleSortKey,
   type ExpenseCategoryReport,
 } from "@/lib/reports";
 import { formatArs } from "@/lib/contract";
 import { formatDuration } from "@/lib/reports-metrics";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { MonthlyReportButton } from "@/components/reports/monthly-report-button";
+import { sendMonthlyReport } from "./actions";
 
 export const metadata: Metadata = { title: "Reportes — Andes" };
 
@@ -53,6 +55,11 @@ export default async function ReportsPage({
     await getReports(period);
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
+  // "Mes ya cerrado": el único caso de ReportPeriod que es un mes puntual que
+  // ya terminó — el mes actual sigue en curso y un rango de N meses no es
+  // "un mes". El informe con IA sólo tiene sentido sobre un mes cerrado.
+  const isClosedMonth = period.kind === "month" && period.which === "previous";
+
   /** href de un encabezado de columna: si ya se ordena por esa columna, invierte la dirección. */
   function sortHref(key: VehicleSortKey): string {
     const nextDir = sort === key && dir === "desc" ? "asc" : "desc";
@@ -86,17 +93,7 @@ export default async function ReportsPage({
         </form>
       </div>
 
-      {/* Estado actual de la flota — no depende del período elegido */}
-      <section className="flex flex-col gap-3">
-        <SectionHeading description="Estado en este momento, no depende del período elegido arriba.">
-          Flota (estado actual)
-        </SectionHeading>
-        <div className="grid grid-cols-3 gap-3">
-          <Kpi label="Flota" value={String(kpis.fleet)} />
-          <Kpi label="Alquilados ahora" value={String(kpis.rentedNow)} />
-          <Kpi label="Activos" value={String(kpis.active)} />
-        </div>
-      </section>
+      {isClosedMonth && <MonthlyReportButton period={period} sendMonthlyReport={sendMonthlyReport} />}
 
       {/* Resumen del período: todo de Caja (dinero real), coherente entre sí */}
       <section className="flex flex-col gap-3">
@@ -130,12 +127,13 @@ export default async function ReportsPage({
         <SectionHeading description="Qué tan usada está la flota y cuánto rinde cada día alquilado.">
           Ocupación y rentabilidad
         </SectionHeading>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Kpi
             label="Ocupación de la flota"
             value={formatPercent(occupancy.percent)}
             hint={`${occupancy.rentedDays.toFixed(0)} de ${occupancy.availableDays.toFixed(0)} días (${occupancy.fleetUnits} autos)`}
           />
+          <Kpi label="Flota activa" value={String(occupancy.activeFleetUnits)} hint={`de ${occupancy.fleetUnits} autos`} />
           <Kpi label="Ingreso por día alquilado" value={formatMoneyOrDash(revenue.perRentedDay)} />
           <Kpi label="Ticket promedio" value={formatMoneyOrDash(revenue.averageTicket)} hint="por alquiler finalizado" />
           <Kpi
@@ -145,9 +143,12 @@ export default async function ReportsPage({
         </div>
         <p className="text-xs text-foreground/40">
           Ocupación = días alquilados (de la entrega a la devolución, incluidos los alquileres en curso) sobre los días
-          disponibles de la flota actual sin archivados. Ingreso por día, ticket y duración son de los alquileres
-          finalizados del período y usan el ingreso del contrato, no Caja.
+          disponibles de la flota actual sin archivados. Flota activa = autos distintos que tuvieron algún alquiler en
+          el período (no cuántos días). Ingreso por día, ticket y duración son de los alquileres finalizados del
+          período y usan el ingreso del contrato, no Caja.
         </p>
+        <p className="text-xs font-medium text-foreground/60">Ocupación de la flota por mes</p>
+        <OccupancyTrendChart data={occupancy.byMonth} />
       </section>
 
       {/* Extras de la devolución */}
@@ -235,7 +236,7 @@ export default async function ReportsPage({
       {/* Actividad por mes */}
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <SectionHeading>Alquileres finalizados por mes</SectionHeading>
+          <SectionHeading>Actividad por mes</SectionHeading>
           <a
             className="text-xs font-medium underline"
             href={`/api/reports/export?type=months&period=${periodParam}`}
@@ -243,7 +244,26 @@ export default async function ReportsPage({
             Exportar CSV
           </a>
         </div>
-        <MonthBars data={byMonth} highlightMonth={highlightMonth} />
+        <p className="text-xs font-medium text-foreground/60">Alquileres finalizados</p>
+        <MonthBarChart
+          data={byMonth.map((d) => ({ month: d.month, value: d.rentals }))}
+          colorClass="text-blue-500"
+          highlightMonth={highlightMonth}
+        />
+        <p className="text-xs font-medium text-foreground/60">Ingresos</p>
+        <MonthBarChart
+          data={byMonth.map((d) => ({ month: d.month, value: d.income }))}
+          colorClass="text-indigo-500"
+          formatValue={compactNumber}
+          highlightMonth={highlightMonth}
+        />
+        <p className="text-xs font-medium text-foreground/60">Extras liquidados (km extra + nafta + daños)</p>
+        <MonthBarChart
+          data={byMonth.map((d) => ({ month: d.month, value: d.extrasTotal }))}
+          colorClass="text-amber-500"
+          formatValue={compactNumber}
+          highlightMonth={highlightMonth}
+        />
       </section>
 
       {/* WhatsApp */}
@@ -251,9 +271,8 @@ export default async function ReportsPage({
         <SectionHeading description="Conversaciones con al menos un mensaje (entrante o saliente) en el período.">
           WhatsApp
         </SectionHeading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Kpi label="Conversaciones únicas (período)" value={String(whatsapp.conversationsInPeriod)} />
-          <Kpi label="Alquileres finalizados (período)" value={String(kpis.finished)} />
           <Kpi label="Conversión (alquileres / consultas)" value={formatPercent(whatsapp.conversionPercent)} />
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -274,10 +293,8 @@ export default async function ReportsPage({
           WhatsApp), corrido las 24 hs — incluye noches y fines de semana. Varios mensajes seguidos del cliente cuentan como
           una sola consulta.
         </p>
-        <p className="text-xs font-medium text-foreground/60">Conversaciones únicas por mes</p>
-        <WhatsAppMonthBars data={whatsapp.byMonth} />
-        <p className="text-xs font-medium text-foreground/60">Conversión por mes</p>
-        <ConversionTable data={whatsapp.conversionByMonth} />
+        <p className="text-xs font-medium text-foreground/60">Conversaciones y conversión por mes</p>
+        <WhatsAppTrendChart data={whatsapp.conversionByMonth} />
       </section>
 
       {/* Por vehículo */}
@@ -298,10 +315,10 @@ export default async function ReportsPage({
                 <th className="px-3 py-2 font-medium">Vehículo</th>
                 {VEHICLE_SORT_KEYS.map((key) => (
                   <th key={key} className="px-3 py-2 text-right font-medium">
-                    <a href={sortHref(key)} className="inline-flex items-center gap-1 hover:text-foreground/80">
+                    <Link href={sortHref(key)} scroll={false} className="inline-flex items-center gap-1 hover:text-foreground/80">
                       {VEHICLE_SORT_LABELS[key]}
                       {sort === key && <span aria-hidden>{dir === "desc" ? "↓" : "↑"}</span>}
-                    </a>
+                    </Link>
                   </th>
                 ))}
               </tr>
@@ -358,25 +375,43 @@ function Kpi({ label, value, tone, hint }: { label: string; value: string; tone?
 /** Color de acento cuando la barra corresponde al mes puntual elegido arriba (mes anterior/actual). */
 const HIGHLIGHT_COLOR = "#eab308"; // yellow-500
 
+/** Compacta un número grande para la etiqueta arriba de una barra (ej. 1.234.567 → "1,2M", 45.000 → "45k"). */
+function compactNumber(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
+  if (abs >= 1_000) return `${Math.round(v / 1000)}k`;
+  return String(Math.round(v));
+}
+
 /**
- * Gráfico de barras (SVG) de alquileres finalizados por mes — siempre hasta
- * 12 meses de historia (ver `chartMonthCount`), independiente del período
- * elegido arriba. Si ese período es un mes puntual, `highlightMonth` marca
- * esa barra en amarillo (el resto queda azul); para un rango de N meses no
- * hay barra destacada (no hay un único mes "seleccionado").
+ * Gráfico de barras (SVG) genérico por mes — usado para "Alquileres
+ * finalizados", "Ingresos" y "Extras liquidados" (antes era un componente
+ * por métrica, casi idéntico salvo el color y el formato del valor).
+ * `highlightMonth` marca en amarillo la barra del mes puntual elegido arriba
+ * (mes anterior/actual); para un rango de N meses no hay barra destacada.
  */
-function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMonth: string | null }) {
+function MonthBarChart({
+  data,
+  colorClass,
+  formatValue = String,
+  highlightMonth,
+}: {
+  data: { month: string; value: number }[];
+  colorClass: string;
+  formatValue?: (v: number) => string;
+  highlightMonth?: string | null;
+}) {
   const w = 720;
   const h = 180;
   const pad = 24;
-  const max = Math.max(1, ...data.map((d) => d.rentals));
+  const max = Math.max(1, ...data.map((d) => d.value));
   const bw = (w - 2 * pad) / data.length;
 
   return (
     <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full min-w-[420px] text-blue-500" role="img" aria-label="Alquileres por mes">
+      <svg viewBox={`0 0 ${w} ${h}`} className={`h-44 w-full min-w-[420px] ${colorClass}`} role="img" aria-label="Gráfico de barras por mes">
         {data.map((d, i) => {
-          const barH = (d.rentals / max) * (h - 2 * pad);
+          const barH = (d.value / max) * (h - 2 * pad);
           const x = pad + i * bw;
           const y = h - pad - barH;
           const isHighlighted = d.month === highlightMonth;
@@ -391,8 +426,10 @@ function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMont
                 fillOpacity="0.7"
                 rx="2"
               />
-              {d.rentals > 0 && (
-                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.6}>{d.rentals}</text>
+              {d.value > 0 && (
+                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.6}>
+                  {formatValue(d.value)}
+                </text>
               )}
               <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill={isHighlighted ? HIGHLIGHT_COLOR : "currentColor"} fillOpacity={isHighlighted ? 1 : 0.45}>
                 {d.month.slice(5)}/{d.month.slice(2, 4)}
@@ -400,6 +437,43 @@ function MonthBars({ data, highlightMonth }: { data: MonthPoint[]; highlightMont
             </g>
           );
         })}
+      </svg>
+    </div>
+  );
+}
+
+/**
+ * Gráfico de línea (SVG) de ocupación % por mes — contextualiza el % puntual
+ * de "Ocupación y rentabilidad" con la misma ventana de meses que el resto.
+ */
+function OccupancyTrendChart({ data }: { data: OccupancyMonthPoint[] }) {
+  const w = 720;
+  const h = 140;
+  const pad = 24;
+  const bw = (w - 2 * pad) / Math.max(1, data.length - 1);
+  const points = data.map((d, i) => {
+    const v = Math.min(100, d.percent ?? 0);
+    return { x: pad + i * bw, y: h - pad - (v / 100) * (h - 2 * pad), d };
+  });
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-36 w-full min-w-[420px] text-sky-500" role="img" aria-label="Ocupación de la flota por mes">
+        <path d={path} fill="none" stroke="currentColor" strokeWidth="2" strokeOpacity="0.8" />
+        {points.map((p) => (
+          <g key={p.d.month}>
+            <circle cx={p.x} cy={p.y} r="2.5" fill="currentColor" />
+            {p.d.percent != null && (
+              <text x={p.x} y={p.y - 6} fontSize="9" textAnchor="middle" fill="currentColor" fillOpacity="0.7">
+                {p.d.percent.toFixed(0)}%
+              </text>
+            )}
+            <text x={p.x} y={h - 6} fontSize="8" textAnchor="middle" fill="currentColor" fillOpacity="0.45">
+              {p.d.month.slice(5)}/{p.d.month.slice(2, 4)}
+            </text>
+          </g>
+        ))}
       </svg>
     </div>
   );
@@ -504,40 +578,6 @@ function ExpenseCategoryPie({ data }: { data: ExpenseCategoryReport[] }) {
   );
 }
 
-/** Mismo gráfico de barras que `MonthBars`, pero para conversaciones de WhatsApp por mes (verde, sin mes destacado). */
-function WhatsAppMonthBars({ data }: { data: WhatsAppMonthPoint[] }) {
-  const w = 720;
-  const h = 180;
-  const pad = 24;
-  const max = Math.max(1, ...data.map((d) => d.conversations));
-  const bw = (w - 2 * pad) / data.length;
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full min-w-[420px] text-emerald-500" role="img" aria-label="Conversaciones de WhatsApp por mes">
-        {data.map((d, i) => {
-          const barH = (d.conversations / max) * (h - 2 * pad);
-          const x = pad + i * bw;
-          const y = h - pad - barH;
-          return (
-            <g key={d.month}>
-              <rect x={x + bw * 0.15} y={y} width={bw * 0.7} height={barH} fill="currentColor" fillOpacity="0.7" rx="2" />
-              {d.conversations > 0 && (
-                <text x={x + bw / 2} y={y - 3} fontSize="9" textAnchor="middle" fill="currentColor" fillOpacity="0.6">
-                  {d.conversations}
-                </text>
-              )}
-              <text x={x + bw / 2} y={h - 8} fontSize="8" textAnchor="middle" fill="currentColor" fillOpacity="0.45">
-                {d.month.slice(5)}/{d.month.slice(2, 4)}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 function formatMoneyOrDash(value: number | null): string {
   return value == null ? "—" : formatArs(value);
 }
@@ -546,32 +586,63 @@ function formatPercent(value: number | null): string {
   return value == null ? "—" : `${value.toFixed(1).replace(".", ",")}%`;
 }
 
-/** Seguimiento mes a mes: consultas, alquileres finalizados y % de conversión (más reciente arriba). */
-function ConversionTable({ data }: { data: ConversionMonthPoint[] }) {
+/**
+ * Gráfico de líneas (SVG) con dos series sobre el mismo eje de meses:
+ * conversaciones de WhatsApp (verde, escala propia) y % de conversión (azul,
+ * escala 0–100 o más si algún mes superó el 100%). Reemplaza el gráfico de
+ * barras + la tabla que estaban separados.
+ */
+function WhatsAppTrendChart({ data }: { data: ConversionMonthPoint[] }) {
+  const w = 720;
+  const h = 180;
+  const pad = 24;
+  const bw = (w - 2 * pad) / Math.max(1, data.length - 1);
+  const maxConversations = Math.max(1, ...data.map((d) => d.conversations));
+  const maxPercent = Math.max(100, ...data.map((d) => d.percent ?? 0));
+
+  const convPoints = data.map((d, i) => ({
+    x: pad + i * bw,
+    y: h - pad - (d.conversations / maxConversations) * (h - 2 * pad),
+  }));
+  const percentPoints = data.map((d, i) => ({
+    x: pad + i * bw,
+    y: h - pad - ((d.percent ?? 0) / maxPercent) * (h - 2 * pad),
+  }));
+  const linePath = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-foreground/10">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-foreground/60">
-          <tr>
-            <th className="px-3 py-2 font-medium">Mes</th>
-            <th className="px-3 py-2 text-right font-medium">Consultas</th>
-            <th className="px-3 py-2 text-right font-medium">Alquileres</th>
-            <th className="px-3 py-2 text-right font-medium">Conversión</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...data].reverse().map((d) => (
-            <tr key={d.month} className="border-t border-foreground/10">
-              <td className="px-3 py-2">
-                {d.month.slice(5)}/{d.month.slice(0, 4)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">{d.conversations}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{d.rentals}</td>
-              <td className="px-3 py-2 text-right font-medium tabular-nums">{formatPercent(d.percent)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
+      <div className="mb-2 flex items-center gap-4 text-xs">
+        <span className="flex items-center gap-1.5 text-emerald-600">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> Conversaciones
+        </span>
+        <span className="flex items-center gap-1.5 text-blue-600">
+          <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden /> Conversión %
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full min-w-[420px]" role="img" aria-label="Conversaciones y conversión de WhatsApp por mes">
+        <path d={linePath(convPoints)} fill="none" stroke="#10b981" strokeWidth="2" strokeOpacity="0.85" />
+        <path d={linePath(percentPoints)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeOpacity="0.85" />
+        {data.map((d, i) => (
+          <g key={d.month}>
+            <circle cx={convPoints[i].x} cy={convPoints[i].y} r="2.5" fill="#10b981" />
+            {d.conversations > 0 && (
+              <text x={convPoints[i].x} y={convPoints[i].y - 6} fontSize="9" textAnchor="middle" fill="#10b981">
+                {d.conversations}
+              </text>
+            )}
+            <circle cx={percentPoints[i].x} cy={percentPoints[i].y} r="2.5" fill="#3b82f6" />
+            {d.percent != null && (
+              <text x={percentPoints[i].x} y={percentPoints[i].y + 12} fontSize="9" textAnchor="middle" fill="#3b82f6">
+                {d.percent.toFixed(0)}%
+              </text>
+            )}
+            <text x={convPoints[i].x} y={h - 8} fontSize="8" textAnchor="middle" fill="currentColor" fillOpacity="0.45">
+              {d.month.slice(5)}/{d.month.slice(2, 4)}
+            </text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
