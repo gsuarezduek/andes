@@ -61,15 +61,22 @@ export function CalendarGrid({
   // de columnas de contexto antes en vez de pegar "hoy" al borde izquierdo.
   // Si la ventana no incluye hoy (se navegó lejos con Anterior/Siguiente),
   // arranca al principio en vez de heredar el scroll de la navegación previa.
-  // Sólo corre cuando cambia la ventana (nueva navegación desde el server),
-  // no hay scroll automático mientras el usuario navega la grilla a mano.
+  // Sólo corre cuando cambia la ventana (nueva navegación desde el server) —
+  // comparado por rango de fechas, no por identidad del array: el
+  // AutoRefresh de abajo pide la misma ventana cada 30s y el server devuelve
+  // un `columns` nuevo igual aunque el usuario no haya navegado, lo que sin
+  // esta guarda reseteaba el scroll manual de vuelta a "hoy" solo.
+  const rangeKey = columns.length ? `${columns[0]!.key}:${columns[columns.length - 1]!.key}` : "";
+  const lastRangeKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!bodyScrollRef.current) return;
+    if (lastRangeKeyRef.current === rangeKey) return;
+    lastRangeKeyRef.current = rangeKey;
     const todayIndex = columns.findIndex((c) => c.isToday);
     const left = todayIndex >= 0 ? Math.max(0, (todayIndex - 3) * colW) : 0;
     bodyScrollRef.current.scrollLeft = left;
     if (headerScrollRef.current) headerScrollRef.current.scrollLeft = left;
-  }, [columns, colW]);
+  }, [rangeKey, columns, colW]);
 
   const show = (bar: CalendarBar, e: React.MouseEvent) =>
     setHover({ type: "bar", bar, x: e.clientX, y: e.clientY });
