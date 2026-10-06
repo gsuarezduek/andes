@@ -9,13 +9,10 @@ import { TextField, TextareaField } from "@/components/ui/fields";
 import { ConversationPicker } from "@/components/whatsapp/conversation-picker";
 import type { ConversationPickerOption } from "@/lib/rental-quotes";
 import type { CalendarQuoteBar } from "@/lib/calendar";
-import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { formatArs } from "@/lib/contract";
-import { quotePricePerDay } from "@/lib/quote-estimate";
+import { buildQuoteRange, quoteBillableDays, quotePricePerDay, splitQuoteRange } from "@/lib/quote-estimate";
 import { updateQuote, deleteQuote } from "./actions";
 import { PerDayBox } from "./quote-per-day-box";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Detalle de un presupuesto ya cargado — se abre al tocar su barra. Solo
  *  quien lo creó (o un admin) puede editarlo/borrarlo (mismo criterio que
@@ -37,8 +34,7 @@ export function QuoteDetailModal({
   const [error, setError] = useState<string>();
   const router = useRouter();
 
-  const startKey = formatDateInput(quote.startAt);
-  const lastDayKey = formatDateInput(new Date(quote.endAt.getTime() - DAY_MS));
+  const saved = splitQuoteRange(quote.startAt, quote.endAt);
   const initialConversation: ConversationPickerOption | null = quote.conversationId
     ? {
         id: quote.conversationId,
@@ -48,34 +44,27 @@ export function QuoteDetailModal({
       }
     : null;
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(initialConversation);
-  const [startValue, setStartValue] = useState(startKey);
-  const [endValue, setEndValue] = useState(lastDayKey);
+  const [startValue, setStartValue] = useState(saved.startDayKey);
+  const [endValue, setEndValue] = useState(saved.endDayKey);
+  const [pickupTime, setPickupTime] = useState(saved.pickupTime);
+  const [returnTime, setReturnTime] = useState(saved.returnTime);
   const [totalValue, setTotalValue] = useState(quote.estimatedTotal != null ? String(quote.estimatedTotal) : "");
 
-  /** Días entre dos fechas "YYYY-MM-DD" inclusive (mismo cálculo que el guardado). */
-  function daysBetween(start: string, lastDay: string): number {
-    return Math.max(
-      1,
-      Math.round(
-        (mendozaWallTimeToUtc(`${lastDay}T00:00`).getTime() - mendozaWallTimeToUtc(`${start}T00:00`).getTime()) / DAY_MS,
-      ) + 1,
-    );
-  }
-  const liveDays = startValue && endValue ? daysBetween(startValue, endValue) : 0;
+  const { startAt: liveStartAt, endAt: liveEndAt } =
+    startValue && endValue
+      ? buildQuoteRange(startValue, endValue, pickupTime || null, returnTime || null)
+      : { startAt: quote.startAt, endAt: quote.endAt };
+  const timesInvalid = liveEndAt.getTime() <= liveStartAt.getTime();
+  const liveDays = timesInvalid ? 0 : quoteBillableDays(liveStartAt, liveEndAt);
   const perDay = quotePricePerDay(Number(totalValue.replace(",", ".")), liveDays);
-  const savedDays = daysBetween(startKey, lastDayKey);
+  const savedDays = quoteBillableDays(quote.startAt, quote.endAt);
   const savedPerDay = quotePricePerDay(quote.estimatedTotal, savedDays);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(undefined);
     const data = new FormData(e.currentTarget);
-    const days = daysBetween(
-      String(data.get("startDate") ?? startKey),
-      String(data.get("endDateInclusive") ?? lastDayKey),
-    );
     data.set("vehicleId", quote.vehicleId);
-    data.set("days", String(days));
     if (conversation) data.set("conversationId", conversation.id);
     startTransition(async () => {
       try {
@@ -107,6 +96,11 @@ export function QuoteDetailModal({
           <p className="font-semibold">{quote.clientName ?? "Sin nombre de cliente"}</p>
           {quote.estimatedTotal != null ? <p>Total estimado: {formatArs(quote.estimatedTotal)}</p> : null}
           {savedPerDay != null ? <PerDayBox perDay={savedPerDay} days={savedDays} /> : null}
+          {saved.pickupTime || saved.returnTime ? (
+            <p className="text-foreground/60">
+              Retiro {saved.pickupTime || "—"} · Devolución {saved.returnTime || "—"}
+            </p>
+          ) : null}
           <p className="text-foreground/60">
             {quote.createdByName ? `Cargado por ${quote.createdByName}` : "Cargado por un compañero"}
           </p>
@@ -130,8 +124,37 @@ export function QuoteDetailModal({
         <fieldset disabled={!editing} className="contents">
           <div className="grid grid-cols-2 gap-3">
             <TextField id="startDate" label="Desde" type="date" value={startValue} onChange={(e) => setStartValue(e.target.value)} />
-            <TextField id="endDateInclusive" label="Hasta" type="date" value={endValue} onChange={(e) => setEndValue(e.target.value)} />
+            <TextField id="endDate" label="Hasta" type="date" value={endValue} onChange={(e) => setEndValue(e.target.value)} />
           </div>
+          <details className="rounded-lg border border-foreground/10 p-3 text-sm" open={Boolean(pickupTime || returnTime)}>
+            <summary className="cursor-pointer select-none font-medium text-foreground/70">
+              Horarios de retiro/devolución (opcional)
+            </summary>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <TextField
+                id="pickupTime"
+                label="Hora de retiro"
+                type="time"
+                value={pickupTime}
+                onChange={(e) => setPickupTime(e.target.value)}
+              />
+              <TextField
+                id="returnTime"
+                label="Hora de devolución"
+                type="time"
+                value={returnTime}
+                onChange={(e) => setReturnTime(e.target.value)}
+              />
+            </div>
+            {timesInvalid ? (
+              <p className="mt-2 text-xs font-medium text-red-600">La devolución tiene que ser posterior al retiro.</p>
+            ) : pickupTime || returnTime ? (
+              <p className="mt-2 text-xs text-foreground/60">
+                Con esos horarios se factura <span className="font-semibold">{liveDays}</span> día
+                {liveDays === 1 ? "" : "s"}.
+              </p>
+            ) : null}
+          </details>
           <TextField
             id="estimatedTotal"
             label="Total estimado"
@@ -185,7 +208,7 @@ export function QuoteDetailModal({
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditing(false)} disabled={pending}>
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1" disabled={pending}>
+            <Button type="submit" className="flex-1" disabled={pending || timesInvalid}>
               {pending ? "Guardando…" : "Guardar cambios"}
             </Button>
           </div>

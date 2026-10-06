@@ -3,10 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
-import { mendozaWallTimeToUtc } from "@/lib/datetime";
+import { buildQuoteRange } from "@/lib/quote-estimate";
 import { createRentalQuote, updateRentalQuote, deleteRentalQuote, type QuoteInput } from "@/lib/rental-quotes";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function emptyToNull(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -16,9 +14,13 @@ function emptyToNull(v: FormDataEntryValue | null): string | null {
 function parseQuoteForm(formData: FormData): QuoteInput {
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
   const startDate = String(formData.get("startDate") ?? "").trim();
-  const days = Math.max(1, Number(formData.get("days") ?? 1) || 1);
-  const startAt = mendozaWallTimeToUtc(`${startDate}T00:00`);
-  const endAt = new Date(startAt.getTime() + days * DAY_MS);
+  const endDate = String(formData.get("endDate") ?? startDate).trim();
+  const { startAt, endAt } = buildQuoteRange(
+    startDate,
+    endDate,
+    emptyToNull(formData.get("pickupTime")),
+    emptyToNull(formData.get("returnTime")),
+  );
   const totalRaw = emptyToNull(formData.get("estimatedTotal"));
   const total = totalRaw != null ? Number(totalRaw) : null;
   return {

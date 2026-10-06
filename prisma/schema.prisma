@@ -687,8 +687,14 @@ model RentalQuote {
   vehicleId String  @map("vehicle_id")
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
 
-  startAt DateTime @map("start_at") // medianoche Mendoza del día de inicio
-  endAt   DateTime @map("end_at") // medianoche Mendoza del día siguiente al de fin (exclusivo, mismo criterio que Rental.endAt)
+  // Medianoche Mendoza del día de retiro por default; con horario de retiro
+  // cargado (opcional), ese horario exacto ese mismo día — ver `buildQuoteRange`.
+  startAt DateTime @map("start_at")
+  // Medianoche Mendoza del día SIGUIENTE al de devolución por default
+  // (exclusivo, mismo criterio que `Rental.endAt`); con horario de
+  // devolución cargado (opcional), ese horario exacto en el día de
+  // devolución mismo (no el siguiente) — ver `buildQuoteRange`/`splitQuoteRange`.
+  endAt DateTime @map("end_at")
 
   clientName String? @map("client_name")
   note       String? @db.Text

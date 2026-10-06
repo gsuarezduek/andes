@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { estimateQuoteTotal, quotePricePerDay } from "@/lib/quote-estimate";
+import {
+  buildQuoteRange,
+  estimateQuoteTotal,
+  quoteBillableDays,
+  quotePricePerDay,
+  splitQuoteRange,
+} from "@/lib/quote-estimate";
 
 const NO_SEASON: { diffPercent: number }[] = [];
 const days = (n: number) => Array.from({ length: n }, () => NO_SEASON);
@@ -55,5 +61,72 @@ describe("quotePricePerDay", () => {
     expect(quotePricePerDay(Number.NaN, 3)).toBeNull();
     expect(quotePricePerDay(0, 3)).toBeNull();
     expect(quotePricePerDay(90_000, 0)).toBeNull();
+  });
+});
+
+describe("buildQuoteRange / quoteBillableDays", () => {
+  it("sin horarios: medianoche a medianoche del día siguiente al último elegido (días de calendario)", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", null, null);
+    expect(quoteBillableDays(startAt, endAt)).toBe(2);
+  });
+
+  it("retiro y devolución a la misma hora al día siguiente: 1 día, no 2", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", "09:00", "09:00");
+    expect(quoteBillableDays(startAt, endAt)).toBe(1);
+  });
+
+  it("devolución más tarde el mismo día de vuelta: 2 días (un día empezado cuenta entero)", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", "09:00", "17:00");
+    expect(quoteBillableDays(startAt, endAt)).toBe(2);
+  });
+
+  it("solo horario de retiro: la devolución sigue siendo el día entero siguiente al último elegido", () => {
+    const sinHorario = buildQuoteRange("2026-07-18", "2026-07-19", null, null);
+    const soloRetiro = buildQuoteRange("2026-07-18", "2026-07-19", "09:00", null);
+    expect(soloRetiro.endAt).toEqual(sinHorario.endAt);
+  });
+
+  it("solo horario de devolución: el retiro sigue siendo medianoche del primer día elegido", () => {
+    const sinHorario = buildQuoteRange("2026-07-18", "2026-07-19", null, null);
+    const soloDevolucion = buildQuoteRange("2026-07-18", "2026-07-19", null, "09:00");
+    expect(soloDevolucion.startAt).toEqual(sinHorario.startAt);
+  });
+
+  it("nunca menos de 1 día aunque el rango sea negativo", () => {
+    const startAt = new Date("2026-07-18T12:00:00Z");
+    const endAt = new Date("2026-07-18T09:00:00Z");
+    expect(quoteBillableDays(startAt, endAt)).toBe(1);
+  });
+});
+
+describe("splitQuoteRange", () => {
+  it("es la inversa de buildQuoteRange sin horarios", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", null, null);
+    expect(splitQuoteRange(startAt, endAt)).toEqual({
+      startDayKey: "2026-07-18",
+      endDayKey: "2026-07-19",
+      pickupTime: "",
+      returnTime: "",
+    });
+  });
+
+  it("es la inversa de buildQuoteRange con ambos horarios cargados", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", "09:00", "17:00");
+    expect(splitQuoteRange(startAt, endAt)).toEqual({
+      startDayKey: "2026-07-18",
+      endDayKey: "2026-07-19",
+      pickupTime: "09:00",
+      returnTime: "17:00",
+    });
+  });
+
+  it("es la inversa de buildQuoteRange con un solo horario cargado", () => {
+    const { startAt, endAt } = buildQuoteRange("2026-07-18", "2026-07-19", "09:00", null);
+    expect(splitQuoteRange(startAt, endAt)).toEqual({
+      startDayKey: "2026-07-18",
+      endDayKey: "2026-07-19",
+      pickupTime: "09:00",
+      returnTime: "",
+    });
   });
 });
