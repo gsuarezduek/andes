@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow, RoomCalendarBar, RoomCalendarRow } from "@/lib/calendar";
 import {
   COL_W_MONTH,
-  COL_W_WEEK,
+  COL_W_DENSE,
   ROW_H_MONTH,
-  ROW_H_WEEK,
-  WEEK_MAX_COLUMNS,
+  ROW_H_DENSE,
+  DENSE_MAX_COLUMNS,
   LABEL_W_MOBILE,
   LABEL_W_CLASS,
 } from "./calendar-constants";
@@ -50,9 +50,9 @@ export function CalendarGrid({
   const [quoteDetail, setQuoteDetail] = useState<CalendarQuoteBar | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const dense = columns.length <= WEEK_MAX_COLUMNS;
-  const colW = dense ? COL_W_WEEK : COL_W_MONTH;
-  const rowH = dense ? ROW_H_WEEK : ROW_H_MONTH;
+  const dense = columns.length <= DENSE_MAX_COLUMNS;
+  const colW = dense ? COL_W_DENSE : COL_W_MONTH;
+  const rowH = dense ? ROW_H_DENSE : ROW_H_MONTH;
   const trackW = columns.length * colW;
 
   // Con ventanas anchas (90 días) "hoy" puede quedar bien a la derecha del

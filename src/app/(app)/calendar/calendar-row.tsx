@@ -6,6 +6,21 @@ import { VerifiedIcon } from "@/components/ui/icons";
 import { barClasses, paymentBorderClasses, quoteBarClasses } from "./bar-style";
 import { LABEL_W_CLASS, QUOTE_TRACK_H } from "./calendar-constants";
 
+/** Ícono de "reserva verificada" (ver v53) — mismo marcado en la vista
+ *  ancha (al lado del nombre, centro de la barra) y la angosta. */
+function VerifiedBadge() {
+  return (
+    <span
+      className="flex size-4 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-700/40"
+      title="Verificada"
+      role="img"
+      aria-label="Verificada"
+    >
+      <VerifiedIcon className="size-2.5" />
+    </span>
+  );
+}
+
 export function Row({
   row,
   columns,
@@ -147,8 +162,11 @@ export function Row({
             style={{ left: i * colW, width: colW }}
           />
         ))}
-        {/* Barras de alquiler. En vista Semana (dense) hay lugar de sobra:
-            se suma el horario de retiro/devolución debajo del cliente. */}
+        {/* Barras de alquiler. En la vista ancha (dense, "22 días" por
+            default) hay lugar de sobra: el horario de retiro va en el borde
+            izquierdo, el de devolución en el derecho, y el cliente centrado
+            entre los dos — pensado para ver disponibilidad/cotizar de un
+            vistazo sin entrar a cada reserva. */}
         {row.bars.map((bar) => {
           const isActive = activeKey === `bar:${bar.rentalId}`;
           return (
@@ -167,7 +185,7 @@ export function Row({
               onEnter(bar, e);
             }}
             className={`absolute overflow-hidden rounded-md px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
-              dense ? "flex flex-col justify-center gap-0.5 py-1 text-xs" : "flex items-center text-[11px]"
+              dense ? "flex items-center gap-1.5 text-xs" : "flex items-center text-[11px]"
             } ${barClasses(bar)} ${paymentBorderClasses(bar)}`}
             style={{
               left: bar.startIndex * colW + 2,
@@ -201,24 +219,29 @@ export function Row({
                 {bar.activeNotes.length}
               </span>
             )}
-            <span className="flex min-w-0 items-center">
-              {bar.verified && (
-                <span
-                  className="mr-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-700/40"
-                  title="Verificada"
-                  role="img"
-                  aria-label="Verificada"
-                >
-                  <VerifiedIcon className="size-2.5" />
-                </span>
-              )}
-              <span className="truncate">{bar.clientName}</span>
-            </span>
             {dense ? (
-              <span className="truncate text-[11px] font-normal opacity-90">
-                {formatTime(bar.startAt)} → {formatTime(bar.endAt)}
+              <>
+                <span className="shrink-0 tabular-nums text-[11px] font-normal opacity-90">
+                  {formatTime(bar.startAt)}
+                </span>
+                <span className="flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden">
+                  {bar.verified && <VerifiedBadge />}
+                  <span className="truncate">{bar.clientName}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-[11px] font-normal opacity-90">
+                  {formatTime(bar.endAt)}
+                </span>
+              </>
+            ) : (
+              <span className="flex min-w-0 items-center">
+                {bar.verified && (
+                  <span className="mr-1 inline-flex">
+                    <VerifiedBadge />
+                  </span>
+                )}
+                <span className="truncate">{bar.clientName}</span>
               </span>
-            ) : null}
+            )}
           </Link>
           );
         })}

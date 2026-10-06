@@ -3,6 +3,7 @@ import {
   assignLanes,
   centerOffsetDays,
   daysInMonth,
+  NEAR_DAYS,
   normalizeMonth,
   seasonsForDay,
   seasonsForDayAndCar,
@@ -27,6 +28,13 @@ describe("centerOffsetDays", () => {
 
   it("1 día: no hay ventana alrededor, solo hoy", () => {
     expect(centerOffsetDays(1)).toBe(0);
+  });
+
+  it("NEAR_DAYS (22, default): 7 atrás + hoy + 14 adelante", () => {
+    // Pedido del dueño: cubrir la mayoría de las reservas con columnas
+    // anchas (horario visible) sin tener que ir a la vista de 90 días.
+    expect(centerOffsetDays(NEAR_DAYS)).toBe(7);
+    expect(NEAR_DAYS - 1 - centerOffsetDays(NEAR_DAYS)).toBe(14);
   });
 });
 

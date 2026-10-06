@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
 import { detectLoginDevice } from "@/lib/user-agent";
-import { getCalendarData, normalizeCalendarDays, WEEK_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
+import { getCalendarData, normalizeCalendarDays, NEAR_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import Link from "next/link";
 import { CalendarGrid } from "./calendar-grid";
@@ -31,8 +31,8 @@ export default async function CalendarPage({
 
   const rangeStart = data.columns[0]?.key;
   const rangeEnd = data.columns[data.columns.length - 1]?.key;
-  // Modo rodante (Semana/Mes): navega por `from`+`days`. Modo mes específico
-  // (`data.month` seteado): navega mes a mes, ignora `from`/`days`.
+  // Modo rodante (22 días/Mes/90 días): navega por `from`+`days`. Modo mes
+  // específico (`data.month` seteado): navega mes a mes, ignora `from`/`days`.
   const nav = (targetFrom: string) => `/calendar?from=${targetFrom}&days=${data.days}`;
   const navMonth = (targetMonth: string) => `/calendar?month=${targetMonth}`;
 
@@ -68,9 +68,9 @@ export default async function CalendarPage({
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <div className="flex shrink-0 overflow-hidden rounded-lg border border-foreground/15">
-            <Link href={modeHref(WEEK_DAYS)} className={segBtn(!data.month && data.days === WEEK_DAYS)}>
-              <span className="sm:hidden">Sem</span>
-              <span className="hidden sm:inline">Semana</span>
+            <Link href={modeHref(NEAR_DAYS)} className={segBtn(!data.month && data.days === NEAR_DAYS)}>
+              <span className="sm:hidden">22d</span>
+              <span className="hidden sm:inline">22 días</span>
             </Link>
             <Link
               href={modeHref(MONTH_DAYS)}

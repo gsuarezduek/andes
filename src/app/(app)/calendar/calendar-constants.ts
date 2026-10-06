@@ -1,12 +1,14 @@
-// Vista Mes: columnas angostas, sólo se ve qué días están ocupados.
+// Vista Mes/90 días: columnas angostas, sólo se ve qué días están ocupados.
 export const COL_W_MONTH = 46;
 export const ROW_H_MONTH = 40;
-// Vista Semana: columnas bien más anchas — no es "el mismo mes recortado",
-// hay lugar de sobra para mostrar el horario de retiro/devolución en la barra.
-export const COL_W_WEEK = 168;
-export const ROW_H_WEEK = 60;
-/** A partir de esta cantidad de columnas se usa el layout compacto de Mes. */
-export const WEEK_MAX_COLUMNS = 7;
+// Vista "22 días" (default): columnas bien más anchas — hay lugar de sobra
+// para mostrar el horario de retiro/devolución en los bordes de la barra.
+export const COL_W_DENSE = 168;
+export const ROW_H_DENSE = 60;
+/** A partir de esta cantidad de columnas se usa el layout compacto (Mes/90
+ *  días) en vez del ancho con horarios — debe ser >= `NEAR_DAYS` (ver
+ *  `src/lib/calendar.ts`) para que ese preset siempre quede en modo ancho. */
+export const DENSE_MAX_COLUMNS = 22;
 
 // Columna fija de autos: angosta en mobile (últimos 3 de la patente + modelo
 // abreviado) y más ancha desde `sm:` (patente completa + modelo). El valor

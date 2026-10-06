@@ -13,8 +13,13 @@ import { addDaysToKey } from "@/lib/rooms/ical";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Presets de rango que ofrece el filtro Semana/Mes/90 días. */
-export const WEEK_DAYS = 7;
+/** Presets de rango que ofrece el filtro 22 días/Mes/90 días. */
+// Columnas anchas (ver `DENSE_MAX_COLUMNS`) con horario de retiro/devolución
+// visible en cada barra — con `centerOffsetDays` (35%/65%) da 7 atrás + hoy +
+// 14 adelante, pensado para cubrir la mayoría de las reservas (pickup/
+// devolución) sin tener que ir a la vista de 90 días (columnas angostas, sin
+// horario). Es el default al entrar sin filtros.
+export const NEAR_DAYS = 22;
 export const MONTH_DAYS = 31;
 // Con `centerOffsetDays` (35%/65%) da 31 atrás + hoy + 58 adelante — el
 // "~30 atrás / ~60 adelante" pedido, navegable con el scroll horizontal de
@@ -22,9 +27,9 @@ export const MONTH_DAYS = 31;
 export const WIDE_DAYS = 90;
 
 /** Ventana por defecto (columnas de día) que muestra el calendario al entrar
- *  sin filtros: la más amplia (`WIDE_DAYS`), con hoy corrido hacia atrás
- *  (35% antes / 65% después, ver `centerOffsetDays`). */
-export const DEFAULT_CALENDAR_DAYS = WIDE_DAYS;
+ *  sin filtros: `NEAR_DAYS`, con hoy corrido hacia atrás (35% antes / 65%
+ *  después, ver `centerOffsetDays`). */
+export const DEFAULT_CALENDAR_DAYS = NEAR_DAYS;
 
 /** Valida el parámetro `days` de la URL; cualquier otra cosa cae al default. */
 export function normalizeCalendarDays(raw: string | undefined): number {
@@ -223,7 +228,7 @@ export type CalendarData = {
   todayFrom: string;
   days: number;
   /** Mes calendario ("YYYY-MM") si la vista está anclada a un mes específico
-   *  en vez de la ventana rodante (Semana/Mes) — `null` en modo rodante. */
+   *  en vez de la ventana rodante (22 días/Mes/90 días) — `null` en modo rodante. */
   month: string | null;
   prevMonth: string;
   nextMonth: string;
@@ -471,8 +476,8 @@ export function seasonsForDayAndCar(
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
  * más económico), columnas = días, barras = alquileres. Dos modos de ventana:
- * - Rodante (Semana/Mes, default): `days` columnas alrededor de `from`
- *   (default hoy) — 35% de los días antes, 65% después (`centerOffsetDays`).
+ * - Rodante (22 días/Mes/90 días, default): `days` columnas alrededor de
+ *   `from` (default hoy) — 35% de los días antes, 65% después (`centerOffsetDays`).
  * - Mes específico (`opts.month`, "YYYY-MM"): el mes calendario completo,
  *   del día 1 al último, ignora `from`/`days`. Navegable mes a mes.
  */
