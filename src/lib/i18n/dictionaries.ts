@@ -58,6 +58,7 @@ export type Dictionary = {
     extraHourAmount: string;
     accessories: string;
     guaranteeForm: string;
+    kmPackAmount: string;
     total: string;
     paid: string;
     balance: string;
@@ -102,6 +103,41 @@ export type Dictionary = {
     returnBody: string;
     attachmentNote: string;
     regards: string;
+  };
+  /**
+   * Pantalla pública /sign/[id] (QR de firma remota): el cliente escanea el
+   * código y, sobre todo, lee acá las condiciones generales del contrato —
+   * completar sus datos o firmar es secundario. Bilingüe por un toggle propio
+   * de esta pantalla, independiente del idioma elegido para el acta.
+   */
+  remoteSign: {
+    intro: string;
+    linkInvalid: string;
+    alreadySigned: string;
+    linkExpired: string;
+    cancelled: string;
+    waitingHandover: string;
+    waitingReturn: string;
+    summaryHeading: string;
+    period: string;
+    noNewDamages: string;
+    contactHeading: string;
+    contactSubheading: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    contactDoc: string;
+    contactAddress: string;
+    saving: string;
+    save: string;
+    saved: string;
+    saveError: string;
+    acceptRequiredError: string;
+    missingSignatureError: string;
+    missingNameError: string;
+    sendError: string;
+    sending: string;
+    signedDone: string;
   };
 };
 
@@ -150,6 +186,7 @@ const es: Dictionary = {
     extraHourAmount: "Hora extra (importe)",
     accessories: "Accesorios",
     guaranteeForm: "Forma de garantía",
+    kmPackAmount: "Packs de KM (importe)",
     total: "Total a pagar",
     paid: "Paga",
     balance: "Saldo",
@@ -210,6 +247,37 @@ const es: Dictionary = {
     attachmentNote: "El acta en PDF está adjunta a este correo.",
     regards: "Saludos,\nMDZ Rent a Car",
   },
+  remoteSign: {
+    intro: "Leé las condiciones de tu alquiler",
+    linkInvalid: "Este enlace no es válido.",
+    alreadySigned: "¡Listo! La firma ya fue registrada. Podés cerrar esta página.",
+    linkExpired: "El enlace venció. Pedile al operador que genere uno nuevo.",
+    cancelled: "Este pedido fue cancelado.",
+    waitingHandover:
+      "Estamos completando los datos de tu entrega. Esta pantalla se va a actualizar sola — en un momento vas a poder firmar acá mismo.",
+    waitingReturn:
+      "Estamos completando los datos de tu devolución. Esta pantalla se va a actualizar sola — en un momento vas a poder firmar acá mismo.",
+    summaryHeading: "Detalle de tu alquiler",
+    period: "Período",
+    noNewDamages: "Sin daños nuevos",
+    contactHeading: "Completá tus datos",
+    contactSubheading: "Nos faltan algunos datos tuyos para el contrato.",
+    contactName: "Nombre y apellido",
+    contactEmail: "Email",
+    contactPhone: "Teléfono",
+    contactDoc: "DNI / Pasaporte",
+    contactAddress: "Domicilio en Mendoza",
+    saving: "Guardando…",
+    save: "Guardar mis datos",
+    saved: "¡Gracias! Guardamos tus datos.",
+    saveError: "No se pudo guardar. Reintentá.",
+    acceptRequiredError: "Tenés que aceptar las condiciones para firmar.",
+    missingSignatureError: "Falta la firma.",
+    missingNameError: "Ingresá tu nombre y aclaración.",
+    sendError: "No se pudo enviar la firma. Reintentá.",
+    sending: "Enviando…",
+    signedDone: "¡Gracias! Tu firma fue enviada. Podés cerrar esta página.",
+  },
 };
 
 const en: Dictionary = {
@@ -257,6 +325,7 @@ const en: Dictionary = {
     extraHourAmount: "Extra hour (amount)",
     accessories: "Accessories",
     guaranteeForm: "Guarantee method",
+    kmPackAmount: "KM packs (amount)",
     total: "Total due",
     paid: "Paid",
     balance: "Balance",
@@ -316,6 +385,37 @@ const en: Dictionary = {
       "Please find attached the vehicle return report, including the comparison against the handover condition.",
     attachmentNote: "The PDF report is attached to this email.",
     regards: "Best regards,\nMDZ Rent a Car",
+  },
+  remoteSign: {
+    intro: "Read your rental conditions",
+    linkInvalid: "This link isn't valid.",
+    alreadySigned: "All set! The signature was already recorded. You can close this page.",
+    linkExpired: "This link has expired. Ask the staff to generate a new one.",
+    cancelled: "This request was cancelled.",
+    waitingHandover:
+      "We're still completing your handover details. This screen will update on its own — you'll be able to sign right here in a moment.",
+    waitingReturn:
+      "We're still completing your return details. This screen will update on its own — you'll be able to sign right here in a moment.",
+    summaryHeading: "Your rental details",
+    period: "Period",
+    noNewDamages: "No new damage",
+    contactHeading: "Complete your details",
+    contactSubheading: "We're missing some of your details for the contract.",
+    contactName: "Full name",
+    contactEmail: "Email",
+    contactPhone: "Phone",
+    contactDoc: "ID / Passport",
+    contactAddress: "Address in Mendoza",
+    saving: "Saving…",
+    save: "Save my details",
+    saved: "Thank you! We saved your details.",
+    saveError: "Couldn't save. Please try again.",
+    acceptRequiredError: "You need to accept the conditions to sign.",
+    missingSignatureError: "Signature is missing.",
+    missingNameError: "Enter your full name.",
+    sendError: "Couldn't send the signature. Please try again.",
+    sending: "Sending…",
+    signedDone: "Thank you! Your signature was sent. You can close this page.",
   },
 };
 

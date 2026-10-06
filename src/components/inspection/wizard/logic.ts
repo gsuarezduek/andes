@@ -75,7 +75,7 @@ export function summaryConditions(
       return [{ label: f.label, value }];
     });
     if (draft.unlimitedKm) {
-      conditions.push({ label: "Kilometraje", value: "Libre (sin cargo por excedente)" });
+      conditions.push({ label: dict.acta.mileage, value: dict.acta.unlimitedKm });
     }
     const hourAmount = extraHourAmount(p as ContractPricing);
     if (hourAmount != null) {
@@ -85,7 +85,7 @@ export function summaryConditions(
       const packPrice = parseDecimal(draft.pricing.kmPackPrice as string | undefined);
       const packAmount = kmPackAmount({ kmPacks: p.kmPacks, kmPackPrice: packPrice });
       if (packAmount != null) {
-        conditions.push({ label: "Packs de KM (importe)", value: formatArs(packAmount) });
+        conditions.push({ label: dict.acta.kmPackAmount, value: formatArs(packAmount) });
       }
     }
     if (draft.accessoriesDesc.trim()) {
@@ -99,7 +99,7 @@ export function summaryConditions(
       conditions.push({ label, value: formatArs(dedSummary) });
     }
     if (draft.guaranteeForm.trim()) {
-      conditions.push({ label: "Forma de garantía", value: draft.guaranteeForm.trim() });
+      conditions.push({ label: dict.acta.guaranteeForm, value: draft.guaranteeForm.trim() });
     }
     for (const pay of draft.payments) {
       const label =
