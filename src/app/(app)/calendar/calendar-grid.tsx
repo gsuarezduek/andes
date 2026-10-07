@@ -2,15 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow, RoomCalendarBar, RoomCalendarRow } from "@/lib/calendar";
-import {
-  COL_W_MONTH,
-  COL_W_DENSE,
-  ROW_H_MONTH,
-  ROW_H_DENSE,
-  DENSE_MAX_COLUMNS,
-  LABEL_W_MOBILE,
-  LABEL_W_CLASS,
-} from "./calendar-constants";
+import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calendar-constants";
 import { Row } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
@@ -50,9 +42,8 @@ export function CalendarGrid({
   const [quoteDetail, setQuoteDetail] = useState<CalendarQuoteBar | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const dense = columns.length <= DENSE_MAX_COLUMNS;
-  const colW = dense ? COL_W_DENSE : COL_W_MONTH;
-  const rowH = dense ? ROW_H_DENSE : ROW_H_MONTH;
+  const colW = COL_W_MONTH;
+  const rowH = ROW_H_MONTH;
   const trackW = columns.length * colW;
 
   // Con ventanas anchas (90 días) "hoy" puede quedar bien a la derecha del
@@ -195,10 +186,10 @@ export function CalendarGrid({
                     {c.monthLabel}
                   </span>
                 ) : null}
-                <div className={`uppercase ${dense ? "text-xs" : "text-[10px]"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
+                <div className={`uppercase text-[10px] ${c.isToday ? "font-bold text-blue-600" : "text-foreground/40"}`}>
                   {c.weekday}
                 </div>
-                <div className={`tabular-nums ${dense ? "text-xl" : "text-sm"} ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
+                <div className={`tabular-nums text-sm ${c.isToday ? "font-bold text-blue-600" : "text-foreground/70"}`}>
                   {c.day}
                 </div>
                 {hasSeason ? (
@@ -240,7 +231,6 @@ export function CalendarGrid({
               trackW={trackW}
               colW={colW}
               rowH={rowH}
-              dense={dense}
               activeKey={activeKey}
               onEnter={show}
               onEnterNote={showNotes}
@@ -278,7 +268,6 @@ export function CalendarGrid({
                   trackW={trackW}
                   colW={colW}
                   rowH={rowH}
-                  dense={dense}
                   activeKey={activeKey}
                   onEnter={showRoom}
                   onMove={move}
@@ -308,7 +297,6 @@ export function CalendarGrid({
                   trackW={trackW}
                   colW={colW}
                   rowH={rowH}
-                  dense={dense}
                   activeKey={activeKey}
                   onEnter={show}
                   onEnterNote={showNotes}

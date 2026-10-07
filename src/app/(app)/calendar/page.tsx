@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
-import { detectLoginDevice } from "@/lib/user-agent";
-import { getCalendarData, normalizeCalendarDays, NEAR_DAYS, MONTH_DAYS, WIDE_DAYS } from "@/lib/calendar";
+import { getCalendarData, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import Link from "next/link";
 import { CalendarGrid } from "./calendar-grid";
@@ -14,35 +12,28 @@ export const metadata: Metadata = { title: "Calendario — Andes" };
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; days?: string; month?: string }>;
+  searchParams: Promise<{ from?: string; month?: string }>;
 }) {
   const user = await requireUser();
-  const { from, days: rawDays, month } = await searchParams;
-  // Sin `days` explícito (entrada desde el menú): en celular arranca en Mes
-  // (31 días) en vez de 90 — con 90 columnas de 46px no se lee casi nada.
-  // Cualquier link del propio calendario ya lleva `days`, así que esto solo
-  // define la vista inicial.
-  const isMobile = detectLoginDevice((await headers()).get("user-agent")) === "mobile";
-  const days = rawDays == null && isMobile ? MONTH_DAYS : normalizeCalendarDays(rawDays);
+  const { from, month } = await searchParams;
+  // Una sola vista rodante (90 días, columnas angostas con horario de
+  // retiro/devolución en cada barra — ver `calendar-row.tsx`): se sacaron
+  // los presets de "22 días"/"Mes" a pedido del dueño, para no duplicar la
+  // misma información en distintas densidades de columna.
   const [data, conversationOptions] = await Promise.all([
-    getCalendarData({ from, days, month }),
+    getCalendarData({ from, days: WIDE_DAYS, month }),
     listConversationPickerOptions(),
   ]);
 
   const rangeStart = data.columns[0]?.key;
   const rangeEnd = data.columns[data.columns.length - 1]?.key;
-  // Modo rodante (22 días/Mes/90 días): navega por `from`+`days`. Modo mes
-  // específico (`data.month` seteado): navega mes a mes, ignora `from`/`days`.
-  const nav = (targetFrom: string) => `/calendar?from=${targetFrom}&days=${data.days}`;
+  // Modo rodante (90 días): navega por `from`. Modo mes específico
+  // (`data.month` seteado): navega mes a mes, ignora `from`.
+  const nav = (targetFrom: string) => `/calendar?from=${targetFrom}`;
   const navMonth = (targetMonth: string) => `/calendar?month=${targetMonth}`;
 
-  const modeHref = (d: number) => `/calendar?from=${data.from}&days=${d}`;
   const navBtn =
     "inline-flex h-9 items-center justify-center rounded-lg border border-foreground/15 px-3 text-sm font-semibold transition-colors hover:bg-foreground/5";
-  const segBtn = (active: boolean) =>
-    `inline-flex h-9 items-center justify-center px-3 text-sm font-semibold transition-colors ${
-      active ? "bg-foreground text-background" : "hover:bg-foreground/5"
-    }`;
 
   return (
     <div className="ml-[calc(50%-50vw)] flex w-screen flex-col gap-3 px-4">
@@ -67,22 +58,6 @@ export default async function CalendarPage({
           </Link>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="flex shrink-0 overflow-hidden rounded-lg border border-foreground/15">
-            <Link href={modeHref(NEAR_DAYS)} className={segBtn(!data.month && data.days === NEAR_DAYS)}>
-              <span className="sm:hidden">22d</span>
-              <span className="hidden sm:inline">22 días</span>
-            </Link>
-            <Link
-              href={modeHref(MONTH_DAYS)}
-              className={`border-x border-foreground/15 ${segBtn(!data.month && data.days === MONTH_DAYS)}`}
-            >
-              Mes
-            </Link>
-            <Link href={modeHref(WIDE_DAYS)} className={segBtn(!data.month && data.days === WIDE_DAYS)}>
-              <span className="sm:hidden">90d</span>
-              <span className="hidden sm:inline">90 días</span>
-            </Link>
-          </div>
           <MonthPicker value={data.month} />
         </div>
       </div>

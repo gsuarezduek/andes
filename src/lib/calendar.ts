@@ -13,30 +13,14 @@ import { addDaysToKey } from "@/lib/rooms/ical";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Presets de rango que ofrece el filtro 22 días/Mes/90 días. */
-// Columnas anchas (ver `DENSE_MAX_COLUMNS`) con horario de retiro/devolución
-// visible en cada barra — con `centerOffsetDays` (35%/65%) da 7 atrás + hoy +
-// 14 adelante, pensado para cubrir la mayoría de las reservas (pickup/
-// devolución) sin tener que ir a la vista de 90 días (columnas angostas, sin
-// horario). Es el default al entrar sin filtros.
-export const NEAR_DAYS = 22;
-export const MONTH_DAYS = 31;
-// Con `centerOffsetDays` (35%/65%) da 31 atrás + hoy + 58 adelante — el
-// "~30 atrás / ~60 adelante" pedido, navegable con el scroll horizontal de
-// la grilla en vez de tener que ir clickeando Anterior/Siguiente.
+// Única vista rodante del Calendario (antes había presets de 22 días/Mes/90
+// días; se sacaron a pedido del dueño para no duplicar la misma info en
+// distintas densidades de columna — ver `calendar-row.tsx` para cómo se
+// decide qué mostrar en cada barra según el ancho real de columna). Con
+// `centerOffsetDays` (35%/65%) da 31 atrás + hoy + 58 adelante — el "~30
+// atrás / ~60 adelante" pedido, navegable con el scroll horizontal de la
+// grilla en vez de tener que ir clickeando Anterior/Siguiente.
 export const WIDE_DAYS = 90;
-
-/** Ventana por defecto (columnas de día) que muestra el calendario al entrar
- *  sin filtros: `NEAR_DAYS`, con hoy corrido hacia atrás (35% antes / 65%
- *  después, ver `centerOffsetDays`). */
-export const DEFAULT_CALENDAR_DAYS = NEAR_DAYS;
-
-/** Valida el parámetro `days` de la URL; cualquier otra cosa cae al default. */
-export function normalizeCalendarDays(raw: string | undefined): number {
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > 90) return DEFAULT_CALENDAR_DAYS;
-  return n;
-}
 
 /** Fracción de los días "no-hoy" de la ventana que se muestran ANTES de hoy
  *  (el resto, después) — pedido del dueño: se prioriza ver más para
@@ -228,7 +212,7 @@ export type CalendarData = {
   todayFrom: string;
   days: number;
   /** Mes calendario ("YYYY-MM") si la vista está anclada a un mes específico
-   *  en vez de la ventana rodante (22 días/Mes/90 días) — `null` en modo rodante. */
+   *  en vez de la ventana rodante (`WIDE_DAYS`) — `null` en modo rodante. */
   month: string | null;
   prevMonth: string;
   nextMonth: string;
@@ -476,8 +460,8 @@ export function seasonsForDayAndCar(
 /**
  * Datos para la vista Calendario: filas = autos (orden manual, del más caro al
  * más económico), columnas = días, barras = alquileres. Dos modos de ventana:
- * - Rodante (22 días/Mes/90 días, default): `days` columnas alrededor de
- *   `from` (default hoy) — 35% de los días antes, 65% después (`centerOffsetDays`).
+ * - Rodante (`WIDE_DAYS`, default): `days` columnas alrededor de `from`
+ *   (default hoy) — 35% de los días antes, 65% después (`centerOffsetDays`).
  * - Mes específico (`opts.month`, "YYYY-MM"): el mes calendario completo,
  *   del día 1 al último, ignora `from`/`days`. Navegable mes a mes.
  */
@@ -498,7 +482,7 @@ export async function getCalendarData(opts?: {
     days = daysInMonth(requestedMonth);
     windowStart = mendozaWallTimeToUtc(`${from}T00:00`);
   } else {
-    days = opts?.days ?? DEFAULT_CALENDAR_DAYS;
+    days = opts?.days ?? WIDE_DAYS;
     from = normalizeFrom(opts?.from);
     // `from` no es el inicio de la ventana: se retrocede `centerOffsetDays`
     // (35% de los días restantes) para que `from` quede corrido hacia atrás,

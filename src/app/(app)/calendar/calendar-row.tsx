@@ -21,13 +21,35 @@ function VerifiedBadge() {
   );
 }
 
+/**
+ * Qué mostrar en una barra de alquiler según el ancho real que le toca (en
+ * píxeles, ya conocido en el servidor/cliente a partir de `span`×`colW` —
+ * sin medir el DOM): la hora de retiro/devolución nunca se sacrifica, el
+ * nombre del cliente es lo único que se recorta o se saca del todo cuando
+ * no entra. Pedido del dueño: "si no entran los horarios y el nombre, la
+ * prioridad es la hora; si hay espacio, mostramos todo".
+ * - `full`: horario de retiro a la izquierda, cliente centrado (truncado si
+ *   hace falta), horario de devolución a la derecha — una sola línea.
+ * - `times`: ya no entra ni un nombre truncado junto a los dos horarios;
+ *   se muestran solo los dos horarios, uno a cada punta.
+ * - `compact`: ni eso entra en una sola línea (ej. un alquiler de 1 solo
+ *   día con columnas angostas) — los dos horarios apilados, aprovechando
+ *   el alto de la fila en vez del ancho.
+ */
+export type BarContentTier = "full" | "times" | "compact";
+
+export function barContentTier(barWidth: number): BarContentTier {
+  if (barWidth >= 110) return "full";
+  if (barWidth >= 70) return "times";
+  return "compact";
+}
+
 export function Row({
   row,
   columns,
   trackW,
   colW,
   rowH,
-  dense,
   activeKey,
   onEnter,
   onEnterNote,
@@ -43,7 +65,6 @@ export function Row({
   trackW: number;
   colW: number;
   rowH: number;
-  dense: boolean;
   activeKey: string | null;
   onEnter: (bar: CalendarBar, e: React.MouseEvent) => void;
   onEnterNote: (title: string, notes: CalendarNote[], e: React.MouseEvent) => void;
@@ -162,13 +183,16 @@ export function Row({
             style={{ left: i * colW, width: colW }}
           />
         ))}
-        {/* Barras de alquiler. En la vista ancha (dense, "22 días" por
-            default) hay lugar de sobra: el horario de retiro va en el borde
+        {/* Barras de alquiler: el horario de retiro va en el borde
             izquierdo, el de devolución en el derecho, y el cliente centrado
-            entre los dos — pensado para ver disponibilidad/cotizar de un
-            vistazo sin entrar a cada reserva. */}
+            entre los dos cuando entra — pensado para ver disponibilidad/
+            cotizar de un vistazo sin entrar a cada reserva. Con poco ancho
+            (ej. un alquiler de 1 solo día) el nombre se saca y, si hace
+            falta, los horarios se apilan — ver `barContentTier`. */}
         {row.bars.map((bar) => {
           const isActive = activeKey === `bar:${bar.rentalId}`;
+          const barWidth = bar.span * colW - 4;
+          const tier = barContentTier(barWidth);
           return (
           <Link
             key={bar.rentalId}
@@ -184,12 +208,12 @@ export function Row({
               e.stopPropagation();
               onEnter(bar, e);
             }}
-            className={`absolute overflow-hidden rounded-md px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
-              dense ? "flex items-center gap-1.5 text-xs" : "flex items-center text-[11px]"
+            className={`absolute overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${
+              tier === "compact" ? "flex flex-col items-center justify-center gap-0" : "flex items-center gap-1"
             } ${barClasses(bar)} ${paymentBorderClasses(bar)}`}
             style={{
               left: bar.startIndex * colW + 2,
-              width: bar.span * colW - 4,
+              width: barWidth,
               top: bar.lane * rowH + 6,
               height: rowH - 12,
             }}
@@ -219,27 +243,28 @@ export function Row({
                 {bar.activeNotes.length}
               </span>
             )}
-            {dense ? (
+            {tier === "full" ? (
               <>
-                <span className="shrink-0 tabular-nums text-[11px] font-normal opacity-90">
+                <span className="shrink-0 tabular-nums text-[10px] font-normal opacity-90">
                   {formatTime(bar.startAt)}
                 </span>
                 <span className="flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden">
                   {bar.verified && <VerifiedBadge />}
                   <span className="truncate">{bar.clientName}</span>
                 </span>
-                <span className="shrink-0 tabular-nums text-[11px] font-normal opacity-90">
+                <span className="shrink-0 tabular-nums text-[10px] font-normal opacity-90">
                   {formatTime(bar.endAt)}
                 </span>
               </>
+            ) : tier === "times" ? (
+              <span className="flex w-full items-center justify-between tabular-nums text-[10px] font-normal opacity-90">
+                <span>{formatTime(bar.startAt)}</span>
+                <span>{formatTime(bar.endAt)}</span>
+              </span>
             ) : (
-              <span className="flex min-w-0 items-center">
-                {bar.verified && (
-                  <span className="mr-1 inline-flex">
-                    <VerifiedBadge />
-                  </span>
-                )}
-                <span className="truncate">{bar.clientName}</span>
+              <span className="flex w-full flex-col items-center leading-[1.15] tabular-nums text-[9px] font-normal opacity-90">
+                <span>{formatTime(bar.startAt)}</span>
+                <span>{formatTime(bar.endAt)}</span>
               </span>
             )}
           </Link>

@@ -15,7 +15,6 @@ export function RoomRow({
   trackW,
   colW,
   rowH,
-  dense,
   activeKey,
   onEnter,
   onMove,
@@ -26,7 +25,6 @@ export function RoomRow({
   trackW: number;
   colW: number;
   rowH: number;
-  dense: boolean;
   activeKey: string | null;
   onEnter: (bar: RoomCalendarBar, e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
@@ -77,11 +75,9 @@ export function RoomRow({
                 e.stopPropagation();
                 onEnter(bar, e);
               }}
-              className={`absolute overflow-hidden px-1.5 text-left font-medium shadow-sm transition-shadow hover:ring-2 ${
+              className={`absolute flex items-center overflow-hidden px-1.5 text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${
                 bar.clippedStart ? "rounded-l-none" : "rounded-l-md"
-              } ${bar.clippedEnd ? "rounded-r-none" : "rounded-r-md"} ${
-                dense ? "flex flex-col justify-center gap-0.5 py-1 text-xs" : "flex items-center text-[11px]"
-              } ${roomBarClasses(bar)}`}
+              } ${bar.clippedEnd ? "rounded-r-none" : "rounded-r-md"} ${roomBarClasses(bar)}`}
               style={{
                 left: bar.startIndex * half + 1,
                 width: bar.span * half - 2,
@@ -90,11 +86,6 @@ export function RoomRow({
               }}
             >
               <span className="truncate">{bar.guest}</span>
-              {dense ? (
-                <span className="truncate text-[11px] font-normal opacity-90">
-                  {bar.nights} noche{bar.nights === 1 ? "" : "s"}
-                </span>
-              ) : null}
             </Link>
           );
         })}
