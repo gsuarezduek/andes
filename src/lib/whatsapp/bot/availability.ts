@@ -13,6 +13,13 @@ import { vehicleBrandModel } from "@/lib/vehicle-ui";
 export const MAX_AVAILABILITY_RANGE_DAYS = 60;
 /** Como máximo, cuánto hacia adelante puede empezar el rango consultado. */
 export const MAX_AVAILABILITY_HORIZON_DAYS = 180;
+/**
+ * Ventana en la que `Vehicle.dailyRate` (la tarifa "de hoy", recalculada por
+ * el cron de sync — ver `src/lib/sync/car-rates.ts`) se considera un precio
+ * confirmado. Más allá, puede haber una temporada/aumento todavía sin cargar
+ * en VikRentCar — no hay que cotizar ese número como si fuera el precio real.
+ */
+export const MAX_PRICE_HORIZON_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type AvailabilityRange = { startUtc: Date; endUtc: Date };
@@ -52,6 +59,17 @@ export function parseAvailabilityRange(startDate: string, endDate: string, now: 
   return { ok: true, range: { startUtc, endUtc } };
 }
 
+/**
+ * ¿La fecha de retiro cae dentro de la ventana de precio confirmado? Pura y
+ * testeada aparte, mismo criterio que `parseAvailabilityRange` (recibe `now`
+ * explícito en vez de leer el reloj real).
+ */
+export function isPriceConfirmedForDate(startUtc: Date, now: Date): boolean {
+  const todayStart = mendozaWallTimeToUtc(`${formatDateInput(now)}T00:00`);
+  const priceHorizonEnd = new Date(todayStart.getTime() + MAX_PRICE_HORIZON_DAYS * DAY_MS);
+  return startUtc <= priceHorizonEnd;
+}
+
 export type AvailabilityVehicle = {
   id: string;
   brand: string;
@@ -86,7 +104,18 @@ const BLOCKING_STATUSES = ["reserved", "active", "out_of_service"] as const;
 const MAX_AVAILABILITY_RESULTS = 8;
 
 export type AvailabilityToolResult =
-  | { ok: true; available: { label: string; dailyRate: number | null }[]; truncated: boolean }
+  | {
+      ok: true;
+      available: { label: string; dailyRate: number | null }[];
+      truncated: boolean;
+      /**
+       * `false` si la fecha de retiro queda más allá de `MAX_PRICE_HORIZON_DAYS`
+       * — en ese caso `dailyRate` viaja en `null` a propósito (puede haber una
+       * temporada/aumento todavía sin confirmar en VikRentCar para esas
+       * fechas). El prompt le indica al bot qué decir en ese caso.
+       */
+      priceConfirmed: boolean;
+    }
   | { ok: false; error: string };
 
 /**
@@ -101,8 +130,10 @@ export async function checkAvailability(input: {
   endDate: string;
   vehicleQuery?: string;
 }): Promise<AvailabilityToolResult> {
-  const parsed = parseAvailabilityRange(input.startDate, input.endDate, new Date());
+  const now = new Date();
+  const parsed = parseAvailabilityRange(input.startDate, input.endDate, now);
   if (!parsed.ok) return parsed;
+  const priceConfirmed = isPriceConfirmedForDate(parsed.range.startUtc, now);
 
   const query = input.vehicleQuery?.trim();
   const vehicles = await prisma.vehicle.findMany({
@@ -121,7 +152,7 @@ export async function checkAvailability(input: {
     },
     select: { id: true, brand: true, model: true, name: true, dailyRate: true },
   });
-  if (vehicles.length === 0) return { ok: true, available: [], truncated: false };
+  if (vehicles.length === 0) return { ok: true, available: [], truncated: false, priceConfirmed };
 
   const rentals = await prisma.rental.findMany({
     where: { vehicleId: { in: vehicles.map((v) => v.id) }, status: { in: [...BLOCKING_STATUSES] } },
@@ -136,7 +167,11 @@ export async function checkAvailability(input: {
 
   return {
     ok: true,
-    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map((v) => ({ label: vehicleBrandModel(v), dailyRate: v.dailyRate })),
+    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map((v) => ({
+      label: vehicleBrandModel(v),
+      dailyRate: priceConfirmed ? v.dailyRate : null,
+    })),
     truncated: available.length > MAX_AVAILABILITY_RESULTS,
+    priceConfirmed,
   };
 }

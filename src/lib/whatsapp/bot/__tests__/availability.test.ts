@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   parseAvailabilityRange,
   filterAvailableVehicles,
+  isPriceConfirmedForDate,
   MAX_AVAILABILITY_RANGE_DAYS,
   MAX_AVAILABILITY_HORIZON_DAYS,
+  MAX_PRICE_HORIZON_DAYS,
   type AvailabilityVehicle,
 } from "@/lib/whatsapp/bot/availability";
 
@@ -86,5 +88,23 @@ describe("filterAvailableVehicles", () => {
       range,
     );
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("isPriceConfirmedForDate", () => {
+  it("un retiro hoy mismo está dentro de la ventana", () => {
+    expect(isPriceConfirmedForDate(new Date("2026-09-07T03:00:00Z"), NOW)).toBe(true);
+  });
+
+  it(`un retiro a ${MAX_PRICE_HORIZON_DAYS} días está dentro de la ventana (borde inclusive)`, () => {
+    const startUtc = new Date(new Date("2026-09-07T00:00:00-03:00").getTime() + MAX_PRICE_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+    expect(isPriceConfirmedForDate(startUtc, NOW)).toBe(true);
+  });
+
+  it(`un retiro a más de ${MAX_PRICE_HORIZON_DAYS} días queda sin precio confirmado`, () => {
+    const startUtc = new Date(
+      new Date("2026-09-07T00:00:00-03:00").getTime() + (MAX_PRICE_HORIZON_DAYS + 1) * 24 * 60 * 60 * 1000,
+    );
+    expect(isPriceConfirmedForDate(startUtc, NOW)).toBe(false);
   });
 });

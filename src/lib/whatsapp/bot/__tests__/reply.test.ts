@@ -60,7 +60,12 @@ describe("generateBotReply", () => {
 
   it("consulta check_availability antes de responder, cuando el modelo lo pide", async () => {
     const tools = makeTools();
-    vi.mocked(tools.checkAvailability).mockResolvedValue({ ok: true, available: [{ label: "Fiat Cronos", dailyRate: 80000 }], truncated: false });
+    vi.mocked(tools.checkAvailability).mockResolvedValue({
+      ok: true,
+      available: [{ label: "Fiat Cronos", dailyRate: 80000 }],
+      truncated: false,
+      priceConfirmed: true,
+    });
 
     createMock
       .mockResolvedValueOnce(toolUse("check_availability", { startDate: "2026-09-10", endDate: "2026-09-12" }))
