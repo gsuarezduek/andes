@@ -235,6 +235,7 @@ model User {
   shiftAssignments               ShiftAssignment[]
   shiftChangesAsTarget           ShiftChange[]            @relation("ShiftChangeTarget")
   shiftChangesMade               ShiftChange[]            @relation("ShiftChangeActor")
+  createdSpecialDates            SpecialDate[]            @relation("SpecialDateCreator")
   rentalVerifications            RentalVerification[]     @relation("RentalVerificationActor")
   rentalExtensions               RentalExtension[]        @relation("RentalExtensionActor")
   createdCashMovements           CashMovement[]           @relation("CashMovementCreator")
@@ -2471,6 +2472,28 @@ model ShiftChange {
 
   @@index([createdAt])
   @@map("shift_changes")
+}
+
+/// Feriado o día especial del equipo (ej. feriado nacional, cierre por
+/// balance): se resalta en amarillo en la grilla de Horarios y en el
+/// Calendario de flota. Puramente informativo — no bloquea ni cambia
+/// ningún turno cargado. `*Name` congelado (ver v34).
+model SpecialDate {
+  id String @id @default(cuid())
+
+  // Fecha de calendario (sin hora), día de Mendoza.
+  date  DateTime @db.Date
+  label String
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("SpecialDateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([date])
+  @@index([date])
+  @@map("special_dates")
 }
 
 // ---------------------------------------------------------------------------

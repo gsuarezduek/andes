@@ -49,6 +49,7 @@ export function CalendarLegend({ showRooms }: { showRooms: boolean }) {
           label="Verificada por un admin"
         />
         <Item swatch={<span className="inline-block h-1.5 w-3 rounded-full bg-purple-500" />} label="Temporada con aumento (día)" />
+        <Item swatch={<span className="inline-block h-3 w-3 rounded bg-yellow-400/60 ring-1 ring-yellow-500/40" />} label="Feriado / día especial" />
         <Item
           swatch={<span className="inline-block h-3 w-3 rounded border-2 border-dashed border-orange-500 bg-orange-500/20" />}
           label="Presupuesto (borrador)"

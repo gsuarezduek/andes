@@ -98,9 +98,21 @@ export function WeekEditor({
               {days.map((d) => {
                 const weekend = isWeekendKey(d.key);
                 return (
-                  <th key={d.key} className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : weekend ? "bg-amber-500/10" : ""}`}>
-                    <div className={`text-[10px] uppercase ${weekend && !d.isToday ? "text-amber-700 dark:text-amber-500" : "text-foreground/40"}`}>{d.weekday}</div>
-                    <div className={`text-base tabular-nums ${weekend && !d.isToday ? "font-medium text-amber-700 dark:text-amber-500" : "text-foreground/70"}`}>{d.day}</div>
+                  <th
+                    key={d.key}
+                    title={d.special ?? undefined}
+                    className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : d.special ? "bg-yellow-400/25" : weekend ? "bg-amber-500/10" : ""}`}
+                  >
+                    <div
+                      className={`text-[10px] uppercase ${d.special ? "text-yellow-700 dark:text-yellow-400" : weekend && !d.isToday ? "text-amber-700 dark:text-amber-500" : "text-foreground/40"}`}
+                    >
+                      {d.weekday}
+                    </div>
+                    <div
+                      className={`text-base tabular-nums ${d.special ? "font-medium text-yellow-700 dark:text-yellow-400" : weekend && !d.isToday ? "font-medium text-amber-700 dark:text-amber-500" : "text-foreground/70"}`}
+                    >
+                      {d.day}
+                    </div>
                   </th>
                 );
               })}
@@ -116,7 +128,10 @@ export function WeekEditor({
                   const dirty = v !== (initial[k] ?? "");
                   const weekend = isWeekendKey(d.key);
                   return (
-                    <td key={d.key} className={`px-1 py-1 ${weekend && !d.isToday ? "bg-amber-500/5" : ""}`}>
+                    <td
+                      key={d.key}
+                      className={`px-1 py-1 ${d.special ? "bg-yellow-400/10" : weekend && !d.isToday ? "bg-amber-500/5" : ""}`}
+                    >
                       <select
                         aria-label={`${p.name}, ${d.weekday} ${d.day}`}
                         value={v}

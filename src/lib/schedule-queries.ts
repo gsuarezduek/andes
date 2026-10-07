@@ -4,8 +4,16 @@ import { formatDateInput, formatTime } from "@/lib/datetime";
 import { dateToKey, keyToDate } from "@/lib/rooms/dates";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { WEEKDAY_LABELS, toMinutes, weekKeys, type Shift } from "@/lib/schedule";
+import { getSpecialDatesMap } from "@/lib/special-dates-queries";
 
-export type WeekDay = { key: string; weekday: string; day: number; isToday: boolean };
+export type WeekDay = {
+  key: string;
+  weekday: string;
+  day: number;
+  isToday: boolean;
+  /** Motivo si ese día está cargado como feriado/día especial, para resaltarlo en amarillo. */
+  special: string | null;
+};
 
 export type WeekSchedule = {
   weekStart: string;
@@ -22,21 +30,30 @@ export async function getWeekSchedule(weekStart: string): Promise<WeekSchedule> 
   const keys = weekKeys(weekStart);
   const now = new Date();
   const todayKey = formatDateInput(now);
-  const users = await prisma.user.findMany({
-    where: { hasSchedule: true, active: true },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      shiftAssignments: {
-        where: { date: { gte: keyToDate(keys[0]), lte: keyToDate(keys[6]) } },
-        select: { date: true, shift: true },
+  const [users, specialDates] = await Promise.all([
+    prisma.user.findMany({
+      where: { hasSchedule: true, active: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        shiftAssignments: {
+          where: { date: { gte: keyToDate(keys[0]), lte: keyToDate(keys[6]) } },
+          select: { date: true, shift: true },
+        },
       },
-    },
-  });
+    }),
+    getSpecialDatesMap(keys[0], addDaysToKey(keys[6], 1)),
+  ]);
   return {
     weekStart,
-    days: keys.map((key, i) => ({ key, weekday: WEEKDAY_LABELS[i], day: Number(key.slice(8, 10)), isToday: key === todayKey })),
+    days: keys.map((key, i) => ({
+      key,
+      weekday: WEEKDAY_LABELS[i],
+      day: Number(key.slice(8, 10)),
+      isToday: key === todayKey,
+      special: specialDates.get(key)?.label ?? null,
+    })),
     people: users.map((u) => {
       const shifts: Record<string, Shift | null> = Object.fromEntries(keys.map((k) => [k, null]));
       for (const a of u.shiftAssignments) shifts[dateToKey(a.date)] = a.shift;

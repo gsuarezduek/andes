@@ -169,16 +169,19 @@ export function Row({
               e.stopPropagation();
               onCellClick(row.id, i);
             }}
+            title={c.special ? c.special.label : undefined}
             className={`absolute top-0 h-full cursor-pointer border-r border-foreground/5 ${
               quotePick === i
                 ? "bg-orange-500/30 ring-2 ring-inset ring-orange-500"
-                : c.seasons.length > 0
-                  ? "bg-purple-500/[0.08]"
-                  : c.isToday
-                    ? "bg-blue-500/[0.14]"
-                    : c.isWeekend
-                      ? "bg-foreground/[0.03]"
-                      : ""
+                : c.special
+                  ? "bg-yellow-400/20"
+                  : c.seasons.length > 0
+                    ? "bg-purple-500/[0.08]"
+                    : c.isToday
+                      ? "bg-blue-500/[0.14]"
+                      : c.isWeekend
+                        ? "bg-foreground/[0.03]"
+                        : ""
             }`}
             style={{ left: i * colW, width: colW }}
           />

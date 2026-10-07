@@ -10,6 +10,7 @@ import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
 import { roomBarGeometry } from "@/lib/rooms/geometry";
 import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
 import { addDaysToKey } from "@/lib/rooms/ical";
+import { getSpecialDatesMap } from "@/lib/special-dates-queries";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -162,6 +163,8 @@ export type CalendarColumn = {
   /** Temporadas con aumento vigentes ese día (todos los modelos afectados
    *  se resumen acá — el aumento se aplica a toda la flota al mismo tiempo). */
   seasons: CalendarColumnSeason[];
+  /** Feriado/día especial cargado en Horarios (ver `/horarios`) — se resalta en amarillo. */
+  special: { label: string } | null;
 };
 
 /** Estadía de una habitación en la grilla. `startIndex`/`span` van en MEDIAS
@@ -495,7 +498,7 @@ export async function getCalendarData(opts?: {
   const windowStartKey = formatDateInput(windowStart);
   const windowEndKey = addDaysToKey(windowStartKey, days);
 
-  const [vehicles, notes, rentals, seasonRates, quotes, rooms] = await Promise.all([
+  const [vehicles, notes, rentals, seasonRates, quotes, rooms, specialDates] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
@@ -582,6 +585,7 @@ export async function getCalendarData(opts?: {
         },
       },
     }),
+    getSpecialDatesMap(windowStartKey, windowEndKey),
   ]);
   const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({
     fromSeconds: s.fromSeconds,
@@ -610,6 +614,7 @@ export async function getCalendarData(opts?: {
       isToday: key === todayKey,
       isWeekend: weekday === "sáb" || weekday === "dom" || dow === 0 || dow === 6,
       seasons: seasonsForDay(seasonRows, dayDate),
+      special: specialDates.get(key) ? { label: specialDates.get(key)!.label } : null,
     });
   }
 

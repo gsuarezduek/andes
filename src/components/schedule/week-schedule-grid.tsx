@@ -61,12 +61,17 @@ export function WeekScheduleGrid({ schedule, currentUserId }: { schedule: WeekSc
                 <th
                   key={d.key}
                   data-today={d.isToday ? "" : undefined}
-                  className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : weekend ? "bg-amber-500/10" : ""}`}
+                  title={d.special ?? undefined}
+                  className={`px-1 py-2 text-center font-normal ${d.isToday ? "bg-blue-500/15" : d.special ? "bg-yellow-400/25" : weekend ? "bg-amber-500/10" : ""}`}
                 >
-                  <div className={`text-[10px] uppercase ${d.isToday ? "font-bold text-blue-600" : weekend ? "text-amber-700 dark:text-amber-500" : "text-foreground/40"}`}>
+                  <div
+                    className={`text-[10px] uppercase ${d.isToday ? "font-bold text-blue-600" : d.special ? "text-yellow-700 dark:text-yellow-400" : weekend ? "text-amber-700 dark:text-amber-500" : "text-foreground/40"}`}
+                  >
                     {d.weekday}
                   </div>
-                  <div className={`text-base tabular-nums ${d.isToday ? "font-bold text-blue-600" : weekend ? "font-medium text-amber-700 dark:text-amber-500" : "text-foreground/70"}`}>
+                  <div
+                    className={`text-base tabular-nums ${d.isToday ? "font-bold text-blue-600" : d.special ? "font-medium text-yellow-700 dark:text-yellow-400" : weekend ? "font-medium text-amber-700 dark:text-amber-500" : "text-foreground/70"}`}
+                  >
                     {d.day}
                   </div>
                 </th>
@@ -87,7 +92,8 @@ export function WeekScheduleGrid({ schedule, currentUserId }: { schedule: WeekSc
                 return (
                   <td
                     key={d.key}
-                    className={`align-top px-1 py-1.5 ${d.isToday ? "bg-blue-500/[0.07]" : weekend ? "bg-amber-500/5" : ""}`}
+                    title={d.special ?? undefined}
+                    className={`align-top px-1 py-1.5 ${d.isToday ? "bg-blue-500/[0.07]" : d.special ? "bg-yellow-400/10" : weekend ? "bg-amber-500/5" : ""}`}
                   >
                     <div className="flex flex-col items-stretch gap-1">
                       {entries.map((e) => {

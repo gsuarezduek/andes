@@ -53,8 +53,9 @@ export function RoomRow({
         {columns.map((c, i) => (
           <div
             key={c.key}
+            title={c.special ? c.special.label : undefined}
             className={`absolute top-0 h-full border-r border-foreground/5 ${
-              c.isToday ? "bg-blue-500/[0.14]" : c.isWeekend ? "bg-foreground/[0.03]" : ""
+              c.isToday ? "bg-blue-500/[0.14]" : c.special ? "bg-yellow-400/20" : c.isWeekend ? "bg-foreground/[0.03]" : ""
             }`}
             style={{ left: i * colW, width: colW }}
           />

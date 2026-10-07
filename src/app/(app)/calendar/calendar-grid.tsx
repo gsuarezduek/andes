@@ -176,8 +176,9 @@ export function CalendarGrid({
             return (
               <div
                 key={c.key}
+                title={c.special ? c.special.label : undefined}
                 className={`relative shrink-0 py-1 text-center ${
-                  c.isToday ? "bg-blue-500/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
+                  c.isToday ? "bg-blue-500/25" : c.special ? "bg-yellow-400/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
                 }`}
                 style={{ width: colW }}
               >

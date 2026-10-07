@@ -5,11 +5,14 @@ import { formatDateInput, formatDateTime } from "@/lib/datetime";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { normalizeWeek, shiftLabels, weekLabel, type Shift } from "@/lib/schedule";
 import { getPreviousWeekAsCurrent, getScheduleChanges, getWeekSchedule } from "@/lib/schedule-queries";
+import { getUpcomingSpecialDates } from "@/lib/special-dates-queries";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { WeekEditor } from "@/components/schedule/week-editor";
+import { SpecialDatesButton } from "@/components/schedule/special-dates-button";
+import { UpcomingSpecialDates } from "@/components/schedule/upcoming-special-dates";
 
 export const metadata: Metadata = { title: "Horarios — Andes" };
 
@@ -30,6 +33,7 @@ export default async function HorariosPage({ searchParams }: { searchParams: Pro
   const [previous, changes] = isAdmin
     ? await Promise.all([getPreviousWeekAsCurrent(weekStart, people.map((p) => p.id)), getScheduleChanges()])
     : [{}, []];
+  const upcomingSpecialDates = await getUpcomingSpecialDates(todayKey);
   const initial = Object.fromEntries(
     schedule.people.flatMap((p) => schedule.days.map((d) => [`${p.id}|${d.key}`, p.shifts[d.key] ?? ""] as const)),
   );
@@ -73,6 +77,16 @@ export default async function HorariosPage({ searchParams }: { searchParams: Pro
       ) : (
         <WeekScheduleGrid schedule={schedule} currentUserId={user.id} />
       )}
+
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionHeading description="Feriados o días especiales: se resaltan en amarillo en esta grilla y en el Calendario de flota.">
+            Días especiales
+          </SectionHeading>
+          {isAdmin ? <SpecialDatesButton /> : null}
+        </div>
+        <UpcomingSpecialDates items={upcomingSpecialDates} isAdmin={isAdmin} />
+      </section>
 
       {isAdmin && people.length > 0 ? (
         <section className="flex flex-col gap-3">
