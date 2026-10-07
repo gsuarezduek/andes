@@ -1802,6 +1802,11 @@ model WhatsAppSettings {
   accessTokenEnc   String  @map("access_token_enc") @db.Text
   webhookSecretEnc String? @map("webhook_secret_enc") @db.Text // sin esto no se verifica la firma del webhook
 
+  // Plantilla editable del mensaje de presupuesto del Calendario (placeholders
+  // {auto}/{dias}/{precioDia}/{total}/{condiciones}/{cliente}); null = usar el
+  // default de código (DEFAULT_QUOTE_MESSAGE_TEMPLATE, src/lib/whatsapp/quote-message.ts).
+  budgetMessageTemplate String? @map("budget_message_template") @db.Text
+
   connectedAt DateTime @default(now()) @map("connected_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
