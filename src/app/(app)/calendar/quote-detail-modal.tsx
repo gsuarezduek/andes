@@ -12,7 +12,45 @@ import type { CalendarQuoteBar } from "@/lib/calendar";
 import { formatArs } from "@/lib/contract";
 import { buildQuoteRange, quoteBillableDays, quotePricePerDay, splitQuoteRange } from "@/lib/quote-estimate";
 import { updateQuote, deleteQuote } from "./actions";
+import { sendQuoteWhatsApp } from "./quote-whatsapp-actions";
 import { PerDayBox } from "./quote-per-day-box";
+
+/** Botón "Enviar por WhatsApp" del presupuesto — se muestra en la vista de
+ *  solo lectura y en la editable por igual (mandar el mensaje no modifica el
+ *  presupuesto, así que no depende de `canEdit`). Solo dentro de la ventana
+ *  de 24hs (ver `sendQuoteWhatsApp`); el aviso de "ventana cerrada" o "falta
+ *  vincular conversación" se muestra en ámbar (es una instrucción, no un
+ *  bug) y cualquier otra falla de envío, en rojo. */
+function SendQuoteWhatsAppButton({ quoteId }: { quoteId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ error?: string; kind?: string; sent?: boolean }>();
+
+  function handleSend() {
+    setResult(undefined);
+    startTransition(async () => {
+      setResult(await sendQuoteWhatsApp(quoteId));
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button type="button" variant="secondary" onClick={handleSend} disabled={pending || result?.sent}>
+        {pending ? "Enviando…" : result?.sent ? "Enviado ✓" : "Enviar por WhatsApp"}
+      </Button>
+      {result?.error ? (
+        <p
+          className={
+            result.kind === "failed"
+              ? "text-sm text-red-600"
+              : "rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-sm text-amber-700 dark:text-amber-400"
+          }
+        >
+          {result.error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 /** Detalle de un presupuesto ya cargado — se abre al tocar su barra. Solo
  *  quien lo creó (o un admin) puede editarlo/borrarlo (mismo criterio que
@@ -110,6 +148,7 @@ export function QuoteDetailModal({
             </Link>
           ) : null}
           {quote.note ? <p className="whitespace-pre-wrap border-t border-foreground/10 pt-2 text-foreground/80">{quote.note}</p> : null}
+          {quote.conversationId ? <SendQuoteWhatsAppButton quoteId={quote.quoteId} /> : null}
           <Button type="button" variant="secondary" className="mt-2" onClick={onClose}>
             Cerrar
           </Button>
@@ -178,6 +217,8 @@ export function QuoteDetailModal({
             </Link>
           ) : null}
         </fieldset>
+
+        {!editing && quote.conversationId ? <SendQuoteWhatsAppButton quoteId={quote.quoteId} /> : null}
 
         <p className="text-xs text-foreground/45">
           {quote.createdByName ? `Cargado por ${quote.createdByName}` : "Cargado por un compañero"}

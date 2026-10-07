@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TextField } from "@/components/ui/fields";
+import { TextField, TextareaField } from "@/components/ui/fields";
 import { SavedBanner } from "@/components/ui/saved-banner";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/datetime";
+import { DEFAULT_QUOTE_MESSAGE_TEMPLATE, QUOTE_MESSAGE_PLACEHOLDERS } from "@/lib/whatsapp/quote-message";
 import { saveWhatsAppAccount } from "./actions";
 import { SyncTemplatesButton } from "./sync-templates-button";
 
@@ -85,6 +86,14 @@ export default async function WhatsAppSettingsPage({
                 ? "Dejalo en blanco para conservar el actual."
                 : "El mismo que configures en el webhook de Chakra (ver abajo) — sin esto no se verifica la firma de los mensajes entrantes."
             }
+          />
+          <TextareaField
+            id="budgetMessageTemplate"
+            label="Plantilla del mensaje de presupuesto"
+            hint={`Se usa al tocar "Enviar por WhatsApp" en un presupuesto del Calendario. Placeholders disponibles: ${QUOTE_MESSAGE_PLACEHOLDERS.map((p) => `{${p}}`).join(", ")}. Vacío = usar el texto de abajo.`}
+            rows={6}
+            defaultValue={settings?.budgetMessageTemplate ?? ""}
+            placeholder={DEFAULT_QUOTE_MESSAGE_TEMPLATE}
           />
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Guardando…">Guardar</SubmitButton>

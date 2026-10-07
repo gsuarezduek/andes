@@ -14,12 +14,13 @@ export async function saveWhatsAppAccount(formData: FormData) {
   const pluginId = String(formData.get("pluginId") ?? "").trim();
   const accessToken = String(formData.get("accessToken") ?? "").trim() || undefined;
   const webhookSecret = String(formData.get("webhookSecret") ?? "").trim() || undefined;
+  const budgetMessageTemplate = String(formData.get("budgetMessageTemplate") ?? "").trim() || null;
 
   if (!wabaId || !phoneNumberId || !pluginId) {
     throw new Error("Completá WABA ID, Phone Number ID y Plugin ID.");
   }
 
-  await saveWhatsAppSettings({ wabaId, phoneNumberId, pluginId, accessToken, webhookSecret });
+  await saveWhatsAppSettings({ wabaId, phoneNumberId, pluginId, accessToken, webhookSecret, budgetMessageTemplate });
   revalidatePath("/settings/whatsapp");
   redirect("/settings/whatsapp?saved=1");
 }

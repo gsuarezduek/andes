@@ -14,12 +14,14 @@ export async function saveWhatsAppSettings(input: {
   pluginId: string;
   accessToken?: string; // vacío = conservar el actual (no se reimprime en el form)
   webhookSecret?: string;
+  budgetMessageTemplate?: string | null;
 }) {
   const existing = await prisma.whatsAppSettings.findUnique({ where: { id: 1 } });
 
   const accessTokenEnc = input.accessToken ? encrypt(input.accessToken) : existing?.accessTokenEnc;
   if (!accessTokenEnc) throw new Error("Falta el access token.");
   const webhookSecretEnc = input.webhookSecret ? encrypt(input.webhookSecret) : existing?.webhookSecretEnc;
+  const budgetMessageTemplate = input.budgetMessageTemplate ?? null;
 
   return prisma.whatsAppSettings.upsert({
     where: { id: 1 },
@@ -30,6 +32,7 @@ export async function saveWhatsAppSettings(input: {
       pluginId: input.pluginId,
       accessTokenEnc,
       webhookSecretEnc,
+      budgetMessageTemplate,
     },
     update: {
       wabaId: input.wabaId,
@@ -37,6 +40,7 @@ export async function saveWhatsAppSettings(input: {
       pluginId: input.pluginId,
       accessTokenEnc,
       webhookSecretEnc,
+      budgetMessageTemplate,
     },
   });
 }

@@ -6,6 +6,8 @@
  * aparte, sin cache — ver reply.ts.
  */
 
+import { buildConditionLines, type GeneralConditions } from "@/lib/condition-lines";
+
 export const CONFIDENCE_INSTRUCTIONS = `Si no estás seguro de la respuesta, si el pedido excede lo que podés resolver por WhatsApp, o si el cliente pide explícitamente hablar con una persona, no inventes una respuesta: marcá escalate=true con un motivo breve en escalateReason. Es preferible derivar a que el cliente reciba información incorrecta.`;
 
 export const DATE_INSTRUCTIONS = `Para interpretar fechas: tomá como única referencia de "hoy" la fecha que te paso más abajo en el contexto (nunca una fecha que creas recordar de otro lado). Si el cliente da un día y mes sin año (ej. "14 de octubre"), asumí la próxima ocurrencia futura de esa fecha a partir de "hoy" — casi siempre eso significa el año en curso, salvo que esa fecha ya haya pasado este año, en cuyo caso es el año que viene. Antes de decirle a un cliente que una fecha "ya pasó", volvé a comparar con cuidado contra la fecha de "hoy" del contexto — es un error grave y confunde mucho al cliente decir que pasó una fecha que en realidad es futura.`;
@@ -35,27 +37,18 @@ export function buildSecurityBlock(blockedWords: string[], escalationWords: stri
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-export type GeneralConditions = {
-  kmPerDay: number | null;
-  extraKmRate: number | null;
-  deductible: number | null;
-  deductibleReduced: number | null;
-};
+export type { GeneralConditions };
 
 /**
  * Condiciones económicas generales (Configuración → Condiciones) para que el
  * bot pueda responder preguntas de precio genéricas sin necesitar un tool —
- * son casi estáticas, a diferencia de la reserva puntual de un cliente.
+ * son casi estáticas, a diferencia de la reserva puntual de un cliente. Las
+ * líneas en sí (`buildConditionLines`) se comparten con el mensaje de
+ * presupuesto del Calendario — este encabezado es específico del bot
+ * (instrucción interna, no apto para mandárselo tal cual a un cliente).
  */
 export function buildConditionsBlock(conditions: GeneralConditions | null): string | null {
-  if (!conditions) return null;
-  const lines: string[] = [];
-  if (conditions.kmPerDay != null) lines.push(`Km incluidos por día: ${conditions.kmPerDay} km.`);
-  if (conditions.extraKmRate != null) lines.push(`Km extra: $${conditions.extraKmRate} por km.`);
-  if (conditions.deductible != null) lines.push(`Franquicia del seguro: $${conditions.deductible}.`);
-  if (conditions.deductibleReduced != null) {
-    lines.push(`Franquicia reducida con "mejora de seguro": $${conditions.deductibleReduced}.`);
-  }
+  const lines = buildConditionLines(conditions);
   if (lines.length === 0) return null;
   return `Condiciones económicas generales vigentes (aplican salvo que la reserva puntual del cliente diga otra cosa; la tarifa por día de cada auto sale de check_availability):\n${lines.join("\n")}`;
 }
