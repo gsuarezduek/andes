@@ -59,6 +59,7 @@ export function HomeTaskList({ tasks }: { tasks: Row[] }) {
             <p className="text-sm text-foreground/60">
               {task.assignedToName ?? "Sin asignar"}
               {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
+              {task.rental ? ` · ${task.rental.clientName}` : ""}
             </p>
           </Link>
           {task.dueDate ? (

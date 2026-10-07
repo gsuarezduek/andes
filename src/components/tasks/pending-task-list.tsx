@@ -6,6 +6,7 @@ import { normalizeSearch } from "@/lib/command-palette";
 import { groupPendingTasksByUrgency } from "@/lib/task-grouping";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { TaskRow as TaskRowData } from "@/lib/tasks";
+import type { RentalPickerOption } from "@/lib/cash";
 
 type UserOption = { id: string; name: string };
 type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
@@ -15,7 +16,12 @@ type Row = { task: TaskRowData; overdue: boolean; dueToday: boolean; canEdit: bo
 function matchesSearch(row: Row, query: string): boolean {
   if (!query) return true;
   const haystack = normalizeSearch(
-    [row.task.text, row.task.assignedToName, row.task.vehicle ? vehicleLabelWithPlate(row.task.vehicle) : null]
+    [
+      row.task.text,
+      row.task.assignedToName,
+      row.task.vehicle ? vehicleLabelWithPlate(row.task.vehicle) : null,
+      row.task.rental?.clientName,
+    ]
       .filter(Boolean)
       .join(" "),
   );
@@ -43,10 +49,12 @@ export function PendingTaskList({
   tasks,
   users,
   vehicles,
+  rentalOptions,
 }: {
   tasks: Row[];
   users: UserOption[];
   vehicles: VehicleOption[];
+  rentalOptions: RentalPickerOption[];
 }) {
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -87,13 +95,14 @@ export function PendingTaskList({
             <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
               {group.tasks.map(({ task, overdue, dueToday, canEdit }) => (
                 <TaskRow
-                  key={`${task.id}-${task.text}-${task.priority}-${task.dueDate?.getTime()}-${task.assignedToId}-${task.vehicleId}-${task.recurrenceId}-${task.recurrence?.freq}-${task.recurrence?.interval}`}
+                  key={`${task.id}-${task.text}-${task.priority}-${task.dueDate?.getTime()}-${task.assignedToId}-${task.vehicleId}-${task.rentalId}-${task.recurrenceId}-${task.recurrence?.freq}-${task.recurrence?.interval}`}
                   task={task}
                   overdue={overdue}
                   dueToday={dueToday}
                   canEdit={canEdit}
                   users={users}
                   vehicles={vehicles}
+                  rentalOptions={rentalOptions}
                   completionsLocked={busyTaskId !== null && busyTaskId !== task.id}
                   onCompleteSubmit={() => setBusyTaskId(task.id)}
                 />

@@ -1,6 +1,7 @@
 import { SectionTitle } from "@/components/ui/section-title";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime } from "@/lib/datetime";
+import { MentionTextarea, type MentionCandidate } from "@/components/mention-textarea";
 
 type Note = {
   id: string;
@@ -9,12 +10,21 @@ type Note = {
   createdByName: string;
   resolvedByName?: string | null;
   resolvedAt?: Date | null;
+  /** Si mencionar (@) a alguien generó una tarea para esa persona — solo en
+   *  notas de reserva (ver `teamMembers`). `undefined` en notas de vehículo. */
+  task?: { assignedToName: string | null; status: "pending" | "done" } | null;
 };
 
 /**
  * Mensajería de equipo sobre un vehículo o una reserva (distinta del campo
  * libre `notes` de la ficha del vehículo). Mismo componente para los dos —
  * antes eran dos copias idénticas salvo qué action llamaban.
+ *
+ * `teamMembers` es opcional: solo lo pasan las notas de reserva (ver
+ * `rentals/[id]/page.tsx`) — con él, el textarea admite mencionar (@) a un
+ * compañero, lo que convierte la nota en una tarea para esa persona (ver
+ * `addRentalNote`). Sin `teamMembers` (notas de vehículo) el textarea queda
+ * como siempre, sin autocompletado.
  */
 export function TeamNotesSection({
   activeNotes,
@@ -22,12 +32,14 @@ export function TeamNotesSection({
   addNote,
   resolveNote,
   placeholder,
+  teamMembers,
 }: {
   activeNotes: Note[];
   resolvedNotes: Note[];
   addNote: (formData: FormData) => Promise<void>;
   resolveNote: (noteId: string) => (formData: FormData) => Promise<void>;
   placeholder: string;
+  teamMembers?: MentionCandidate[];
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-4">
@@ -44,6 +56,11 @@ export function TeamNotesSection({
                 <p className="mt-1 text-xs text-foreground/50">
                   {n.createdByName} · {formatDateTime(n.createdAt)}
                 </p>
+                {n.task && (
+                  <p className="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                    → Tarea para {n.task.assignedToName ?? "—"}
+                  </p>
+                )}
               </div>
               <form action={resolveNote(n.id)} className="shrink-0">
                 <button className="text-xs font-medium text-emerald-600">Resolver</button>
@@ -53,15 +70,24 @@ export function TeamNotesSection({
         </ul>
       )}
       <form action={addNote} className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        <textarea
-          name="text"
-          required
-          rows={2}
-          placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
-        />
+        {teamMembers ? (
+          <MentionTextarea candidates={teamMembers} rows={2} placeholder={placeholder} required />
+        ) : (
+          <textarea
+            name="text"
+            required
+            rows={2}
+            placeholder={placeholder}
+            className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 py-2 text-sm"
+          />
+        )}
         <SubmitButton pendingLabel="Agregando…">Agregar nota</SubmitButton>
       </form>
+      {teamMembers && (
+        <p className="text-xs text-foreground/40">
+          Mencioná a alguien con @ para convertir la nota en una tarea para esa persona.
+        </p>
+      )}
       {resolvedNotes.length > 0 && (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs font-medium text-foreground/60">

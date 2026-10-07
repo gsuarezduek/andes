@@ -495,6 +495,11 @@ model RentalNote {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  // Tarea generada sola al mencionar (@) a alguien en el texto de la nota —
+  // lado inverso de `Task.sourceRentalNoteId`. `null` si la nota no mencionó
+  // a nadie.
+  task Task?
+
   @@index([rentalId])
   @@map("rental_notes")
 }
@@ -663,6 +668,7 @@ model Rental {
   cashMovements         CashMovement[]
   maintenanceLogs       MaintenanceLog[]
   whatsAppConversations WhatsAppConversation[]
+  tasks                 Task[]
 
   @@index([status])
   @@index([startAt])
@@ -1012,6 +1018,13 @@ model Task {
   vehicleId String?  @map("vehicle_id")
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
 
+  // Vínculo opcional a una reserva — igual criterio que `vehicleId`, pensado
+  // sobre todo para la tarea que se genera sola al mencionar (@) a alguien en
+  // una nota de equipo de la reserva (ver `sourceRentalNoteId`), pero
+  // cualquier tarea puede vincularse a mano a una reserva.
+  rentalId String? @map("rental_id")
+  rental   Rental? @relation(fields: [rentalId], references: [id])
+
   // `*Name` son nombres congelados al momento del hecho (ver
   // Inspection.userName) — sobreviven a que se borre el usuario.
   assignedToId   String? @map("assigned_to_id")
@@ -1031,12 +1044,20 @@ model Task {
   recurrenceId String?         @map("recurrence_id")
   recurrence   TaskRecurrence? @relation(fields: [recurrenceId], references: [id])
 
+  // Nota de equipo (RentalNote) que generó esta tarea al mencionar (@) a
+  // alguien — `@unique` porque una nota genera a lo sumo una tarea. Resolver
+  // cualquiera de las dos (la nota o esta tarea) resuelve también la otra,
+  // ver `src/lib/task-completion.ts`. `null` = tarea suelta, creada a mano.
+  sourceRentalNoteId String?     @unique @map("source_rental_note_id")
+  sourceRentalNote   RentalNote? @relation(fields: [sourceRentalNoteId], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([status])
   @@index([assignedToId])
   @@index([dueDate])
   @@index([vehicleId])
+  @@index([rentalId])
   @@index([recurrenceId])
   @@map("tasks")
 }

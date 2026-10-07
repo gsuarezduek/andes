@@ -13,6 +13,8 @@ import { completeTask, updateTask, deleteTask } from "@/app/(app)/tasks/actions"
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import type { TaskRow as TaskRowData } from "@/lib/tasks";
 import { describeRecurrence } from "@/lib/task-recurrence";
+import { RentalPicker } from "@/components/cash/rental-picker";
+import type { RentalPickerOption } from "@/lib/cash";
 import {
   RECURRENCE_INTERVAL_UNIT,
   RECURRENCE_OPTIONS,
@@ -57,6 +59,7 @@ export function TaskRow({
   canEdit,
   users,
   vehicles,
+  rentalOptions,
   completionsLocked = false,
   onCompleteSubmit,
 }: {
@@ -66,6 +69,7 @@ export function TaskRow({
   canEdit: boolean;
   users: UserOption[];
   vehicles: VehicleOption[];
+  rentalOptions: RentalPickerOption[];
   /** true si otra fila de la lista ya está enviando su "Hecha". */
   completionsLocked?: boolean;
   onCompleteSubmit?: () => void;
@@ -127,6 +131,10 @@ export function TaskRow({
               ))}
             </SelectField>
           </div>
+          <RentalPicker
+            options={rentalOptions}
+            initial={task.rental ? { id: task.rental.id, clientName: task.rental.clientName, bookingId: null, plate: null, vehicleName: null, label: task.rental.clientName } : null}
+          />
           {task.recurrenceId && task.recurrence && (
             <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 bg-foreground/[0.03] p-2.5">
               <p className="text-xs font-medium text-foreground/70">{describeRecurrence(task.recurrence)}</p>
@@ -227,6 +235,14 @@ export function TaskRow({
               {" · "}
               <Link href={`/vehicles/${task.vehicle.id}`} className="underline">
                 {vehicleLabelWithPlate(task.vehicle)}
+              </Link>
+            </>
+          ) : null}
+          {task.rental ? (
+            <>
+              {" · "}
+              <Link href={`/rentals/${task.rental.id}`} className="underline">
+                {task.rental.clientName}
               </Link>
             </>
           ) : null}

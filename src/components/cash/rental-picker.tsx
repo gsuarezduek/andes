@@ -5,9 +5,17 @@ import type { RentalPickerOption } from "@/lib/cash";
 
 const MAX_MATCHES = 8;
 
-export function RentalPicker({ options }: { options: RentalPickerOption[] }) {
+export function RentalPicker({
+  options,
+  initial = null,
+}: {
+  options: RentalPickerOption[];
+  /** Reserva ya vinculada (ej. al editar) — puede no estar en `options` (que
+   *  solo trae candidatas recientes) y aun así se muestra preseleccionada. */
+  initial?: RentalPickerOption | null;
+}) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<RentalPickerOption | null>(null);
+  const [selected, setSelected] = useState<RentalPickerOption | null>(initial);
   const [open, setOpen] = useState(false);
 
   const matches = useMemo(() => {

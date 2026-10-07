@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { OPERATOR_FILTER } from "@/lib/users";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
@@ -71,6 +72,13 @@ export default async function RentalDetailPage({
 
   const activeNotes = rental.teamNotes.filter((n) => !n.resolvedAt);
   const resolvedNotes = rental.teamNotes.filter((n) => n.resolvedAt);
+
+  // Para mencionar (@) a un compañero en una nota de equipo — ver TeamNotesSection.
+  const teamMembers = await prisma.user.findMany({
+    where: OPERATOR_FILTER,
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   const {
     canStartHandover,
@@ -273,11 +281,13 @@ export default async function RentalDetailPage({
           reserva. Mientras no se resuelven, alertan en el listado de
           Alquileres y en la barra del Calendario. */}
       <TeamNotesSection
+        key={rental.teamNotes.length}
         activeNotes={activeNotes}
         resolvedNotes={resolvedNotes}
         addNote={addRentalNote.bind(null, rental.id)}
         resolveNote={(noteId) => resolveRentalNote.bind(null, rental.id, noteId)}
-        placeholder="Ej: el cliente pidió cambiar el horario de entrega…"
+        placeholder="Ej: el cliente pidió cambiar el horario de entrega… (@ para mencionar a alguien)"
+        teamMembers={teamMembers}
       />
 
       {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}

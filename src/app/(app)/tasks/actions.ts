@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Prisma, RecurrenceFreq, TaskRecurrence, UserRole } from "@prisma/client";
+import type { RecurrenceFreq, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
-import { computeNextDueDate, ruleFromDueDate } from "@/lib/task-recurrence";
+import { ruleFromDueDate } from "@/lib/task-recurrence";
+import { completeTaskTx, generateNextOccurrence } from "@/lib/task-completion";
 
 function emptyToNull(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -20,6 +21,7 @@ const taskFormSchema = z.object({
   dueDate: z.string().nullable(),
   assignedToId: z.string().nullable(),
   vehicleId: z.string().nullable(),
+  rentalId: z.string().nullable(),
 });
 
 async function parseTaskForm(formData: FormData) {
@@ -29,6 +31,7 @@ async function parseTaskForm(formData: FormData) {
     dueDate: emptyToNull(formData.get("dueDate")),
     assignedToId: emptyToNull(formData.get("assignedToId")),
     vehicleId: emptyToNull(formData.get("vehicleId")),
+    rentalId: emptyToNull(formData.get("rentalId")),
   });
   const assignedTo = parsed.assignedToId
     ? await prisma.user.findUnique({ where: { id: parsed.assignedToId }, select: { name: true } })
@@ -40,6 +43,7 @@ async function parseTaskForm(formData: FormData) {
     assignedToId: parsed.assignedToId,
     assignedToName: assignedTo?.name ?? null,
     vehicleId: parsed.vehicleId,
+    rentalId: parsed.rentalId,
   };
 }
 
@@ -65,29 +69,6 @@ function parseRecurrenceRule(formData: FormData, dueDate: Date | null) {
     throw new Error("Una tarea que se repite necesita una fecha.");
   }
   return ruleFromDueDate(parsed.freq as RecurrenceFreq, parsed.interval, dueDate);
-}
-
-/** Crea la próxima ocurrencia de una serie, clonando su plantilla vigente. */
-async function generateNextOccurrence(
-  tx: Prisma.TransactionClient,
-  recurrence: TaskRecurrence,
-  fromDate: Date,
-) {
-  if (!recurrence.active) return;
-  const nextDueDate = computeNextDueDate(recurrence, fromDate);
-  await tx.task.create({
-    data: {
-      text: recurrence.text,
-      priority: recurrence.priority,
-      dueDate: nextDueDate,
-      assignedToId: recurrence.assignedToId,
-      assignedToName: recurrence.assignedToName,
-      vehicleId: recurrence.vehicleId,
-      recurrenceId: recurrence.id,
-      createdById: recurrence.createdById,
-      createdByName: recurrence.createdByName,
-    },
-  });
 }
 
 export async function createTask(formData: FormData) {
@@ -122,24 +103,17 @@ export async function createTask(formData: FormData) {
 
 export async function completeTask(id: string) {
   const user = await requireUser();
-  await prisma.$transaction(async (tx) => {
-    // `status: "pending"` en el where es el guard de idempotencia: un doble
-    // submit (doble-tap, reintento) del mismo id no genera la próxima
-    // ocurrencia dos veces.
-    const result = await tx.task.updateMany({
-      where: { id, status: "pending" },
-      data: { status: "done", completedById: user.id, completedAt: new Date() },
-    });
-    if (result.count === 0) return;
-
-    const task = await tx.task.findUniqueOrThrow({ where: { id } });
-    if (!task.recurrenceId) return;
-    const recurrence = await tx.taskRecurrence.findUnique({ where: { id: task.recurrenceId } });
-    if (!recurrence) return;
-    await generateNextOccurrence(tx, recurrence, task.dueDate ?? new Date());
-  });
+  const { resolvedNoteRentalId } = await prisma.$transaction((tx) => completeTaskTx(tx, id, user));
   revalidatePath("/tasks");
   revalidatePath("/");
+  // La tarea venía de una nota de equipo mencionada (@) — completarla
+  // resolvió esa nota también, así que hay que refrescar donde se muestra
+  // el contador de notas sin resolver (mismo criterio que resolveRentalNote).
+  if (resolvedNoteRentalId) {
+    revalidatePath(`/rentals/${resolvedNoteRentalId}`);
+    revalidatePath("/rentals");
+    revalidatePath("/calendar");
+  }
 }
 
 async function assertCanEditTask(taskId: string, user: { id: string; role: UserRole }) {

@@ -19,6 +19,7 @@ export async function getRentalDetail(id: string) {
       extensions: { orderBy: { createdAt: "desc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
+        include: { task: { select: { assignedToName: true, status: true } } },
       },
       // Historial de pagos de esta reserva: entrada única de verdad, ya sea
       // el pago rápido de esta pantalla, el de la entrega o el de la

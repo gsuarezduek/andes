@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
 import { PendingTaskList } from "@/components/tasks/pending-task-list";
+import { getRentalPickerOptions } from "@/lib/cash";
 import {
   getPendingTasks,
   getCompletedTasksPage,
@@ -35,7 +36,7 @@ export default async function TasksPage({
   };
   const completedPage = Math.max(1, Number(sp.cp) || 1);
 
-  const [pending, completed, users, vehicles, myPendingCount, totalPendingCount] = await Promise.all([
+  const [pending, completed, users, vehicles, rentalOptions, myPendingCount, totalPendingCount] = await Promise.all([
     getPendingTasks(filters),
     getCompletedTasksPage(completedPage),
     prisma.user.findMany({ where: OPERATOR_FILTER, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -44,6 +45,7 @@ export default async function TasksPage({
       orderBy: [{ brand: "asc" }, { model: "asc" }],
       select: { id: true, name: true, brand: true, model: true, plate: true },
     }),
+    getRentalPickerOptions(),
     getAssignedPendingCount(user.id),
     prisma.task.count({ where: { status: "pending" } }),
   ]);
@@ -91,7 +93,7 @@ export default async function TasksPage({
         <p className="text-sm text-foreground/60">Coordinación del equipo: lavados, trámites, compras y demás.</p>
       </div>
 
-      <TaskForm users={users} vehicles={vehicles} currentUserId={user.id} />
+      <TaskForm users={users} vehicles={vehicles} rentalOptions={rentalOptions} currentUserId={user.id} />
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-sm">
         <Link
@@ -179,6 +181,7 @@ export default async function TasksPage({
             }))}
             users={users}
             vehicles={vehicles}
+            rentalOptions={rentalOptions}
           />
         )}
       </section>
@@ -206,6 +209,7 @@ export default async function TasksPage({
                           {" · creada por "}
                           {task.createdByName}
                           {task.vehicle ? ` · ${vehicleLabelWithPlate(task.vehicle)}` : ""}
+                          {task.rental ? ` · ${task.rental.clientName}` : ""}
                         </p>
                       </li>
                     ))}

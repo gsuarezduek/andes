@@ -6,6 +6,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { createTask } from "@/app/(app)/tasks/actions";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { RentalPicker } from "@/components/cash/rental-picker";
+import type { RentalPickerOption } from "@/lib/cash";
 import {
   RECURRENCE_INTERVAL_UNIT,
   RECURRENCE_OPTIONS,
@@ -19,10 +21,12 @@ type VehicleOption = { id: string; name: string | null; brand: string; model: st
 export function TaskForm({
   users,
   vehicles,
+  rentalOptions,
   currentUserId,
 }: {
   users: UserOption[];
   vehicles: VehicleOption[];
+  rentalOptions: RentalPickerOption[];
   currentUserId: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -112,6 +116,7 @@ export function TaskForm({
           ))}
         </SelectField>
       </div>
+      <RentalPicker options={rentalOptions} />
       <SubmitButton pendingLabel="Guardando…">Agregar tarea</SubmitButton>
     </form>
   );
