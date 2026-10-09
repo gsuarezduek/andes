@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { prisma } from "@/lib/prisma";
-import { sendTextMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
+import { sendTextMessage, sendMediaMessage, reopenWithTemplate } from "@/lib/whatsapp/send";
+import { sniffBinaryType } from "@/lib/whatsapp/attachment-kind";
 import {
   setConversationRental,
   setConversationPinned,
@@ -16,7 +17,14 @@ import {
 
 export type MessageActionState = { error?: string };
 
-/** Ligado con `.bind(null, conversationId)` desde el form (contrato de `useActionState`). */
+const MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024; // 16 MB — generoso para fotos/documentos, Meta valida el resto
+
+/**
+ * Ligado con `.bind(null, conversationId)` desde el form (contrato de
+ * `useActionState`). Si el form trae un archivo (campo "file", ver
+ * SendForm), manda la foto/video/documento con el texto como caption; si no,
+ * manda el texto solo — un único form y una única action para los dos casos.
+ */
 export async function sendMessage(
   conversationId: string,
   _prev: MessageActionState,
@@ -24,10 +32,18 @@ export async function sendMessage(
 ): Promise<MessageActionState> {
   const user = await requireUser();
   const text = String(formData.get("text") ?? "").trim();
-  if (!text) return { error: "Escribí un mensaje." };
+  const file = formData.get("file");
 
   try {
-    await sendTextMessage(conversationId, text, user.id, displayName(user));
+    if (file instanceof File && file.size > 0) {
+      if (file.size > MAX_ATTACHMENT_BYTES) return { error: "El archivo es demasiado grande (máximo 16 MB)." };
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const mimeType = sniffBinaryType(buffer) ?? file.type ?? "application/octet-stream";
+      await sendMediaMessage(conversationId, { buffer, mimeType, filename: file.name || "archivo" }, text || undefined, user.id, displayName(user));
+    } else {
+      if (!text) return { error: "Escribí un mensaje." };
+      await sendTextMessage(conversationId, text, user.id, displayName(user));
+    }
   } catch (err) {
     return { error: err instanceof Error ? err.message : "No se pudo enviar el mensaje." };
   }

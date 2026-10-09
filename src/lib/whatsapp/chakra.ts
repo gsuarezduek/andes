@@ -15,6 +15,14 @@
  * `apidocs.chakrahq.com/doc-919167` corresponde a otro modo de webhook de
  * Chakra, no al pass-through. `parseInboundEvent` ya está verificado contra
  * un payload real capturado en producción.
+ *
+ * `uploadMedia`/`sendMediaMessage` (adjuntos salientes, v??) todavía NO están
+ * verificados contra una llamada real — se armaron siguiendo el mismo patrón
+ * de ruta que `messages` (ya confirmado) más el endpoint de subida de media
+ * documentado por la Cloud API de Meta. Probar un envío real antes de
+ * confiar en esto con un cliente; si la respuesta de Chakra viene distinta,
+ * el error va a traer el cuerpo crudo para poder ajustar sin ir a ciegas
+ * (mismo método que ya resolvió v19/v20).
  */
 
 import "server-only";
@@ -124,6 +132,83 @@ export async function sendTemplateMessage(
             ? { components: [{ type: "body", parameters: variables.map((text) => ({ type: "text", text })) }] }
             : {}),
         },
+      },
+    },
+  );
+  return { waMessageId: res._data.whatsappMessageId };
+}
+
+/**
+ * Sube un adjunto (lo que el equipo manda, no lo que llega) a la Cloud API,
+ * para después referenciarlo por id en `sendMediaMessage`. Misma ruta base
+ * que mensajería/plantillas (`/v1/ext/plugin/whatsapp/{pluginId}/api/{ver}/
+ * {phoneNumberId}/...`), siguiendo el patrón del endpoint de subida de media
+ * de la Cloud API de Meta (`POST /{PHONE_NUMBER_ID}/media`) — **sin verificar
+ * todavía contra una llamada real** (mismo criterio que el resto de esta
+ * integración, ver el historial arriba): si Chakra envuelve la respuesta
+ * distinto a lo esperado, el error de abajo lo va a decir con el cuerpo
+ * crudo, no en silencio.
+ */
+export async function uploadMedia(
+  account: ChakraAccount,
+  file: { buffer: Buffer; mimeType: string; filename: string },
+): Promise<{ mediaId: string }> {
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }), file.filename);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${account.accessToken}` },
+        body: form,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+    );
+  } catch (err) {
+    throw new ChakraApiError(`No se pudo conectar con Chakra: ${err instanceof Error ? err.message : err}`, 0);
+  }
+  const bodyText = await res.text();
+  if (!res.ok) {
+    throw new ChakraApiError(`Chakra respondió ${res.status} al subir el adjunto: ${bodyText.slice(0, 300)}`, res.status);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    throw new ChakraApiError(`Respuesta no-JSON al subir el adjunto: ${bodyText.slice(0, 300)}`, res.status);
+  }
+  const mediaId =
+    (parsed as { id?: string })?.id ?? (parsed as { _data?: { id?: string } })?._data?.id;
+  if (!mediaId) {
+    throw new ChakraApiError(`No se encontró el id del adjunto en la respuesta: ${bodyText.slice(0, 300)}`, res.status);
+  }
+  return { mediaId };
+}
+
+/** Manda una imagen/video/documento ya subido (ver `uploadMedia`), con caption opcional. */
+export async function sendMediaByMetaId(
+  account: ChakraAccount,
+  toE164: string,
+  media: { waType: "image" | "video" | "document"; mediaId: string; caption?: string; filename?: string },
+): Promise<SendResult> {
+  const mediaObject: Record<string, string> = { id: media.mediaId };
+  if (media.caption) mediaObject.caption = media.caption;
+  if (media.waType === "document" && media.filename) mediaObject.filename = media.filename;
+
+  const res = await chakraRequest<ChakraSendResponse>(
+    `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/messages`,
+    {
+      method: "POST",
+      accessToken: account.accessToken,
+      body: {
+        messaging_product: "whatsapp",
+        to: toE164.replace(/^\+/, ""),
+        type: media.waType,
+        [media.waType]: mediaObject,
       },
     },
   );

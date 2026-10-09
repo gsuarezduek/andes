@@ -8,10 +8,15 @@ import { TextField, TextareaField } from "@/components/ui/fields";
 import { ConversationPicker } from "@/components/whatsapp/conversation-picker";
 import type { ConversationPickerOption } from "@/lib/rental-quotes";
 import type { CalendarColumn, CalendarRow } from "@/lib/calendar";
-import { buildQuoteRange, estimateQuoteTotal, quoteBillableDays, quotePricePerDay } from "@/lib/quote-estimate";
+import { buildQuoteRange, estimateQuoteTotal, quoteDaysBreakdown, quotePricePerDay } from "@/lib/quote-estimate";
 import { formatArs } from "@/lib/contract";
 import { createQuote } from "./actions";
 import { PerDayBox } from "./quote-per-day-box";
+
+/** Horario por defecto al abrir el presupuestador: retiro y devolución a la
+ *  misma hora al día siguiente ya facturan 1 día, no 2 — el caso más común.
+ *  Editable; se puede borrar para volver al criterio de "días de calendario". */
+const DEFAULT_TIME = "09:00";
 
 /** "2026-07-18" → "18/07". */
 function fmtShortDate(s: string): string {
@@ -30,6 +35,7 @@ export function QuoteFormModal({
   row,
   columns,
   conversationOptions,
+  extraHourPercent,
   onClose,
 }: {
   vehicleId: string;
@@ -38,6 +44,7 @@ export function QuoteFormModal({
   row: CalendarRow;
   columns: CalendarColumn[];
   conversationOptions: ConversationPickerOption[];
+  extraHourPercent: number | null;
   onClose: () => void;
 }) {
   const days = endIndex - startIndex + 1;
@@ -49,18 +56,17 @@ export function QuoteFormModal({
   // alimenta el marcador visual del encabezado.
   const daySeasons = row.seasonsByDay.slice(startIndex, endIndex + 1);
 
-  // Horarios de retiro/devolución (opcionales): sin ellos, "días" es la
-  // cantidad de días de calendario elegidos (criterio de siempre). Con
-  // horarios, puede facturarse menos días que los bloqueados en la grilla
-  // (ej. retiro hoy 9am + devolución mañana 9am = 1 día, no 2) — ver
-  // `buildQuoteRange`.
-  const [pickupTime, setPickupTime] = useState("");
-  const [returnTime, setReturnTime] = useState("");
+  // Horarios de retiro/devolución: siempre visibles, precargados a la misma
+  // hora (retiro hoy 9am + devolución mañana 9am ya factura 1 día, no 2) —
+  // editable, y se puede vaciar para volver al criterio de "días de
+  // calendario" (ver `buildQuoteRange`).
+  const [pickupTime, setPickupTime] = useState(DEFAULT_TIME);
+  const [returnTime, setReturnTime] = useState(DEFAULT_TIME);
   const { startAt, endAt } = buildQuoteRange(startKey, endKey, pickupTime || null, returnTime || null);
   const timesInvalid = endAt.getTime() <= startAt.getTime();
-  const billableDays = timesInvalid ? days : quoteBillableDays(startAt, endAt);
+  const breakdown = timesInvalid ? { days, extraHours: 0 } : quoteDaysBreakdown(startAt, endAt);
 
-  const suggested = estimateQuoteTotal(row.dailyRate, row.todaySeasons, daySeasons.slice(0, billableDays));
+  const suggested = estimateQuoteTotal(row.dailyRate, row.todaySeasons, daySeasons, breakdown, extraHourPercent);
   const seasonDaysInRange = rangeDays
     .map((c, i) => ({ key: c.key, seasons: daySeasons[i]! }))
     .filter((d) => d.seasons.length > 0);
@@ -74,8 +80,13 @@ export function QuoteFormModal({
       .map((q) => `Presupuesto: ${q.clientName ?? "sin nombre"}`),
   ];
 
-  const [total, setTotal] = useState(suggested != null ? String(suggested) : "");
-  const perDay = quotePricePerDay(Number(total.replace(",", ".")), billableDays);
+  // El total sigue al sugerido mientras el usuario no lo haya editado a
+  // mano — derivado directo, sin estado espejo: fix del bug donde quedaba
+  // pegado al sugerido inicial y, al cambiar los horarios, el "precio por
+  // día" se recalculaba sobre ese total viejo (subía en vez de quedar igual).
+  const [totalOverride, setTotalOverride] = useState<string | null>(null);
+  const total = totalOverride ?? (suggested != null ? String(suggested.total) : "");
+  const perDay = quotePricePerDay(Number(total.replace(",", ".")), breakdown.days);
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(null);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string>();
@@ -110,11 +121,9 @@ export function QuoteFormModal({
           </p>
         </div>
 
-        <details className="rounded-lg border border-foreground/10 p-3 text-sm">
-          <summary className="cursor-pointer select-none font-medium text-foreground/70">
-            Horarios de retiro/devolución (opcional)
-          </summary>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-foreground/10 p-3 text-sm">
+          <p className="mb-2 font-medium text-foreground/70">Horarios de retiro/devolución</p>
+          <div className="grid grid-cols-2 gap-3">
             <TextField
               id="pickupTime"
               label="Hora de retiro"
@@ -134,13 +143,20 @@ export function QuoteFormModal({
             <p className="mt-2 text-xs font-medium text-red-600">
               La devolución tiene que ser posterior al retiro.
             </p>
-          ) : (pickupTime || returnTime) && billableDays !== days ? (
+          ) : (
             <p className="mt-2 text-xs text-foreground/60">
-              Con esos horarios se factura <span className="font-semibold">{billableDays}</span> día
-              {billableDays === 1 ? "" : "s"} (aunque ocupe {days} día{days === 1 ? "" : "s"} del calendario).
+              Se factura <span className="font-semibold">{breakdown.days}</span> día
+              {breakdown.days === 1 ? "" : "s"}
+              {breakdown.extraHours > 0
+                ? ` + ${breakdown.extraHours} hora${breakdown.extraHours === 1 ? "" : "s"} extra`
+                : ""}
+              {breakdown.days + (breakdown.extraHours > 0 ? 1 : 0) !== days
+                ? ` (ocupa ${days} día${days === 1 ? "" : "s"} del calendario)`
+                : ""}
+              .
             </p>
-          ) : null}
-        </details>
+          )}
+        </div>
 
         {conflicts.length > 0 ? (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-400">
@@ -161,16 +177,22 @@ export function QuoteFormModal({
           label="Total estimado"
           hint={
             suggested != null
-              ? `Sugerido: ${formatArs(suggested)} (tarifa × días${seasonDaysInRange.length > 0 ? ", con temporada" : ""})`
+              ? `Sugerido: ${formatArs(suggested.total)} (tarifa × días${seasonDaysInRange.length > 0 ? ", con temporada" : ""})`
               : "Sin tarifa cargada para este auto"
           }
           type="text"
           inputMode="decimal"
           prefix="$"
           value={total}
-          onChange={(e) => setTotal(e.target.value)}
+          onChange={(e) => setTotalOverride(e.target.value)}
         />
-        {perDay != null ? <PerDayBox perDay={perDay} days={billableDays} /> : null}
+        {perDay != null ? (
+          <PerDayBox
+            perDay={perDay}
+            days={breakdown.days}
+            extra={suggested && suggested.extraAmount > 0 ? { hours: breakdown.extraHours, amount: suggested.extraAmount } : null}
+          />
+        ) : null}
         <TextField id="clientName" label="Cliente" hint="Opcional" type="text" />
         <TextareaField id="note" label="Nota" hint="Opcional" />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useEffect, useCallback, useMemo, useState, type KeyboardEvent } from "react";
+import { useActionState, useRef, useEffect, useCallback, useMemo, useState, type KeyboardEvent, type ChangeEvent } from "react";
 import { FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { sendMessage, type MessageActionState } from "@/app/(app)/whatsapp/actions";
@@ -8,14 +8,18 @@ import { matchQuickReplies } from "@/lib/whatsapp/quick-reply-match";
 import type { QuickReplyOption } from "@/lib/whatsapp/quick-replies";
 import { QuickReplyDropdown } from "@/components/whatsapp/quick-reply-dropdown";
 import { QuickReplyManagerModal } from "@/components/whatsapp/quick-reply-manager";
+import { EmojiPicker } from "@/components/whatsapp/emoji-picker";
+import { AttachmentPreview } from "@/components/whatsapp/attachment-preview";
 
 const initialState: MessageActionState = {};
+const MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024; // 16 MB — mismo tope que valida el servidor (ver whatsapp/actions.ts)
 
 export function SendForm({ conversationId, quickReplies }: { conversationId: string; quickReplies: QuickReplyOption[] }) {
   const action = sendMessage.bind(null, conversationId);
   const [state, formAction] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Plantillas rápidas ("/") — ver quick-reply-match.ts. `replies` es la
   // lista viva (se actualiza sola al crear/editar/borrar desde el modal, sin
@@ -26,6 +30,10 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
   const [activeIndex, setActiveIndex] = useState(0);
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerSeed, setManagerSeed] = useState<string | undefined>(undefined);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedPreviewUrl, setAttachedPreviewUrl] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string>();
 
   const filtered = useMemo(() => matchQuickReplies(replies, slashQuery ?? ""), [replies, slashQuery]);
   const dropdownOpen = slashQuery !== null && !suppressed;
@@ -47,6 +55,16 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
     }
   }, [state, autoResize]);
 
+  // Red de seguridad si el componente se desmonta con un adjunto todavía
+  // puesto (ej. se navega a otra conversación) — en el camino normal ya se
+  // libera a mano en setAttachment, esto solo evita la pérdida de memoria del
+  // caso borde. Sin setState acá, no dispara el lint de abajo.
+  useEffect(() => {
+    return () => {
+      if (attachedPreviewUrl) URL.revokeObjectURL(attachedPreviewUrl);
+    };
+  }, [attachedPreviewUrl]);
+
   // Escribir "/" como primer carácter del mensaje muestra la lista — igual
   // que "Respuestas rápidas" en la app de WhatsApp Business.
   function handleInput() {
@@ -54,9 +72,25 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
     setSuppressed(false);
     const value = textRef.current?.value ?? "";
     const firstLine = value.split("\n", 1)[0];
-    setSlashQuery(firstLine.startsWith("/") ? firstLine.slice(1) : null);
+    const nextQuery = firstLine.startsWith("/") ? firstLine.slice(1) : null;
+    setSlashQuery(nextQuery);
+    if (nextQuery !== null) setEmojiOpen(false); // no superponer los dos popovers
   }
 
+  /** Inserta en el cursor (emojis) sin pisar el resto de lo que ya se escribió. */
+  function insertAtCursor(snippet: string) {
+    const el = textRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + snippet + el.value.slice(end);
+    autoResize();
+    el.focus();
+    const cursor = start + snippet.length;
+    el.setSelectionRange(cursor, cursor);
+  }
+
+  /** Reemplaza todo el contenido (plantillas rápidas: elegir una es como "ejecutar un comando"). */
   function insertReplyText(text: string) {
     const el = textRef.current;
     if (!el) return;
@@ -71,6 +105,37 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
     setManagerSeed(seed);
     setManagerOpen(true);
     setSlashQuery(null);
+  }
+
+  /** Genera (y libera la anterior) la miniatura acá mismo, en el evento que
+   *  elige el archivo — no en un efecto reaccionando a `attachedFile` (ver
+   *  AttachmentPreview, mismo criterio que ya usa inspection-wizard.tsx). */
+  function setAttachment(file: File | null) {
+    if (attachedPreviewUrl) URL.revokeObjectURL(attachedPreviewUrl);
+    setAttachedFile(file);
+    setAttachedPreviewUrl(file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+  }
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setAttachmentError(undefined);
+    if (!file) {
+      setAttachment(null);
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError("El archivo es demasiado grande (máximo 16 MB).");
+      e.target.value = "";
+      setAttachment(null);
+      return;
+    }
+    setAttachment(file);
+  }
+
+  function removeAttachment() {
+    setAttachment(null);
+    setAttachmentError(undefined);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -97,9 +162,20 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
         ref={formRef}
         action={formAction}
         onSubmit={() => setSlashQuery(null)} // cierra el picker al enviar, no hace falta esperar el resultado
+        onReset={() => {
+          // Dispara cuando `formRef.current?.reset()` corre arriba (envío
+          // exitoso) — recién ahí se limpia el adjunto, no al intentar
+          // enviar: si falla, el archivo elegido sigue ahí para reintentar
+          // (igual que el texto, que tampoco se borra en el error).
+          setAttachment(null);
+          setAttachmentError(undefined);
+        }}
         className="flex flex-col gap-2 border-t border-foreground/10 pt-3"
       >
-        <FormError>{state.error}</FormError>
+        <FormError>{state.error ?? attachmentError}</FormError>
+        {attachedFile && (
+          <AttachmentPreview file={attachedFile} previewUrl={attachedPreviewUrl} onRemove={removeAttachment} />
+        )}
         <div className="relative flex items-end gap-2">
           {dropdownOpen && (
             <QuickReplyDropdown
@@ -111,6 +187,29 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
               onManage={() => openManager(slashQuery || undefined)}
             />
           )}
+          {emojiOpen && <EmojiPicker onSelect={insertAtCursor} onClose={() => setEmojiOpen(false)} />}
+          <input ref={fileInputRef} type="file" name="file" onChange={handleFileChange} className="hidden" />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Adjuntar foto o archivo"
+            aria-label="Adjuntar foto o archivo"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+          >
+            📎
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmojiOpen((o) => !o);
+              setSuppressed(true); // no superponer con el picker de plantillas rápidas
+            }}
+            title="Emojis"
+            aria-label="Emojis"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+          >
+            😊
+          </button>
           <textarea
             ref={textRef}
             onInput={handleInput}
@@ -119,8 +218,8 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
             onFocus={() => setSuppressed(false)}
             name="text"
             rows={2}
-            placeholder='Escribí un mensaje… (probá "/" para una plantilla)'
-            required
+            placeholder={attachedFile ? "Agregá un texto (opcional)…" : 'Escribí un mensaje… (probá "/" para una plantilla)'}
+            required={!attachedFile}
             className="max-h-[40vh] min-h-[2.5rem] w-full flex-1 resize-none rounded-lg border border-foreground/15 bg-transparent p-2.5 text-base outline-none focus:border-foreground/40"
           />
           <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>

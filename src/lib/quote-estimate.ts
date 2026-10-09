@@ -26,22 +26,99 @@ function seasonMultiplier(seasons: SeasonDiff[]): number {
   return seasons.reduce((acc, s) => acc * (1 + s.diffPercent / 100), 1);
 }
 
+/** A partir de este resto de horas sobre los días completos, conviene cobrar
+ *  directamente el día entero en vez de seguir sumando por hora extra — con
+ *  el 20% por hora que se usa hoy, 5 horas ya igualan el 100% de un día. */
+const EXTRA_HOUR_DAY_THRESHOLD = 5;
+
+export type QuoteDaysBreakdown = {
+  /** Días completos de 24hs (nunca menos de 1). */
+  days: number;
+  /** Horas del resto que se cobran aparte como "hora extra" — 0 si no hay
+   *  resto, o si el resto ya se redondeó a un día completo por superar
+   *  `EXTRA_HOUR_DAY_THRESHOLD`. */
+  extraHours: number;
+};
+
+/**
+ * Desglose de días/horas de un rango real [retiro, devolución) — reemplaza
+ * el criterio viejo de "redondear siempre hacia arriba a día completo" por
+ * "día + hora extra", el mismo que ya usa la hora extra del contrato real
+ * (`extraHourAmount` en `contract.ts`, % de la tarifa diaria configurado en
+ * Condiciones). Ejemplo: retiro hoy 9am, devolución mañana 9am = 1 día
+ * exacto (antes daba 2, porque esas son las columnas de calendario que hay
+ * que bloquear, no los días facturables).
+ */
+export function quoteDaysBreakdown(startAt: Date, endAt: Date): QuoteDaysBreakdown {
+  // Redondeado al minuto: evita que un resto de milisegundos (ej. por cómo
+  // se arman los `Date`) cuente como si hubiera una hora extra real.
+  const diffHours = Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60_000) / 60);
+  if (diffHours <= 24) return { days: 1, extraHours: 0 };
+  const fullDays = Math.floor(diffHours / 24);
+  const restHours = diffHours - fullDays * 24;
+  if (restHours < 1 / 60) return { days: fullDays, extraHours: 0 };
+  if (restHours >= EXTRA_HOUR_DAY_THRESHOLD) return { days: fullDays + 1, extraHours: 0 };
+  return { days: fullDays, extraHours: restHours };
+}
+
+/** Días a efectos de mostrar/dividir en un número entero (mensaje de
+ *  WhatsApp, vista de solo lectura del detalle): el resto de horas extra, si
+ *  lo hay, se redondea hacia arriba a un día más. Para el desglose real en
+ *  pesos (día + % de hora extra) usar `quoteDaysBreakdown` + `estimateQuoteTotal`. */
+export function quoteBillableDays(startAt: Date, endAt: Date): number {
+  const { days, extraHours } = quoteDaysBreakdown(startAt, endAt);
+  return extraHours > 0 ? days + 1 : days;
+}
+
 /**
  * `todaySeasons`: temporadas vigentes hoy (para reconstruir la tarifa base a
- * partir de `dailyRate`). `daySeasonsByDay`: una entrada por cada día
- * seleccionado del presupuesto, con las temporadas vigentes ESE día.
+ * partir de `dailyRate`). `daySeasonsByDay`: una entrada por cada día de
+ * CALENDARIO seleccionado del presupuesto (no por día facturable), con las
+ * temporadas vigentes ese día — los primeros `breakdown.days` se cobran
+ * enteros; el resto de horas (`breakdown.extraHours`), si lo hay, se cobra
+ * como `extraHourPercent`% de la tarifa del día siguiente a esos días
+ * completos (el día en que cae la devolución real).
+ *
+ * `extraHourPercent` null (sin configurar en Condiciones) → cualquier resto
+ * de horas se cobra como un día completo más, igual que el criterio viejo —
+ * no se regala tiempo sin cobrar por falta de configuración.
  */
+export type QuoteEstimate = {
+  /** Total sugerido (redondeado), ya incluye `extraAmount`. */
+  total: number;
+  /** Importe de las horas extra incluido en `total` — 0 si no hay resto, o
+   *  si no hay `extraHourPercent` configurado (ahí el resto se cobra como
+   *  un día completo más, dentro de `total`, no como importe aparte). */
+  extraAmount: number;
+};
+
 export function estimateQuoteTotal(
   dailyRate: number | null,
   todaySeasons: SeasonDiff[],
   daySeasonsByDay: SeasonDiff[][],
-): number | null {
+  breakdown: QuoteDaysBreakdown,
+  extraHourPercent: number | null,
+): QuoteEstimate | null {
   if (dailyRate == null || daySeasonsByDay.length === 0) return null;
   const todayMultiplier = seasonMultiplier(todaySeasons);
   if (todayMultiplier <= 0) return null; // guard teórico, no debería pasar
   const baseRate = dailyRate / todayMultiplier;
-  const total = daySeasonsByDay.reduce((sum, seasons) => sum + baseRate * seasonMultiplier(seasons), 0);
-  return Math.round(total);
+
+  const hasExtraCharge = extraHourPercent != null && breakdown.extraHours > 0;
+  const fullDays = breakdown.extraHours > 0 && !hasExtraCharge ? breakdown.days + 1 : breakdown.days;
+
+  let daysTotal = 0;
+  for (let i = 0; i < fullDays; i++) {
+    daysTotal += baseRate * seasonMultiplier(daySeasonsByDay[i] ?? []);
+  }
+
+  let extraAmount = 0;
+  if (hasExtraCharge) {
+    const extraDaySeasons = daySeasonsByDay[breakdown.days] ?? daySeasonsByDay[daySeasonsByDay.length - 1] ?? [];
+    extraAmount = baseRate * seasonMultiplier(extraDaySeasons) * (extraHourPercent! / 100) * breakdown.extraHours;
+  }
+
+  return { total: Math.round(daysTotal + extraAmount), extraAmount: Math.round(extraAmount) };
 }
 
 /** Precio por día = total ÷ días, redondeado a peso entero. `null` si falta
@@ -85,16 +162,6 @@ export function buildQuoteRange(
     ? mendozaWallTimeToUtc(`${endDayKey}T${returnTime}`)
     : new Date(mendozaWallTimeToUtc(`${endDayKey}T00:00`).getTime() + MS_PER_DAY);
   return { startAt, endAt };
-}
-
-/** Días de facturación entre retiro y devolución, redondeado hacia arriba —
- *  un día empezado cuenta entero, mismo criterio que `extensionExtraDays`
- *  (extensión de un alquiler ya entregado, `src/lib/rental-extension.ts`).
- *  Sin horarios cargados coincide con la cantidad de días de calendario
- *  elegidos en la grilla. Nunca menos de 1. */
-export function quoteBillableDays(startAt: Date, endAt: Date): number {
-  const diff = endAt.getTime() - startAt.getTime();
-  return Math.max(1, Math.ceil(diff / MS_PER_DAY));
 }
 
 /** Inversa de `buildQuoteRange`: recupera el día/horario de retiro y

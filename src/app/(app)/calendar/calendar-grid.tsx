@@ -21,6 +21,7 @@ export function CalendarGrid({
   roomRows,
   unassigned,
   conversationOptions,
+  extraHourPercent,
   userId,
   isAdmin,
 }: {
@@ -29,6 +30,7 @@ export function CalendarGrid({
   roomRows: RoomCalendarRow[];
   unassigned: CalendarRow[];
   conversationOptions: ConversationPickerOption[];
+  extraHourPercent: number | null;
   userId: string;
   isAdmin: boolean;
 }) {
@@ -329,6 +331,7 @@ export function CalendarGrid({
           row={draftRow}
           columns={columns}
           conversationOptions={conversationOptions}
+          extraHourPercent={extraHourPercent}
           onClose={() => setDraftRange(null)}
         />
       ) : null}
