@@ -64,11 +64,12 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <CalendarLegend showRooms={data.roomRows.length > 0} />
+      <CalendarLegend showRooms={data.roomRows.length > 0} showThirdParty={data.thirdPartyRows.length > 0} />
 
       <CalendarGrid
         columns={data.columns}
         rows={data.rows}
+        thirdPartyRows={data.thirdPartyRows}
         roomRows={data.roomRows}
         unassigned={data.unassigned}
         conversationOptions={conversationOptions}

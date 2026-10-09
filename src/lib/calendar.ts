@@ -167,6 +167,36 @@ export type CalendarColumn = {
   special: { label: string } | null;
 };
 
+/** Reserva de un vehículo de tercero en la grilla. Igual geometría que los
+ *  autos de flota (columna entera por día, no media columna como Habitaciones
+ *  — ver `roomBarGeometry`): es un auto que se alquila como cualquier otro,
+ *  solo que el dueño es un tercero. */
+export type ThirdPartyCalendarBar = {
+  bookingId: string;
+  vehicleId: string;
+  startIndex: number;
+  span: number;
+  lane: number;
+  clientName: string;
+  notes: string | null;
+  totalAmount: number;
+  currency: "ars" | "usd";
+  /** Cobrado en la moneda del total (ingresos de Caja vinculados). */
+  paid: number;
+  startAt: Date;
+  endAt: Date;
+};
+
+export type ThirdPartyCalendarRow = {
+  id: string;
+  plate: string;
+  label: string;
+  ownerName: string;
+  ownerPhone: string | null;
+  bars: ThirdPartyCalendarBar[];
+  laneCount: number;
+};
+
 /** Estadía de una habitación en la grilla. `startIndex`/`span` van en MEDIAS
  *  columnas (la entrada y la salida caen a mediodía — ver `roomBarGeometry`). */
 export type RoomCalendarBar = {
@@ -205,6 +235,8 @@ export type RoomCalendarRow = {
 export type CalendarData = {
   columns: CalendarColumn[];
   rows: CalendarRow[];
+  /** Vehículos de terceros, entre los autos propios y las Habitaciones. */
+  thirdPartyRows: ThirdPartyCalendarRow[];
   /** Habitaciones (alquiler temporario), debajo de los autos. */
   roomRows: RoomCalendarRow[];
   /** Reservas sin unidad asignada (una fila por reserva; incluye sin confirmar). */
@@ -338,6 +370,43 @@ function toBar(
     verified,
     verifiedAt: verified ? r.verifiedAt : null,
     verifiedByName: verified ? r.verifiedByName : null,
+  };
+}
+
+type ThirdPartyBookingRow = {
+  id: string;
+  vehicleId: string;
+  clientName: string;
+  startAt: Date;
+  endAt: Date;
+  notes: string | null;
+  totalAmount: unknown;
+  currency: "ars" | "usd";
+};
+
+/** Construye la barra de una reserva de tercero recortada a la ventana —
+ *  misma geometría de día entero que `toBar` (no media columna como Rooms). */
+function toThirdPartyBar(
+  b: ThirdPartyBookingRow,
+  windowStart: Date,
+  days: number,
+): Omit<ThirdPartyCalendarBar, "lane" | "paid"> | null {
+  const relStart = (b.startAt.getTime() - windowStart.getTime()) / DAY_MS;
+  const relEnd = (b.endAt.getTime() - windowStart.getTime()) / DAY_MS;
+  const startIndex = Math.max(0, Math.floor(relStart));
+  const endIndex = Math.min(days - 1, Math.ceil(relEnd) - 1);
+  if (endIndex < startIndex) return null;
+  return {
+    bookingId: b.id,
+    vehicleId: b.vehicleId,
+    startIndex,
+    span: endIndex - startIndex + 1,
+    clientName: b.clientName?.trim() || "Sin nombre",
+    notes: b.notes?.trim() || null,
+    totalAmount: Number(b.totalAmount),
+    currency: b.currency,
+    startAt: b.startAt,
+    endAt: b.endAt,
   };
 }
 
@@ -498,7 +567,7 @@ export async function getCalendarData(opts?: {
   const windowStartKey = formatDateInput(windowStart);
   const windowEndKey = addDaysToKey(windowStartKey, days);
 
-  const [vehicles, notes, rentals, seasonRates, quotes, rooms, specialDates] = await Promise.all([
+  const [vehicles, notes, rentals, seasonRates, quotes, thirdPartyVehicles, rooms, specialDates] = await Promise.all([
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       // asc pone NULLS LAST en Postgres → los sin orden quedan al final.
@@ -569,6 +638,21 @@ export async function getCalendarData(opts?: {
         conversation: { select: { phoneE164: true, customer: { select: { name: true } } } },
       },
       orderBy: { startAt: "asc" },
+    }),
+    prisma.thirdPartyVehicle.findMany({
+      where: { archivedAt: null },
+      orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }],
+      include: {
+        bookings: {
+          // Las canceladas no se dibujan (misma convención que los alquileres propios).
+          where: {
+            status: "confirmed",
+            startAt: { lt: windowEnd },
+            endAt: { gt: windowStart },
+          },
+          orderBy: { startAt: "asc" },
+        },
+      },
     }),
     prisma.room.findMany({
       where: { archivedAt: null },
@@ -708,6 +792,42 @@ export async function getCalendarData(opts?: {
     paidByBooking.set(p.roomBookingId, cur);
   }
 
+  // Cobrado por reserva de tercero (mismo criterio que las habitaciones).
+  const thirdPartyBookingIds = thirdPartyVehicles.flatMap((v) => v.bookings.map((b) => b.id));
+  const thirdPartyPaidRows = thirdPartyBookingIds.length
+    ? await prisma.cashMovement.groupBy({
+        by: ["thirdPartyVehicleBookingId", "currency"],
+        where: { thirdPartyVehicleBookingId: { in: thirdPartyBookingIds }, type: "income", deletedAt: null },
+        _sum: { amount: true },
+      })
+    : [];
+  const paidByThirdPartyBooking = new Map<string, { ars: number; usd: number }>();
+  for (const p of thirdPartyPaidRows) {
+    if (!p.thirdPartyVehicleBookingId) continue;
+    const cur = paidByThirdPartyBooking.get(p.thirdPartyVehicleBookingId) ?? { ars: 0, usd: 0 };
+    cur[p.currency] += Number(p._sum.amount ?? 0);
+    paidByThirdPartyBooking.set(p.thirdPartyVehicleBookingId, cur);
+  }
+
+  const thirdPartyRows: ThirdPartyCalendarRow[] = thirdPartyVehicles.map((v) => {
+    const bars: Omit<ThirdPartyCalendarBar, "lane">[] = [];
+    for (const b of v.bookings) {
+      const bar = toThirdPartyBar(b, windowStart, days);
+      if (!bar) continue;
+      bars.push({ ...bar, paid: paidByThirdPartyBooking.get(b.id)?.[bar.currency] ?? 0 });
+    }
+    const { bars: laned, laneCount } = assignLanes(bars);
+    return {
+      id: v.id,
+      plate: v.plate,
+      label: `${v.brand} ${v.model}`,
+      ownerName: v.ownerName,
+      ownerPhone: v.ownerPhone,
+      bars: laned,
+      laneCount,
+    };
+  });
+
   const roomRows: RoomCalendarRow[] = rooms.map((room) => {
     const views = toBookingViews(room.bookings).filter((v) => !v.mirrored && countsAsOccupancy(v));
     const bars: Omit<RoomCalendarBar, "lane">[] = [];
@@ -749,6 +869,7 @@ export async function getCalendarData(opts?: {
   return {
     columns,
     rows,
+    thirdPartyRows,
     roomRows,
     unassigned,
     from,

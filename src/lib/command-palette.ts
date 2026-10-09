@@ -25,6 +25,7 @@ const COMMANDS: Command[] = [
   { id: "whatsapp", label: "WhatsApp", href: "/whatsapp", group: "Ir a", keywords: ["chat", "mensajes", "clientes", "inbox"] },
   { id: "calendar", label: "Calendario", href: "/calendar", group: "Ir a", keywords: ["agenda", "timeline", "gantt", "disponibilidad"] },
   { id: "vehicles", label: "Vehículos", href: "/vehicles", group: "Ir a", keywords: ["autos", "flota", "patente", "service"] },
+  { id: "third-party-vehicles", label: "Terceros", href: "/third-party-vehicles", group: "Ir a", keywords: ["vehiculos de terceros", "autos de terceros", "titular"] },
   { id: "rooms", label: "Habitaciones", href: "/rooms", group: "Ir a", keywords: ["airbnb", "booking", "temporario", "hospedaje", "cuarto"] },
   { id: "caja", label: "Caja", href: "/caja", group: "Ir a", keywords: ["plata", "cobros", "pagos", "ingresos", "egresos", "saldos", "garantias", "proveedores", "asociados"] },
   { id: "tasks", label: "Tareas", href: "/tasks", group: "Ir a", keywords: ["pendientes", "todo"] },
@@ -37,6 +38,7 @@ const COMMANDS: Command[] = [
 
   { id: "new-rental", label: "Nueva reserva", href: "/rentals/new", group: "Crear", keywords: ["alquiler manual", "agregar"] },
   { id: "new-vehicle", label: "Nuevo vehículo", href: "/vehicles/new", group: "Crear", keywords: ["auto", "agregar"], adminOnly: true },
+  { id: "new-third-party-vehicle", label: "Nuevo vehículo de tercero", href: "/third-party-vehicles/new", group: "Crear", keywords: ["auto", "agregar", "titular"], adminOnly: true },
   { id: "new-room", label: "Nueva habitación", href: "/rooms/new", group: "Crear", keywords: ["airbnb", "booking", "agregar"], adminOnly: true },
   { id: "vehicle-qr", label: "Hoja de QR de la flota", href: "/vehicles/qr", group: "Crear", keywords: ["imprimir", "codigos"], adminOnly: true },
   { id: "new-user", label: "Nuevo usuario", href: "/users/new", group: "Crear", keywords: ["empleado", "administrador", "alta"], adminOnly: true },

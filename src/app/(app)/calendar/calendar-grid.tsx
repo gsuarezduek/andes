@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CalendarBar, CalendarColumn, CalendarNote, CalendarQuoteBar, CalendarRow, RoomCalendarBar, RoomCalendarRow } from "@/lib/calendar";
+import type {
+  CalendarBar,
+  CalendarColumn,
+  CalendarNote,
+  CalendarQuoteBar,
+  CalendarRow,
+  RoomCalendarBar,
+  RoomCalendarRow,
+  ThirdPartyCalendarBar,
+  ThirdPartyCalendarRow,
+} from "@/lib/calendar";
 import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calendar-constants";
 import { Row } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
+import { ThirdPartyRow } from "./third-party-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 import { QuoteFormModal } from "./quote-form-modal";
 import { QuoteDetailModal } from "./quote-detail-modal";
@@ -18,6 +29,7 @@ const APP_HEADER_H = 65;
 export function CalendarGrid({
   columns,
   rows,
+  thirdPartyRows,
   roomRows,
   unassigned,
   conversationOptions,
@@ -27,6 +39,7 @@ export function CalendarGrid({
 }: {
   columns: CalendarColumn[];
   rows: CalendarRow[];
+  thirdPartyRows: ThirdPartyCalendarRow[];
   roomRows: RoomCalendarRow[];
   unassigned: CalendarRow[];
   conversationOptions: ConversationPickerOption[];
@@ -90,6 +103,17 @@ export function CalendarGrid({
       y: e.clientY,
     });
   };
+  const showThirdParty = (bar: ThirdPartyCalendarBar, e: React.MouseEvent) => {
+    const row = thirdPartyRows.find((x) => x.id === bar.vehicleId);
+    setHover({
+      type: "thirdParty",
+      bar,
+      ownerName: row?.ownerName ?? "",
+      ownerPhone: row?.ownerPhone ?? null,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -104,7 +128,9 @@ export function CalendarGrid({
           ? `quote:${hover.quote.quoteId}`
           : hover?.type === "room"
             ? `room:${hover.room.bookingId}`
-            : null;
+            : hover?.type === "thirdParty"
+              ? `thirdParty:${hover.bar.bookingId}`
+              : null;
 
   // Selección de auto+rango para un presupuesto nuevo (dos toques): sin
   // selección activa, el primer toque la arranca; un segundo toque en la
@@ -250,6 +276,34 @@ export function CalendarGrid({
             <div className="px-3 py-6 text-center text-sm text-foreground/50">
               No hay vehículos en la flota.
             </div>
+          ) : null}
+
+          {/* Vehículos de terceros */}
+          {thirdPartyRows.length > 0 ? (
+            <>
+              <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
+                <div
+                  className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
+                >
+                  Terceros
+                </div>
+                <div style={{ width: trackW }} />
+              </div>
+              {thirdPartyRows.map((row) => (
+                <ThirdPartyRow
+                  key={row.id}
+                  row={row}
+                  columns={columns}
+                  trackW={trackW}
+                  colW={colW}
+                  rowH={rowH}
+                  activeKey={activeKey}
+                  onEnter={showThirdParty}
+                  onMove={move}
+                  onLeave={hide}
+                />
+              ))}
+            </>
           ) : null}
 
           {/* Habitaciones (alquiler temporario) */}
