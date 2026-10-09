@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink } from "@/components/ui/button";
-import { getOwnAccountBalances, getOwnAccountLedger } from "@/lib/cash";
+import { getOwnAccountBalances, getOwnAccountLedger, getOwnAccountBalanceHistory } from "@/lib/cash";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
@@ -17,6 +17,13 @@ import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 import { FundsSection } from "@/components/cash/funds-section";
 import { getFundMovements } from "@/lib/investment-funds-queries";
 import { fundBalance } from "@/lib/investment-funds";
+import { BalanceHistoryChart } from "@/components/cash/balance-history-chart";
+import {
+  BALANCE_HISTORY_PERIOD_OPTIONS,
+  parseBalanceHistoryPeriod,
+  parseBalanceHistoryGranularity,
+  resolveBalanceHistoryGranularity,
+} from "@/lib/balance-history";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -30,11 +37,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
  * (ver `AccountCard`): pedido del dueño para no amontonar varias cuentas en
  * una sola pantalla larga. Admin-only, mismo criterio que la pestaña Saldos.
  */
-export default async function AccountLedgerPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AccountLedgerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ period?: string; granularity?: string }>;
+}) {
   await requireAdmin();
   const { id } = await params;
+  const { period: rawPeriod, granularity: rawGranularity } = await searchParams;
+  const period = parseBalanceHistoryPeriod(rawPeriod);
+  const granularity = resolveBalanceHistoryGranularity(period, parseBalanceHistoryGranularity(rawGranularity));
 
-  const [accounts, ledger, transfers, paymentMethods, expenseCategories, pm] = await Promise.all([
+  const [accounts, ledger, transfers, paymentMethods, expenseCategories, pm, balanceHistory] = await Promise.all([
     getOwnAccountBalances(),
     getOwnAccountLedger(id),
     getAccountTransfers({ accountId: id, limit: 100 }),
@@ -49,6 +65,7 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
       select: { id: true, name: true },
     }),
     prisma.paymentMethod.findUnique({ where: { id }, select: { hasInvestmentFunds: true } }),
+    getOwnAccountBalanceHistory(id, period, granularity),
   ]);
 
   const account = accounts.find((a) => a.id === id);
@@ -86,6 +103,39 @@ export default async function AccountLedgerPage({ params }: { params: Promise<{ 
             </p>
           )}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle>Evolución del saldo</SectionTitle>
+          <form className="flex items-center gap-2">
+            <select
+              name="period"
+              defaultValue={period}
+              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            >
+              {BALANCE_HISTORY_PERIOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              name="granularity"
+              defaultValue={granularity}
+              disabled={period === "12m"}
+              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-50"
+            >
+              <option value="daily">Diario</option>
+              <option value="weekly">Semanal</option>
+            </select>
+            <button className="h-9 rounded-lg border border-foreground/15 px-3 text-sm font-medium">Aplicar</button>
+          </form>
+        </div>
+        {period === "12m" && (
+          <p className="text-xs text-foreground/50">En el último año se muestra siempre semanal (diario sería demasiado ruido).</p>
+        )}
+        <BalanceHistoryChart points={balanceHistory} granularity={granularity} />
       </div>
 
       {fundMovements && (

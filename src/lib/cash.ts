@@ -13,6 +13,15 @@ import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals 
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 import { computeRentalPayments } from "@/lib/rental-payments";
 import { fundBalance } from "@/lib/investment-funds";
+import {
+  buildBalanceHistory,
+  balanceHistoryFrom,
+  balanceHistoryPeriodDays,
+  type BalanceEvent,
+  type BalancePoint,
+  type BalanceHistoryPeriod,
+  type BalanceHistoryGranularity,
+} from "@/lib/balance-history";
 
 // El tipo/las constantes/las funciones puras del filtro de fecha (Hoy/Semana/
 // Mes/fecha puntual) viven en `cash-period.ts`, sin "server-only" — así el
@@ -679,4 +688,65 @@ export async function getOwnAccountLedger(accountId: string): Promise<CashMoveme
     select: { id: true },
   });
   return findMovements({ paymentMethodId: { in: members.map((m) => m.id) } });
+}
+
+/**
+ * Evolución del saldo de una cuenta propia (gráfico de Saldos → cuenta) —
+ * reconstruida día a día o semana a semana, igual criterio que
+ * `getOwnAccountBalances` (ingresos, egresos, traspasos y el ajuste manual
+ * constante), pero sin snapshot guardado: no hay "saldo de cada día" en la
+ * base, así que se recalcula de los eventos cada vez. Trae el historial
+ * completo hasta `now` (no solo la ventana pedida) porque `buildBalanceHistory`
+ * necesita los eventos anteriores para arrancar el primer punto con el saldo
+ * real, no desde cero.
+ */
+export async function getOwnAccountBalanceHistory(
+  accountId: string,
+  period: BalanceHistoryPeriod,
+  granularity: BalanceHistoryGranularity,
+  now: Date = new Date(),
+): Promise<BalancePoint[]> {
+  const members = await prisma.paymentMethod.findMany({
+    where: { OR: [{ id: accountId }, { parentId: accountId }] },
+    select: { id: true, balanceAdjustmentArs: true, balanceAdjustmentUsd: true },
+  });
+  if (members.length === 0) return [];
+  const memberIds = members.map((m) => m.id);
+  const principal = members.find((m) => m.id === accountId) ?? members[0];
+  const adjustment = { ars: Number(principal.balanceAdjustmentArs), usd: Number(principal.balanceAdjustmentUsd) };
+
+  const [movements, transfersOut, transfersIn] = await Promise.all([
+    prisma.cashMovement.findMany({
+      where: { paymentMethodId: { in: memberIds }, deletedAt: null, type: { in: ["income", "expense"] }, createdAt: { lte: now } },
+      select: { type: true, amount: true, currency: true, createdAt: true },
+    }),
+    prisma.accountTransfer.findMany({
+      where: { fromAccountId: { in: memberIds }, deletedAt: null, createdAt: { lte: now } },
+      select: { fromAmount: true, fromCurrency: true, createdAt: true },
+    }),
+    prisma.accountTransfer.findMany({
+      where: { toAccountId: { in: memberIds }, deletedAt: null, createdAt: { lte: now } },
+      select: { toAmount: true, toCurrency: true, createdAt: true },
+    }),
+  ]);
+
+  const events: BalanceEvent[] = [
+    ...movements.map((m) => {
+      const signed = (m.type === "income" ? 1 : -1) * Number(m.amount);
+      return { date: m.createdAt, ars: m.currency === "ars" ? signed : 0, usd: m.currency === "usd" ? signed : 0 };
+    }),
+    ...transfersOut.map((t) => ({
+      date: t.createdAt,
+      ars: t.fromCurrency === "ars" ? -Number(t.fromAmount) : 0,
+      usd: t.fromCurrency === "usd" ? -Number(t.fromAmount) : 0,
+    })),
+    ...transfersIn.map((t) => ({
+      date: t.createdAt,
+      ars: t.toCurrency === "ars" ? Number(t.toAmount) : 0,
+      usd: t.toCurrency === "usd" ? Number(t.toAmount) : 0,
+    })),
+  ];
+
+  const from = balanceHistoryFrom(now, balanceHistoryPeriodDays(period));
+  return buildBalanceHistory(events, adjustment, from, now, granularity);
 }

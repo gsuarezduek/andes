@@ -35,7 +35,7 @@ export function monthRangeUtc(ym: string): { start: Date; end: Date } {
 }
 
 /** Fecha "YYYY-MM-DD" (hora Mendoza) desplazada `days` días. Pura. */
-function addDaysYmd(ymd: string, days: number): string {
+export function addDaysYmd(ymd: string, days: number): string {
   const d = new Date(`${ymd}T12:00:00Z`); // mediodía: evita cruces de día por el offset al sumar/restar
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
