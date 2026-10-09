@@ -13,7 +13,9 @@ export const metadata: Metadata = { title: "QR de la flota — Andes" };
 export default async function FleetQrPage() {
   await requireAdmin();
 
-  const vehicles = await prisma.vehicle.findMany({ where: { archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] });
+  // Solo la flota propia — los de tercero tienen su propia pestaña, y
+  // "QR de la flota" es específicamente sobre lo que administra MDZ.
+  const vehicles = await prisma.vehicle.findMany({ where: { ownership: "own", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] });
   const cards = await Promise.all(
     vehicles.map(async (v) => ({
       id: v.id,

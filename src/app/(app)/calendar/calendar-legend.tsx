@@ -8,7 +8,7 @@ import { VerifiedIcon } from "@/components/ui/icons";
  * visible; en mobile ocupaba varias líneas, así que se colapsa detrás de un
  * solo botón "Colores".
  */
-export function CalendarLegend({ showRooms, showThirdParty }: { showRooms: boolean; showThirdParty: boolean }) {
+export function CalendarLegend({ showRooms }: { showRooms: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -54,9 +54,6 @@ export function CalendarLegend({ showRooms, showThirdParty }: { showRooms: boole
           swatch={<span className="inline-block h-3 w-3 rounded border-2 border-dashed border-orange-500 bg-orange-500/20" />}
           label="Presupuesto (borrador)"
         />
-        {showThirdParty ? (
-          <Item swatch={<span className="inline-block h-3 w-3 rounded bg-violet-600" />} label="Vehículo de tercero" />
-        ) : null}
         {showRooms ? (
           <>
             <Item swatch={<span className="inline-block h-3 w-3 rounded bg-teal-600" />} label="Habitación (Airbnb/Booking/directa)" />

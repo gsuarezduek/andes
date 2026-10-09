@@ -73,6 +73,7 @@ export default async function VehicleDetailPage({
           </div>
           <div className="flex flex-col items-end gap-1">
             <Badge tone={vehicleStatusTone[vehicle.status]}>{vehicleStatusLabels[vehicle.status]}</Badge>
+            {vehicle.ownership === "third_party" && <Badge tone="blue">Tercero</Badge>}
             {vehicle.archivedAt && <Badge tone="neutral">Archivado</Badge>}
           </div>
         </div>
@@ -85,6 +86,7 @@ export default async function VehicleDetailPage({
           isAdmin={isAdmin}
           archived={vehicle.archivedAt != null}
           hasActiveRental={hasActiveRental}
+          backHref={vehicle.ownership === "third_party" ? "/third-party-vehicles" : "/vehicles"}
         />
 
         {/* Notas del equipo: mensajes internos entre compañeros sobre alguna

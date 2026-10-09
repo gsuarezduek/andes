@@ -30,6 +30,13 @@ enum VehicleStatus {
   out_of_service
 }
 
+/// Propio (flota real de MDZ Rent a Car) vs. de un tercero (otro dueño, pero
+/// se alquila/entrega/devuelve con el mismo flujo). Ver `Vehicle.ownership`.
+enum VehicleOwnership {
+  own
+  third_party
+}
+
 enum RentalOrigin {
   vikrentcar
   manual
@@ -221,49 +228,48 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   lastSeenAt   DateTime? @map("last_seen_at")
 
-  inspections                      Inspection[]
-  rentalDocuments                  RentalDocument[]
-  signatureRequests                SignatureRequest[]
-  reportedDamages                  Damage[]                   @relation("DamageReporter")
-  repairedDamages                  Damage[]                   @relation("DamageRepairer")
-  createdVehicleNotes              VehicleNote[]              @relation("VehicleNoteCreator")
-  resolvedVehicleNotes             VehicleNote[]              @relation("VehicleNoteResolver")
-  createdRentalNotes               RentalNote[]               @relation("RentalNoteCreator")
-  resolvedRentalNotes              RentalNote[]               @relation("RentalNoteResolver")
-  verifiedRentals                  Rental[]                   @relation("RentalVerifier")
-  createdRoomBookings              RoomBooking[]              @relation("RoomBookingCreator")
-  createdThirdPartyVehicleBookings ThirdPartyVehicleBooking[] @relation("ThirdPartyVehicleBookingCreator")
-  shiftAssignments                 ShiftAssignment[]
-  shiftChangesAsTarget             ShiftChange[]              @relation("ShiftChangeTarget")
-  shiftChangesMade                 ShiftChange[]              @relation("ShiftChangeActor")
-  createdSpecialDates              SpecialDate[]              @relation("SpecialDateCreator")
-  rentalVerifications              RentalVerification[]       @relation("RentalVerificationActor")
-  rentalExtensions                 RentalExtension[]          @relation("RentalExtensionActor")
-  createdCashMovements             CashMovement[]             @relation("CashMovementCreator")
-  deletedCashMovements             CashMovement[]             @relation("CashMovementDeleter")
-  cashMovementEdits                CashMovementEdit[]         @relation("CashMovementEditor")
-  resolvedGuarantees               CashMovement[]             @relation("GuaranteeResolver")
-  createdSafeMovements             SafeMovement[]             @relation("SafeMovementCreator")
-  deletedSafeMovements             SafeMovement[]             @relation("SafeMovementDeleter")
-  safeMovementEdits                SafeMovementEdit[]         @relation("SafeMovementEditor")
-  conditionSettingsEdits           ConditionSettingsEdit[]
-  loginEvents                      LoginEvent[]
-  storageCleanupRuns               StorageCleanupRun[]
-  storageExports                   StorageExport[]
-  passwordResetTokens              PasswordResetToken[]
-  createdTasks                     Task[]                     @relation("TaskCreator")
-  assignedTasks                    Task[]                     @relation("TaskAssignee")
-  completedTasks                   Task[]                     @relation("TaskCompleter")
-  createdTaskRecurrences           TaskRecurrence[]           @relation("TaskRecurrenceCreator")
-  assignedTaskRecurrences          TaskRecurrence[]           @relation("TaskRecurrenceAssignee")
-  assignedWhatsappConversations    WhatsAppConversation[]
-  sentWhatsappMessages             WhatsAppMessage[]
-  resolvedWhatsappBotEscalations   WhatsAppBotEscalation[]    @relation("WhatsAppBotEscalationResolver")
-  rentalQuotes                     RentalQuote[]
-  createdQuickReplies              WhatsAppQuickReply[]
-  createdAccessCredentials         AccessCredential[]         @relation("AccessCredentialCreator")
-  updatedAccessCredentials         AccessCredential[]         @relation("AccessCredentialUpdater")
-  accessCredentialReveals          AccessCredentialReveal[]
+  inspections                    Inspection[]
+  rentalDocuments                RentalDocument[]
+  signatureRequests              SignatureRequest[]
+  reportedDamages                Damage[]                 @relation("DamageReporter")
+  repairedDamages                Damage[]                 @relation("DamageRepairer")
+  createdVehicleNotes            VehicleNote[]            @relation("VehicleNoteCreator")
+  resolvedVehicleNotes           VehicleNote[]            @relation("VehicleNoteResolver")
+  createdRentalNotes             RentalNote[]             @relation("RentalNoteCreator")
+  resolvedRentalNotes            RentalNote[]             @relation("RentalNoteResolver")
+  verifiedRentals                Rental[]                 @relation("RentalVerifier")
+  createdRoomBookings            RoomBooking[]            @relation("RoomBookingCreator")
+  shiftAssignments               ShiftAssignment[]
+  shiftChangesAsTarget           ShiftChange[]            @relation("ShiftChangeTarget")
+  shiftChangesMade               ShiftChange[]            @relation("ShiftChangeActor")
+  createdSpecialDates            SpecialDate[]            @relation("SpecialDateCreator")
+  rentalVerifications            RentalVerification[]     @relation("RentalVerificationActor")
+  rentalExtensions               RentalExtension[]        @relation("RentalExtensionActor")
+  createdCashMovements           CashMovement[]           @relation("CashMovementCreator")
+  deletedCashMovements           CashMovement[]           @relation("CashMovementDeleter")
+  cashMovementEdits              CashMovementEdit[]       @relation("CashMovementEditor")
+  resolvedGuarantees             CashMovement[]           @relation("GuaranteeResolver")
+  createdSafeMovements           SafeMovement[]           @relation("SafeMovementCreator")
+  deletedSafeMovements           SafeMovement[]           @relation("SafeMovementDeleter")
+  safeMovementEdits              SafeMovementEdit[]       @relation("SafeMovementEditor")
+  conditionSettingsEdits         ConditionSettingsEdit[]
+  loginEvents                    LoginEvent[]
+  storageCleanupRuns             StorageCleanupRun[]
+  storageExports                 StorageExport[]
+  passwordResetTokens            PasswordResetToken[]
+  createdTasks                   Task[]                   @relation("TaskCreator")
+  assignedTasks                  Task[]                   @relation("TaskAssignee")
+  completedTasks                 Task[]                   @relation("TaskCompleter")
+  createdTaskRecurrences         TaskRecurrence[]         @relation("TaskRecurrenceCreator")
+  assignedTaskRecurrences        TaskRecurrence[]         @relation("TaskRecurrenceAssignee")
+  assignedWhatsappConversations  WhatsAppConversation[]
+  sentWhatsappMessages           WhatsAppMessage[]
+  resolvedWhatsappBotEscalations WhatsAppBotEscalation[]  @relation("WhatsAppBotEscalationResolver")
+  rentalQuotes                   RentalQuote[]
+  createdQuickReplies            WhatsAppQuickReply[]
+  createdAccessCredentials       AccessCredential[]       @relation("AccessCredentialCreator")
+  updatedAccessCredentials       AccessCredential[]       @relation("AccessCredentialUpdater")
+  accessCredentialReveals        AccessCredentialReveal[]
 
   @@map("users")
 }
@@ -338,6 +344,15 @@ model Vehicle {
   // para camionetas). Alimenta qué precio de referencia (`ConditionSettings
   // .kmPackPrice` vs `.kmPackPriceTruck`) se precarga en la entrega.
   isTruck           Boolean       @default(false) @map("is_truck")
+
+  // Propio vs. de un tercero (el dueño real no es MDZ Rent a Car, pero se
+  // alquila y se entrega/devuelve exactamente igual — mismo flujo de
+  // Alquileres, acta y firma). `ownerName`/`ownerPhone` solo se usan cuando
+  // `ownership = third_party` (sin migración de enum a tabla aparte: no hay
+  // otro dato que distinga a un auto de tercero de uno propio).
+  ownership  VehicleOwnership @default(own)
+  ownerName  String?          @map("owner_name")
+  ownerPhone String?          @map("owner_phone")
 
   // Identificación y seguro (opcionales, se cargan a mano en la ficha).
   engineNumber          String? @map("engine_number") // número de motor
@@ -1265,14 +1280,11 @@ model CashMovement {
   rentalId String? @map("rental_id")
   rental   Rental? @relation(fields: [rentalId], references: [id])
 
-  // Cobro de la reserva de una habitación (ver `RoomBooking`) o de un
-  // vehículo de tercero (ver `ThirdPartyVehicleBooking`). Alternativas a
-  // `rentalId`: un movimiento pertenece a lo sumo a una de las tres.
+  // Cobro de la reserva de una habitación (ver `RoomBooking`). Alternativa a
+  // `rentalId`: un movimiento pertenece a un alquiler (auto propio o de
+  // tercero, ambos son `Rental`) o a una estadía, nunca a los dos.
   roomBookingId String?      @map("room_booking_id")
   roomBooking   RoomBooking? @relation(fields: [roomBookingId], references: [id])
-
-  thirdPartyVehicleBookingId String?                   @map("third_party_vehicle_booking_id")
-  thirdPartyVehicleBooking   ThirdPartyVehicleBooking? @relation(fields: [thirdPartyVehicleBookingId], references: [id])
 
   // true = importado automático desde VikRentCar sin poder resolver a qué
   // medio de pago de Andes corresponde (nombre desconocido, o mapeado a más
@@ -2303,87 +2315,6 @@ model StorageExport {
 
   @@index([planHash])
   @@map("storage_exports")
-}
-
-// ---------------------------------------------------------------------------
-// Vehículos de terceros
-// ---------------------------------------------------------------------------
-// Autos que no son de la flota propia (los administra/alquila un tercero,
-// identificado acá por nombre y teléfono). Entidad aparte de Vehicle/Rental a
-// propósito, mismo criterio que Room (v58): sin inspección, firma, acta ni
-// km — Andes solo registra reservas manuales simples para tener visibilidad
-// en el Calendario, que se muestran entre los autos propios y las
-// Habitaciones. Los cobros son opcionales y van a Caja (CashMovement
-// .thirdPartyVehicleBookingId), igual que las estadías de Room.
-
-enum ThirdPartyVehicleBookingStatus {
-  confirmed
-  cancelled
-}
-
-model ThirdPartyVehicle {
-  id String @id @default(cuid())
-
-  plate String
-  brand String
-  model String
-  year  Int?
-  color String?
-
-  // Datos de contacto del titular del auto (no es un `User` de Andes).
-  ownerName  String  @map("owner_name")
-  ownerPhone String? @map("owner_phone")
-
-  notes String? @db.Text
-
-  // Orden manual en el Calendario (menor = más arriba), nulos al final —
-  // mismo patrón que Vehicle.sortOrder / Room.sortOrder.
-  sortOrder Int? @map("sort_order")
-
-  archivedAt DateTime? @map("archived_at")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  bookings ThirdPartyVehicleBooking[]
-
-  @@map("third_party_vehicles")
-}
-
-model ThirdPartyVehicleBooking {
-  id String @id @default(cuid())
-
-  vehicleId String            @map("vehicle_id")
-  vehicle   ThirdPartyVehicle @relation(fields: [vehicleId], references: [id])
-
-  // Quien se lleva el auto (no el titular, que vive en ThirdPartyVehicle).
-  clientName  String  @map("client_name")
-  clientPhone String? @map("client_phone")
-
-  startAt DateTime @map("start_at") // retiro (UTC)
-  endAt   DateTime @map("end_at") // devolución (UTC)
-
-  notes String? @db.Text
-
-  // Total pactado (opcional; lo carga una persona, no hay sync que lo toque).
-  totalAmount Decimal  @default(0) @map("total_amount") @db.Decimal(12, 2)
-  currency    Currency @default(ars)
-
-  status      ThirdPartyVehicleBookingStatus @default(confirmed)
-  cancelledAt DateTime?                      @map("cancelled_at")
-
-  // Nombre congelado al momento del hecho (ver Inspection.userName).
-  createdById   String? @map("created_by_id")
-  createdBy     User?   @relation("ThirdPartyVehicleBookingCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdByName String? @map("created_by_name")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  cashMovements CashMovement[]
-
-  @@index([vehicleId, startAt])
-  @@map("third_party_vehicle_bookings")
 }
 
 // ---------------------------------------------------------------------------

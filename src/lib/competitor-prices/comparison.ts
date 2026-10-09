@@ -50,7 +50,9 @@ export async function getComparisonData(offsetDaysRaw?: number): Promise<Compari
       include: { priceCheck: true },
     }),
     prisma.vehicle.findMany({
-      where: { archivedAt: null, competitorCategoryId: { not: null }, dailyRate: { not: null } },
+      // "Nosotros" es la tarifa de la flota propia (dailyRate la trae el
+      // sync de VikRentCar, que un auto de tercero nunca tiene mapeado).
+      where: { ownership: "own", archivedAt: null, competitorCategoryId: { not: null }, dailyRate: { not: null } },
       select: { competitorCategoryId: true, dailyRate: true },
     }),
     prisma.competitorCheckRun.findFirst({

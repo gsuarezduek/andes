@@ -9,13 +9,10 @@ import type {
   CalendarRow,
   RoomCalendarBar,
   RoomCalendarRow,
-  ThirdPartyCalendarBar,
-  ThirdPartyCalendarRow,
 } from "@/lib/calendar";
 import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calendar-constants";
 import { Row } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
-import { ThirdPartyRow } from "./third-party-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 import { QuoteFormModal } from "./quote-form-modal";
 import { QuoteDetailModal } from "./quote-detail-modal";
@@ -39,7 +36,7 @@ export function CalendarGrid({
 }: {
   columns: CalendarColumn[];
   rows: CalendarRow[];
-  thirdPartyRows: ThirdPartyCalendarRow[];
+  thirdPartyRows: CalendarRow[];
   roomRows: RoomCalendarRow[];
   unassigned: CalendarRow[];
   conversationOptions: ConversationPickerOption[];
@@ -103,17 +100,6 @@ export function CalendarGrid({
       y: e.clientY,
     });
   };
-  const showThirdParty = (bar: ThirdPartyCalendarBar, e: React.MouseEvent) => {
-    const row = thirdPartyRows.find((x) => x.id === bar.vehicleId);
-    setHover({
-      type: "thirdParty",
-      bar,
-      ownerName: row?.ownerName ?? "",
-      ownerPhone: row?.ownerPhone ?? null,
-      x: e.clientX,
-      y: e.clientY,
-    });
-  };
   const move = (e: React.MouseEvent) =>
     setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
   const hide = () => setHover(null);
@@ -128,9 +114,7 @@ export function CalendarGrid({
           ? `quote:${hover.quote.quoteId}`
           : hover?.type === "room"
             ? `room:${hover.room.bookingId}`
-            : hover?.type === "thirdParty"
-              ? `thirdParty:${hover.bar.bookingId}`
-              : null;
+            : null;
 
   // Selección de auto+rango para un presupuesto nuevo (dos toques): sin
   // selección activa, el primer toque la arranca; un segundo toque en la
@@ -155,7 +139,9 @@ export function CalendarGrid({
   }
   const noCellClick = () => {};
 
-  const draftRow = draftRange ? rows.find((r) => r.id === draftRange.vehicleId) : null;
+  const draftRow = draftRange
+    ? rows.find((r) => r.id === draftRange.vehicleId) ?? thirdPartyRows.find((r) => r.id === draftRange.vehicleId)
+    : null;
   const canEditQuoteDetail = quoteDetail ? isAdmin || quoteDetail.createdById === userId : false;
 
   // El header (fechas) y el cuerpo (filas) son dos contenedores con scroll
@@ -290,7 +276,7 @@ export function CalendarGrid({
                 <div style={{ width: trackW }} />
               </div>
               {thirdPartyRows.map((row) => (
-                <ThirdPartyRow
+                <Row
                   key={row.id}
                   row={row}
                   columns={columns}
@@ -298,9 +284,14 @@ export function CalendarGrid({
                   colW={colW}
                   rowH={rowH}
                   activeKey={activeKey}
-                  onEnter={showThirdParty}
+                  onEnter={show}
+                  onEnterNote={showNotes}
                   onMove={move}
                   onLeave={hide}
+                  quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
+                  onCellClick={onCellClick}
+                  onQuoteEnter={showQuote}
+                  onQuoteClick={setQuoteDetail}
                 />
               ))}
             </>

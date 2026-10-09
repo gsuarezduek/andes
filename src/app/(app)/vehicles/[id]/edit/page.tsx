@@ -13,7 +13,7 @@ export default async function EditVehiclePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await requireUser();
+  await requireUser();
 
   // omit: dailyRate es un Decimal — un Server Component no puede pasárselo
   // tal cual a VehicleForm (Client Component); tampoco se usa en el form.
@@ -30,7 +30,6 @@ export default async function EditVehiclePage({
         action={updateVehicle.bind(null, id)}
         vehicle={vehicle}
         cancelHref={`/vehicles/${id}`}
-        isAdmin={user.role === "admin"}
         competitorCategories={competitorCategories}
       />
     </div>

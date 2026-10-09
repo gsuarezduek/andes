@@ -36,8 +36,9 @@ export async function updateRentalQuote(
   return prisma.rentalQuote.update({ where: { id }, data: input });
 }
 
-export async function deleteRentalQuote(id: string, user: { id: string; role: UserRole }) {
-  await assertCanEditQuote(id, user);
+/** Borrar un presupuesto es más laxo que editarlo (decisión del dueño):
+ *  cualquier usuario puede eliminarlo, no solo quien lo creó o un admin. */
+export async function deleteRentalQuote(id: string) {
   await prisma.rentalQuote.delete({ where: { id } });
 }
 

@@ -52,9 +52,10 @@ function SendQuoteWhatsAppButton({ quoteId }: { quoteId: string }) {
   );
 }
 
-/** Detalle de un presupuesto ya cargado — se abre al tocar su barra. Solo
- *  quien lo creó (o un admin) puede editarlo/borrarlo (mismo criterio que
- *  `assertCanEditTask`); el resto ve una vista de solo lectura. */
+/** Detalle de un presupuesto ya cargado — se abre al tocar su barra. Editarlo
+ *  sigue siendo solo de quien lo creó o un admin (mismo criterio que
+ *  `assertCanEditTask`, ver `canEdit`); borrarlo es de cualquier usuario — el
+ *  resto ve una vista de solo lectura con la misma opción de eliminar. */
 export function QuoteDetailModal({
   quote,
   canEdit,
@@ -149,9 +150,32 @@ export function QuoteDetailModal({
           ) : null}
           {quote.note ? <p className="whitespace-pre-wrap border-t border-foreground/10 pt-2 text-foreground/80">{quote.note}</p> : null}
           {quote.conversationId ? <SendQuoteWhatsAppButton quoteId={quote.quoteId} /> : null}
-          <Button type="button" variant="secondary" className="mt-2" onClick={onClose}>
-            Cerrar
-          </Button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {/* Borrar un presupuesto está abierto a cualquier usuario (a
+              diferencia de editarlo, que sigue siendo solo de quien lo creó
+              o un admin) — decisión del dueño. */}
+          {confirmDelete ? (
+            <div key="confirm-delete" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+              <p className="text-sm text-red-700 dark:text-red-400">¿Eliminar este presupuesto?</p>
+              <div className="mt-2 flex gap-2">
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)} disabled={pending}>
+                  Cancelar
+                </Button>
+                <Button type="button" className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleDelete} disabled={pending}>
+                  {pending ? "Eliminando…" : "Sí, eliminar"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex gap-2">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setConfirmDelete(true)}>
+                Eliminar
+              </Button>
+              <Button type="button" className="flex-1" onClick={onClose}>
+                Cerrar
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
     );

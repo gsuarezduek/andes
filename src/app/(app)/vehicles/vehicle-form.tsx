@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import type { Vehicle } from "@prisma/client";
+import { useActionState, useState } from "react";
+import type { Vehicle, VehicleOwnership } from "@prisma/client";
 import { TextField, SelectField, TextareaField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ButtonLink } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export function VehicleForm({
   action,
   vehicle,
   cancelHref,
-  isAdmin,
+  defaultOwnership,
   competitorCategories,
 }: {
   action: Action;
@@ -22,38 +22,38 @@ export function VehicleForm({
   // Component, y este form no lo usa (se sincroniza solo desde VikRentCar).
   vehicle?: Omit<Vehicle, "dailyRate">;
   cancelHref: string;
-  isAdmin: boolean;
+  /** Preselección del tipo al cargar uno nuevo desde la pestaña "Terceros". */
+  defaultOwnership?: VehicleOwnership;
   /** Catálogo de "Precios de la competencia" para el selector "Nosotros". */
   competitorCategories: { id: string; label: string }[];
 }) {
   const [state, formAction] = useActionState(action, {});
-
-  // Los datos de identidad/legales del auto (patente, marca/modelo, chasis,
-  // seguro) solo los toca un admin — son sensibles y difíciles de auditar. Un
-  // empleado puede seguir editando lo operativo (estado, km, notas) sin pedir
-  // ayuda. El server action vuelve a exigir esto mismo del lado del servidor,
-  // así que deshabilitarlos acá es solo para guiar la UI, no la única traba.
-  const adminLockedProps = isAdmin
-    ? {}
-    : { disabled: true, "aria-disabled": true as const };
-  const adminLockedClass = isAdmin ? "" : "bg-foreground/[0.03] text-foreground/50";
-  const adminLockedHint = isAdmin ? undefined : "Solo un admin puede editar este campo.";
+  const [ownership, setOwnership] = useState<VehicleOwnership>(vehicle?.ownership ?? defaultOwnership ?? "own");
+  const isThirdParty = ownership === "third_party";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <TextField
-        id="plate"
-        label="Patente"
-        required
-        defaultValue={vehicle?.plate}
-        maxLength={16}
-        className={`uppercase ${adminLockedClass}`}
-        hint={adminLockedHint}
-        {...adminLockedProps}
-      />
+      <SelectField
+        id="ownership"
+        label="Tipo"
+        value={ownership}
+        onChange={(e) => setOwnership(e.target.value as VehicleOwnership)}
+        hint="De tercero: el auto no es de la flota propia, pero se entrega/devuelve con el mismo flujo."
+      >
+        <option value="own">Propio (flota)</option>
+        <option value="third_party">De un tercero</option>
+      </SelectField>
+      {isThirdParty ? (
+        <div className="grid gap-4 rounded-lg border border-foreground/10 bg-foreground/[0.02] p-3 sm:grid-cols-2">
+          <TextField id="ownerName" label="Nombre del titular" required defaultValue={vehicle?.ownerName ?? ""} />
+          <TextField id="ownerPhone" label="Teléfono del titular" hint="Opcional" defaultValue={vehicle?.ownerPhone ?? ""} />
+        </div>
+      ) : null}
+
+      <TextField id="plate" label="Patente" required defaultValue={vehicle?.plate} maxLength={16} className="uppercase" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="brand" label="Marca" required defaultValue={vehicle?.brand} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
-        <TextField id="model" label="Modelo" required defaultValue={vehicle?.model} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
+        <TextField id="brand" label="Marca" required defaultValue={vehicle?.brand} />
+        <TextField id="model" label="Modelo" required defaultValue={vehicle?.model} />
       </div>
       <TextField
         id="name"
@@ -62,22 +62,15 @@ export function VehicleForm({
         defaultValue={vehicle?.name ?? ""}
       />
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="isTruck"
-          defaultChecked={vehicle?.isTruck ?? false}
-          className="size-4"
-          disabled={!isAdmin}
-          aria-disabled={!isAdmin || undefined}
-        />
+        <input type="checkbox" name="isTruck" defaultChecked={vehicle?.isTruck ?? false} className="size-4" />
         Es camioneta
         <span className="text-xs text-foreground/50">
           — usa el precio de pack de KM para camionetas (Configuración → Condiciones)
         </span>
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="year" label="Año" type="number" inputMode="numeric" defaultValue={vehicle?.year ?? ""} min={1950} max={2100} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
-        <TextField id="color" label="Color" defaultValue={vehicle?.color ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
+        <TextField id="year" label="Año" type="number" inputMode="numeric" defaultValue={vehicle?.year ?? ""} min={1950} max={2100} />
+        <TextField id="color" label="Color" defaultValue={vehicle?.color ?? ""} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="currentKm" label="Kilometraje actual" type="number" inputMode="numeric" defaultValue={vehicle?.currentKm ?? 0} min={0} />
@@ -99,23 +92,18 @@ export function VehicleForm({
         ))}
       </SelectField>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="engineNumber" label="Número de motor" defaultValue={vehicle?.engineNumber ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
-        <TextField id="chassisNumber" label="Chasis" defaultValue={vehicle?.chassisNumber ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
+        <TextField id="engineNumber" label="Número de motor" defaultValue={vehicle?.engineNumber ?? ""} />
+        <TextField id="chassisNumber" label="Chasis" defaultValue={vehicle?.chassisNumber ?? ""} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="insuranceCompany" label="Empresa de seguro" defaultValue={vehicle?.insuranceCompany ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
-        <TextField id="insurancePolicyNumber" label="Número de póliza" defaultValue={vehicle?.insurancePolicyNumber ?? ""} className={adminLockedClass} hint={adminLockedHint} {...adminLockedProps} />
+        <TextField id="insuranceCompany" label="Empresa de seguro" defaultValue={vehicle?.insuranceCompany ?? ""} />
+        <TextField id="insurancePolicyNumber" label="Número de póliza" defaultValue={vehicle?.insurancePolicyNumber ?? ""} />
       </div>
       <SelectField
         id="competitorCategoryId"
         label="Categoría de competencia"
-        hint={
-          adminLockedHint ??
-          "Para comparar contra otras rentadoras en Precios de la competencia (columna «Nosotros»). Opcional."
-        }
+        hint="Para comparar contra otras rentadoras en Precios de la competencia (columna «Nosotros»). Opcional."
         defaultValue={vehicle?.competitorCategoryId ?? ""}
-        className={adminLockedClass}
-        {...adminLockedProps}
       >
         <option value="">Sin categoría</option>
         {competitorCategories.map((c) => (

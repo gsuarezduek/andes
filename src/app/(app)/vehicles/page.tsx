@@ -50,6 +50,9 @@ export default async function VehiclesPage({
     : null;
 
   const where: Prisma.VehicleWhereInput = {
+    // Los de tercero viven en su propia pestaña (/third-party-vehicles) —
+    // esta es la flota propia.
+    ownership: "own",
     archivedAt: showArchived ? { not: null } : null,
     ...(statusFilter ? { status: statusFilter } : {}),
   };
@@ -67,7 +70,7 @@ export default async function VehiclesPage({
         gpsDevices: { select: { identifier: true }, orderBy: { identifier: "asc" } },
       },
     }),
-    prisma.vehicle.count({ where: { archivedAt: { not: null } } }),
+    prisma.vehicle.count({ where: { ownership: "own", archivedAt: { not: null } } }),
   ]);
 
   return (
@@ -84,12 +87,10 @@ export default async function VehiclesPage({
                 : `${vehicles.length} en la flota`}
           </p>
         </div>
-        {isAdmin ? (
-          <div className="flex gap-2">
-            <ButtonLink href="/vehicles/qr" variant="secondary">QR de la flota</ButtonLink>
-            <ButtonLink href="/vehicles/new">Nuevo</ButtonLink>
-          </div>
-        ) : null}
+        <div className="flex gap-2">
+          {isAdmin ? <ButtonLink href="/vehicles/qr" variant="secondary">QR de la flota</ButtonLink> : null}
+          <ButtonLink href="/vehicles/new">Nuevo</ButtonLink>
+        </div>
       </div>
 
       {(showArchived || archivedCount > 0) && (

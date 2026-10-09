@@ -49,7 +49,7 @@ export async function updateQuote(id: string, formData: FormData) {
 }
 
 export async function deleteQuote(id: string) {
-  const user = await requireUser();
-  await deleteRentalQuote(id, user);
+  await requireUser();
+  await deleteRentalQuote(id);
   revalidatePath("/calendar");
 }

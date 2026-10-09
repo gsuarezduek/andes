@@ -442,8 +442,11 @@ export const getReports = unstable_cache(
     ] = await Promise.all([
         // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
         // historial de ingresos/costos del período, aunque ya no esté en la
-        // flota operativa.
+        // flota operativa. Sí se filtra `ownership: "own"` — ocupación,
+        // mantenimiento y "por vehículo" son análisis de la flota propia; un
+        // auto de tercero no tiene mantenimiento a cargo de MDZ Rent a Car.
         prisma.vehicle.findMany({
+          where: { ownership: "own" },
           select: { id: true, plate: true, name: true, brand: true, model: true, status: true, archivedAt: true },
         }),
         // Primer alquiler finalizado (cualquiera): tope real del gráfico "por

@@ -75,13 +75,3 @@ export function roomChipClasses(bar: RoomCalendarBar): string {
   if (bar.isBlock) return "bg-slate-500/20 text-slate-600 dark:text-slate-300";
   return "bg-teal-500/20 text-teal-700 dark:text-teal-400";
 }
-
-/** Color de una reserva de vehículo de tercero: violeta, para no pisar
- *  ninguno de los colores ya usados por la flota propia o las habitaciones. */
-export function thirdPartyBarClasses(): string {
-  return "bg-violet-600 text-white hover:bg-violet-600/90 hover:ring-violet-300";
-}
-
-export function thirdPartyChipClasses(): string {
-  return "bg-violet-500/20 text-violet-700 dark:text-violet-400";
-}

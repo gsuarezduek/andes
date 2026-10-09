@@ -54,15 +54,19 @@ export async function getDashboardData() {
       include: { vehicle: true },
       orderBy: { endAt: "asc" },
     }),
-    prisma.vehicle.findMany({ where: { status: "available", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
-    prisma.vehicle.findMany({ where: { status: "out_of_service", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
+    // "Flota" (disponibles/fuera de servicio) y el service-due de abajo son
+    // conceptos de la flota PROPIA — un auto de tercero no lo mantiene ni
+    // lo administra MDZ Rent a Car. "Alquilados" (`rented` más abajo) sí
+    // incluye terceros: es actividad del día, no inventario.
+    prisma.vehicle.findMany({ where: { ownership: "own", status: "available", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
+    prisma.vehicle.findMany({ where: { ownership: "own", status: "out_of_service", archivedAt: null }, orderBy: [{ brand: "asc" }, { model: "asc" }] }),
     // Alertas: devoluciones vencidas sin registrar.
     prisma.rental.findMany({
       where: { status: "active", endAt: { lt: now } },
       include: { vehicle: true },
       orderBy: { endAt: "asc" },
     }),
-    prisma.vehicle.findMany({ where: { nextServiceKm: { not: null }, archivedAt: null } }),
+    prisma.vehicle.findMany({ where: { ownership: "own", nextServiceKm: { not: null }, archivedAt: null } }),
     prisma.rental.findMany({
       // Solo confirmadas: una standby sin confirmar es prematura para asignarle
       // unidad; se ve igual en el calendario/listado en naranja.

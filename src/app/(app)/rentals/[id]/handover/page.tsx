@@ -42,7 +42,7 @@ export default async function HandoverPage({
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       orderBy: [{ brand: "asc" }, { model: "asc" }],
-      select: { id: true, plate: true, name: true, brand: true, model: true },
+      select: { id: true, plate: true, name: true, brand: true, model: true, ownership: true },
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.paymentMethod.findMany({
@@ -157,7 +157,7 @@ export default async function HandoverPage({
           rental.vehicle
             ? {
                 id: rental.vehicle.id,
-                label: vehicleLabelWithPlate(rental.vehicle),
+                label: vehicleLabelWithPlate(rental.vehicle) + (rental.vehicle.ownership === "third_party" ? " (Tercero)" : ""),
                 currentKm: rental.vehicle.currentKm,
               }
             : null
@@ -165,7 +165,7 @@ export default async function HandoverPage({
         maxFuel={rental.vehicle?.fuelLevels}
         vehicleOptions={vehicles.map((v) => ({
           id: v.id,
-          label: vehicleLabelWithPlate(v),
+          label: vehicleLabelWithPlate(v) + (v.ownership === "third_party" ? " (Tercero)" : ""),
         }))}
         checklistItems={checklistItems}
         existingDamages={existingDamages}

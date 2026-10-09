@@ -18,6 +18,9 @@ export function VehicleInfo({ vehicle }: { vehicle: VehicleDetail }) {
         <div className="flex flex-col gap-2">
           <SubsectionTitle>General</SubsectionTitle>
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
+            {vehicle.ownership === "third_party" ? (
+              <Row label="Titular" value={`${vehicle.ownerName ?? "—"}${vehicle.ownerPhone ? ` · ${vehicle.ownerPhone}` : ""}`} />
+            ) : null}
             <Row label="Año" value={vehicle.year} />
             <Row label="Color" value={vehicle.color} />
             <Row

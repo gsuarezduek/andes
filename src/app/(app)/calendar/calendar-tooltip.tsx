@@ -1,16 +1,15 @@
-import type { CalendarBar, CalendarColumnSeason, CalendarNote, CalendarQuoteBar, RoomCalendarBar, ThirdPartyCalendarBar } from "@/lib/calendar";
+import type { CalendarBar, CalendarColumnSeason, CalendarNote, CalendarQuoteBar, RoomCalendarBar } from "@/lib/calendar";
 import { formatDateTime } from "@/lib/datetime";
 import { formatArs, formatMoney } from "@/lib/contract";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
-import { chipClasses, quoteChipClasses, roomChipClasses, thirdPartyChipClasses, statusLabel } from "./bar-style";
+import { chipClasses, quoteChipClasses, roomChipClasses, statusLabel } from "./bar-style";
 
 export type HoverContent =
   | { type: "bar"; bar: CalendarBar }
   | { type: "notes"; title: string; notes: CalendarNote[] }
   | { type: "season"; seasons: CalendarColumnSeason[] }
   | { type: "quote"; quote: CalendarQuoteBar }
-  | { type: "room"; room: RoomCalendarBar; checkIn: string; checkOut: string }
-  | { type: "thirdParty"; bar: ThirdPartyCalendarBar; ownerName: string; ownerPhone: string | null };
+  | { type: "room"; room: RoomCalendarBar; checkIn: string; checkOut: string };
 export type Hover = (HoverContent & { x: number; y: number }) | null;
 
 export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
@@ -34,8 +33,6 @@ export function Tooltip({ hover }: { hover: NonNullable<Hover> }) {
         <QuoteTooltipBody quote={hover.quote} />
       ) : hover.type === "room" ? (
         <RoomTooltipBody room={hover.room} checkIn={hover.checkIn} checkOut={hover.checkOut} />
-      ) : hover.type === "thirdParty" ? (
-        <ThirdPartyTooltipBody bar={hover.bar} ownerName={hover.ownerName} ownerPhone={hover.ownerPhone} />
       ) : (
         <BarTooltipBody bar={hover.bar} />
       )}
@@ -110,48 +107,6 @@ function RoomTooltipBody({ room, checkIn, checkOut }: { room: RoomCalendarBar; c
         <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">
           {room.externalLabel ? `Calendario: ${room.externalLabel}` : "Sin notas."}
         </p>
-      )}
-    </>
-  );
-}
-
-function ThirdPartyTooltipBody({
-  bar,
-  ownerName,
-  ownerPhone,
-}: {
-  bar: ThirdPartyCalendarBar;
-  ownerName: string;
-  ownerPhone: string | null;
-}) {
-  const remaining = bar.totalAmount > 0 ? bar.totalAmount - bar.paid : null;
-  return (
-    <>
-      <p className="flex items-center gap-2 text-sm font-semibold">
-        <span className="truncate">{bar.clientName}</span>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${thirdPartyChipClasses()}`}>Tercero</span>
-      </p>
-      <p className="mt-0.5 text-foreground/60">
-        {formatDateTime(bar.startAt)} → {formatDateTime(bar.endAt)}
-      </p>
-      <p className="mt-1 text-foreground/60">
-        Titular: {ownerName}
-        {ownerPhone ? ` · ${ownerPhone}` : ""}
-      </p>
-      {bar.totalAmount > 0 ? (
-        <p className="mt-1 font-medium">
-          {formatMoney(bar.totalAmount, bar.currency)}
-          {remaining != null && remaining <= 0 ? (
-            <span className="text-emerald-600 dark:text-emerald-400"> · pagada</span>
-          ) : (
-            <span className="text-red-600 dark:text-red-400"> · falta {formatMoney(remaining ?? 0, bar.currency)}</span>
-          )}
-        </p>
-      ) : null}
-      {bar.notes ? (
-        <p className="mt-1.5 whitespace-pre-wrap border-t border-foreground/10 pt-1.5 text-foreground/80">{bar.notes}</p>
-      ) : (
-        <p className="mt-1.5 border-t border-foreground/10 pt-1.5 text-foreground/40">Sin notas.</p>
       )}
     </>
   );

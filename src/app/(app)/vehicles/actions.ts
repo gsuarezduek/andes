@@ -23,66 +23,50 @@ const optionalStr = z.preprocess(
   z.string().nullable(),
 );
 
-// Datos operativos del día a día: cualquier empleado los puede editar.
-const operationalSchema = z.object({
-  currentKm: z.preprocess(
-    (v) => (v === "" || v == null ? 0 : Number(v)),
-    z.number().int().nonnegative(),
-  ),
-  status: z.enum(["available", "rented", "out_of_service"]),
-  fuelLevels: z.preprocess(
-    (v) => (v === "" || v == null ? 8 : Number(v)),
-    z.number().int().min(4, "Mínimo 4 líneas").max(16, "Máximo 16 líneas"),
-  ),
-  nextServiceKm: optionalInt,
-  serviceIntervalKm: optionalInt,
-  notes: optionalStr,
-  // Apodo interno (no es dato legal/identidad), cualquier empleado lo puede cargar.
-  name: optionalStr,
-});
-
-// Identidad y datos legales del vehículo: sensibles y difíciles de auditar
-// (patente, chasis, seguro), solo los toca un admin. Ver operationalSchema
-// para lo que sí puede tocar cualquier empleado.
-const adminOnlySchema = z.object({
-  plate: z.string().trim().min(1, "La patente es obligatoria").max(16),
-  brand: z.string().trim().min(1, "La marca es obligatoria"),
-  model: z.string().trim().min(1, "El modelo es obligatorio"),
-  year: z.preprocess(
-    (v) => (v === "" || v == null ? null : Number(v)),
-    z.number().int().min(1950).max(2100).nullable(),
-  ),
-  color: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null),
-    z.string().nullable(),
-  ),
-  engineNumber: optionalStr,
-  chassisNumber: optionalStr,
-  insurancePolicyNumber: optionalStr,
-  insuranceCompany: optionalStr,
-  // Categoría interna para comparar contra "Precios de la competencia"
-  // (columna "Nosotros"). No es un dato legal, pero vive junto a los demás
-  // campos admin-only por consistencia con el resto de esa sección.
-  competitorCategoryId: optionalStr,
-  // Camioneta vs auto: define qué precio de pack de KM se precarga en la
-  // entrega (ConditionSettings.kmPackPrice vs .kmPackPriceTruck). Afecta
-  // dinero, mismo criterio admin-only que el resto de esta sección.
-  isTruck: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
-});
-
-const vehicleSchema = operationalSchema.merge(adminOnlySchema);
-
-function parseOperational(formData: FormData) {
-  return operationalSchema.safeParse({
-    currentKm: formData.get("currentKm"),
-    status: formData.get("status"),
-    fuelLevels: formData.get("fuelLevels"),
-    nextServiceKm: formData.get("nextServiceKm"),
-    serviceIntervalKm: formData.get("serviceIntervalKm"),
-    notes: formData.get("notes"),
-    name: formData.get("name"),
+// Cualquier usuario puede cargar/editar un vehículo entero (propio o de
+// tercero) — decisión del dueño: no hay campos admin-only en esta ficha.
+const vehicleSchema = z
+  .object({
+    plate: z.string().trim().min(1, "La patente es obligatoria").max(16),
+    brand: z.string().trim().min(1, "La marca es obligatoria"),
+    model: z.string().trim().min(1, "El modelo es obligatorio"),
+    year: z.preprocess(
+      (v) => (v === "" || v == null ? null : Number(v)),
+      z.number().int().min(1950).max(2100).nullable(),
+    ),
+    color: optionalStr,
+    currentKm: z.preprocess(
+      (v) => (v === "" || v == null ? 0 : Number(v)),
+      z.number().int().nonnegative(),
+    ),
+    status: z.enum(["available", "rented", "out_of_service"]),
+    fuelLevels: z.preprocess(
+      (v) => (v === "" || v == null ? 8 : Number(v)),
+      z.number().int().min(4, "Mínimo 4 líneas").max(16, "Máximo 16 líneas"),
+    ),
+    nextServiceKm: optionalInt,
+    serviceIntervalKm: optionalInt,
+    notes: optionalStr,
+    // Apodo interno (ej. "El rojo"); si está cargado, pasa a ser la
+    // referencia principal del auto en toda la app.
+    name: optionalStr,
+    isTruck: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+    engineNumber: optionalStr,
+    chassisNumber: optionalStr,
+    insurancePolicyNumber: optionalStr,
+    insuranceCompany: optionalStr,
+    // Categoría interna para comparar contra "Precios de la competencia".
+    competitorCategoryId: optionalStr,
+    // Propio vs. de un tercero: cuando es de tercero, el titular es
+    // obligatorio (quién lo presta/es dueño real, no MDZ Rent a Car).
+    ownership: z.enum(["own", "third_party"]).default("own"),
+    ownerName: optionalStr,
+    ownerPhone: optionalStr,
+  })
+  .refine((v) => v.ownership !== "third_party" || v.ownerName != null, {
+    message: "El nombre del titular es obligatorio para un auto de tercero.",
+    path: ["ownerName"],
   });
-}
 
 function parse(formData: FormData) {
   return vehicleSchema.safeParse({
@@ -104,6 +88,9 @@ function parse(formData: FormData) {
     insuranceCompany: formData.get("insuranceCompany"),
     competitorCategoryId: formData.get("competitorCategoryId"),
     isTruck: formData.get("isTruck"),
+    ownership: formData.get("ownership") || undefined,
+    ownerName: formData.get("ownerName"),
+    ownerPhone: formData.get("ownerPhone"),
   });
 }
 
@@ -111,7 +98,7 @@ export async function createVehicle(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireAdmin();
+  await requireUser();
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -127,7 +114,8 @@ export async function createVehicle(
   }
 
   revalidatePath("/vehicles");
-  redirect("/vehicles");
+  revalidatePath("/third-party-vehicles");
+  redirect(parsed.data.ownership === "third_party" ? "/third-party-vehicles" : "/vehicles");
 }
 
 export async function updateVehicle(
@@ -135,22 +123,7 @@ export async function updateVehicle(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const user = await requireUser();
-
-  // Un empleado no-admin solo puede tocar lo operativo (estado, km, notas).
-  // Esto no es solo un chequeo de UI: aunque alguien manipule el formulario a
-  // mano y mande patente/chasis/seguro igual, acá se ignoran por completo —
-  // ni siquiera se parsean — para un usuario que no sea admin.
-  if (user.role !== "admin") {
-    const parsed = parseOperational(formData);
-    if (!parsed.success) {
-      return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
-    }
-    await prisma.vehicle.update({ where: { id }, data: parsed.data });
-    revalidatePath("/vehicles");
-    redirect(`/vehicles/${id}`);
-  }
-
+  await requireUser();
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -169,6 +142,8 @@ export async function updateVehicle(
   }
 
   revalidatePath("/vehicles");
+  revalidatePath("/third-party-vehicles");
+  revalidatePath(`/vehicles/${id}`);
   redirect(`/vehicles/${id}`);
 }
 
@@ -194,6 +169,7 @@ export async function archiveVehicle(id: string): Promise<void> {
 
   await prisma.vehicle.update({ where: { id }, data: { archivedAt: new Date() } });
   revalidatePath("/vehicles");
+  revalidatePath("/third-party-vehicles");
   revalidatePath(`/vehicles/${id}`);
 }
 
@@ -202,5 +178,6 @@ export async function unarchiveVehicle(id: string): Promise<void> {
   await requireAdmin();
   await prisma.vehicle.update({ where: { id }, data: { archivedAt: null } });
   revalidatePath("/vehicles");
+  revalidatePath("/third-party-vehicles");
   revalidatePath(`/vehicles/${id}`);
 }

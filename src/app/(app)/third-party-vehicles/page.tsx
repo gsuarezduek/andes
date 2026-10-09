@@ -1,21 +1,68 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { Prisma, VehicleStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { listThirdPartyVehicles } from "@/lib/third-party-vehicles/queries";
-import { formatDateTime } from "@/lib/datetime";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { vehicleStatusLabels } from "@/lib/labels";
+import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { FleetTabs } from "@/components/rooms/fleet-tabs";
+import { VehicleFilters } from "../vehicles/vehicle-filters";
 
 export const metadata: Metadata = { title: "Vehículos de terceros — Andes" };
 
-export default async function ThirdPartyVehiclesPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
-  const user = await requireUser();
-  const isAdmin = user.role === "admin";
-  const showArchived = (await searchParams).archived === "1";
-  const [vehicles, archivedVehicles] = await Promise.all([
-    listThirdPartyVehicles({ archived: showArchived }),
-    listThirdPartyVehicles({ archived: true }),
+type Sort = "model" | "price" | "plate" | "km";
+const SORTS: Sort[] = ["model", "price", "plate", "km"];
+const STATUS_FILTERS: VehicleStatus[] = ["available", "rented", "out_of_service"];
+
+/** Mismo criterio que `/vehicles` — "price" casi siempre va a quedar sin
+ *  tarifa en un auto de tercero (nulls last), pero la opción del filtro
+ *  compartido (`VehicleFilters`) la ofrece igual; mejor soportarla que
+ *  dejar una selección que el filtro muestra pero la página ignora. */
+function orderByFor(sort: Sort, dir: "asc" | "desc"): Prisma.VehicleOrderByWithRelationInput[] {
+  switch (sort) {
+    case "price":
+      return [{ dailyRate: { sort: dir, nulls: "last" } }, { brand: "asc" }, { model: "asc" }];
+    case "plate":
+      return [{ plate: dir }];
+    case "km":
+      return [{ currentKm: dir }];
+    case "model":
+    default:
+      return [{ brand: dir }, { model: dir }, { plate: "asc" }];
+  }
+}
+
+export default async function ThirdPartyVehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ archived?: string; sort?: string; dir?: string; status?: string }>;
+}) {
+  await requireUser();
+  const sp = await searchParams;
+  const showArchived = sp.archived === "1";
+
+  const sort: Sort = SORTS.includes(sp.sort as Sort) ? (sp.sort as Sort) : "model";
+  const dir: "asc" | "desc" =
+    sp.dir === "asc" || sp.dir === "desc" ? sp.dir : sort === "price" || sort === "km" ? "desc" : "asc";
+  const statusFilter = STATUS_FILTERS.includes(sp.status as VehicleStatus) ? (sp.status as VehicleStatus) : null;
+
+  const where: Prisma.VehicleWhereInput = {
+    ownership: "third_party",
+    archivedAt: showArchived ? { not: null } : null,
+    ...(statusFilter ? { status: statusFilter } : {}),
+  };
+
+  const [vehicles, archivedCount] = await Promise.all([
+    prisma.vehicle.findMany({
+      where,
+      orderBy: orderByFor(sort, dir),
+      include: {
+        teamNotes: { where: { resolvedAt: null }, orderBy: { createdAt: "desc" }, select: { id: true, text: true } },
+      },
+    }),
+    prisma.vehicle.count({ where: { ownership: "third_party", archivedAt: { not: null } } }),
   ]);
 
   return (
@@ -25,16 +72,18 @@ export default async function ThirdPartyVehiclesPage({ searchParams }: { searchP
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Vehículos de terceros</h1>
           <p className="text-sm text-foreground/60">
-            Autos que no son de la flota propia, con reservas manuales visibles en el Calendario.{" "}
+            Autos que no son de la flota propia — se entregan/devuelven con el mismo flujo de Alquileres.{" "}
             {showArchived
               ? `${vehicles.length} archivado${vehicles.length === 1 ? "" : "s"}`
-              : `${vehicles.length} activo${vehicles.length === 1 ? "" : "s"}`}
+              : statusFilter
+                ? `${vehicles.length} resultado${vehicles.length === 1 ? "" : "s"}`
+                : `${vehicles.length} activo${vehicles.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        {isAdmin ? <ButtonLink href="/third-party-vehicles/new">Nuevo</ButtonLink> : null}
+        <ButtonLink href="/third-party-vehicles/new">Nuevo</ButtonLink>
       </div>
 
-      {(showArchived || archivedVehicles.length > 0) && (
+      {(showArchived || archivedCount > 0) && (
         <div className="flex gap-4 text-sm">
           <Link href="/third-party-vehicles" className={!showArchived ? "font-semibold" : "text-foreground/60 hover:text-foreground"}>
             Activos
@@ -43,10 +92,12 @@ export default async function ThirdPartyVehiclesPage({ searchParams }: { searchP
             href="/third-party-vehicles?archived=1"
             className={showArchived ? "font-semibold" : "text-foreground/60 hover:text-foreground"}
           >
-            Archivados ({archivedVehicles.length})
+            Archivados ({archivedCount})
           </Link>
         </div>
       )}
+
+      <VehicleFilters sort={sort} dir={dir} status={statusFilter ?? "all"} />
 
       {vehicles.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 p-6 text-center text-sm text-foreground/60">
@@ -56,23 +107,25 @@ export default async function ThirdPartyVehiclesPage({ searchParams }: { searchP
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
           {vehicles.map((v) => (
             <li key={v.id}>
-              <Link href={`/third-party-vehicles/${v.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]">
+              <Link href={`/vehicles/${v.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03]">
                 <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 font-medium">
-                    <span className="truncate">
-                      {v.plate} · {v.brand} {v.model}
-                    </span>
-                    {v.current ? (
-                      <Badge tone={v.current.inProgress ? "emerald" : "blue"}>{v.current.inProgress ? "En uso" : "Próxima reserva"}</Badge>
-                    ) : (
-                      <Badge tone="neutral">Libre</Badge>
+                  <p className="flex flex-wrap items-center gap-1.5 font-medium">
+                    <span className="min-w-0 truncate">{vehicleDisplayName(v)}</span>
+                    {v.teamNotes.length > 0 && (
+                      <span
+                        title={`${v.teamNotes.length} nota(s) sin resolver`}
+                        className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white"
+                      >
+                        {v.teamNotes.length}
+                      </span>
                     )}
                   </p>
                   <p className="truncate text-sm text-foreground/60">
-                    Titular: {v.ownerName}
-                    {v.current ? ` · ${v.current.clientName}: ${formatDateTime(v.current.startAt)} → ${formatDateTime(v.current.endAt)}` : ""}
+                    {v.name ? `${v.brand} ${v.model} · ${v.plate}` : v.plate} · {v.currentKm.toLocaleString("es-AR")} km · Titular: {v.ownerName}
+                    {v.ownerPhone ? ` (${v.ownerPhone})` : ""}
                   </p>
                 </div>
+                <Badge tone={vehicleStatusTone[v.status]}>{vehicleStatusLabels[v.status]}</Badge>
               </Link>
             </li>
           ))}

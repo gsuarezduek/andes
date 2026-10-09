@@ -12,8 +12,10 @@ export const metadata: Metadata = { title: "Calendario — Andes" };
 export default async function CalendarSettingsPage() {
   await requireAdmin();
 
+  // Solo la flota propia: los de tercero ordenan su sección del Calendario
+  // por marca/modelo (sin editor dedicado todavía — fuera de alcance).
   const vehicles = await prisma.vehicle.findMany({
-    where: { archivedAt: null },
+    where: { ownership: "own", archivedAt: null },
     orderBy: [{ sortOrder: "asc" }, { brand: "asc" }, { model: "asc" }, { plate: "asc" }],
     select: { id: true, plate: true, name: true, brand: true, model: true, dailyRate: true },
   });

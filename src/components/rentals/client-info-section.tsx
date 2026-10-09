@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { VehicleOwnership } from "@prisma/client";
 import { Row } from "@/components/ui/row";
 import { EditDetailsForm } from "@/app/(app)/rentals/[id]/edit-details-form";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
@@ -11,7 +12,7 @@ export function ClientInfoSection({
 }: {
   rental: RentalDetail;
   canStartHandover: boolean;
-  editableVehicles: { id: string; plate: string; name: string | null; brand: string; model: string }[];
+  editableVehicles: { id: string; plate: string; name: string | null; brand: string; model: string; ownership: VehicleOwnership }[];
 }) {
   if (canStartHandover) {
     return (
@@ -25,7 +26,7 @@ export function ClientInfoSection({
         vehicleId={rental.vehicleId ?? ""}
         vehicles={editableVehicles.map((v) => ({
           id: v.id,
-          label: vehicleLabelWithPlate(v),
+          label: vehicleLabelWithPlate(v) + (v.ownership === "third_party" ? " (Tercero)" : ""),
         }))}
       />
     );
@@ -42,6 +43,7 @@ export function ClientInfoSection({
           rental.vehicle ? (
             <Link className="underline" href={`/vehicles/${rental.vehicle.id}`}>
               {vehicleLabelWithPlate(rental.vehicle)}
+              {rental.vehicle.ownership === "third_party" ? " (Tercero)" : ""}
             </Link>
           ) : rental.bookingModel ? (
             <span>

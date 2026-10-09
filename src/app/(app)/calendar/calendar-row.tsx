@@ -134,7 +134,9 @@ export function Row({
               {row.label}
             </span>
           )}
-          {row.dailyRate != null ? (
+          {row.ownerName ? (
+            <span className="hidden truncate text-[11px] font-medium text-foreground/60 sm:block">Titular: {row.ownerName}</span>
+          ) : row.dailyRate != null ? (
             <span className="hidden truncate text-[11px] font-medium text-foreground/60 sm:block">
               {formatArs(row.dailyRate)}/día
             </span>

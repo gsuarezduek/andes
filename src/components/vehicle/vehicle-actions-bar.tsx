@@ -10,11 +10,14 @@ export function VehicleActionsBar({
   isAdmin,
   archived,
   hasActiveRental,
+  backHref = "/vehicles",
 }: {
   vehicleId: string;
   isAdmin: boolean;
   archived: boolean;
   hasActiveRental: boolean;
+  /** A dónde vuelve "Volver" — `/third-party-vehicles` para un auto de tercero. */
+  backHref?: string;
 }) {
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
@@ -38,7 +41,7 @@ export function VehicleActionsBar({
         {isAdmin && (
           <ButtonLink href={`/vehicles/${vehicleId}/qr`} variant="secondary">Imprimir QR</ButtonLink>
         )}
-        <ButtonLink href="/vehicles" variant="secondary">Volver</ButtonLink>
+        <ButtonLink href={backHref} variant="secondary">Volver</ButtonLink>
         {isAdmin &&
           (archived ? (
             <Button

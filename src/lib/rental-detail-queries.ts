@@ -39,7 +39,7 @@ export async function getEditableVehicles() {
   return prisma.vehicle.findMany({
     where: { archivedAt: null },
     orderBy: [{ brand: "asc" }, { model: "asc" }],
-    select: { id: true, plate: true, name: true, brand: true, model: true },
+    select: { id: true, plate: true, name: true, brand: true, model: true, ownership: true },
   });
 }
 
