@@ -176,6 +176,9 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
         {attachedFile && (
           <AttachmentPreview file={attachedFile} previewUrl={attachedPreviewUrl} onRemove={removeAttachment} />
         )}
+        {/* Los botones de adjuntar/emoji quedaron en la fila de abajo, no acá
+            — con los dos adentro de esta fila, en un celular angosto el
+            textarea quedaba apretado a un tercio del ancho disponible. */}
         <div className="relative flex items-end gap-2">
           {dropdownOpen && (
             <QuickReplyDropdown
@@ -187,29 +190,6 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
               onManage={() => openManager(slashQuery || undefined)}
             />
           )}
-          {emojiOpen && <EmojiPicker onSelect={insertAtCursor} onClose={() => setEmojiOpen(false)} />}
-          <input ref={fileInputRef} type="file" name="file" onChange={handleFileChange} className="hidden" />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            title="Adjuntar foto o archivo"
-            aria-label="Adjuntar foto o archivo"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
-          >
-            📎
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEmojiOpen((o) => !o);
-              setSuppressed(true); // no superponer con el picker de plantillas rápidas
-            }}
-            title="Emojis"
-            aria-label="Emojis"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
-          >
-            😊
-          </button>
           <textarea
             ref={textRef}
             onInput={handleInput}
@@ -224,13 +204,40 @@ export function SendForm({ conversationId, quickReplies }: { conversationId: str
           />
           <SubmitButton pendingLabel="Enviando…">Enviar</SubmitButton>
         </div>
-        <button
-          type="button"
-          onClick={() => openManager()}
-          className="self-start text-xs font-medium text-foreground/50 hover:text-foreground"
-        >
-          🗂️ Plantillas rápidas <span className="text-foreground/35">(o escribí &quot;/&quot;)</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <input ref={fileInputRef} type="file" name="file" onChange={handleFileChange} className="hidden" />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Adjuntar foto o archivo"
+            aria-label="Adjuntar foto o archivo"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+          >
+            📎
+          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setEmojiOpen((o) => !o);
+                setSuppressed(true); // no superponer con el picker de plantillas rápidas
+              }}
+              title="Emojis"
+              aria-label="Emojis"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+            >
+              😊
+            </button>
+            {emojiOpen && <EmojiPicker onSelect={insertAtCursor} onClose={() => setEmojiOpen(false)} />}
+          </div>
+          <button
+            type="button"
+            onClick={() => openManager()}
+            className="truncate text-xs font-medium text-foreground/50 hover:text-foreground"
+          >
+            🗂️ Plantillas rápidas <span className="hidden text-foreground/35 sm:inline">(o escribí &quot;/&quot;)</span>
+          </button>
+        </div>
       </form>
 
       {/* Fuera del <form> de arriba a propósito: el modal tiene sus propios

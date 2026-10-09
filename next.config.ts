@@ -51,6 +51,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  experimental: {
+    // Default de Next es 1 MB — lo pisaba en silencio cualquier adjunto de
+    // WhatsApp más pesado que eso (una foto de celular normal ya lo supera).
+    // 20 MB, mismo tope que ya usa `/api/uploads`, con margen sobre el
+    // límite real de 16 MB que valida `whatsapp/actions.ts` (el límite de
+    // Next cuenta también el overhead de multipart, no solo el archivo).
+    serverActions: { bodySizeLimit: "20mb" },
+  },
 };
 
 export default nextConfig;

@@ -976,6 +976,14 @@ Pedido del dueño. tsc/lint/790 tests en verde (+7 nuevos: `attachment-kind.test
 - **Fuera de alcance a propósito**: grabar notas de voz (es una UX de micrófono distinta, no "elegir un archivo"); stickers; búsqueda/categorías/tonos de piel en el picker de emojis.
 - **Pendiente antes de confiar en esto con un cliente real**: probar un envío real de foto/documento contra la cuenta de WhatsApp conectada — confirmar que `uploadMedia`/`sendMediaByMetaId` interpretan bien la respuesta real de Chakra (mismo método que ya resolvió v19/v20 si algo no matchea).
 
+## v76 — Fixes de v75 reportados por el dueño al probar con la cuenta real
+
+Tres bugs reales, encontrados al usar v75 con un celular y una cuenta de WhatsApp conectada de verdad (algo que v75 no pudo probar). tsc/lint/790 tests en verde; **verificado por navegador a 375px** (el layout); **el envío real contra Chakra sigue sin confirmar** (ver el tercer punto).
+
+- **Poco espacio para escribir en el celular**: los botones 📎/😊 vivían en la misma fila que el textarea, achicándolo a un tercio del ancho en una pantalla angosta. Pasaron a su propia fila, debajo (junto con "Plantillas rápidas") — el textarea+Enviar quedan solos arriba, con todo el ancho disponible.
+- **No dejaba subir más de 1 MB** (una foto de celular normal ya lo supera): no era el tope de 16 MB de la app — Next.js limita el body de un Server Action a **1 MB por default** si no se configura `experimental.serverActions.bodySizeLimit` (`next.config.ts`, nunca se había tocado porque hasta ahora ningún Server Action de esta app subía un archivo pesado). Seteado a `"20mb"` — mismo tope que ya usa `/api/uploads`, con margen sobre el límite real de 16 MB de la app (el límite de Next cuenta también el overhead del multipart, no solo el archivo).
+- **"Error en Chakra" incluso con una foto chica**: `uploadMedia` asumía el mismo patrón de ruta que mensajería/plantillas (`EXT_BASE` + `plugin/.../pluginId`), pero la única otra llamada de "media" ya confirmada contra la cuenta real (`downloadMedia`, para adjuntos entrantes) vive bajo un namespace distinto: `v2/whatsapp/{version}/...`, **sin** pluginId. Se cambió `uploadMedia` a `POST {API_ROOT}/v2/whatsapp/{version}/{phoneNumberId}/media`, seguiendo ese mismo patrón en vez del de mensajería. **Todavía sin confirmar** si esto lo resuelve del todo — es la hipótesis mejor fundada con la única evidencia real disponible (el endpoint de descarga), no una verificación contra una llamada real exitosa. Si sigue fallando, el error trae el cuerpo crudo de la respuesta de Chakra (ver `ChakraApiError`) — hace falta ese texto exacto para ajustar sin seguir a ciegas (mismo método que ya resolvió v19/v20).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

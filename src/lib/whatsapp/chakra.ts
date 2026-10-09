@@ -157,17 +157,19 @@ export async function uploadMedia(
   form.append("messaging_product", "whatsapp");
   form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }), file.filename);
 
+  // Ojo: a diferencia de mensajería/plantillas (bajo EXT_BASE +
+  // plugin/.../pluginId), `downloadMedia` (la única otra llamada de media ya
+  // CONFIRMADA contra la cuenta real) vive bajo `v2/whatsapp/{version}/...`,
+  // sin pluginId — se sigue ese mismo patrón acá para subir, en vez del de
+  // mensajería, que es para otra familia de endpoints.
   let res: Response;
   try {
-    res = await fetch(
-      `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${account.accessToken}` },
-        body: form,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      },
-    );
+    res = await fetch(`${API_ROOT}/v2/whatsapp/${API_VERSION}/${account.phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${account.accessToken}` },
+      body: form,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
   } catch (err) {
     throw new ChakraApiError(`No se pudo conectar con Chakra: ${err instanceof Error ? err.message : err}`, 0);
   }
