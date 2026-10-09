@@ -71,6 +71,10 @@ export function TextField({
   suffix?: ReactNode;
 }) {
   const onWheel = props.type === "number" ? blurOnWheel : undefined;
+  // El padding-izquierdo tiene que crecer con el ancho del prefijo ("$" vs.
+  // "US$") o el texto tipeado queda superpuesto con el símbolo.
+  const prefixLength = typeof prefix === "string" ? prefix.length : 1;
+  const prefixPad = prefixLength >= 3 ? "pl-12" : prefixLength === 2 ? "pl-9" : "pl-7";
   return (
     <FieldShell label={label} htmlFor={id} hint={hint} error={error}>
       {prefix != null || suffix != null ? (
@@ -84,7 +88,7 @@ export function TextField({
             id={id}
             name={id}
             aria-invalid={error ? true : undefined}
-            className={`${inputBase} ${prefix != null ? "pl-7" : ""} ${suffix != null ? "pr-10" : ""} ${error ? inputErrorClass : ""} ${className}`}
+            className={`${inputBase} ${prefix != null ? prefixPad : ""} ${suffix != null ? "pr-10" : ""} ${error ? inputErrorClass : ""} ${className}`}
             onWheel={onWheel}
             {...props}
           />
