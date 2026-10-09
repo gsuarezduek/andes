@@ -66,9 +66,9 @@ type CategoryOption = { id: string; name: string };
 // falta, alcanza con volver a `true`. No aplica a asociados/proveedores (ver
 // más abajo): ahí el mismo mecanismo sigue visible, para corregir cuentas
 // corrientes desfasadas (v70) sin inventar una deuda ni un movimiento falso.
-// Reactivado temporalmente (2026-10-09) para un segundo ajuste puntual de
-// Stripe — volver a `false` después de cargarlo.
-const SHOW_BALANCE_ADJUSTMENT = true;
+// Se reactivó temporalmente el 2026-10-09 para un segundo ajuste puntual de
+// Stripe (ya cargado) — vuelve a `false`.
+const SHOW_BALANCE_ADJUSTMENT = false;
 
 function draftFrom(it: PlainPaymentMethod): Draft {
   return {
