@@ -249,6 +249,8 @@ model User {
   deletedCashMovements           CashMovement[]           @relation("CashMovementDeleter")
   cashMovementEdits              CashMovementEdit[]       @relation("CashMovementEditor")
   resolvedGuarantees             CashMovement[]           @relation("GuaranteeResolver")
+  invoicedCashMovements          CashMovement[]           @relation("CashMovementInvoicer")
+  createdInvoices                Invoice[]                @relation("InvoiceCreator")
   createdSafeMovements           SafeMovement[]           @relation("SafeMovementCreator")
   deletedSafeMovements           SafeMovement[]           @relation("SafeMovementDeleter")
   safeMovementEdits              SafeMovementEdit[]       @relation("SafeMovementEditor")
@@ -1330,6 +1332,20 @@ model CashMovement {
   guaranteeSource   CashMovement?  @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
   guaranteeDerived  CashMovement[] @relation("GuaranteeDerivative")
 
+  // Hay que emitirle una factura a este ingreso (nunca se usa en un Egreso).
+  // Es una etiqueta simple, no un vínculo formal con `Invoice` — el registro
+  // de facturas (ver modelo abajo) es un libro aparte, sin FK hacia acá; se
+  // resuelve a mano con `markCashMovementInvoiced`/`unmarkCashMovementInvoiced`
+  // (pestaña Caja → Facturación). `invoicingName`/`invoicingCuit` se tipean al
+  // momento de marcar el ingreso, no salen de ningún catálogo.
+  needsInvoice   Boolean   @default(false) @map("needs_invoice")
+  invoicingName  String?   @map("invoicing_name")
+  invoicingCuit  String?   @map("invoicing_cuit")
+  invoicedAt     DateTime? @map("invoiced_at")
+  invoicedById   String?   @map("invoiced_by_id")
+  invoicedBy     User?     @relation("CashMovementInvoicer", fields: [invoicedById], references: [id], onDelete: SetNull)
+  invoicedByName String?   @map("invoiced_by_name")
+
   // `*Name` son nombres congelados al momento del hecho (ver
   // Inspection.userName) — sobreviven a que se borre el usuario.
   createdById   String? @map("created_by_id")
@@ -1353,7 +1369,33 @@ model CashMovement {
   @@index([categoryId])
   @@index([guaranteeSourceId])
   @@index([commissionSourceId])
+  @@index([needsInvoice, invoicedAt])
   @@map("cash_movements")
+}
+
+/// Libro de facturas emitidas (Caja → Facturación). Registro suelto, sin
+/// vínculo formal con los `CashMovement` marcados `needsInvoice` — es
+/// simplemente una planilla de lo facturado (monto, fecha, razón social,
+/// CUIT), no una reconciliación automática contra los ingresos pendientes.
+model Invoice {
+  id String @id @default(cuid())
+
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    Currency @default(ars)
+  date        DateTime @db.Date
+  razonSocial String   @map("razon_social")
+  cuit        String
+
+  // Nombre congelado (ver `Inspection.userName`) — sobrevive a que se borre
+  // el usuario.
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String  @map("created_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("invoices")
 }
 
 /// Catálogo editable (Configuración → Categorías de gasto) de categorías para

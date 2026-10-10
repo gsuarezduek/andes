@@ -14,6 +14,7 @@ import {
   isPaymentAmountReady,
   type PaymentAmountState,
 } from "@/components/cash/payment-amount-fields";
+import { InvoiceRequirementFields, isInvoiceRequirementReady } from "@/components/cash/invoice-requirement-fields";
 import { addRentalPayment } from "@/app/(app)/rentals/[id]/payment-actions";
 
 type PaymentMethodOption = {
@@ -47,6 +48,9 @@ export function AddPaymentButton({
   const [amount, setAmount] = useState<PaymentAmountState>(emptyPaymentAmount(usdRate));
   const [note, setNote] = useState("");
   const [isGuarantee, setIsGuarantee] = useState(false);
+  const [needsInvoice, setNeedsInvoice] = useState(false);
+  const [invoicingName, setInvoicingName] = useState("");
+  const [invoicingCuit, setInvoicingCuit] = useState("");
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -58,13 +62,16 @@ export function AddPaymentButton({
     setAmount(emptyPaymentAmount(usdRate));
     setNote("");
     setIsGuarantee(false);
+    setNeedsInvoice(false);
+    setInvoicingName("");
+    setInvoicingCuit("");
     setError(undefined);
     setOpen(true);
   }
 
   function confirm() {
     if (!selectedMethod) return;
-    const payment = buildPayment(selectedMethod, amount, { note, isGuarantee });
+    const payment = buildPayment(selectedMethod, amount, { note, isGuarantee, needsInvoice, invoicingName, invoicingCuit });
     if (!payment) return;
     setError(undefined);
     start(async () => {
@@ -132,6 +139,17 @@ export function AddPaymentButton({
             </span>
           </span>
         </label>
+        <div className="mt-4">
+          <InvoiceRequirementFields
+            idPrefix="add_payment"
+            checked={needsInvoice}
+            onCheckedChange={setNeedsInvoice}
+            name={invoicingName}
+            onNameChange={setInvoicingName}
+            cuit={invoicingCuit}
+            onCuitChange={setInvoicingCuit}
+          />
+        </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
@@ -140,7 +158,13 @@ export function AddPaymentButton({
           <Button
             type="button"
             className="flex-1"
-            disabled={pending || !selectedMethod || !isPaymentAmountReady(amount) || (selectedMethod?.requiresNote && !note.trim())}
+            disabled={
+              pending ||
+              !selectedMethod ||
+              !isPaymentAmountReady(amount) ||
+              (selectedMethod?.requiresNote && !note.trim()) ||
+              !isInvoiceRequirementReady(needsInvoice, invoicingName, invoicingCuit)
+            }
             onClick={confirm}
           >
             {pending ? "Guardando…" : "Agregar"}

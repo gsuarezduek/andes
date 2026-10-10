@@ -39,6 +39,7 @@ export function CashMovementForm({
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState("");
   const [currency, setCurrency] = useState<Currency>("ars");
+  const [needsInvoice, setNeedsInvoice] = useState(false);
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
 
@@ -126,6 +127,27 @@ export function CashMovementForm({
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-2 text-sm text-foreground/70">
+            <input
+              type="checkbox"
+              name="needsInvoice"
+              checked={needsInvoice}
+              onChange={(e) => setNeedsInvoice(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-foreground/30"
+            />
+            <span>
+              Hay que facturar
+              <span className="block text-xs text-foreground/50">
+                Queda pendiente en Caja → Facturación hasta que se cargue la factura correspondiente.
+              </span>
+            </span>
+          </label>
+          {needsInvoice && (
+            <div className="grid grid-cols-1 gap-2 pl-6 sm:grid-cols-2">
+              <TextField id="invoicingName" label="Nombre y Apellido o Razón Social" required />
+              <TextField id="invoicingCuit" label="CUIT" placeholder="20-12345678-9" required />
+            </div>
+          )}
         </>
       )}
       <SubmitButton pendingLabel="Guardando…" disabled={!paymentMethodId}>

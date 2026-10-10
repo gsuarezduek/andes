@@ -6,12 +6,13 @@
  * directo a otra sección sin pasar primero por `/caja` (que sin esto
  * siempre abre en "Movimientos", perdiendo la pestaña en la que se estaba).
  */
-export type CajaSectionKey = "movimientos" | "asociados" | "proveedores" | "garantias" | "saldos";
+export type CajaSectionKey = "movimientos" | "asociados" | "proveedores" | "garantias" | "facturacion" | "saldos";
 
 export const CAJA_SECTIONS: { key: CajaSectionKey; label: string }[] = [
   { key: "movimientos", label: "Movimientos" },
   { key: "asociados", label: "Asociados" },
   { key: "proveedores", label: "Cuentas corrientes" },
   { key: "garantias", label: "Garantías" },
+  { key: "facturacion", label: "Facturación" },
   { key: "saldos", label: "Saldos" },
 ];

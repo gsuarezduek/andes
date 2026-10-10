@@ -11,14 +11,15 @@ import { CAJA_SECTIONS, type CajaSectionKey } from "./caja-sections";
  * corriente por proveedor), "Garantías" (depósitos tomados/devueltos, ver
  * `RentalPayment.isGuarantee`) y "Saldos" (ex-"Cuentas propias": saldo +
  * historial de cada cuenta propia, cada una en su propia página — solo
- * admin, ver abajo). La Caja fuerte ya no tiene pestaña propia: es una
- * tarjeta más dentro de Saldos (v44, ver `AccountsSection`). Las primeras
- * tres y "Garantías" son visibles para cualquier rol (lo que cada una
- * muestra por dentro ya varía por rol, ver `caja/page.tsx`); "Saldos"
- * directamente no se pasa (queda `undefined`) para un no-admin, así que ni su
- * pestaña aparece — es la posición de plata real de la empresa. Ya vienen
- * renderizadas desde el server component; acá solo se elige cuál mostrar
- * (mismo patrón que RentalDetailTabs).
+ * admin, ver abajo) y "Facturación" (ingresos marcados "Hay que facturar" +
+ * el libro de facturas cargadas). La Caja fuerte ya no tiene pestaña propia:
+ * es una tarjeta más dentro de Saldos (v44, ver `AccountsSection`). Las
+ * primeras tres, "Garantías" y "Facturación" son visibles para cualquier rol
+ * (lo que cada una muestra por dentro ya varía por rol, ver `caja/page.tsx`);
+ * "Saldos" directamente no se pasa (queda `undefined`) para un no-admin, así
+ * que ni su pestaña aparece — es la posición de plata real de la empresa. Ya
+ * vienen renderizadas desde el server component; acá solo se elige cuál
+ * mostrar (mismo patrón que RentalDetailTabs).
  *
  * Pestaña inicial: lee `?tab=` (ver `CajaSectionNav`, usado en las páginas de
  * detalle de proveedor/asociado/cuenta) para poder volver directo a la
@@ -29,6 +30,7 @@ export function CajaTabs(props: {
   asociados: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
+  facturacion?: ReactNode;
   saldos?: ReactNode;
 }) {
   return (
@@ -43,6 +45,7 @@ function CajaTabsWithInitialTab(props: {
   asociados: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
+  facturacion?: ReactNode;
   saldos?: ReactNode;
 }) {
   const searchParams = useSearchParams();
@@ -54,6 +57,7 @@ function CajaTabsContent({
   asociados,
   proveedores,
   garantias,
+  facturacion,
   saldos,
   initialTab,
 }: {
@@ -61,10 +65,18 @@ function CajaTabsContent({
   asociados: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
+  facturacion?: ReactNode;
   saldos?: ReactNode;
   initialTab: string | null;
 }) {
-  const panels: Partial<Record<CajaSectionKey, ReactNode>> = { movimientos, asociados, proveedores, garantias, saldos };
+  const panels: Partial<Record<CajaSectionKey, ReactNode>> = {
+    movimientos,
+    asociados,
+    proveedores,
+    garantias,
+    facturacion,
+    saldos,
+  };
   const entries = CAJA_SECTIONS.filter((s) => panels[s.key] !== undefined);
   const initialIndex = Math.max(
     0,

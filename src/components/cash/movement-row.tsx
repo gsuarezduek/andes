@@ -109,6 +109,22 @@ export function MovementRow({
               {movement.isCommission && (
                 <DetailRow label="Generado por" value="Comisión automática de un ingreso" />
               )}
+              {movement.needsInvoice && (
+                <>
+                  <DetailRow
+                    label="Facturación"
+                    value={movement.invoicedAt ? "Facturado" : "Pendiente de facturar"}
+                  />
+                  <DetailRow label="Nombre/Razón Social" value={movement.invoicingName ?? "—"} />
+                  <DetailRow label="CUIT" value={movement.invoicingCuit ?? "—"} />
+                  {movement.invoicedAt && (
+                    <DetailRow
+                      label="Facturado por"
+                      value={`${movement.invoicedByName ?? "—"} · ${formatDateTime(movement.invoicedAt)}`}
+                    />
+                  )}
+                </>
+              )}
               {movement.rentalClientName && (
                 <DetailRow
                   label="Cliente"

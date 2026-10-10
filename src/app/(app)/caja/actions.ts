@@ -22,6 +22,8 @@ const createMovementSchema = z.object({
   recipientPaymentMethodNote: z.string().trim().max(300).optional(),
   categoryId: z.string().optional(),
   rentalId: z.string().optional(),
+  invoicingName: z.string().trim().max(200).optional(),
+  invoicingCuit: z.string().trim().max(20).optional(),
 });
 
 // Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo, y
@@ -45,6 +47,8 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     recipientPaymentMethodNote,
     categoryId,
     rentalId,
+    invoicingName,
+    invoicingCuit,
   } = createMovementSchema.parse({
     description: formData.get("description"),
     amount: formData.get("amount"),
@@ -55,11 +59,21 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
     categoryId: formData.get("categoryId") || undefined,
     rentalId: formData.get("rentalId") || undefined,
+    invoicingName: formData.get("invoicingName") || undefined,
+    invoicingCuit: formData.get("invoicingCuit") || undefined,
   });
   // Garantía/depósito (se devuelve, no es un cobro/pago real) — ver
   // comentario de `isGuarantee` en el schema. Nunca editable después: si se
   // cargó mal, se borra y se carga de nuevo (mismo criterio que `type`).
   const isGuarantee = formData.get("isGuarantee") === "on";
+  // Hay que facturar este ingreso (ver `needsInvoice` en el schema) — solo
+  // tiene sentido en un Ingreso. Nombre/CUIT se tipean en el momento, nunca
+  // editables después (mismo criterio que `isGuarantee`): si están mal, se
+  // borra el movimiento y se carga de nuevo.
+  const needsInvoice = type === "income" && formData.get("needsInvoice") === "on";
+  if (needsInvoice && (!invoicingName || !invoicingCuit)) {
+    throw new Error("Para facturar hace falta el Nombre/Razón Social y el CUIT.");
+  }
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
@@ -102,6 +116,9 @@ export async function createCashMovement(type: "income" | "expense", formData: F
         categoryName: category?.name ?? null,
         rentalId: rentalId || null,
         isGuarantee,
+        needsInvoice,
+        invoicingName: needsInvoice ? invoicingName! : null,
+        invoicingCuit: needsInvoice ? invoicingCuit! : null,
         createdById: user.id,
         createdByName: displayName(user),
       },

@@ -42,10 +42,17 @@ export function isPaymentAmountReady(state: PaymentAmountState): boolean {
 export function buildPayment(
   method: MethodForPayment,
   state: PaymentAmountState,
-  opts: { note: string; isGuarantee: boolean },
+  opts: {
+    note: string;
+    isGuarantee: boolean;
+    needsInvoice?: boolean;
+    invoicingName?: string;
+    invoicingCuit?: string;
+  },
 ): RentalPayment | null {
   if (!isPaymentAmountReady(state)) return null;
   if (method.requiresNote && !opts.note.trim()) return null;
+  if (opts.needsInvoice && (!opts.invoicingName?.trim() || !opts.invoicingCuit?.trim())) return null;
   const amount = parseDecimal(state.amount) ?? 0;
   const base = {
     methodId: method.id,
@@ -53,6 +60,9 @@ export function buildPayment(
     adjustmentPercent: method.adjustmentPercent,
     note: method.requiresNote ? opts.note.trim() : undefined,
     isGuarantee: opts.isGuarantee || undefined,
+    needsInvoice: opts.needsInvoice || undefined,
+    invoicingName: opts.needsInvoice ? opts.invoicingName!.trim() : undefined,
+    invoicingCuit: opts.needsInvoice ? opts.invoicingCuit!.trim() : undefined,
   };
   if (state.currency === "usd") {
     const rate = parseDecimal(state.rate) ?? 0;

@@ -13,6 +13,7 @@ import {
   isPaymentAmountReady,
   type PaymentAmountState,
 } from "@/components/cash/payment-amount-fields";
+import { InvoiceRequirementFields, isInvoiceRequirementReady } from "@/components/cash/invoice-requirement-fields";
 import { formatArs, guaranteeTotal, paidTotal, roundMoney, usdPaymentDetail, type RentalPayment } from "@/lib/contract";
 
 type PaymentMethodOption = {
@@ -52,6 +53,9 @@ export function PaymentsEditor({
   const [payAmount, setPayAmount] = useState<PaymentAmountState>(emptyPaymentAmount(usdRate));
   const [payNote, setPayNote] = useState("");
   const [payIsGuarantee, setPayIsGuarantee] = useState(false);
+  const [payNeedsInvoice, setPayNeedsInvoice] = useState(false);
+  const [payInvoicingName, setPayInvoicingName] = useState("");
+  const [payInvoicingCuit, setPayInvoicingCuit] = useState("");
 
   // Suma el importe base (lo que cuenta para el saldo) — no lo realmente
   // cobrado (`adjustedAmount`, que cada línea sigue mostrando aparte). Ver
@@ -69,11 +73,20 @@ export function PaymentsEditor({
     setPayAmount(emptyPaymentAmount(usdRate));
     setPayNote("");
     setPayIsGuarantee(false);
+    setPayNeedsInvoice(false);
+    setPayInvoicingName("");
+    setPayInvoicingCuit("");
     setPayModalOpen(true);
   }
   function confirmPayment() {
     if (!selectedMethod) return;
-    const payment = buildPayment(selectedMethod, payAmount, { note: payNote, isGuarantee: payIsGuarantee });
+    const payment = buildPayment(selectedMethod, payAmount, {
+      note: payNote,
+      isGuarantee: payIsGuarantee,
+      needsInvoice: payNeedsInvoice,
+      invoicingName: payInvoicingName,
+      invoicingCuit: payInvoicingCuit,
+    });
     if (!payment) return;
     onAdd(payment);
     setPayModalOpen(false);
@@ -116,6 +129,11 @@ export function PaymentsEditor({
                   {p.isGuarantee && (
                     <span className="ml-1.5">
                       <Badge tone="violet">Garantía</Badge>
+                    </span>
+                  )}
+                  {p.needsInvoice && (
+                    <span className="ml-1.5">
+                      <Badge tone="amber">A facturar</Badge>
                     </span>
                   )}
                 </span>
@@ -198,6 +216,17 @@ export function PaymentsEditor({
             </span>
           </span>
         </label>
+        <div className="mt-4">
+          <InvoiceRequirementFields
+            idPrefix="pay"
+            checked={payNeedsInvoice}
+            onCheckedChange={setPayNeedsInvoice}
+            name={payInvoicingName}
+            onNameChange={setPayInvoicingName}
+            cuit={payInvoicingCuit}
+            onCuitChange={setPayInvoicingCuit}
+          />
+        </div>
         <div className="mt-5 flex gap-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={() => setPayModalOpen(false)}>
             Cancelar
@@ -208,7 +237,8 @@ export function PaymentsEditor({
             disabled={
               !selectedMethod ||
               !isPaymentAmountReady(payAmount) ||
-              (selectedMethod.requiresNote && !payNote.trim())
+              (selectedMethod.requiresNote && !payNote.trim()) ||
+              !isInvoiceRequirementReady(payNeedsInvoice, payInvoicingName, payInvoicingCuit)
             }
             onClick={confirmPayment}
           >

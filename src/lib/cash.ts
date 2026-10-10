@@ -100,6 +100,13 @@ export type CashMovementRow = {
   guaranteeChargedAmount: number | null;
   guaranteeReturnedAmount: number | null;
   guaranteeResolvedByName: string | null;
+  // Hay que facturar este ingreso (ver comentario de `needsInvoice` en el
+  // schema) — nunca true en un Egreso. `invoicedAt` nulo = pendiente.
+  needsInvoice: boolean;
+  invoicingName: string | null;
+  invoicingCuit: string | null;
+  invoicedAt: Date | null;
+  invoicedByName: string | null;
 };
 
 export type CashPeriodDetail = {
@@ -151,6 +158,11 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
     guaranteeChargedAmount: r.guaranteeChargedAmount != null ? Number(r.guaranteeChargedAmount) : null,
     guaranteeReturnedAmount: r.guaranteeReturnedAmount != null ? Number(r.guaranteeReturnedAmount) : null,
     guaranteeResolvedByName: r.guaranteeResolvedByName,
+    needsInvoice: r.needsInvoice,
+    invoicingName: r.invoicingName,
+    invoicingCuit: r.invoicingCuit,
+    invoicedAt: r.invoicedAt,
+    invoicedByName: r.invoicedByName,
   };
 }
 
@@ -179,6 +191,26 @@ async function findMovements(
  */
 export async function getUnconfirmedCashMovements(): Promise<CashMovementRow[]> {
   return findMovements({ needsConfirmation: true });
+}
+
+export type Invoicing = {
+  pending: CashMovementRow[];
+  completed: CashMovementRow[];
+  pendingTotal: CurrencyTotals;
+};
+
+/**
+ * Ingresos marcados "Hay que facturar" (ver `needsInvoice` en el schema),
+ * separados entre pendientes (`invoicedAt` nulo) y ya facturados — Caja →
+ * Facturación. Independiente del período visible en Caja: no importa cuándo
+ * se cargó, sigue pendiente hasta que alguien lo marque facturado.
+ */
+export async function getInvoicing(): Promise<Invoicing> {
+  const [pending, completed] = await Promise.all([
+    findMovements({ needsInvoice: true, invoicedAt: null }),
+    findMovements({ needsInvoice: true, invoicedAt: { not: null } }),
+  ]);
+  return { pending, completed, pendingTotal: sumByCurrency(pending) };
 }
 
 /**
@@ -420,6 +452,9 @@ export function paymentsToCashMovements(
     paymentMethodNote: p.note ?? null,
     needsConfirmation: p.unconfirmed ?? false,
     isGuarantee: p.isGuarantee ?? false,
+    needsInvoice: p.needsInvoice ?? false,
+    invoicingName: p.needsInvoice ? p.invoicingName ?? null : null,
+    invoicingCuit: p.needsInvoice ? p.invoicingCuit ?? null : null,
     rentalId: opts.rentalId,
     createdById: opts.createdById,
     createdByName: opts.createdByName,

@@ -7,6 +7,7 @@ import {
   getDeletedCashMovements,
   getCashSearchIndex,
   getGuarantees,
+  getInvoicing,
   getOwnAccountBalances,
   getOwnCashMovements,
   getRentalPickerOptions,
@@ -14,6 +15,7 @@ import {
   getUnpaidFinishedRentals,
   parseCashPeriod,
 } from "@/lib/cash";
+import { getInvoices } from "@/lib/invoices";
 import { getSafeBalance, getSafeMonthActivity } from "@/lib/safe";
 import { getProviderBalances } from "@/lib/providers";
 import { getAssociateBalances } from "@/lib/associates";
@@ -28,6 +30,7 @@ import { ProvidersSection } from "@/components/cash/providers-section";
 import { AssociatesSection } from "@/components/cash/associates-section";
 import { AccountsSection } from "@/components/cash/accounts-section";
 import { GuaranteesSection } from "@/components/cash/guarantees-section";
+import { InvoicingSection } from "@/components/cash/invoicing-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 import { UsdRateBadge } from "@/components/cash/usd-rate-badge";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
@@ -145,6 +148,10 @@ export default async function CajaPage({
     />
   );
 
+  // Facturación (ver `needsInvoice`/modelo `Invoice`) — visible para
+  // cualquier rol, mismo criterio que Garantías.
+  const facturacion = <InvoicingSection invoicing={await getInvoicing()} invoices={await getInvoices()} />;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-3">
@@ -162,6 +169,7 @@ export default async function CajaPage({
         asociados={asociados}
         proveedores={proveedores}
         garantias={garantias}
+        facturacion={facturacion}
         saldos={saldos}
       />
     </div>

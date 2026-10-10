@@ -109,6 +109,14 @@ export type RentalPayment = {
   // el ingreso se registra en dólares (ver `paymentsToCashMovements`).
   usdAmount?: number;
   exchangeRate?: number;
+  // Hay que emitirle una factura a este pago — `invoicingName`/`invoicingCuit`
+  // se tipean al momento de cargarlo (no un catálogo). Se propaga tal cual al
+  // CashMovement que genera (ver `paymentsToCashMovements` en cash.ts); el
+  // registro de facturas (Caja → Facturación) queda aparte, sin vínculo
+  // formal con esta línea.
+  needsInvoice?: boolean;
+  invoicingName?: string;
+  invoicingCuit?: string;
 };
 
 /** Cómo se formatea/edita cada campo de pricing. */
