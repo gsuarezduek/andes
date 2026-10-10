@@ -14,6 +14,20 @@ function MonthLine({ label, totals }: { label: string; totals: CurrencyTotals })
   );
 }
 
+function hasAny(totals: CurrencyTotals): boolean {
+  return CURRENCIES.some((c) => totals[c] !== 0);
+}
+
+/** Igual que `MonthLine`, pero en rojo — para "En garantías" (plata que no es de la empresa). */
+function GuaranteeLine({ totals }: { totals: CurrencyTotals }) {
+  const shown = CURRENCIES.filter((c) => c === "ars" || totals[c] !== 0);
+  return (
+    <p className="truncate text-xs font-medium text-red-600 dark:text-red-400">
+      En garantías: {shown.map((c) => formatMoney(totals[c], c)).join(" · ")}
+    </p>
+  );
+}
+
 /**
  * Tarjeta de una cuenta propia (Efectivo, banco, Mercado Pago, Caja fuerte,
  * etc.): nombre + saldo actual arriba, ingresos/egresos de este mes chico
@@ -21,10 +35,14 @@ function MonthLine({ label, totals }: { label: string; totals: CurrencyTotals })
  * (pedido del dueño). Si la cuenta tiene fondos de inversión (v61), suma el
  * desglose "En cuenta" (líquido) / "En fondos" entre el saldo y el mes —
  * sin eso, había que entrar a la cuenta y restar a mano contra "Fondos de
- * inversión" para saber cuánto quedaba disponible. Tarjeta entera clickeable
- * hacia la página con el historial completo. Genérica (no depende de
- * `OwnAccountBalance`/`PaymentMethod`) para que la Caja fuerte pueda usarla
- * igual que el resto (ver `AccountsSection`, v44).
+ * inversión" para saber cuánto quedaba disponible. Si tiene garantías
+ * activas (plata del cliente, no de la empresa — ver
+ * `OwnAccountBalance.guaranteeBalance`), suma una línea roja "En garantías"
+ * para que el saldo de la tarjeta reconcilie contra lo que se ve en
+ * Movimientos/el ledger mensual (que las excluyen a propósito). Tarjeta
+ * entera clickeable hacia la página con el historial completo. Genérica (no
+ * depende de `OwnAccountBalance`/`PaymentMethod`) para que la Caja fuerte
+ * pueda usarla igual que el resto (ver `AccountsSection`, v44).
  */
 export function AccountCard({
   href,
@@ -32,6 +50,7 @@ export function AccountCard({
   caption,
   balance,
   investedBalance,
+  guaranteeBalance,
   monthIncome,
   monthExpense,
 }: {
@@ -42,6 +61,8 @@ export function AccountCard({
   balance: CurrencyTotals;
   /** Cuánto de `balance` está en fondos de inversión — ver `OwnAccountBalance.investedBalance`. `null`/`undefined` = la cuenta no tiene fondos habilitados. */
   investedBalance?: CurrencyTotals | null;
+  /** Garantías activas en esta cuenta — ver `OwnAccountBalance.guaranteeBalance`. Sin garantías activas, no se muestra la línea. */
+  guaranteeBalance?: CurrencyTotals | null;
   monthIncome: CurrencyTotals;
   monthExpense: CurrencyTotals;
 }) {
@@ -66,6 +87,7 @@ export function AccountCard({
           <MonthLine label="En fondos" totals={investedBalance} />
         </div>
       )}
+      {guaranteeBalance && hasAny(guaranteeBalance) && <GuaranteeLine totals={guaranteeBalance} />}
       <div className="mt-auto flex flex-col gap-0.5 border-t border-foreground/10 pt-2">
         <MonthLine label="Ingresos" totals={monthIncome} />
         <MonthLine label="Egresos" totals={monthExpense} />

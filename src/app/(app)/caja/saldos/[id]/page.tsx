@@ -75,6 +75,7 @@ export default async function AccountLedgerPage({
   const liquidBalance = account.investedBalance
     ? subtractCurrencyTotals(account.balance, account.investedBalance)
     : null;
+  const hasGuaranteeBalance = account.guaranteeBalance.ars !== 0 || account.guaranteeBalance.usd !== 0;
 
   // `getOwnAccountLedger` ya viene ordenado por `createdAt` desc (ver
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
@@ -99,6 +100,14 @@ export default async function AccountLedgerPage({
               En cuenta:{" "}
               {CURRENCIES.filter((c) => c === "ars" || liquidBalance[c] !== 0)
                 .map((c) => formatMoney(liquidBalance[c], c))
+                .join(" · ")}
+            </p>
+          )}
+          {hasGuaranteeBalance && (
+            <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+              En garantías:{" "}
+              {CURRENCIES.filter((c) => c === "ars" || account.guaranteeBalance[c] !== 0)
+                .map((c) => formatMoney(account.guaranteeBalance[c], c))
                 .join(" · ")}
             </p>
           )}

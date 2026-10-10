@@ -14,10 +14,13 @@ import type { AccountTransferRow } from "@/lib/account-transfers-queries";
  * una `AccountCard` cuadrada por cuenta, varias por fila, que linkea a su
  * historial completo (`/caja/saldos/[id]`, o `/caja/saldos/caja-fuerte`).
  * Arriba, el saldo total de hoy (todas las cuentas + Caja fuerte, separado
- * por moneda) y, si alguna cuenta tiene fondos de inversión, el mismo
- * desglose "En cuenta"/"En fondos" agregado de todas ellas. Solo admin (ver
- * `caja/page.tsx`): a diferencia de Proveedores/Asociados, esto es la
- * posición de plata real de la empresa.
+ * por moneda), si alguna cuenta tiene fondos de inversión el mismo
+ * desglose "En cuenta"/"En fondos" agregado de todas ellas, y si hay
+ * garantías activas en alguna cuenta el total agregado "En garantías" (en
+ * rojo — es plata del cliente, no de la empresa; ver
+ * `OwnAccountBalance.guaranteeBalance`). Solo admin (ver `caja/page.tsx`): a
+ * diferencia de Proveedores/Asociados, esto es la posición de plata real de
+ * la empresa.
  */
 export function AccountsSection({
   accounts,
@@ -50,6 +53,7 @@ export function AccountsSection({
 
   const total = emptyCurrencyTotals();
   const totalInvested = emptyCurrencyTotals();
+  const totalGuarantee = emptyCurrencyTotals();
   let anyInvested = false;
   for (const a of accounts) {
     total.ars += a.balance.ars;
@@ -59,10 +63,13 @@ export function AccountsSection({
       totalInvested.ars += a.investedBalance.ars;
       totalInvested.usd += a.investedBalance.usd;
     }
+    totalGuarantee.ars += a.guaranteeBalance.ars;
+    totalGuarantee.usd += a.guaranteeBalance.usd;
   }
   total.ars += safeBalance.ars;
   total.usd += safeBalance.usd;
   const totalInAccount = subtractCurrencyTotals(total, totalInvested);
+  const anyGuarantee = totalGuarantee.ars !== 0 || totalGuarantee.usd !== 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,6 +92,14 @@ export function AccountsSection({
               .join(" · ")}
           </p>
         )}
+        {anyGuarantee && (
+          <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+            En garantías:{" "}
+            {CURRENCIES.filter((c) => c === "ars" || totalGuarantee[c] !== 0)
+              .map((c) => formatMoney(totalGuarantee[c], c))
+              .join(" · ")}
+          </p>
+        )}
       </div>
 
       <TransferLauncher accounts={options} balances={balances} usdRate={usdRate} />
@@ -104,6 +119,7 @@ export function AccountsSection({
               caption={a.subaccounts.length > 0 ? `Incluye ${a.subaccounts.map((s) => s.name).join(", ")}` : undefined}
               balance={a.balance}
               investedBalance={a.investedBalance}
+              guaranteeBalance={a.guaranteeBalance}
               monthIncome={a.monthIncome}
               monthExpense={a.monthExpense}
             />

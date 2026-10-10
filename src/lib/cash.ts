@@ -582,6 +582,15 @@ export type OwnAccountBalance = {
    * el saldo real de Caja); `balance` menos esto es lo líquido "en cuenta".
    */
   investedBalance: CurrencyTotals | null;
+  /**
+   * Garantías activas tomadas en esta cuenta (ver `RentalPayment.isGuarantee`)
+   * — plata real sentada en la cuenta, todavía sin devolver/cobrar. `balance`
+   * ya la incluye (es la misma fila de ingreso que cualquier otra); esto es
+   * solo la etiqueta para poder mostrarla aparte y que la cuenta "cierre"
+   * contra lo que se ve en Movimientos/el ledger mensual (que la excluyen a
+   * propósito, ver `findMovements`). Nunca null — 0/0 si no hay ninguna activa.
+   */
+  guaranteeBalance: CurrencyTotals;
 };
 
 /**
@@ -606,7 +615,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
 
   const fundAccountIds = principals.filter((p) => p.hasInvestmentFunds).map((p) => p.id);
   const monthRange = monthRangeUtc(currentMonth());
-  const [income, expense, transfers, monthIncomeRows, monthExpenseRows, fundRows] = await Promise.all([
+  const [income, expense, transfers, monthIncomeRows, monthExpenseRows, fundRows, guaranteeRows] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["paymentMethodId", "currency"],
       where: { type: "income", deletedAt: null, paymentMethodId: { in: memberIds } },
@@ -644,6 +653,17 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
           select: { paymentMethodId: true, type: true, amount: true, currency: true, createdAt: true },
         })
       : Promise.resolve([]),
+    prisma.cashMovement.groupBy({
+      by: ["paymentMethodId", "currency"],
+      where: {
+        type: "income",
+        isGuarantee: true,
+        guaranteeResolvedAt: null,
+        deletedAt: null,
+        paymentMethodId: { in: memberIds },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
@@ -700,6 +720,13 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     fundMovementsByAccount.set(row.paymentMethodId, list);
   }
 
+  const guaranteeBalances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
+  for (const row of guaranteeRows) {
+    const principalId = row.paymentMethodId && resolve.get(row.paymentMethodId);
+    const totals = principalId && guaranteeBalances.get(principalId);
+    if (totals) totals[row.currency] += Number(row._sum.amount ?? 0);
+  }
+
   return principals.map((p) => ({
     id: p.id,
     name: p.name,
@@ -708,6 +735,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     monthIncome: monthIncome.get(p.id)!,
     monthExpense: monthExpense.get(p.id)!,
     investedBalance: p.hasInvestmentFunds ? fundBalance(fundMovementsByAccount.get(p.id) ?? []) : null,
+    guaranteeBalance: guaranteeBalances.get(p.id)!,
   }));
 }
 
