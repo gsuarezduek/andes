@@ -125,6 +125,13 @@ function BarTooltipBody({ bar }: { bar: CalendarBar }) {
         {formatDateTime(bar.startAt)} → {formatDateTime(bar.endAt)}
         {bar.bookingModel ? ` · ${bar.bookingModel}` : ""}
       </p>
+      {bar.pickupPlace || bar.returnPlace ? (
+        <p className="mt-0.5 text-foreground/60">
+          {bar.pickupPlace ? `Retiro: ${bar.pickupPlace}` : null}
+          {bar.pickupPlace && bar.returnPlace ? " · " : null}
+          {bar.returnPlace ? `Devolución: ${bar.returnPlace}` : null}
+        </p>
+      ) : null}
       {bar.paymentAccent === "complete" ? (
         <p className="mt-1 font-medium text-emerald-600 dark:text-emerald-400">Pagado completo</p>
       ) : bar.paymentAccent === "pending" ? (

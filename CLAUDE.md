@@ -1026,6 +1026,17 @@ Pedido del dueño: una garantía activa (ver v36/v38) ya se sumaba al saldo tota
 - **`AccountCard`** (Saldos): si `guaranteeBalance` tiene algo, suma una línea roja "En garantías: $X" (mismo lugar que "En cuenta"/"En fondos" de v61) — oculta si no hay ninguna activa en esa cuenta. `AccountsSection` suma el mismo agregado (todas las cuentas) en el banner "Saldo total (hoy)". El header de `/caja/saldos/[id]` repite la misma línea, junto a "En cuenta".
 - **Fuera de alcance, no tocado**: la Caja fuerte no puede tener garantías (no es un `PaymentMethod`, no tiene `paymentMethodId`) — sin la línea. Tampoco se tocó cómo se resuelve una garantía (`chargeGuarantee`/`returnGuarantee`, v38/v45) ni `findMovements` — Movimientos/el ledger mensual siguen excluyendo las garantías a propósito, como desde v36.
 
+## v81 — Calendario: código de lugar (OFI/AER/HOT/OTR) junto al horario de retiro/devolución
+
+Pedido del dueño: más importante que el nombre del cliente es saber dónde se retira y dónde se devuelve cada auto. El dato ya llegaba del sync de VikRentCar (`Rental.bookingPickupPlace`/`bookingReturnPlace`, texto libre de `wp_vikrentcar_places.name` — ver `docs/wordpress-mapping.md`) pero no se mostraba en ningún lado del Calendario. tsc/lint/813 tests en verde (+5 nuevos en `place-code.test.ts`); **verificado por navegador con Playwright contra la base local** con datos reales de una corrida de sync anterior ("Oficina Mendoza Ciudad"→OFI, "Aeropuerto Mendoza Auto/Camioneta"→AER, "Hotel en Ciudad de Mendoza Auto"→HOT), confirmados en los 3 niveles de densidad de columna (`full`/`times`/`compact`) y en mobile 375px. **Sin migración** (usa columnas ya existentes desde v6). Sin desplegar todavía (solo código, no requiere Pre-Deploy especial).
+
+- **`src/lib/place-code.ts`** (nuevo, puro, testeado): `placeCode(place)` clasifica el texto libre por palabra clave — "aeropuerto"→AER, "oficina"→OFI, "hotel"→HOT, cualquier otro texto no vacío→OTR. `null` si no hay dato (reserva manual, o el sync con el toggle `share_booking_extra` del mu-plugin apagado) — no se inventa un "otros" cuando VikRentCar no trajo el lugar.
+- **`CalendarBar`** (`src/lib/calendar.ts`) suma `pickupPlace`/`returnPlace` (texto crudo, para el tooltip) y `pickupPlaceCode`/`returnPlaceCode` (para la barra); se traen en el `select` de `rentals` y se calculan en `toBar()`.
+- **Barra del Calendario** (`calendar-row.tsx`): el código va pegado a cada horario (nunca se saca, mismo criterio que la hora — más prioridad que el nombre del cliente) en los 3 niveles de densidad; sin dato, se muestra solo la hora como antes.
+- **Tooltip** (`calendar-tooltip.tsx`): línea nueva "Retiro: {lugar} · Devolución: {lugar}" con el texto completo (no la sigla), debajo de las fechas.
+- **Leyenda** (`calendar-legend.tsx`): referencia de las 4 siglas.
+- **Cobertura real sin confirmar:** no se pudo consultar la base de producción (Remote MySQL cerrado desde Fase 5, sin credenciales REST locales) para medir qué % de reservas trae `idplace`/`idreturnplace` hoy, ni si el mu-plugin tiene el toggle `share_booking_extra` activo. Si en prod la cobertura resulta baja, revisar ese toggle en Ajustes → Andes Sync de WordPress.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

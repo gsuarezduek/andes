@@ -11,6 +11,7 @@ import { roomBarGeometry } from "@/lib/rooms/geometry";
 import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { getSpecialDatesMap } from "@/lib/special-dates-queries";
+import { placeCode, type PlaceCode } from "@/lib/place-code";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -58,6 +59,16 @@ export type CalendarBar = {
   endAt: Date;
   /** Modelo pactado cuando la reserva no tiene unidad asignada. */
   bookingModel: string | null;
+  /** Lugar de retiro/devolución (`Rental.bookingPickupPlace`/`bookingReturnPlace`,
+   *  texto libre de VikRentCar) — crudo, para el tooltip. */
+  pickupPlace: string | null;
+  returnPlace: string | null;
+  /** Código corto (OFI/AER/HOT/OTR, ver `src/lib/place-code.ts`) — se muestra
+   *  junto al horario en la barra, con más prioridad que el nombre del
+   *  cliente (pedido del dueño: el lugar importa más que el nombre). `null`
+   *  si VikRentCar no trajo el dato. */
+  pickupPlaceCode: PlaceCode | null;
+  returnPlaceCode: PlaceCode | null;
   /** Notas del equipo sin resolver → notificación roja sobre la barra. */
   activeNotes: CalendarNote[];
   /** Carril vertical dentro de la fila (0 = arriba). Solo > 0 cuando esta
@@ -295,7 +306,16 @@ type RentalRow = {
   bookingModel: string | null;
   additionalDrivers: unknown;
   teamNotes: { id: string; text: string; createdAt: Date; createdByName: string }[];
-} & Pick<Rental, "pricing" | "bookingTotal" | "bookingPaid" | "verifiedAt" | "verifiedByName">;
+} & Pick<
+  Rental,
+  | "pricing"
+  | "bookingTotal"
+  | "bookingPaid"
+  | "verifiedAt"
+  | "verifiedByName"
+  | "bookingPickupPlace"
+  | "bookingReturnPlace"
+>;
 
 function extraDriverNames(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -334,6 +354,10 @@ function toBar(
     startAt: r.startAt,
     endAt: r.endAt,
     bookingModel: r.bookingModel,
+    pickupPlace: r.bookingPickupPlace,
+    returnPlace: r.bookingReturnPlace,
+    pickupPlaceCode: placeCode(r.bookingPickupPlace),
+    returnPlaceCode: placeCode(r.bookingReturnPlace),
     activeNotes: r.teamNotes.map((n) => ({
       id: n.id,
       text: n.text,
@@ -554,6 +578,8 @@ export async function getCalendarData(opts?: {
         endAt: true,
         bookingNote: true,
         bookingModel: true,
+        bookingPickupPlace: true,
+        bookingReturnPlace: true,
         additionalDrivers: true,
         pricing: true,
         bookingTotal: true,

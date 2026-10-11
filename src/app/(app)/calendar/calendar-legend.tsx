@@ -60,6 +60,9 @@ export function CalendarLegend({ showRooms }: { showRooms: boolean }) {
             <Item swatch={<span className="inline-block h-3 w-3 rounded bg-slate-500/70" />} label="Bloqueo" />
           </>
         ) : null}
+        <span className="text-foreground/50">
+          Lugar: OFI oficina · AER aeropuerto · HOT hotel · OTR otros
+        </span>
       </div>
     </div>
   );

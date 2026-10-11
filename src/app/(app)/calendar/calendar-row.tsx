@@ -24,14 +24,18 @@ function VerifiedBadge() {
 /**
  * Qué mostrar en una barra de alquiler según el ancho real que le toca (en
  * píxeles, ya conocido en el servidor/cliente a partir de `span`×`colW` —
- * sin medir el DOM): la hora de retiro/devolución nunca se sacrifica, el
- * nombre del cliente es lo único que se recorta o se saca del todo cuando
- * no entra. Pedido del dueño: "si no entran los horarios y el nombre, la
- * prioridad es la hora; si hay espacio, mostramos todo".
- * - `full`: horario de retiro a la izquierda, cliente centrado (truncado si
- *   hace falta), horario de devolución a la derecha — una sola línea.
+ * sin medir el DOM): la hora de retiro/devolución (con su código de lugar
+ * pegado — OFI/AER/HOT/OTR, ver `src/lib/place-code.ts`) nunca se sacrifica,
+ * el nombre del cliente es lo único que se recorta o se saca del todo cuando
+ * no entra. Pedido del dueño: el lugar de retiro/devolución importa más que
+ * el nombre del cliente, así que viaja siempre junto a la hora en los 3
+ * niveles — "si no entran los horarios y el nombre, la prioridad es la hora
+ * (con su lugar); si hay espacio, mostramos todo".
+ * - `full`: horario+lugar de retiro a la izquierda, cliente centrado
+ *   (truncado si hace falta), horario+lugar de devolución a la derecha —
+ *   una sola línea.
  * - `times`: ya no entra ni un nombre truncado junto a los dos horarios;
- *   se muestran solo los dos horarios, uno a cada punta.
+ *   se muestran solo los dos horarios (con su lugar), uno a cada punta.
  * - `compact`: ni eso entra en una sola línea (ej. un alquiler de 1 solo
  *   día con columnas angostas) — los dos horarios apilados, aprovechando
  *   el alto de la fila en vez del ancho.
@@ -189,9 +193,10 @@ export function Row({
           />
         ))}
         {/* Barras de alquiler: el horario de retiro va en el borde
-            izquierdo, el de devolución en el derecho, y el cliente centrado
-            entre los dos cuando entra — pensado para ver disponibilidad/
-            cotizar de un vistazo sin entrar a cada reserva. Con poco ancho
+            izquierdo, el de devolución en el derecho — cada uno con su
+            código de lugar pegado (OFI/AER/HOT/OTR, más importante que el
+            nombre del cliente para ver de un vistazo dónde hay que estar) —
+            y el cliente centrado entre los dos cuando entra. Con poco ancho
             (ej. un alquiler de 1 solo día) el nombre se saca y, si hace
             falta, los horarios se apilan — ver `barContentTier`. */}
         {row.bars.map((bar) => {
@@ -252,6 +257,7 @@ export function Row({
               <>
                 <span className="shrink-0 tabular-nums text-[10px] font-normal opacity-90">
                   {formatTime(bar.startAt)}
+                  {bar.pickupPlaceCode && <> {bar.pickupPlaceCode}</>}
                 </span>
                 <span className="flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden">
                   {bar.verified && <VerifiedBadge />}
@@ -259,17 +265,30 @@ export function Row({
                 </span>
                 <span className="shrink-0 tabular-nums text-[10px] font-normal opacity-90">
                   {formatTime(bar.endAt)}
+                  {bar.returnPlaceCode && <> {bar.returnPlaceCode}</>}
                 </span>
               </>
             ) : tier === "times" ? (
               <span className="flex w-full items-center justify-between tabular-nums text-[10px] font-normal opacity-90">
-                <span>{formatTime(bar.startAt)}</span>
-                <span>{formatTime(bar.endAt)}</span>
+                <span>
+                  {formatTime(bar.startAt)}
+                  {bar.pickupPlaceCode && <> {bar.pickupPlaceCode}</>}
+                </span>
+                <span>
+                  {formatTime(bar.endAt)}
+                  {bar.returnPlaceCode && <> {bar.returnPlaceCode}</>}
+                </span>
               </span>
             ) : (
               <span className="flex w-full flex-col items-center leading-[1.15] tabular-nums text-[9px] font-normal opacity-90">
-                <span>{formatTime(bar.startAt)}</span>
-                <span>{formatTime(bar.endAt)}</span>
+                <span>
+                  {formatTime(bar.startAt)}
+                  {bar.pickupPlaceCode && <> {bar.pickupPlaceCode}</>}
+                </span>
+                <span>
+                  {formatTime(bar.endAt)}
+                  {bar.returnPlaceCode && <> {bar.returnPlaceCode}</>}
+                </span>
               </span>
             )}
           </Link>
