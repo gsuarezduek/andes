@@ -1037,6 +1037,14 @@ Pedido del dueño: más importante que el nombre del cliente es saber dónde se 
 - **Leyenda** (`calendar-legend.tsx`): referencia de las 4 siglas.
 - **Cobertura real sin confirmar:** no se pudo consultar la base de producción (Remote MySQL cerrado desde Fase 5, sin credenciales REST locales) para medir qué % de reservas trae `idplace`/`idreturnplace` hoy, ni si el mu-plugin tiene el toggle `share_booking_extra` activo. Si en prod la cobertura resulta baja, revisar ese toggle en Ajustes → Andes Sync de WordPress.
 
+## v82 — Calendario: fila el doble de alta para un alquiler de 1 solo día
+
+Sobre v81: el código de lugar (OFI/AER/HOT/OTR) junto al horario quedaba muy apretado en una barra de 1 solo día (46px de columna, tier "compact" de `barContentTier`). Dos opciones evaluadas con el dueño: ensanchar la columna (afecta las 90 columnas del Calendario entero, y contradice la decisión de v72 de volver a una sola densidad fija) o agrandar solo la fila afectada — se eligió esto último. tsc/lint/812 tests en verde (+4 nuevos en `calendar-row.test.ts`); **verificado por navegador con Playwright contra la base local**, en desktop y mobile 375px.
+
+- **`rowHasCompactBar(bars, colW)`** (nuevo, puro, testeado, `calendar-row.tsx`): true si alguna barra de la fila cae en tier "compact" (con `COL_W_MONTH=46`, equivale a un alquiler de 1 solo día). `Row` usa un `barRowH` local (`rowH*2` si aplica, si no `rowH` normal) en vez del `rowH` fijo para todo lo que ya dependía de él (alto por carril, posición/alto de cada barra, alto total de la fila) — el padre (`calendar-grid.tsx`) no asume fila uniforme en ningún cálculo (no deriva fila a partir de la posición Y del mouse ni de un alto total precalculado), así que no hizo falta tocarlo.
+- Afecta a **toda la fila**, no solo a la barra de 1 día: una barra larga que comparta fila con una de 1 día también queda más alta (con más aire alrededor del texto) — más simple que variar el alto por barra individual dentro del mismo carril, y visualmente no desentona.
+- El tier "compact" sube de `text-[9px]` a `text-[11px]` (con `gap-0.5` en vez de `leading-[1.15]`): como ese tier **solo** aparece dentro de una fila ya duplicada (es la barra que dispara `rowHasCompactBar`), siempre hay lugar de sobra — no hace falta ninguna condición extra para decidir cuándo agrandar la fuente.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

@@ -48,6 +48,17 @@ export function barContentTier(barWidth: number): BarContentTier {
   return "compact";
 }
 
+/**
+ * Si alguna barra de la fila cae en el tier "compact" (alquiler de 1 solo
+ * día, muy poco ancho para hora+lugar en las 2 puntas), la fila entera se
+ * dibuja el doble de alta (ver `Row`). Pedido del dueño: mejor más alto que
+ * más ancho — ensanchar la columna afectaría las 90 columnas del Calendario
+ * entero, no solo donde hace falta.
+ */
+export function rowHasCompactBar(bars: { span: number }[], colW: number): boolean {
+  return bars.some((b) => barContentTier(b.span * colW - 4) === "compact");
+}
+
 export function Row({
   row,
   columns,
@@ -82,10 +93,16 @@ export function Row({
   onQuoteClick: (quote: CalendarQuoteBar) => void;
 }) {
   const hasNotes = row.activeNotes.length > 0;
+  // Con un alquiler de 1 solo día (tier "compact" de barContentTier), la fila
+  // se dibuja el doble de alta para que entren cómodas las 2 líneas de hora+
+  // lugar por punta — ver `rowHasCompactBar`. Afecta a toda la fila (incluidas
+  // sus barras más anchas, que simplemente quedan con más aire), nunca al
+  // ancho de columna, que es compartido por las 90 columnas del Calendario.
+  const barRowH = rowHasCompactBar(row.bars, colW) ? rowH * 2 : rowH;
   // Cuando hay alquileres solapados para este auto, la fila se hace
   // `laneCount` veces más alta (un carril por cada barra que se superpone en
   // fechas) para que ninguna tape a otra — ver assignLanes en src/lib/calendar.ts.
-  const barsH = rowH * row.laneCount;
+  const barsH = barRowH * row.laneCount;
   // Franja aparte para los presupuestos (borradores) — solo ocupa espacio si
   // hay alguno para este auto en la ventana visible.
   const quotesH = row.quotes.length > 0 ? QUOTE_TRACK_H * row.quoteLaneCount : 0;
@@ -224,8 +241,8 @@ export function Row({
             style={{
               left: bar.startIndex * colW + 2,
               width: barWidth,
-              top: bar.lane * rowH + 6,
-              height: rowH - 12,
+              top: bar.lane * barRowH + 6,
+              height: barRowH - 12,
             }}
           >
             {bar.activeNotes.length > 0 && (
@@ -280,7 +297,10 @@ export function Row({
                 </span>
               </span>
             ) : (
-              <span className="flex w-full flex-col items-center leading-[1.15] tabular-nums text-[9px] font-normal opacity-90">
+              // "compact" solo ocurre cuando `rowHasCompactBar` ya duplicó el
+              // alto de la fila (ver más arriba), así que siempre hay lugar
+              // de sobra para una fuente más legible que en los otros tiers.
+              <span className="flex w-full flex-col items-center gap-0.5 tabular-nums text-[11px] font-normal opacity-90">
                 <span>
                   {formatTime(bar.startAt)}
                   {bar.pickupPlaceCode && <> {bar.pickupPlaceCode}</>}
