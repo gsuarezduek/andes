@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { listAccessCredentials, canRevealAccessCredential } from "@/lib/access-credentials";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { AccessCredentialForm } from "@/components/access/access-credential-form";
-import { AccessCredentialRow } from "@/components/access/access-credential-row";
+import { AccessCredentialList } from "@/components/access/access-credential-list";
 
 export const metadata: Metadata = { title: "Accesos — Andes" };
 
@@ -30,11 +30,9 @@ export default async function AccessPage() {
       <section className="flex flex-col gap-3">
         <SectionHeading>{credentials.length} accesos</SectionHeading>
         {credentials.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {credentials.map((c) => (
-              <AccessCredentialRow key={c.id} credential={c} canReveal={canRevealAccessCredential(c.adminOnly, user.role)} />
-            ))}
-          </ul>
+          <AccessCredentialList
+            credentials={credentials.map((c) => ({ ...c, canReveal: canRevealAccessCredential(c.adminOnly, user.role) }))}
+          />
         ) : (
           <p className="text-sm text-foreground/50">Todavía no hay accesos cargados.</p>
         )}

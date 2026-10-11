@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { filterCommands, getCommands } from "@/lib/command-palette";
 import { SearchIcon } from "@/components/ui/icons";
@@ -74,7 +75,12 @@ function PaletteContent({ onClose, isAdmin }: { onClose: () => void; isAdmin: bo
     }
   }
 
-  return (
+  // Portal a `document.body`: `AppNav` (y por lo tanto este componente) vive
+  // dentro del <header> con `backdrop-blur` de `(app)/layout.tsx` — un
+  // `backdrop-filter` distinto de `none` arma su propio containing block para
+  // los descendientes `fixed`, así que sin el portal el overlay quedaba
+  // recortado a la altura del header en vez de cubrir toda la pantalla.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[12vh]"
       onClick={onClose}
@@ -146,7 +152,8 @@ function PaletteContent({ onClose, isAdmin }: { onClose: () => void; isAdmin: bo
           </ul>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
