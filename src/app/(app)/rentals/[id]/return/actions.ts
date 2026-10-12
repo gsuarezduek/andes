@@ -14,7 +14,7 @@ import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { computeSettlement, rollupSettlement } from "@/lib/settlement";
-import type { ContractPricing } from "@/lib/contract";
+import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 
 const damageSchema = z.object({
@@ -195,8 +195,9 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
       // líneas con `cashMovementId` ya tienen su movimiento (cargadas antes
       // vía "Agregar pago", o importadas del sync): no se recrean.
       const newPayments = settlementForPersist?.payments?.filter((p) => !p.cashMovementId) ?? [];
+      let incomeRows: Prisma.CashMovementCreateManyInput[] = [];
       if (newPayments.length) {
-        const incomeRows = paymentsToCashMovements(newPayments, {
+        incomeRows = paymentsToCashMovements(newPayments, {
             rentalId: rental.id,
             createdById: user.id,
             createdByName: displayName(user),
@@ -207,6 +208,40 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
         for (const row of incomeRows) {
           await syncCommission(tx, row.id!, { id: user.id, name: displayName(user) });
         }
+      }
+
+      // El "Total" del contrato (cargado en la entrega) nunca incluye los
+      // cargos de la devolución (km extra/nafta/daños no cubiertos por la
+      // garantía) — sin esto, cobrar esos cargos (en la propia Liquidación o
+      // después con "Agregar pago") deja un saldo falso: "paga" sube pero
+      // "total" no, así que el contrato parece sobrepagado por exactamente lo
+      // que en realidad se cobró de más por derecho. Se suma `balanceDue`
+      // (neto de lo que ya cubre la garantía) al total ni bien se guarda la
+      // devolución, y se mergean los pagos de la liquidación a
+      // `pricing.payments` (hasta ahora quedaban solo en el acta/Caja, nunca
+      // en el contrato) — así el saldo del contrato queda correcto desde el
+      // primer momento, se haya cobrado ya o quede pendiente.
+      const pricing = (rental.pricing ?? {}) as ContractPricing;
+      if (settlementForPersist && pricing.total != null) {
+        let rowIdx = 0;
+        const settlementPaymentsWithRef = (settlementForPersist.payments ?? []).map((p) =>
+          p.cashMovementId ? p : { ...p, cashMovementId: incomeRows[rowIdx++]!.id },
+        );
+        const nextPayments = [...(pricing.payments ?? []), ...settlementPaymentsWithRef];
+        const nextPaid = paidTotal(nextPayments);
+        const nextTotal = roundMoney(pricing.total + settlementForPersist.balanceDue);
+        await tx.rental.update({
+          where: { id: rental.id },
+          data: {
+            pricing: {
+              ...pricing,
+              total: nextTotal,
+              payments: nextPayments,
+              paid: nextPaid,
+              balance: computeBalance({ total: nextTotal, sena: pricing.sena, paid: nextPaid }) ?? undefined,
+            } satisfies ContractPricing,
+          },
+        });
       }
 
       return insp;

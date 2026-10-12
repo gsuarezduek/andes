@@ -385,6 +385,83 @@ describe("saveReturn", () => {
     expect(movements[0]).toMatchObject({ amount: 2_000, paymentMethodName: "Transferencia" });
   });
 
+  describe("sincronización del contrato con la liquidación de la devolución", () => {
+    // Antes de este fix, un cargo de la devolución (km extra/nafta/daños) que
+    // se cobraba de verdad nunca se sumaba a `pricing.total` — el saldo
+    // quedaba mal calculado para siempre (negativo si se cobró, o invisible
+    // si no), aunque el cobro en Caja fuera correcto. Caso real: reserva de
+    // Alejandro Solessi (cmu4dn6t5002zpj0pxyi22byi), corregida a mano en
+    // producción el 12/10/2026.
+    const settlementBase = {
+      kmDriven: 550, includedKm: 400, extraKm: 150, extraKmRate: 200, extraKmCharge: 30_000,
+      fuelMissingEighths: 0, fuelCharge: 0, damageCharges: [], damagesTotal: 0,
+      subtotal: 30_000, deposit: 0, depositApplied: 0, balanceDue: 30_000,
+      depositReturn: 0,
+    };
+
+    // Pagos de la entrega, tal como los deja `applyPayments` del paso
+    // "Condiciones" (siempre suman exactamente `paid`).
+    const handoverPayments = [
+      { methodId: "pm0", methodName: "Transferencia", amount: 446_000, adjustedAmount: 446_000 },
+    ];
+
+    function pricingUpdateData() {
+      const call = tx.rental.update.mock.calls.find((c) => c[0].data.pricing);
+      return call?.[0].data.pricing;
+    }
+
+    it("suma el cargo de la liquidación al total, aunque todavía no se haya cobrado", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({
+        id: "r1",
+        status: "active",
+        clientName: "Juan Pérez",
+        pricing: { total: 446_000, paid: 446_000, balance: 0, payments: handoverPayments },
+        inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+      });
+      await saveReturn({ ...returnInput, settlement: settlementBase });
+
+      // Antes el saldo hubiera quedado en 0 (invisible); ahora muestra el
+      // pendiente real de $30.000, en vez de un falso "cobro de más" cuando
+      // más tarde se cargue el pago aparte.
+      expect(pricingUpdateData()).toMatchObject({ total: 476_000, paid: 446_000, balance: 30_000 });
+    });
+
+    it("si el cargo se cobra en la propia Liquidación, el pago también queda en pricing.payments (antes solo en el acta/Caja)", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({
+        id: "r1",
+        status: "active",
+        clientName: "Juan Pérez",
+        pricing: { total: 446_000, paid: 446_000, balance: 0, payments: handoverPayments },
+        inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+      });
+      const settlement = {
+        ...settlementBase,
+        payments: [{ methodId: "pm1", methodName: "Efectivo", amount: 30_000, adjustedAmount: 30_000 }],
+      };
+      await saveReturn({ ...returnInput, settlement });
+
+      const pricing = pricingUpdateData();
+      expect(pricing).toMatchObject({ total: 476_000, paid: 476_000, balance: 0 });
+      // Conserva el pago de la entrega y suma el de la liquidación.
+      expect(pricing.payments).toHaveLength(2);
+      expect(pricing.payments[1]).toMatchObject({ methodName: "Efectivo", amount: 30_000 });
+      // Y sigue quedando también como ingreso real en Caja.
+      expect(tx.cashMovement.createMany).toHaveBeenCalledOnce();
+    });
+
+    it("no toca pricing si el contrato no tiene total cargado (nada que extender)", async () => {
+      prismaMock.rental.findUnique.mockResolvedValue({
+        id: "r1",
+        status: "active",
+        clientName: "Juan Pérez",
+        pricing: null,
+        inspections: [{ id: "h1", type: "handover", km: 10_500 }],
+      });
+      await saveReturn({ ...returnInput, settlement: settlementBase });
+      expect(pricingUpdateData()).toBeUndefined();
+    });
+  });
+
   it("recalcula la liquidación server-side en vez de confiar en los totales del cliente (SEC-03)", async () => {
     prismaMock.rental.findUnique.mockResolvedValue({
       id: "r1",
