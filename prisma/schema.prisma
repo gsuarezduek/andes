@@ -608,11 +608,18 @@ model Rental {
   clientEditedAt  DateTime? @map("client_edited_at")
   licenseExpiry   DateTime? @map("license_expiry") // vencimiento licencia de conducir
 
-  // Fecha de devolución extendida a mano en Andes (ver RentalExtension, con
-  // cargo). A partir de acá el sync deja de pisar `endAt` para esta reserva
-  // (VikRentCar deja de ser la fuente de verdad de la fecha) — mismo patrón
-  // que `clientEditedAt`.
+  // Fecha de retiro/devolución editada a mano en Andes (extensión con cargo
+  // vía RentalExtension, o corrección de horario antes de la entrega — ver
+  // `updateRentalSchedule`). A partir de acá el sync deja de pisar
+  // `startAt`/`endAt` para esta reserva (VikRentCar deja de ser la fuente de
+  // verdad de las fechas) — mismo patrón que `clientEditedAt`.
   datesEditedAt DateTime? @map("dates_edited_at")
+
+  // Lugar de retiro/devolución editado a mano en Andes (ver
+  // `updateRentalSchedule`). A partir de acá el sync deja de pisar
+  // `bookingPickupPlace`/`bookingReturnPlace` para esta reserva — mismo
+  // patrón que `clientEditedAt`/`datesEditedAt`.
+  placesEditedAt DateTime? @map("places_edited_at")
 
   // Conductores adicionales autorizados (además del titular). Array JSON
   // [{ name }]; sus fotos de licencia se guardan como RentalDocument con

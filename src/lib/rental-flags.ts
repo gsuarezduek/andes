@@ -10,8 +10,8 @@ export type RentalFlags = {
   canStartHandoverNow: boolean;
   canMarkService: boolean;
   canCloseService: boolean;
+  canEditPickup: boolean;
   canEditReturn: boolean;
-  returnManagedInWp: boolean;
   canExtendRental: boolean;
 };
 
@@ -29,19 +29,17 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
   // disponible mientras el auto siga afuera — sin importar si tardó más o
   // menos de lo estimado.
   const canCloseService = rental.status === "out_of_service";
-  // Extensión: modificar fecha/lugar de devolución mientras no esté cerrado.
-  // La edición de fechas solo se permite en reservas manuales. Las de VikRentCar
-  // se gestionan desde la web (fuente de verdad) y se sincronizan solas: editarlas
-  // acá dejaría la disponibilidad de VikRentCar inconsistente.
-  const canEditReturn =
-    rental.origin === "manual" &&
-    (rental.status === "reserved" || rental.status === "active");
-  const returnManagedInWp =
-    rental.origin === "vikrentcar" &&
-    (rental.status === "reserved" || rental.status === "active");
+  // Editar hora/lugar de retiro: solo antes de que arranque el flujo físico
+  // (el auto todavía no se entregó). Disponible para cualquier origen —
+  // `updateRentalSchedule` marca `datesEditedAt`/`placesEditedAt` para que el
+  // sync no vuelva a pisar lo editado a mano (mismo patrón que `clientEditedAt`).
+  const canEditPickup = rental.status === "reserved";
+  // Editar hora/lugar de devolución: reservado o ya entregado (antes de cerrar
+  // la devolución). Igual que el retiro, para cualquier origen.
+  const canEditReturn = rental.status === "reserved" || rental.status === "active";
   // Extender con cargo (ver `extendRental`): a diferencia de canEditReturn,
-  // se permite en cualquier origen — es el caso real ("el cliente avisa y
-  // confirmamos si puede extender") y actualiza el saldo, no solo la fecha.
+  // suma un cargo al contrato además de corregir la fecha — es el caso real
+  // ("el cliente avisa y confirmamos si puede extender").
   const canExtendRental = rental.status === "active";
 
   return {
@@ -50,8 +48,8 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
     canStartHandoverNow,
     canMarkService,
     canCloseService,
+    canEditPickup,
     canEditReturn,
-    returnManagedInWp,
     canExtendRental,
   };
 }

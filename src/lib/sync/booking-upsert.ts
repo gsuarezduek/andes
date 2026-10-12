@@ -158,16 +158,24 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
   // sync (las reservas de VikRentCar suelen venir sin unidad → carindex null →
   // resolveVehicleId null, que borraría la asignación manual).
   const vehicleData = !edited && vehicleId != null ? { vehicleId } : {};
+  // Tampoco pisamos la hora de retiro/devolución ni el lugar si el empleado
+  // ya los corrigió a mano (ver `updateRentalSchedule`) — mismo patrón de
+  // `datesEditedAt`/`placesEditedAt` que `clientEditedAt`. `datesEdited` ya
+  // se calculó arriba (se reusa también para la extensión en reservas `active`).
+  const datesData = datesEdited ? {} : { startAt, endAt };
+  const placesEdited = existing.placesEditedAt != null;
+  const { bookingPickupPlace: _pickupPlace, bookingReturnPlace: _returnPlace, ...bookingRest } = booking;
+  const placesData = placesEdited ? {} : { bookingPickupPlace: _pickupPlace, bookingReturnPlace: _returnPlace };
 
   await prisma.rental.update({
     where: { id: existing.id },
     data: {
       language,
-      startAt,
-      endAt,
+      ...datesData,
       ...vehicleData,
       ...clientData,
-      ...booking,
+      ...bookingRest,
+      ...placesData,
     },
   });
   // Si VikRentCar cambió el total o lo pagado, una verificación previa ya no

@@ -63,8 +63,12 @@ export const updateSchema = z.object({
   vehicleId: optionalStr,
 });
 
-export const returnSchema = z.object({
+export const scheduleSchema = z.object({
   rentalId: z.string().min(1),
+  // Retiro: solo se valida/aplica si la reserva sigue `reserved` (ver
+  // `canEditPickup`); en una reserva `active` el form ni siquiera lo manda.
+  startAt: optionalStr,
+  pickupPlace: optionalStr,
   endAt: z.string().min(1, "La fecha de devolución es obligatoria"),
   returnPlace: optionalStr,
 });

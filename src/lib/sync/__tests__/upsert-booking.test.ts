@@ -150,3 +150,67 @@ describe("upsertBooking — reserva ya en flujo físico (active/finished o con i
     });
   });
 });
+
+function reservedRental(overrides: Record<string, unknown> = {}) {
+  return existingRental({
+    status: "reserved",
+    inspections: [],
+    startAt: vikRentCarUnixToUtc(1_700_000_000),
+    bookingPickupPlace: "Oficina Mendoza",
+    bookingReturnPlace: "Aeropuerto",
+    placesEditedAt: null,
+    ...overrides,
+  });
+}
+
+describe("upsertBooking — reserva todavía reservada (no entregada)", () => {
+  it("sin ediciones manuales, trae la fecha y el lugar normalmente", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental());
+
+    const outcome = await upsertBooking(
+      baseBooking({ pickupPlace: "Aeropuerto Mendoza", returnPlace: "Oficina Mendoza" }),
+    );
+
+    expect(outcome).toBe("updated");
+    expect(prismaMock.rental.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "r1" },
+        data: expect.objectContaining({
+          startAt: vikRentCarUnixToUtc(1_700_000_000),
+          endAt: vikRentCarUnixToUtc(1_700_100_000),
+          bookingPickupPlace: "Aeropuerto Mendoza",
+          bookingReturnPlace: "Oficina Mendoza",
+        }),
+      }),
+    );
+  });
+
+  it("con datesEditedAt (hora corregida a mano): no pisa startAt/endAt, pero sí el lugar", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental({ datesEditedAt: new Date("2026-01-01") }));
+
+    const outcome = await upsertBooking(
+      baseBooking({ endUnix: 1_900_000_000, pickupPlace: "Aeropuerto Mendoza", returnPlace: "Oficina Mendoza" }),
+    );
+
+    expect(outcome).toBe("updated");
+    const data = prismaMock.rental.update.mock.calls[0][0].data;
+    expect(data.startAt).toBeUndefined();
+    expect(data.endAt).toBeUndefined();
+    expect(data.bookingPickupPlace).toBe("Aeropuerto Mendoza");
+    expect(data.bookingReturnPlace).toBe("Oficina Mendoza");
+  });
+
+  it("con placesEditedAt (lugar corregido a mano): no pisa el lugar, pero sí la fecha", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental({ placesEditedAt: new Date("2026-01-01") }));
+
+    const outcome = await upsertBooking(
+      baseBooking({ endUnix: 1_900_000_000, pickupPlace: "Aeropuerto Mendoza", returnPlace: "Oficina Mendoza" }),
+    );
+
+    expect(outcome).toBe("updated");
+    const data = prismaMock.rental.update.mock.calls[0][0].data;
+    expect(data.endAt).toEqual(vikRentCarUnixToUtc(1_900_000_000));
+    expect(data.bookingPickupPlace).toBeUndefined();
+    expect(data.bookingReturnPlace).toBeUndefined();
+  });
+});

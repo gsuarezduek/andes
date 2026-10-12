@@ -28,10 +28,10 @@ function applyExtensionCharge(pricing: ContractPricing, amount: number): Contrac
 
 /**
  * Registra la extensión de un alquiler ya entregado: el cliente pide más días
- * (típico al momento de devolver). A diferencia de "Editar devolución"
- * (`updateReturnDetails`, sin cargo, solo reservas manuales antes de la
- * entrega), esto suma el cargo al contrato de una — el saldo/semáforo de pago
- * lo reflejan de inmediato, sin depender de una nota que se puede olvidar.
+ * (típico al momento de devolver). A diferencia de "Modificar hora/lugar"
+ * (`updateRentalSchedule`, sin cargo, solo corrige el dato), esto suma el
+ * cargo al contrato de una — el saldo/semáforo de pago lo reflejan de
+ * inmediato, sin depender de una nota que se puede olvidar.
  * Disponible para cualquier origen: si la reserva viene de VikRentCar, a
  * partir de acá el sync deja de pisar la fecha de devolución (`datesEditedAt`,
  * mismo patrón que `clientEditedAt`).

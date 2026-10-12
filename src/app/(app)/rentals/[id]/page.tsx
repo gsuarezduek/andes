@@ -29,7 +29,7 @@ import { ExtendRentalButton } from "@/components/rentals/extend-rental-button";
 import { RentalExtensionsSection } from "@/components/rentals/rental-extensions-section";
 import { PendingExtensionBanner } from "@/components/rentals/pending-extension-banner";
 import { AddServiceButton } from "@/components/rentals/add-service-button";
-import { ReturnEditSection } from "@/components/rentals/return-edit-section";
+import { ScheduleEditSection } from "@/components/rentals/schedule-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
@@ -86,8 +86,8 @@ export default async function RentalDetailPage({
     canStartHandoverNow,
     canMarkService,
     canCloseService,
+    canEditPickup,
     canEditReturn,
-    returnManagedInWp,
     canExtendRental,
   } = computeRentalFlags(rental);
 
@@ -341,11 +341,11 @@ export default async function RentalDetailPage({
           )
         }
         inspecciones={
-          !canEditReturn && !returnManagedInWp && rental.inspections.length === 0 ? (
+          !canEditReturn && rental.inspections.length === 0 ? (
             <TabEmpty>Todavía no hay inspecciones registradas.</TabEmpty>
           ) : (
             <>
-              <ReturnEditSection rental={rental} canEditReturn={canEditReturn} returnManagedInWp={returnManagedInWp} />
+              <ScheduleEditSection rental={rental} canEditPickup={canEditPickup} canEditReturn={canEditReturn} />
               <InspectionsSection rentalId={rental.id} inspections={rental.inspections} />
             </>
           )

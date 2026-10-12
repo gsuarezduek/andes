@@ -43,6 +43,32 @@ describe("computeRentalFlags — service/arreglo", () => {
   });
 });
 
+describe("computeRentalFlags — editar hora/lugar de retiro/devolución", () => {
+  it("reservada: se puede editar retiro y devolución, sin importar el origen", () => {
+    for (const origin of ["manual", "vikrentcar"] as const) {
+      const flags = computeRentalFlags(rental("reserved", { origin }));
+      expect(flags.canEditPickup).toBe(true);
+      expect(flags.canEditReturn).toBe(true);
+    }
+  });
+
+  it("activa: solo se puede editar la devolución (el retiro ya ocurrió), sin importar el origen", () => {
+    for (const origin of ["manual", "vikrentcar"] as const) {
+      const flags = computeRentalFlags(rental("active", { origin }));
+      expect(flags.canEditPickup).toBe(false);
+      expect(flags.canEditReturn).toBe(true);
+    }
+  });
+
+  it("finalizada/cancelada/en service: no se puede editar ni retiro ni devolución", () => {
+    for (const status of ["finished", "cancelled", "out_of_service"] as const) {
+      const flags = computeRentalFlags(rental(status));
+      expect(flags.canEditPickup).toBe(false);
+      expect(flags.canEditReturn).toBe(false);
+    }
+  });
+});
+
 describe("computeRentalFlags — extender alquiler", () => {
   it("solo se puede extender una reserva activa, sin importar el origen", () => {
     expect(computeRentalFlags(rental("active", { origin: "manual" })).canExtendRental).toBe(true);
