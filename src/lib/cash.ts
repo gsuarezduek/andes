@@ -490,13 +490,20 @@ export async function getRoomBookingPickerOptions(): Promise<RoomBookingPickerOp
 /**
  * Traduce las líneas de pago anotadas en la entrega/devolución (medio de pago
  * real, con % de ajuste y nota) a filas de `CashMovement` — un ingreso por
- * línea, vinculado a la reserva. Se usa dentro de la misma transacción de
- * `saveHandover`/`saveReturn` (ver esos archivos) para que la Caja quede al
- * día sin que el empleado tenga que anotarlo dos veces.
+ * línea, vinculado a la reserva (de auto o de habitación — nunca las dos).
+ * Se usa dentro de la misma transacción de `saveHandover`/`saveReturn` (ver
+ * esos archivos) y de `addRoomPayment` (habitaciones) para que la Caja quede
+ * al día sin que el empleado tenga que anotarlo dos veces.
  */
 export function paymentsToCashMovements(
   payments: RentalPayment[],
-  opts: { rentalId: string; createdById: string; createdByName: string; description: string },
+  opts: {
+    rentalId?: string;
+    roomBookingId?: string;
+    createdById: string;
+    createdByName: string;
+    description: string;
+  },
 ): Prisma.CashMovementCreateManyInput[] {
   // Ids generados acá (en vez de por la base) para que el llamador sepa qué
   // ingresos acaba de crear con un `createMany` (que no devuelve filas) y les
@@ -517,7 +524,8 @@ export function paymentsToCashMovements(
     needsInvoice: p.needsInvoice ?? false,
     invoicingName: p.needsInvoice ? p.invoicingName ?? null : null,
     invoicingCuit: p.needsInvoice ? p.invoicingCuit ?? null : null,
-    rentalId: opts.rentalId,
+    rentalId: opts.rentalId ?? null,
+    roomBookingId: opts.roomBookingId ?? null,
     createdById: opts.createdById,
     createdByName: opts.createdByName,
   }));

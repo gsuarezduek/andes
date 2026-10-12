@@ -11,6 +11,8 @@ import { validateFeedUrl, FEED_SOURCES, roomSourceLabels } from "@/lib/rooms/fee
 import { syncRoomFeed } from "@/lib/rooms/sync";
 import { isDateKey, keyToDate, nightsBetween, rangesOverlap } from "@/lib/rooms/dates";
 import { toBookingViews, bookingGuestLabel } from "@/lib/rooms/queries";
+import { paymentSchema } from "@/lib/payment-schema";
+import { paymentsToCashMovements } from "@/lib/cash";
 
 export type FormState = { error?: string; ok?: string };
 
@@ -276,59 +278,46 @@ export async function setManualBookingCancelled(bookingId: string, cancelled: bo
 // Cobros (van a Caja)
 // ---------------------------------------------------------------------------
 
-const paymentSchema = z.object({
-  amount: z.coerce.number().positive("El monto tiene que ser mayor a 0"),
-  currency: z.enum(["ars", "usd"]).default("ars"),
-  paymentMethodId: z.string().min(1, "Elegí el medio de pago"),
-  paymentMethodNote: z.string().trim().max(300).optional(),
-  detail: z.string().trim().max(300).optional(),
-});
-
 /**
  * Registra un cobro de una estadía como un ingreso de Caja vinculado a la
  * reserva. Sirve para efectivo cobrado en mano y para lo que Airbnb/Booking
  * acreditan en una cuenta (que se elige como medio de pago, ej. "Airbnb").
+ *
+ * Mismo mecanismo que `addRentalPayment` (payment-actions.ts): el cliente
+ * arma el pago con `buildPayment` (ya con el recargo del medio de pago
+ * aplicado, ej. +6% con tarjeta — antes esto no pasaba acá, el monto se
+ * cargaba tal cual sin el recargo) y el servidor solo valida y persiste, sin
+ * recalcular el monto.
  */
-export async function addRoomPayment(bookingId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+export async function addRoomPayment(bookingId: string, input: unknown, detail?: string): Promise<void> {
   const user = await requireUser();
-  const parsed = paymentSchema.safeParse({
-    amount: formData.get("amount"),
-    currency: formData.get("currency") || undefined,
-    paymentMethodId: formData.get("paymentMethodId"),
-    paymentMethodNote: formData.get("paymentMethodNote") || undefined,
-    detail: formData.get("detail") || undefined,
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
-  const p = parsed.data;
+  const payment = paymentSchema.parse(input);
+  if (payment.amount <= 0) throw new Error("El importe tiene que ser mayor a cero.");
 
   const booking = await prisma.roomBooking.findUnique({ where: { id: bookingId }, include: { room: true } });
-  if (!booking) return { error: "La reserva no existe." };
-  const method = await prisma.paymentMethod.findUnique({ where: { id: p.paymentMethodId } });
-  if (!method) return { error: "Medio de pago inválido." };
-  if (method.requiresNote && !p.paymentMethodNote) {
-    return { error: "Este medio de pago requiere indicar a dónde fue." };
+  if (!booking) throw new Error("La reserva no existe.");
+
+  if (payment.methodId) {
+    const method = await prisma.paymentMethod.findUnique({ where: { id: payment.methodId } });
+    if (!method) throw new Error("Medio de pago inválido.");
+    if (method.requiresNote && !payment.note) throw new Error("Este medio de pago requiere indicar a dónde fue.");
   }
 
   const roomLabel = /^habitaci[oó]n/i.test(booking.room.name) ? booking.room.name : `Habitación ${booking.room.name}`;
-  const description = `${roomLabel} — ${bookingGuestLabel(booking)}${p.detail ? ` · ${p.detail}` : ""}`;
+  const description = `${roomLabel} — ${bookingGuestLabel(booking)}${detail ? ` · ${detail}` : ""}`;
+
   await prisma.$transaction(async (tx) => {
     const created = await tx.cashMovement.create({
-      data: {
-        type: "income",
-        description,
-        amount: p.amount,
-        currency: p.currency,
-        paymentMethodId: method.id,
-        paymentMethodName: method.name,
-        paymentMethodNote: method.requiresNote ? p.paymentMethodNote : null,
+      data: paymentsToCashMovements([payment], {
         roomBookingId: booking.id,
         createdById: user.id,
         createdByName: displayName(user),
-      },
+        description,
+      })[0],
     });
     await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
   });
+
   revalidatePath(`/rooms/${booking.roomId}/bookings/${bookingId}`);
   revalidatePath("/caja");
-  return { ok: "Cobro registrado en Caja." };
 }

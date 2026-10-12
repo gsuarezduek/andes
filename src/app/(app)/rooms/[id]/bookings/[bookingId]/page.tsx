@@ -8,6 +8,7 @@ import { nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -26,11 +27,19 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
   if (!detail) notFound();
   const { booking: b, room, payments, mirrored } = detail;
 
-  const paymentMethods = await prisma.paymentMethod.findMany({
-    where: { active: true },
-    orderBy: { ordering: "asc" },
-    select: { id: true, name: true, requiresNote: true, parentId: true },
-  });
+  const [rawPaymentMethods, usdRateInfo] = await Promise.all([
+    prisma.paymentMethod.findMany({
+      where: { active: true },
+      orderBy: { ordering: "asc" },
+      select: { id: true, name: true, adjustmentPercent: true, requiresNote: true, parentId: true },
+    }),
+    getCurrentUsdRate(),
+  ]);
+  const paymentMethods = rawPaymentMethods.map((m) => ({
+    ...m,
+    adjustmentPercent: m.adjustmentPercent ? Number(m.adjustmentPercent) : undefined,
+  }));
+  const usdRate = usdRateInfo?.rate ?? null;
 
   const nights = nightsBetween(b.startDate, b.endDate);
   const imported = b.source !== "manual";
@@ -135,7 +144,7 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
         ) : (
           <p className="text-sm text-foreground/50">Todavía no hay cobros registrados.</p>
         )}
-        <RoomPaymentForm bookingId={bookingId} paymentMethods={paymentMethods} defaultCurrency={b.currency} />
+        <RoomPaymentForm bookingId={bookingId} paymentMethods={paymentMethods} defaultCurrency={b.currency} usdRate={usdRate} />
       </section>
     </div>
   );
