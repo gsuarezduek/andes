@@ -81,10 +81,19 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
   const returnChangedInWp = endAt.getTime() !== existing.endAt.getTime();
   const datesEdited = existing.datesEditedAt != null;
 
-  // No tocamos reservas que ya arrancaron el flujo físico (entrega/devolución) ni
-  // las cerradas. ÚNICA excepción: si una reserva ACTIVA (entregada, sin devolución
-  // aún) extendió su fecha de devolución en la web, traemos SOLO esa fecha.
+  // No tocamos fechas/vehículo/datos del cliente de una reserva que ya arrancó
+  // el flujo físico (entrega/devolución) ni las cerradas — eso es terreno del
+  // empleado. ÚNICA excepción de fecha: si una reserva ACTIVA (entregada, sin
+  // devolución aún) extendió su fecha de devolución en la web, traemos SOLO esa
+  // fecha.
+  //
+  // Lo económico (total/pagado) es distinto: es solo referencia + lo que se
+  // importa a Caja (idempotente por delta, nunca pisa nada cargado a mano), así
+  // que SIGUE trayéndose siempre, sin importar el estado — sin esto, un pago
+  // cargado en VikRentCar después de entregar/devolver el auto se perdía (solo
+  // se traía la primera corrida, mientras la reserva seguía "reserved").
   if (hasInspection || existing.status !== "reserved") {
+    let extensionUpdated = false;
     if (existing.status === "active" && returnChangedInWp && !datesEdited) {
       // Flujo real más común: la extensión se carga primero en VikRentCar.
       // Traemos la fecha sola (el sync nunca toca `pricing`), pero si es una
@@ -109,9 +118,28 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
           await autoUnverifyRental(tx, existing.id, "Se extendió el alquiler en VikRentCar.");
         }
       });
-      return "updated";
+      extensionUpdated = true;
     }
-    return "skipped";
+
+    const totalChanged = decimalChanged(existing.bookingTotal, b.orderTotal);
+    const paidChanged = decimalChanged(existing.bookingPaid, b.paid);
+    if (totalChanged || paidChanged) {
+      await prisma.rental.update({
+        where: { id: existing.id },
+        data: { bookingTotal: b.orderTotal, bookingPaid: b.paid },
+      });
+      await autoUnverifyRental(prisma, existing.id, "Cambió el total o lo pagado en VikRentCar.");
+    }
+    await upsertWpPaymentMethodCatalog(b.paymentMethod);
+    const paymentImported = await importBookingPayment(
+      existing.id,
+      existing.bookingPaidImportedAmount ? Number(existing.bookingPaidImportedAmount) : null,
+      b.paid,
+      b.paymentMethod,
+      b.wpBookingId,
+      clientName,
+    );
+    return extensionUpdated || totalChanged || paidChanged || paymentImported ? "updated" : "skipped";
   }
 
   // Si el empleado ya editó la reserva a mano, el sync no pisa los datos del
@@ -210,11 +238,11 @@ export async function importBookingPayment(
   wpPaymentMethodName: string | null,
   wpBookingId: number | null,
   clientName: string,
-): Promise<void> {
+): Promise<boolean> {
   const prior = priorImported ?? 0;
   const target = newPaid ?? 0;
   const delta = roundMoney(target - prior);
-  if (delta <= 0.01) return;
+  if (delta <= 0.01) return false;
 
   const resolved = await resolveWpPaymentMethod(wpPaymentMethodName);
   const methodName =
@@ -272,6 +300,7 @@ export async function importBookingPayment(
     });
     await autoUnverifyRental(tx, rentalId, "Entró una seña nueva desde VikRentCar.");
   });
+  return true;
 }
 
 /**
