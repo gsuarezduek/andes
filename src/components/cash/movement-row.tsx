@@ -139,6 +139,23 @@ export function MovementRow({
                   }
                 />
               )}
+              {movement.roomBookingLabel && (
+                <DetailRow
+                  label="Reserva"
+                  value={
+                    movement.roomBookingId && movement.roomId ? (
+                      <Link
+                        href={`/rooms/${movement.roomId}/bookings/${movement.roomBookingId}`}
+                        className="underline hover:text-foreground/70"
+                      >
+                        {movement.roomBookingLabel}
+                      </Link>
+                    ) : (
+                      movement.roomBookingLabel
+                    )
+                  }
+                />
+              )}
               <DetailRow label="Cargado por" value={`${movement.createdByName} · ${formatDateTime(movement.createdAt)}`} />
               {movement.lastEditedAt && (
                 <DetailRow

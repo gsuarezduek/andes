@@ -11,6 +11,7 @@ import {
   getOwnAccountBalances,
   getOwnCashMovements,
   getRentalPickerOptions,
+  getRoomBookingPickerOptions,
   getUnconfirmedCashMovements,
   getUnpaidFinishedRentals,
   parseCashPeriod,
@@ -47,7 +48,7 @@ export default async function CajaPage({
   const { period: rawPeriod, from: rawFrom, to: rawTo } = await searchParams;
   const period = parseCashPeriod(rawPeriod, rawFrom, rawTo);
 
-  const [paymentMethods, expenseCategories, rentalOptions] = await Promise.all([
+  const [paymentMethods, expenseCategories, rentalOptions, roomBookingOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
       where: { active: true },
       orderBy: { ordering: "asc" },
@@ -59,6 +60,7 @@ export default async function CajaPage({
       select: { id: true, name: true },
     }),
     getRentalPickerOptions(),
+    getRoomBookingPickerOptions(),
   ]);
 
   const isAdmin = user.role === "admin";
@@ -72,7 +74,12 @@ export default async function CajaPage({
         expenseCategories={expenseCategories}
       />
 
-      <MovementLauncher paymentMethods={paymentMethods} rentalOptions={rentalOptions} expenseCategories={expenseCategories} />
+      <MovementLauncher
+        paymentMethods={paymentMethods}
+        rentalOptions={rentalOptions}
+        roomBookingOptions={roomBookingOptions}
+        expenseCategories={expenseCategories}
+      />
 
       <UnconfirmedIncomesSection
         movements={await getUnconfirmedCashMovements()}

@@ -1,40 +1,66 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { RentalPickerOption } from "@/lib/cash";
+import type { RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
 
 const MAX_MATCHES = 8;
 
+type CombinedOption = {
+  kind: "rental" | "room";
+  id: string;
+  label: string;
+  searchable: string;
+};
+
+function combineOptions(
+  options: RentalPickerOption[],
+  roomBookingOptions: RoomBookingPickerOption[],
+): CombinedOption[] {
+  const rentals: CombinedOption[] = options.map((o) => ({
+    kind: "rental",
+    id: o.id,
+    label: o.label,
+    searchable: `${o.clientName} ${o.bookingId ?? ""} ${o.vehicleName ?? ""}`.toLowerCase(),
+  }));
+  const rooms: CombinedOption[] = roomBookingOptions.map((o) => ({
+    kind: "room",
+    id: o.id,
+    label: o.label,
+    searchable: `${o.guestName} ${o.roomName}`.toLowerCase(),
+  }));
+  return [...rentals, ...rooms];
+}
+
 export function RentalPicker({
   options,
+  roomBookingOptions = [],
   initial = null,
 }: {
   options: RentalPickerOption[];
+  /** Reservas de habitación candidatas (ver `getRoomBookingPickerOptions`) — opcional, solo donde aplica. */
+  roomBookingOptions?: RoomBookingPickerOption[];
   /** Reserva ya vinculada (ej. al editar) — puede no estar en `options` (que
    *  solo trae candidatas recientes) y aun así se muestra preseleccionada. */
   initial?: RentalPickerOption | null;
 }) {
+  const combined = useMemo(() => combineOptions(options, roomBookingOptions), [options, roomBookingOptions]);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<RentalPickerOption | null>(initial);
+  const [selected, setSelected] = useState<CombinedOption | null>(
+    initial ? { kind: "rental", id: initial.id, label: initial.label, searchable: "" } : null,
+  );
   const [open, setOpen] = useState(false);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return options
-      .filter(
-        (o) =>
-          o.clientName.toLowerCase().includes(q) ||
-          (o.bookingId?.includes(q) ?? false) ||
-          (o.vehicleName?.toLowerCase().includes(q) ?? false),
-      )
-      .slice(0, MAX_MATCHES);
-  }, [query, options]);
+    return combined.filter((o) => o.searchable.includes(q)).slice(0, MAX_MATCHES);
+  }, [query, combined]);
 
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-foreground/80">Reserva (opcional)</span>
-      <input type="hidden" name="rentalId" value={selected?.id ?? ""} />
+      <input type="hidden" name="rentalId" value={selected?.kind === "rental" ? selected.id : ""} />
+      <input type="hidden" name="roomBookingId" value={selected?.kind === "room" ? selected.id : ""} />
       {selected ? (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-foreground/15 px-3 py-2 text-sm">
           <span className="min-w-0 truncate">{selected.label}</span>
@@ -60,13 +86,17 @@ export function RentalPicker({
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder="Cliente, auto o N° de reserva…"
+            placeholder={
+              roomBookingOptions.length > 0
+                ? "Cliente, auto, habitación o N° de reserva…"
+                : "Cliente, auto o N° de reserva…"
+            }
             className="h-11 w-full rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
           />
           {open && matches.length > 0 && (
             <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-foreground/10 bg-background py-1 shadow-lg">
               {matches.map((o) => (
-                <li key={o.id}>
+                <li key={`${o.kind}-${o.id}`}>
                   <button
                     type="button"
                     onClick={() => {

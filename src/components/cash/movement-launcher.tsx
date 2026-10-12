@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CashMovementForm } from "./cash-movement-form";
-import type { RentalPickerOption } from "@/lib/cash";
+import type { RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
 
 type PaymentMethodOption = {
   id: string;
@@ -24,10 +24,12 @@ type Action = "income" | "expense" | null;
 export function MovementLauncher({
   paymentMethods,
   rentalOptions,
+  roomBookingOptions,
   expenseCategories,
 }: {
   paymentMethods: PaymentMethodOption[];
   rentalOptions: RentalPickerOption[];
+  roomBookingOptions: RoomBookingPickerOption[];
   expenseCategories: ExpenseCategoryOption[];
 }) {
   const [action, setAction] = useState<Action>(null);
@@ -39,6 +41,7 @@ export function MovementLauncher({
         onCancel={() => setAction(null)}
         paymentMethods={paymentMethods}
         rentalOptions={rentalOptions}
+        roomBookingOptions={roomBookingOptions}
         expenseCategories={expenseCategories}
       />
     );

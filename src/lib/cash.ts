@@ -13,6 +13,7 @@ import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals 
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 import { computeRentalPayments } from "@/lib/rental-payments";
 import { fundBalance } from "@/lib/investment-funds";
+import { bookingGuestLabel } from "@/lib/rooms/queries";
 import {
   buildBalanceHistory,
   balanceHistoryFrom,
@@ -85,6 +86,12 @@ export type CashMovementRow = {
   // Nº de orden de VikRentCar de la reserva vinculada (si tiene) — para poder
   // buscar un movimiento por número de reserva (ver `getCashSearchIndex`).
   rentalBookingId: string | null;
+  // Alternativa a `rentalId`: cobro de una reserva de habitación (ver
+  // `RoomBooking`) — nunca los dos a la vez. `roomId` viaja aparte porque la
+  // URL de la ficha de la reserva necesita los dos (`/rooms/{roomId}/bookings/{roomBookingId}`).
+  roomBookingId: string | null;
+  roomId: string | null;
+  roomBookingLabel: string | null;
   createdByName: string;
   createdAt: Date;
   // Última edición real (no borrado) de este movimiento, si tiene — se
@@ -125,6 +132,16 @@ export type CashPeriodDetail = {
 // `isGuarantee` true/false, y `findMovements` fuerza uno de los dos).
 const MOVEMENT_INCLUDE = {
   rental: { select: { clientName: true, wpBookingId: true } },
+  roomBooking: {
+    select: {
+      roomId: true,
+      guestName: true,
+      externalLabel: true,
+      isBlock: true,
+      source: true,
+      room: { select: { name: true } },
+    },
+  },
   edits: { where: { action: "updated" as const }, orderBy: { createdAt: "desc" as const }, take: 1 },
 } satisfies Prisma.CashMovementInclude;
 
@@ -150,6 +167,11 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
     rentalId: r.rentalId,
     rentalClientName: r.rental?.clientName ?? null,
     rentalBookingId: r.rental?.wpBookingId != null ? String(r.rental.wpBookingId) : null,
+    roomBookingId: r.roomBookingId,
+    roomId: r.roomBooking?.roomId ?? null,
+    roomBookingLabel: r.roomBooking
+      ? `${bookingGuestLabel(r.roomBooking)} — ${r.roomBooking.room.name}`
+      : null,
     createdByName: r.createdByName ?? AUTO_IMPORT_CREATOR_LABEL,
     createdAt: r.createdAt,
     lastEditedByName: r.edits[0]?.editedByName ?? null,
@@ -421,6 +443,46 @@ export async function getRentalPickerOptions(): Promise<RentalPickerOption[]> {
       label: `${r.clientName} — ${r.vehicle ? vehicleDisplayName(r.vehicle) : "sin unidad"} (${formatDateInput(r.startAt)})${
         bookingId ? ` · #${bookingId}` : ""
       }`,
+    };
+  });
+}
+
+export type RoomBookingPickerOption = {
+  id: string;
+  guestName: string;
+  roomName: string;
+  label: string;
+};
+
+/**
+ * Reservas de habitación candidatas para vincular a un movimiento de Caja —
+ * mismo criterio que `getRentalPickerOptions`, adaptado a `RoomBooking`: no
+ * canceladas, no bloqueos (no tiene sentido cobrarle a un bloqueo de
+ * disponibilidad), ordenadas por fecha de entrada más reciente primero.
+ */
+export async function getRoomBookingPickerOptions(): Promise<RoomBookingPickerOption[]> {
+  const bookings = await prisma.roomBooking.findMany({
+    where: { status: "confirmed", isBlock: false },
+    orderBy: { startDate: "desc" },
+    take: 150,
+    select: {
+      id: true,
+      guestName: true,
+      externalLabel: true,
+      isBlock: true,
+      source: true,
+      startDate: true,
+      room: { select: { name: true } },
+    },
+  });
+
+  return bookings.map((b) => {
+    const guestName = bookingGuestLabel(b);
+    return {
+      id: b.id,
+      guestName,
+      roomName: b.room.name,
+      label: `${guestName} — ${b.room.name} (${formatDateInput(b.startDate)})`,
     };
   });
 }

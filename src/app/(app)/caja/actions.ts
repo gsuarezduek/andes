@@ -22,6 +22,7 @@ const createMovementSchema = z.object({
   recipientPaymentMethodNote: z.string().trim().max(300).optional(),
   categoryId: z.string().optional(),
   rentalId: z.string().optional(),
+  roomBookingId: z.string().optional(),
   invoicingName: z.string().trim().max(200).optional(),
   invoicingCuit: z.string().trim().max(20).optional(),
 });
@@ -47,6 +48,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     recipientPaymentMethodNote,
     categoryId,
     rentalId,
+    roomBookingId,
     invoicingName,
     invoicingCuit,
   } = createMovementSchema.parse({
@@ -59,9 +61,16 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
     categoryId: formData.get("categoryId") || undefined,
     rentalId: formData.get("rentalId") || undefined,
+    roomBookingId: formData.get("roomBookingId") || undefined,
     invoicingName: formData.get("invoicingName") || undefined,
     invoicingCuit: formData.get("invoicingCuit") || undefined,
   });
+  // El picker (`RentalPicker`) nunca manda los dos a la vez — solo uno de los
+  // dos inputs ocultos lleva valor — pero se valida igual por si se llega a
+  // mandar el form a mano.
+  if (rentalId && roomBookingId) {
+    throw new Error("Un movimiento no puede estar vinculado a un alquiler y a una habitación a la vez.");
+  }
   // Garantía/depósito (se devuelve, no es un cobro/pago real) — ver
   // comentario de `isGuarantee` en el schema. Nunca editable después: si se
   // cargó mal, se borra y se carga de nuevo (mismo criterio que `type`).
@@ -99,6 +108,12 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     if (!category) throw new Error("Categoría inválida");
   }
 
+  let roomBooking: { id: string; roomId: string } | null = null;
+  if (roomBookingId) {
+    roomBooking = await prisma.roomBooking.findUnique({ where: { id: roomBookingId }, select: { id: true, roomId: true } });
+    if (!roomBooking) throw new Error("La reserva de habitación no existe.");
+  }
+
   await prisma.$transaction(async (tx) => {
     const created = await tx.cashMovement.create({
       data: {
@@ -115,6 +130,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
         categoryId: category?.id ?? null,
         categoryName: category?.name ?? null,
         rentalId: rentalId || null,
+        roomBookingId: roomBooking?.id ?? null,
         isGuarantee,
         needsInvoice,
         invoicingName: needsInvoice ? invoicingName! : null,
@@ -132,6 +148,10 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   });
 
   revalidatePath("/caja");
+  if (roomBooking) {
+    revalidatePath(`/rooms/${roomBooking.roomId}/bookings/${roomBooking.id}`);
+    revalidatePath("/calendar");
+  }
 }
 
 const updateMovementSchema = z.object({

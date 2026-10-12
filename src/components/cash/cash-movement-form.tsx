@@ -8,7 +8,7 @@ import { RentalPicker } from "@/components/cash/rental-picker";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { createCashMovement } from "@/app/(app)/caja/actions";
-import type { RentalPickerOption } from "@/lib/cash";
+import type { RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
@@ -28,12 +28,14 @@ export function CashMovementForm({
   onCancel,
   paymentMethods,
   rentalOptions,
+  roomBookingOptions,
   expenseCategories,
 }: {
   mode: "income" | "expense";
   onCancel: () => void;
   paymentMethods: PaymentMethodOption[];
   rentalOptions: RentalPickerOption[];
+  roomBookingOptions: RoomBookingPickerOption[];
   expenseCategories: ExpenseCategoryOption[];
 }) {
   const [paymentMethodId, setPaymentMethodId] = useState("");
@@ -116,7 +118,7 @@ export function CashMovementForm({
       )}
       {mode === "income" && (
         <>
-          <RentalPicker options={rentalOptions} />
+          <RentalPicker options={rentalOptions} roomBookingOptions={roomBookingOptions} />
           <label className="flex items-start gap-2 text-sm text-foreground/70">
             <input type="checkbox" name="isGuarantee" className="mt-0.5 h-4 w-4 rounded border-foreground/30" />
             <span>
