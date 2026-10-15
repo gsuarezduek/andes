@@ -13,6 +13,7 @@ import { isDateKey, keyToDate, nightsBetween, rangesOverlap } from "@/lib/rooms/
 import { toBookingViews, bookingGuestLabel } from "@/lib/rooms/queries";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
+import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
 
 export type FormState = { error?: string; ok?: string };
 
@@ -253,7 +254,11 @@ export async function updateBooking(bookingId: string, _prev: FormState, formDat
     data.endDate = keyToDate(d.endDate);
     data.isBlock = d.isBlock;
   }
-  await prisma.roomBooking.update({ where: { id: bookingId }, data });
+  const amountChanged = Number(existing.totalAmount) !== (d.totalAmount ?? 0) || existing.currency !== d.currency;
+  await prisma.$transaction(async (tx) => {
+    await tx.roomBooking.update({ where: { id: bookingId }, data });
+    if (amountChanged) await autoUnverifyRoomBooking(tx, bookingId, "Se editó el total de la reserva.");
+  });
   revalidatePath(`/rooms/${existing.roomId}`);
   revalidatePath(`/rooms/${existing.roomId}/bookings/${bookingId}`);
   revalidatePath("/calendar");
@@ -316,6 +321,7 @@ export async function addRoomPayment(bookingId: string, input: unknown, detail?:
       })[0],
     });
     await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
+    await autoUnverifyRoomBooking(tx, bookingId, "Se cargó un cobro nuevo.");
   });
 
   revalidatePath(`/rooms/${booking.roomId}/bookings/${bookingId}`);

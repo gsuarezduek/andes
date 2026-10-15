@@ -207,6 +207,16 @@ async function findMovements(
 }
 
 /**
+ * Un movimiento puntual, en el mismo shape que consume `MovementDetailModal`
+ * — usado para mostrar de una el detalle de un Ingreso/Egreso recién cargado
+ * (ver `createCashMovement`) sin tener que esperar a que se re-liste.
+ */
+export async function getCashMovementRow(id: string): Promise<CashMovementRow | null> {
+  const row = await prisma.cashMovement.findUnique({ where: { id }, include: MOVEMENT_INCLUDE });
+  return row ? toCashMovementRow(row) : null;
+}
+
+/**
  * Ingresos importados automáticamente desde VikRentCar cuyo medio de pago no
  * se pudo resolver — independiente del período visible en Caja (no importa
  * cuándo llegó la seña: hasta que alguien lo confirme, sigue pendiente).

@@ -9,11 +9,13 @@ import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { canVerifyRoomBooking, isRoomBookingVerified } from "@/lib/room-booking-verification";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { BookingForm } from "@/components/rooms/booking-form";
 import { RoomPaymentForm } from "@/components/rooms/room-payment-form";
+import { RoomBookingVerificationSection } from "@/components/rooms/room-booking-verification-section";
 import { setManualBookingCancelled, updateBooking } from "../../../actions";
 
 export const metadata: Metadata = { title: "Reserva de habitación — Andes" };
@@ -22,10 +24,11 @@ const fmt = (k: string) => `${k.slice(8, 10)}/${k.slice(5, 7)}/${k.slice(0, 4)}`
 
 export default async function RoomBookingPage({ params }: { params: Promise<{ id: string; bookingId: string }> }) {
   const { id, bookingId } = await params;
-  await requireUser();
+  const user = await requireUser();
+  const isAdmin = user.role === "admin";
   const detail = await getBookingDetail(id, bookingId);
   if (!detail) notFound();
-  const { booking: b, room, payments, mirrored } = detail;
+  const { booking: b, room, payments, mirrored, verifiedAt, verifiedByName, verifications } = detail;
 
   const [rawPaymentMethods, usdRateInfo] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -83,6 +86,15 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
           </details>
         ) : null}
       </div>
+
+      {canVerifyRoomBooking(b.status, b.isBlock) && (
+        <RoomBookingVerificationSection
+          bookingId={b.id}
+          verified={isRoomBookingVerified({ status: b.status, isBlock: b.isBlock, verifiedAt }) ? { byName: verifiedByName, at: verifiedAt! } : null}
+          isAdmin={isAdmin}
+          history={isAdmin ? verifications : []}
+        />
+      )}
 
       <section className="flex flex-col gap-3">
         <SectionHeading>Datos</SectionHeading>

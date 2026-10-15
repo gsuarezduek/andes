@@ -185,6 +185,7 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
     include: {
       room: { select: { id: true, name: true, checkInTime: true, checkOutTime: true, nightlyRate: true } },
       cashMovements: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+      verifications: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!booking) return null;
@@ -194,6 +195,9 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
   return {
     booking: toBookingViews([booking])[0]!,
     mirrored: view?.mirrored ?? false,
+    verifiedAt: booking.verifiedAt,
+    verifiedByName: booking.verifiedByName,
+    verifications: booking.verifications,
     room: {
       id: booking.room.id,
       name: booking.room.name,

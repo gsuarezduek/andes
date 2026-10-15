@@ -3,12 +3,14 @@
 import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Button } from "@/components/ui/button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
+import { MovementDetailModal } from "@/components/cash/movement-row";
 import { createCashMovement } from "@/app/(app)/caja/actions";
-import type { RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
+import type { CashMovementRow, RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
 
 type PaymentMethodOption = { id: string; name: string; requiresNote: boolean; ownership: PaymentMethodOwnership };
@@ -42,16 +44,68 @@ export function CashMovementForm({
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState("");
   const [currency, setCurrency] = useState<Currency>("ars");
   const [needsInvoice, setNeedsInvoice] = useState(false);
+  const [error, setError] = useState<string>();
+  const [created, setCreated] = useState<CashMovementRow | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
 
   const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
 
+  async function submit(formData: FormData) {
+    setError(undefined);
+    try {
+      const row = await createCashMovement(mode, formData);
+      setCreated(row);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar el movimiento.");
+    }
+  }
+
+  // Volver a un formulario en blanco para cargar otro del mismo tipo — se
+  // resetean los campos sin estado (detalle, monto, etc.) solo porque esta
+  // rama reemplaza por completo la del éxito, montando un `<form>` nuevo.
+  function addAnother() {
+    setCreated(null);
+    setDetailOpen(false);
+    setPaymentMethodId("");
+    setRecipientPaymentMethodId("");
+    setCurrency("ars");
+    setNeedsInvoice(false);
+    setError(undefined);
+  }
+
+  if (created) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
+        <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+          {mode === "income" ? "Ingreso" : "Egreso"} agregado correctamente.
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={() => setDetailOpen(true)}>
+            Ver {mode === "income" ? "ingreso" : "pago"}
+          </Button>
+          <Button type="button" className="flex-1" onClick={addAnother}>
+            Agregar otro
+          </Button>
+        </div>
+        <button type="button" onClick={onCancel} className="self-start text-xs text-foreground/50">
+          Cerrar
+        </button>
+        <MovementDetailModal
+          movement={created}
+          tone={mode === "income" ? "emerald" : "red"}
+          paymentMethods={paymentMethods}
+          expenseCategories={expenseCategories}
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+        />
+      </div>
+    );
+  }
+
   return (
-    <form
-      action={createCashMovement.bind(null, mode)}
-      className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4"
-    >
+    <form action={submit} className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">{mode === "income" ? "Nuevo ingreso" : "Nuevo egreso"}</h2>
         <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
@@ -152,6 +206,7 @@ export function CashMovementForm({
           )}
         </>
       )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <SubmitButton pendingLabel="Guardando…" disabled={!paymentMethodId}>
         {mode === "income" ? "Agregar ingreso" : "Agregar egreso"}
       </SubmitButton>

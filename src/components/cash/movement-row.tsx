@@ -27,10 +27,10 @@ const MODAL_TITLES = { view: "Movimiento", edit: "Editar movimiento", confirmDel
  * `deleteCashMovement`). En reposo muestra lo esencial — detalle, monto,
  * cuenta y fecha — para poder escanear la lista rápido; el resto (destino,
  * categoría, cliente, quién lo cargó/editó) y las acciones de Editar/Eliminar
- * viven en un modal que se abre al tocar la fila. Antes todo eso iba suelto
- * en la fila (con el "Cliente" muchas veces repitiendo lo que ya decía el
- * Detalle) y el editar era un ícono aparte — pedido del dueño para bajar el
- * ruido visual.
+ * viven en `MovementDetailModal`, que se abre al tocar la fila. Antes todo
+ * eso iba suelto en la fila (con el "Cliente" muchas veces repitiendo lo que
+ * ya decía el Detalle) y el editar era un ícono aparte — pedido del dueño
+ * para bajar el ruido visual.
  */
 export function MovementRow({
   movement,
@@ -44,29 +44,11 @@ export function MovementRow({
   expenseCategories: ExpenseCategoryOption[];
 }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
-  const [currency, setCurrency] = useState<Currency>(movement.currency);
-  const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
-  const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState(
-    movement.recipientPaymentMethodId ?? "",
-  );
-  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
-  const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
-  const isExpense = movement.type === "expense";
-  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
   const amountToneClass = tone === "emerald" ? "text-emerald-600" : "text-red-600";
-
-  function openModal() {
-    setMode("view");
-    setCurrency(movement.currency);
-    setPaymentMethodId(movement.paymentMethodId ?? "");
-    setRecipientPaymentMethodId(movement.recipientPaymentMethodId ?? "");
-    setOpen(true);
-  }
 
   return (
     <li className="rounded-lg border border-foreground/10 text-sm">
-      <button type="button" onClick={openModal} className="flex w-full items-center gap-3 px-3 py-2 text-left">
+      <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 px-3 py-2 text-left">
         <div className="min-w-0 flex-1">
           <p className="truncate">{movement.description}</p>
           <p className="mt-0.5 truncate text-xs text-foreground/50">
@@ -79,7 +61,64 @@ export function MovementRow({
         <ChevronRightIcon className="size-4 shrink-0 text-foreground/30" />
       </button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={MODAL_TITLES[mode]}>
+      <MovementDetailModal
+        movement={movement}
+        tone={tone}
+        paymentMethods={paymentMethods}
+        expenseCategories={expenseCategories}
+        open={open}
+        onClose={() => setOpen(false)}
+      />
+    </li>
+  );
+}
+
+/**
+ * Modal de detalle de un movimiento (view/edit/confirmDelete) — extraído de
+ * `MovementRow` para poder abrirlo también fuera de una lista, ej. al
+ * confirmar el alta de un Ingreso/Egreso nuevo (ver `CashMovementForm`).
+ */
+export function MovementDetailModal({
+  movement,
+  tone,
+  paymentMethods,
+  expenseCategories,
+  open,
+  onClose,
+}: {
+  movement: CashMovementRowData;
+  tone: "emerald" | "red";
+  paymentMethods: PaymentMethodOption[];
+  expenseCategories: ExpenseCategoryOption[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
+  const [currency, setCurrency] = useState<Currency>(movement.currency);
+  const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
+  const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState(
+    movement.recipientPaymentMethodId ?? "",
+  );
+  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const selectedRecipient = paymentMethods.find((m) => m.id === recipientPaymentMethodId);
+  const isExpense = movement.type === "expense";
+  const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
+  const amountToneClass = tone === "emerald" ? "text-emerald-600" : "text-red-600";
+
+  // Reset al cerrar (no al abrir, para no llamar setState desde un efecto):
+  // la próxima vez que se abra, ya arranca en modo vista con los valores
+  // actuales — mismo resultado que antes lograba `openModal` en `MovementRow`
+  // al click, solo que disparado un paso después.
+  function handleClose() {
+    setMode("view");
+    setCurrency(movement.currency);
+    setPaymentMethodId(movement.paymentMethodId ?? "");
+    setRecipientPaymentMethodId(movement.recipientPaymentMethodId ?? "");
+    onClose();
+  }
+
+  return (
+    <Modal open={open} onClose={handleClose} title={MODAL_TITLES[mode]}>
         {mode === "view" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
@@ -270,8 +309,7 @@ export function MovementRow({
             requireNote
           />
         )}
-      </Modal>
-    </li>
+    </Modal>
   );
 }
 

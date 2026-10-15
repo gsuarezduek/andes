@@ -110,8 +110,10 @@ enum SyncResult {
 
 /// Estado de un pedido de firma remota (el cliente firma en su teléfono).
 /// Movimientos del historial de verificación de una reserva (ver
-/// `RentalVerification`): un admin la verifica / le quita la verificación, o
-/// el sistema se la quita sola porque cambió algo de plata después.
+/// `RentalVerification`/`RoomBookingVerification`, mismo mecanismo para
+/// alquileres y reservas de habitación): un admin la verifica / le quita la
+/// verificación, o el sistema se la quita sola porque cambió algo de plata
+/// después.
 enum RentalVerificationAction {
   verified
   unverified
@@ -231,46 +233,48 @@ model User {
   inspections                    Inspection[]
   rentalDocuments                RentalDocument[]
   signatureRequests              SignatureRequest[]
-  reportedDamages                Damage[]                 @relation("DamageReporter")
-  repairedDamages                Damage[]                 @relation("DamageRepairer")
-  createdVehicleNotes            VehicleNote[]            @relation("VehicleNoteCreator")
-  resolvedVehicleNotes           VehicleNote[]            @relation("VehicleNoteResolver")
-  createdRentalNotes             RentalNote[]             @relation("RentalNoteCreator")
-  resolvedRentalNotes            RentalNote[]             @relation("RentalNoteResolver")
-  verifiedRentals                Rental[]                 @relation("RentalVerifier")
-  createdRoomBookings            RoomBooking[]            @relation("RoomBookingCreator")
+  reportedDamages                Damage[]                  @relation("DamageReporter")
+  repairedDamages                Damage[]                  @relation("DamageRepairer")
+  createdVehicleNotes            VehicleNote[]             @relation("VehicleNoteCreator")
+  resolvedVehicleNotes           VehicleNote[]             @relation("VehicleNoteResolver")
+  createdRentalNotes             RentalNote[]              @relation("RentalNoteCreator")
+  resolvedRentalNotes            RentalNote[]              @relation("RentalNoteResolver")
+  verifiedRentals                Rental[]                  @relation("RentalVerifier")
+  createdRoomBookings            RoomBooking[]             @relation("RoomBookingCreator")
+  verifiedRoomBookings           RoomBooking[]             @relation("RoomBookingVerifier")
+  roomBookingVerifications       RoomBookingVerification[] @relation("RoomBookingVerificationActor")
   shiftAssignments               ShiftAssignment[]
-  shiftChangesAsTarget           ShiftChange[]            @relation("ShiftChangeTarget")
-  shiftChangesMade               ShiftChange[]            @relation("ShiftChangeActor")
-  createdSpecialDates            SpecialDate[]            @relation("SpecialDateCreator")
-  rentalVerifications            RentalVerification[]     @relation("RentalVerificationActor")
-  rentalExtensions               RentalExtension[]        @relation("RentalExtensionActor")
-  createdCashMovements           CashMovement[]           @relation("CashMovementCreator")
-  deletedCashMovements           CashMovement[]           @relation("CashMovementDeleter")
-  cashMovementEdits              CashMovementEdit[]       @relation("CashMovementEditor")
-  resolvedGuarantees             CashMovement[]           @relation("GuaranteeResolver")
-  invoicedCashMovements          CashMovement[]           @relation("CashMovementInvoicer")
-  createdInvoices                Invoice[]                @relation("InvoiceCreator")
-  createdSafeMovements           SafeMovement[]           @relation("SafeMovementCreator")
-  deletedSafeMovements           SafeMovement[]           @relation("SafeMovementDeleter")
-  safeMovementEdits              SafeMovementEdit[]       @relation("SafeMovementEditor")
+  shiftChangesAsTarget           ShiftChange[]             @relation("ShiftChangeTarget")
+  shiftChangesMade               ShiftChange[]             @relation("ShiftChangeActor")
+  createdSpecialDates            SpecialDate[]             @relation("SpecialDateCreator")
+  rentalVerifications            RentalVerification[]      @relation("RentalVerificationActor")
+  rentalExtensions               RentalExtension[]         @relation("RentalExtensionActor")
+  createdCashMovements           CashMovement[]            @relation("CashMovementCreator")
+  deletedCashMovements           CashMovement[]            @relation("CashMovementDeleter")
+  cashMovementEdits              CashMovementEdit[]        @relation("CashMovementEditor")
+  resolvedGuarantees             CashMovement[]            @relation("GuaranteeResolver")
+  invoicedCashMovements          CashMovement[]            @relation("CashMovementInvoicer")
+  createdInvoices                Invoice[]                 @relation("InvoiceCreator")
+  createdSafeMovements           SafeMovement[]            @relation("SafeMovementCreator")
+  deletedSafeMovements           SafeMovement[]            @relation("SafeMovementDeleter")
+  safeMovementEdits              SafeMovementEdit[]        @relation("SafeMovementEditor")
   conditionSettingsEdits         ConditionSettingsEdit[]
   loginEvents                    LoginEvent[]
   storageCleanupRuns             StorageCleanupRun[]
   storageExports                 StorageExport[]
   passwordResetTokens            PasswordResetToken[]
-  createdTasks                   Task[]                   @relation("TaskCreator")
-  assignedTasks                  Task[]                   @relation("TaskAssignee")
-  completedTasks                 Task[]                   @relation("TaskCompleter")
-  createdTaskRecurrences         TaskRecurrence[]         @relation("TaskRecurrenceCreator")
-  assignedTaskRecurrences        TaskRecurrence[]         @relation("TaskRecurrenceAssignee")
+  createdTasks                   Task[]                    @relation("TaskCreator")
+  assignedTasks                  Task[]                    @relation("TaskAssignee")
+  completedTasks                 Task[]                    @relation("TaskCompleter")
+  createdTaskRecurrences         TaskRecurrence[]          @relation("TaskRecurrenceCreator")
+  assignedTaskRecurrences        TaskRecurrence[]          @relation("TaskRecurrenceAssignee")
   assignedWhatsappConversations  WhatsAppConversation[]
   sentWhatsappMessages           WhatsAppMessage[]
-  resolvedWhatsappBotEscalations WhatsAppBotEscalation[]  @relation("WhatsAppBotEscalationResolver")
+  resolvedWhatsappBotEscalations WhatsAppBotEscalation[]   @relation("WhatsAppBotEscalationResolver")
   rentalQuotes                   RentalQuote[]
   createdQuickReplies            WhatsAppQuickReply[]
-  createdAccessCredentials       AccessCredential[]       @relation("AccessCredentialCreator")
-  updatedAccessCredentials       AccessCredential[]       @relation("AccessCredentialUpdater")
+  createdAccessCredentials       AccessCredential[]        @relation("AccessCredentialCreator")
+  updatedAccessCredentials       AccessCredential[]        @relation("AccessCredentialUpdater")
   accessCredentialReveals        AccessCredentialReveal[]
 
   @@map("users")
@@ -2480,14 +2484,50 @@ model RoomBooking {
   createdBy     User?   @relation("RoomBookingCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdByName String? @map("created_by_name")
 
+  // Verificación de un admin ("revisé la reserva: huésped y cobros en
+  // orden") — mismo mecanismo que `Rental.verifiedAt` (ver ese comentario).
+  // Estado actual — null = sin verificar. Solo aplica a estadías reales
+  // confirmadas, nunca a un bloqueo de disponibilidad (ver
+  // `canVerifyRoomBooking`). Se limpia sola si después cambia algo de plata
+  // (`autoUnverifyRoomBooking`); el historial completo vive en
+  // `RoomBookingVerification`. El sync (iCal) nunca toca estos campos.
+  verifiedAt     DateTime? @map("verified_at")
+  verifiedById   String?   @map("verified_by_id")
+  verifiedBy     User?     @relation("RoomBookingVerifier", fields: [verifiedById], references: [id])
+  verifiedByName String?   @map("verified_by_name")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   cashMovements CashMovement[]
+  verifications RoomBookingVerification[]
 
   @@unique([feedId, externalUid])
   @@index([roomId, startDate])
   @@map("room_bookings")
+}
+
+/**
+ * Historial append-only de la verificación de una reserva de habitación — mismo diseño que `RentalVerification`.
+ */
+model RoomBookingVerification {
+  id String @id @default(cuid())
+
+  roomBookingId String      @map("room_booking_id")
+  roomBooking   RoomBooking @relation(fields: [roomBookingId], references: [id])
+
+  action RentalVerificationAction
+  reason String?                  @db.Text
+
+  // Nombre congelado al momento del hecho (ver Inspection.userName).
+  byId   String? @map("by_id")
+  by     User?   @relation("RoomBookingVerificationActor", fields: [byId], references: [id])
+  byName String  @map("by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([roomBookingId])
+  @@map("room_booking_verifications")
 }
 
 // ---------------------------------------------------------------------------

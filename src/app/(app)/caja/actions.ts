@@ -5,12 +5,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
-import type { CashMovementFieldChange } from "@/lib/cash";
+import { getCashMovementRow, type CashMovementFieldChange, type CashMovementRow } from "@/lib/cash";
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
 import { syncCommission, deleteCommissionOf } from "@/lib/commissions-sync";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
+import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
 
 const createMovementSchema = z.object({
   description: z.string().trim().min(1).max(500),
@@ -36,7 +37,7 @@ const createMovementSchema = z.object({
 // — propia o ajena) y `recipientPaymentMethodId` el Destino (opcional, tiene
 // que ser una cuenta ajena si se manda). En un Ingreso no hay esa distinción —
 // el medio puede ser cualquiera, como hasta ahora.
-export async function createCashMovement(type: "income" | "expense", formData: FormData) {
+export async function createCashMovement(type: "income" | "expense", formData: FormData): Promise<CashMovementRow> {
   const user = await requireUser();
   const {
     description,
@@ -114,7 +115,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     if (!roomBooking) throw new Error("La reserva de habitación no existe.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const createdId = await prisma.$transaction(async (tx) => {
     const created = await tx.cashMovement.create({
       data: {
         type,
@@ -145,6 +146,8 @@ export async function createCashMovement(type: "income" | "expense", formData: F
       await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
     }
     if (rentalId) await autoUnverifyRental(tx, rentalId, `Se cargó un movimiento de Caja (${description}).`);
+    if (roomBooking) await autoUnverifyRoomBooking(tx, roomBooking.id, `Se cargó un movimiento de Caja (${description}).`);
+    return created.id;
   });
 
   revalidatePath("/caja");
@@ -152,6 +155,13 @@ export async function createCashMovement(type: "income" | "expense", formData: F
     revalidatePath(`/rooms/${roomBooking.roomId}/bookings/${roomBooking.id}`);
     revalidatePath("/calendar");
   }
+
+  // Se devuelve el movimiento recién creado (no el de la comisión, si generó
+  // una) para que el formulario pueda confirmar el alta y mostrar su detalle
+  // sin tener que re-listar — ver `CashMovementForm`.
+  const row = await getCashMovementRow(createdId);
+  if (!row) throw new Error("No se pudo recuperar el movimiento recién creado.");
+  return row;
 }
 
 const updateMovementSchema = z.object({
@@ -280,6 +290,9 @@ export async function updateCashMovement(id: string, formData: FormData) {
       await syncCommission(tx, id, { id: user.id, name: displayName(user) });
     }
     if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se editó un movimiento de Caja de la reserva.");
+    if (existing.roomBookingId) {
+      await autoUnverifyRoomBooking(tx, existing.roomBookingId, "Se editó un movimiento de Caja de la reserva.");
+    }
   });
 
   revalidatePath("/caja");
@@ -310,6 +323,9 @@ export async function deleteCashMovement(id: string, formData: FormData) {
     // Si este ingreso generó un egreso de comisión, se va con él.
     await deleteCommissionOf(tx, id, { id: user.id, name: displayName(user) });
     if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se eliminó un movimiento de Caja de la reserva.");
+    if (existing.roomBookingId) {
+      await autoUnverifyRoomBooking(tx, existing.roomBookingId, "Se eliminó un movimiento de Caja de la reserva.");
+    }
   });
 
   revalidatePath("/caja");
