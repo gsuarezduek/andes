@@ -33,7 +33,7 @@ export function RoomRow({
   const totalH = rowH * row.laneCount;
   const half = colW / 2;
   return (
-    <div className="flex border-b border-foreground/5 last:border-0">
+    <div className="flex border-b border-foreground/20 last:border-0">
       <Link
         href={`/rooms/${row.id}`}
         className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}

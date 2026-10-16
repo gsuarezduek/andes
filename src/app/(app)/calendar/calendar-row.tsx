@@ -108,7 +108,7 @@ export function Row({
   const quotesH = row.quotes.length > 0 ? QUOTE_TRACK_H * row.quoteLaneCount : 0;
   const totalH = barsH + quotesH;
   return (
-    <div className="flex border-b border-foreground/5 last:border-0">
+    <div className="flex border-b border-foreground/20 last:border-0">
       {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
           Si el auto tiene un apodo cargado, es lo principal y alcanza (sin
           patente/modelo de secundario, para no duplicar la referencia en un
