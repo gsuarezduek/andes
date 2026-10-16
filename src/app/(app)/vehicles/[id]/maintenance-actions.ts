@@ -84,6 +84,10 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
             where: { id: vehicleId },
             data: {
               ...(vehicle.serviceIntervalKm ? { nextServiceKm: parsed.data.km + vehicle.serviceIntervalKm } : {}),
+              // Service hecho: la alerta pospuesta ya no aplica.
+              serviceSnoozedUntilKm: null,
+              serviceSnoozedUntil: null,
+              serviceSnoozedByName: null,
               ...(parsed.data.km > vehicle.currentKm ? { currentKm: parsed.data.km } : {}),
             },
           }),

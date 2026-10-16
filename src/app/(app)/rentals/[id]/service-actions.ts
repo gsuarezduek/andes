@@ -188,6 +188,10 @@ export async function returnVehicleFromService(
         ...(log.type === "service" && data.km != null && vehicle.serviceIntervalKm
           ? { nextServiceKm: data.km + vehicle.serviceIntervalKm }
           : {}),
+        // Service hecho: la alerta pospuesta ya no aplica.
+        ...(log.type === "service"
+          ? { serviceSnoozedUntilKm: null, serviceSnoozedUntil: null, serviceSnoozedByName: null }
+          : {}),
       },
     }),
     // La reserva placeholder ya cumplió su función: se cierra con la fecha

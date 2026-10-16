@@ -2,6 +2,8 @@ import { Row } from "@/components/ui/row";
 import { SubsectionTitle } from "@/components/ui/subsection-title";
 import { formatArs } from "@/lib/contract";
 import { formatDate } from "@/lib/datetime";
+import { isServiceAlertSnoozed } from "@/lib/service-alerts";
+import { ClearServiceSnoozeButton } from "@/components/vehicle/clear-service-snooze-button";
 import type { VehicleDetail } from "@/lib/vehicle-detail-queries";
 
 export function VehicleInfo({ vehicle }: { vehicle: VehicleDetail }) {
@@ -70,6 +72,21 @@ export function VehicleInfo({ vehicle }: { vehicle: VehicleDetail }) {
                 )
               }
             />
+            {isServiceAlertSnoozed(vehicle, new Date()) && (
+              <Row
+                label="Alerta de service"
+                value={
+                  <span>
+                    Pospuesta hasta{" "}
+                    {vehicle.serviceSnoozedUntilKm != null
+                      ? `${vehicle.serviceSnoozedUntilKm.toLocaleString("es-AR")} km`
+                      : formatDate(vehicle.serviceSnoozedUntil!)}
+                    {vehicle.serviceSnoozedByName ? ` · por ${vehicle.serviceSnoozedByName}` : ""}
+                    <ClearServiceSnoozeButton vehicleId={vehicle.id} />
+                  </span>
+                }
+              />
+            )}
             <Row label="Intervalo de service" value={vehicle.serviceIntervalKm ? `${vehicle.serviceIntervalKm.toLocaleString("es-AR")} km` : "—"} />
             <Row label="Líneas de combustible" value={`${vehicle.fuelLevels} líneas`} />
           </div>

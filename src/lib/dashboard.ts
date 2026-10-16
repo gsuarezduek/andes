@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { getUnpaidFinishedRentals } from "@/lib/cash";
-import { serviceOverdueSeverity, DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
+import { serviceOverdueSeverity, isServiceAlertSnoozed, DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
 
 const SERVICE_KM_THRESHOLD = 500; // avisar cuando falten ≤ 500 km para el service
 
@@ -89,6 +89,9 @@ export async function getDashboardData() {
   const serviceRedPercent = conditionSettings?.serviceOverdueRedPercent ?? DEFAULT_SERVICE_OVERDUE_RED_PERCENT;
   const upcomingServices = serviceCandidates
     .filter((v) => v.nextServiceKm != null && v.currentKm >= v.nextServiceKm - SERVICE_KM_THRESHOLD)
+    // Pospuesta desde el Home ("Posponer"): no se muestra hasta que se cumpla
+    // el km o la fecha elegidos (tampoco en el resumen diario por email).
+    .filter((v) => !isServiceAlertSnoozed(v, now))
     .sort((a, b) => (a.nextServiceKm! - a.currentKm) - (b.nextServiceKm! - b.currentKm))
     .map((v) => {
       const overdue = v.currentKm >= v.nextServiceKm!;

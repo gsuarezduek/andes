@@ -1045,6 +1045,10 @@ Sobre v81: el código de lugar (OFI/AER/HOT/OTR) junto al horario quedaba muy ap
 - Afecta a **toda la fila**, no solo a la barra de 1 día: una barra larga que comparta fila con una de 1 día también queda más alta (con más aire alrededor del texto) — más simple que variar el alto por barra individual dentro del mismo carril, y visualmente no desentona.
 - El tier "compact" sube de `text-[9px]` a `text-[11px]` (con `gap-0.5` en vez de `leading-[1.15]`): como ese tier **solo** aparece dentro de una fila ya duplicada (es la barra que dispara `rowHasCompactBar`), siempre hay lugar de sobra — no hace falta ninguna condición extra para decidir cuándo agrandar la fuente.
 
+## v83 — Posponer la alerta de service
+
+Botón **"Posponer"** en cada alerta "Service próximo/vencido" del Home: abre un modal (`SnoozeServiceButton`) que pregunta **por kilómetros** (500/1.000/2.000 o libre) **o por tiempo** (7/15/30 días o libre). Campos nuevos en `Vehicle` (migración `add_vehicle_service_snooze`): `serviceSnoozedUntilKm` (km actual + lo elegido) o `serviceSnoozedUntil` (fecha), más `serviceSnoozedByName`. `isServiceAlertSnoozed` (`src/lib/service-alerts.ts`, testeada) filtra `upcomingServices` en `getDashboardData`, así que también deja de salir en el resumen diario por email. Cualquier rol puede posponer (`service-snooze-actions.ts`). La ficha del auto muestra "Alerta de service: pospuesta hasta X · por Y" con **"Reactivar"**. Registrar un service (desde la ficha o al cerrar un service/arreglo de una reserva) limpia el posponer. tsc/lint/tests en verde; verificado por navegador a 375px (posponer 15 días → la alerta desaparece → Reactivar → vuelve). **Sin desplegar todavía.**
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

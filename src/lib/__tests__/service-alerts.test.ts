@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { serviceOverdueSeverity } from "@/lib/service-alerts";
+import { serviceOverdueSeverity, isServiceAlertSnoozed } from "@/lib/service-alerts";
 
 describe("serviceOverdueSeverity", () => {
   it("justo en el km de service (excedente 0): siempre ámbar", () => {
@@ -33,5 +33,22 @@ describe("serviceOverdueSeverity", () => {
 
   it("% en 0: cualquier excedente es rojo, igual que sin intervalo", () => {
     expect(serviceOverdueSeverity(10_100, 10_000, 10_000, 0)).toBe("red");
+  });
+});
+
+describe("isServiceAlertSnoozed", () => {
+  const now = new Date("2026-10-16T12:00:00Z");
+  const base = { currentKm: 10_000, serviceSnoozedUntilKm: null, serviceSnoozedUntil: null };
+
+  it("sin posponer → no está pospuesta", () => {
+    expect(isServiceAlertSnoozed(base, now)).toBe(false);
+  });
+  it("por km: pospuesta hasta llegar al tope", () => {
+    expect(isServiceAlertSnoozed({ ...base, serviceSnoozedUntilKm: 10_500 }, now)).toBe(true);
+    expect(isServiceAlertSnoozed({ ...base, serviceSnoozedUntilKm: 10_000 }, now)).toBe(false);
+  });
+  it("por tiempo: pospuesta hasta la fecha", () => {
+    expect(isServiceAlertSnoozed({ ...base, serviceSnoozedUntil: new Date("2026-10-20T00:00:00Z") }, now)).toBe(true);
+    expect(isServiceAlertSnoozed({ ...base, serviceSnoozedUntil: new Date("2026-10-10T00:00:00Z") }, now)).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { HomeTaskList } from "@/components/home/home-task-list";
+import { SnoozeServiceButton } from "@/components/vehicle/snooze-service-button";
 
 const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
   pendiente: "amber",
@@ -135,18 +136,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               </Link>
             ))}
             {alerts.upcomingServices.map((v) => (
-              <Link
+              <div
                 key={v.id}
-                href={`/vehicles/${v.id}`}
-                className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${v.critical ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
+                className={`flex items-center gap-2 rounded-lg border py-2 pl-4 pr-2 text-sm ${v.critical ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"}`}
               >
-                <span className={`font-medium ${v.critical ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
-                  {v.overdue ? "Service vencido" : "Service próximo"}
-                </span>
-                <span className="text-right text-foreground/70">
-                  {vehicleDisplayName(v)} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
-                </span>
-              </Link>
+                <Link href={`/vehicles/${v.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3 py-1">
+                  <span className={`font-medium ${v.critical ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
+                    {v.overdue ? "Service vencido" : "Service próximo"}
+                  </span>
+                  <span className="text-right text-foreground/70">
+                    {vehicleDisplayName(v)} · {v.currentKm.toLocaleString("es-AR")} / {v.nextServiceKm?.toLocaleString("es-AR")} km
+                  </span>
+                </Link>
+                <SnoozeServiceButton vehicleId={v.id} vehicleLabel={vehicleDisplayName(v)} />
+              </div>
             ))}
             {alerts.unassigned.map((r) => (
               <Link key={r.id} href={`/rentals/${r.id}`} className="flex items-center justify-between rounded-lg border border-foreground/15 px-4 py-3 text-sm">
