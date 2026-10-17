@@ -168,22 +168,26 @@ export async function uploadMedia(
   form.append("messaging_product", "whatsapp");
   form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }), file.filename);
 
+  // Esta ruta todavía no está confirmada contra una llamada real exitosa
+  // (ver el historial arriba) — se loguea la URL completa + la respuesta
+  // cruda en el servidor (Railway) ante cualquier error, para diagnosticar
+  // sin depender de que el mensaje truncado llegue completo hasta la UI.
+  const url = `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`;
   let res: Response;
   try {
-    res = await fetch(
-      `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${account.accessToken}` },
-        body: form,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      },
-    );
+    res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${account.accessToken}` },
+      body: form,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
   } catch (err) {
+    console.error(`[whatsapp] uploadMedia: no se pudo conectar con Chakra (${url})`, err);
     throw new ChakraApiError(`No se pudo conectar con Chakra: ${err instanceof Error ? err.message : err}`, 0);
   }
   const bodyText = await res.text();
   if (!res.ok) {
+    console.error(`[whatsapp] uploadMedia: Chakra respondió ${res.status} en ${url}\nCuerpo: ${bodyText.slice(0, 1000)}`);
     throw new ChakraApiError(`Chakra respondió ${res.status} al subir el adjunto: ${bodyText.slice(0, 300)}`, res.status);
   }
   let parsed: unknown;
