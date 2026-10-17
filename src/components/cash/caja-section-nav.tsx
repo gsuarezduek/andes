@@ -12,12 +12,17 @@ import { CAJA_SECTIONS, type CajaSectionKey } from "./caja-sections";
 export function CajaSectionNav({
   active,
   showSaldos = true,
+  showAsociados = true,
 }: {
   active: CajaSectionKey;
   /** Saldos es admin-only — las páginas de detalle de proveedor/asociado la ocultan para un no-admin. */
   showSaldos?: boolean;
+  /** Asociados es admin-only — la página de detalle de proveedor la oculta para un no-admin. */
+  showAsociados?: boolean;
 }) {
-  const sections = showSaldos ? CAJA_SECTIONS : CAJA_SECTIONS.filter((s) => s.key !== "saldos");
+  const sections = CAJA_SECTIONS.filter(
+    (s) => (s.key !== "saldos" || showSaldos) && (s.key !== "asociados" || showAsociados),
+  );
   return (
     <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
       {sections.map((s) => (

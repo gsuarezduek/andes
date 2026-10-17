@@ -38,7 +38,7 @@ export function ThirdPartyAccountDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <CajaSectionNav active={activeSection} showSaldos={isAdmin} />
+      <CajaSectionNav active={activeSection} showSaldos={isAdmin} showAsociados={isAdmin} />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

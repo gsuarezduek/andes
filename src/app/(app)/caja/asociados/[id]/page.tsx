@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getAssociateBalances, getAssociateLedger } from "@/lib/associates";
 import { ThirdPartyAccountDetail } from "@/components/cash/third-party-account-detail";
@@ -15,12 +15,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 /**
  * Historial completo de un asociado (Asociados → click en la tarjeta),
  * partido por mes — reemplaza el viejo expandible inline en `AssociateCard`:
- * pedido del dueño, mismo criterio que Saldos/Proveedores. Visible para
- * cualquier rol; editar/borrar un movimiento sigue siendo solo admin
- * (`ThirdPartyLedgerMonths`).
+ * pedido del dueño, mismo criterio que Saldos/Proveedores. Admin-only (pedido
+ * del dueño): a diferencia de Proveedores, Asociados no se le muestra a un
+ * empleado — ni la pestaña ni esta ruta puntual.
  */
 export default async function AssociateDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const { id } = await params;
 
   const [associates, ledger, paymentMethods] = await Promise.all([

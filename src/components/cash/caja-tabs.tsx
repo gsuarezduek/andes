@@ -7,19 +7,21 @@ import { CAJA_SECTIONS, type CajaSectionKey } from "./caja-sections";
 
 /**
  * Caja partida en pestañas: "Movimientos" (Ingreso/Egreso), "Asociados"
- * (resumen por asociado), "Cuentas corrientes" (ex-"Proveedores", cuenta
- * corriente por proveedor), "Garantías" (depósitos tomados/devueltos, ver
- * `RentalPayment.isGuarantee`) y "Saldos" (ex-"Cuentas propias": saldo +
- * historial de cada cuenta propia, cada una en su propia página — solo
- * admin, ver abajo) y "Facturación" (ingresos marcados "Hay que facturar" +
- * el libro de facturas cargadas). La Caja fuerte ya no tiene pestaña propia:
- * es una tarjeta más dentro de Saldos (v44, ver `AccountsSection`). Las
- * primeras tres, "Garantías" y "Facturación" son visibles para cualquier rol
- * (lo que cada una muestra por dentro ya varía por rol, ver `caja/page.tsx`);
- * "Saldos" directamente no se pasa (queda `undefined`) para un no-admin, así
- * que ni su pestaña aparece — es la posición de plata real de la empresa. Ya
- * vienen renderizadas desde el server component; acá solo se elige cuál
- * mostrar (mismo patrón que RentalDetailTabs).
+ * (resumen por asociado, admin-only — ver abajo), "Cuentas corrientes"
+ * (ex-"Proveedores", cuenta corriente por proveedor), "Garantías" (depósitos
+ * tomados/devueltos, ver `RentalPayment.isGuarantee`) y "Saldos" (ex-"Cuentas
+ * propias": saldo + historial de cada cuenta propia, cada una en su propia
+ * página — solo admin, ver abajo) y "Facturación" (ingresos marcados "Hay que
+ * facturar" + el libro de facturas cargadas). La Caja fuerte ya no tiene
+ * pestaña propia: es una tarjeta más dentro de Saldos (v44, ver
+ * `AccountsSection`). "Movimientos", "Cuentas corrientes", "Garantías" y
+ * "Facturación" son visibles para cualquier rol (lo que cada una muestra por
+ * dentro ya varía por rol, ver `caja/page.tsx`); "Saldos" y "Asociados"
+ * directamente no se pasan (quedan `undefined`) para un no-admin, así que ni
+ * su pestaña aparece — "Saldos" es la posición de plata real de la empresa,
+ * "Asociados" es admin-only a pedido del dueño. Ya vienen renderizadas desde
+ * el server component; acá solo se elige cuál mostrar (mismo patrón que
+ * RentalDetailTabs).
  *
  * Pestaña inicial: lee `?tab=` (ver `CajaSectionNav`, usado en las páginas de
  * detalle de proveedor/asociado/cuenta) para poder volver directo a la
@@ -27,7 +29,7 @@ import { CAJA_SECTIONS, type CajaSectionKey } from "./caja-sections";
  */
 export function CajaTabs(props: {
   movimientos: ReactNode;
-  asociados: ReactNode;
+  asociados?: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
   facturacion?: ReactNode;
@@ -42,7 +44,7 @@ export function CajaTabs(props: {
 
 function CajaTabsWithInitialTab(props: {
   movimientos: ReactNode;
-  asociados: ReactNode;
+  asociados?: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
   facturacion?: ReactNode;
@@ -62,7 +64,7 @@ function CajaTabsContent({
   initialTab,
 }: {
   movimientos: ReactNode;
-  asociados: ReactNode;
+  asociados?: ReactNode;
   proveedores: ReactNode;
   garantias?: ReactNode;
   facturacion?: ReactNode;

@@ -134,14 +134,19 @@ export default async function CajaPage({
     </div>
   );
 
-  // Proveedores (cuenta corriente) y Asociados (resumen) son visibles para
-  // cualquier rol — a diferencia de Caja fuerte, no es info sensible: es
-  // operativo (a quién le debemos, cargar un pago/ingreso/egreso) y
-  // cualquiera puede necesitarlo. El historial de cada uno vive en su propia
-  // página (`/caja/proveedores/[id]` y `/caja/asociados/[id]`) — acá solo
-  // hace falta el saldo, sin el N+1 de traer el ledger completo de cada uno.
+  // Proveedores (cuenta corriente) es visible para cualquier rol — no es info
+  // sensible: es operativo (a quién le debemos, cargar un pago/ingreso/egreso)
+  // y cualquiera puede necesitarlo. El historial vive en su propia página
+  // (`/caja/proveedores/[id]`) — acá solo hace falta el saldo, sin el N+1 de
+  // traer el ledger completo de cada uno.
   const proveedores = <ProvidersSection providers={await getProviderBalances()} paymentMethods={paymentMethods} />;
-  const asociados = <AssociatesSection associates={await getAssociateBalances()} paymentMethods={paymentMethods} />;
+
+  // Asociados, a diferencia de Proveedores, es admin-only (pedido del dueño):
+  // no se le muestra a un empleado — ni la pestaña ni `/caja/asociados/[id]`
+  // (ver `requireAdmin` ahí).
+  const asociados = isAdmin ? (
+    <AssociatesSection associates={await getAssociateBalances()} paymentMethods={paymentMethods} />
+  ) : undefined;
 
   // Saldo por cuenta propia — igual que la Caja fuerte (que ahora se muestra
   // acá mismo, como una tarjeta más — ver `AccountsSection`, v44), es la
