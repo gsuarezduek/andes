@@ -70,6 +70,7 @@ export function buildRentalWhereClauses(filters: RentalListFilters): {
     const or: Prisma.RentalWhereInput[] = [
       { clientName: { contains: filters.query, mode: "insensitive" } },
       { vehicle: { plate: { contains: filters.query, mode: "insensitive" } } },
+      { bookingCouponCode: { contains: filters.query, mode: "insensitive" } },
     ];
     // Un número también busca por N° de orden de VikRentCar.
     if (/^\d+$/.test(filters.query)) or.push({ wpBookingId: Number(filters.query) });

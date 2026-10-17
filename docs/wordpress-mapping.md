@@ -67,6 +67,7 @@ Columnas verificadas (las relevantes; hay más de pagos/impuestos que no usamos)
 | `idpayment` | varchar(128) | sí | método de pago, formato `"id=Nombre"` (ej. `"8=Stripe"`) → `rentals.booking_payment_method` (solo el nombre; se muestra en el detalle). ~25% cobertura. **`paymentlog` NO se importa** (datos de tarjeta). |
 | `idtar` | int(10) | sí | id de tarifa aplicada (no usado) |
 | `adminnotes` | text | sí | notas del admin en el plugin |
+| `coupon` | varchar | sí | código de cupón/descuento que usó el cliente (ej. `"ANDESHOSTING"`) → `rentals.booking_coupon_code` (v84). Solo referencia, no aplica ningún descuento automático. Cobertura sin medir. |
 
 ### Datos económicos → precarga de condiciones (Fase 6)
 

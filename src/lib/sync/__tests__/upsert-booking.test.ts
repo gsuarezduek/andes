@@ -51,6 +51,7 @@ function baseBooking(overrides: Partial<RawBooking> = {}): RawBooking {
     returnPlace: null,
     optionals: null,
     paymentMethod: null,
+    couponCode: null,
     ...overrides,
   };
 }
@@ -181,6 +182,20 @@ describe("upsertBooking — reserva todavía reservada (no entregada)", () => {
           bookingPickupPlace: "Aeropuerto Mendoza",
           bookingReturnPlace: "Oficina Mendoza",
         }),
+      }),
+    );
+  });
+
+  it("trae el código de cupón de VikRentCar (orders.coupon → bookingCouponCode)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental());
+
+    const outcome = await upsertBooking(baseBooking({ couponCode: "ANDESHOSTING" }));
+
+    expect(outcome).toBe("updated");
+    expect(prismaMock.rental.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "r1" },
+        data: expect.objectContaining({ bookingCouponCode: "ANDESHOSTING" }),
       }),
     );
   });

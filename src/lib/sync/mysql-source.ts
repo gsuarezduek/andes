@@ -38,6 +38,7 @@ type OrderRow = {
   return_place: string | null;
   optionals: string | null;
   idpayment: string | null;
+  coupon: string | null;
   c_first: string | null;
   c_last: string | null;
   c_email: string | null;
@@ -114,7 +115,7 @@ export class MysqlBookingSource implements BookingSource {
       SELECT o.id, o.status, o.idcar, o.carindex, o.ritiro, o.consegna, o.ts,
              o.days, o.lang, o.nominative, o.custmail, o.phone,
              o.custdata, o.country, o.order_total, o.totpaid, o.car_cost, o.optionals,
-             o.idpayment,
+             o.idpayment, o.coupon,
              car.name AS car_name, pp.name AS pickup_place, rp.name AS return_place,
              c.first_name AS c_first, c.last_name AS c_last,
              c.email AS c_email, c.phone AS c_phone, c.docnum AS c_docnum
@@ -230,5 +231,6 @@ function normalizeOrder(r: OrderRow): RawBooking {
     returnPlace: clean(r.return_place),
     optionals: clean(r.optionals),
     paymentMethod: paymentMethodName(r.idpayment),
+    couponCode: clean(r.coupon),
   };
 }

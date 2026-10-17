@@ -76,6 +76,7 @@ export async function mergeDuplicateRental(duplicateId: string, targetId: string
         bookingAccessoriesAmount: target.bookingAccessoriesAmount ?? duplicate.bookingAccessoriesAmount,
         bookingInsuranceUpgrade: target.bookingInsuranceUpgrade || duplicate.bookingInsuranceUpgrade,
         bookingPaymentMethod: target.bookingPaymentMethod ?? duplicate.bookingPaymentMethod,
+        bookingCouponCode: target.bookingCouponCode ?? duplicate.bookingCouponCode,
         clientCountry: target.clientCountry ?? duplicate.clientCountry,
       },
     }),

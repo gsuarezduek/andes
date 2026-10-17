@@ -667,6 +667,9 @@ model Rental {
   // "Stripe", "Mercado Pago"). Solo el nombre; el `paymentlog` (datos de tarjeta)
   // NO se importa. ~25% de cobertura.
   bookingPaymentMethod      String?   @map("booking_payment_method")
+  // Código de cupón/descuento de VikRentCar (orders.coupon, ej. "ANDESHOSTING").
+  // Solo referencia — no aplica ningún descuento automático en Andes.
+  bookingCouponCode         String?   @map("booking_coupon_code")
   // Cuánto de `bookingPaid` ya se importó como ingreso a Caja (ver
   // `importBookingPayment` en booking-upsert.ts): permite importar solo la
   // diferencia si `totpaid` sigue creciendo entre corridas, sin duplicar.

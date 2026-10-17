@@ -18,7 +18,7 @@ export function RentalFiltersForm({
         <input
           name="q"
           defaultValue={query ?? ""}
-          placeholder="Buscar por cliente, patente u orden #…"
+          placeholder="Buscar por cliente, patente, orden # o cupón…"
           className="h-11 flex-1 rounded-lg border border-foreground/15 bg-transparent px-3 text-base outline-none focus:border-foreground/40"
         />
         <button className="h-11 rounded-lg border border-foreground/15 px-4 text-sm font-medium">

@@ -51,6 +51,8 @@ export class RestBookingSource implements BookingSource {
       optionals: b.optionals ?? null,
       // Compat con plugins < v1.5.0 que no devuelven `paymentMethod`.
       paymentMethod: b.paymentMethod ?? null,
+      // Compat con plugins < v1.7.0 que no devuelven `couponCode`.
+      couponCode: b.couponCode ?? null,
     }));
   }
 

@@ -24,6 +24,7 @@ export function DateInfoSection({ rental }: { rental: RentalDetail }) {
       )}
       <Row label="Idioma" value={languageLabels[rental.language]} />
       <Row label="Método de pago" value={rental.bookingPaymentMethod} />
+      {rental.bookingCouponCode && <Row label="Cupón" value={rental.bookingCouponCode} />}
     </div>
   );
 }
