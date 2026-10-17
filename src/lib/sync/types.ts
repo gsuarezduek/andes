@@ -43,7 +43,7 @@ export type RawBooking = {
   returnPlace: string | null; // places.name (idreturnplace)
   optionals: string | null; // orders.optionals: "id:cantidad;" (ver optionals.ts)
   paymentMethod: string | null; // orders.idpayment, solo el nombre (ej. "Stripe"); sin paymentlog
-  couponCode: string | null; // orders.coupon: código de cupón/descuento (ej. "ANDESHOSTING")
+  couponCode: string | null; // orders.coupon: solo el código (ej. "MDZLOVER"); el %/monto del descuento no se trae
 };
 
 /**

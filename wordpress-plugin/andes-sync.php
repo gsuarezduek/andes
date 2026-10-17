@@ -2,9 +2,12 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.7.0
+ * Version: 1.7.1
  * Author: MDZ Rent a Car
  *
+ * v1.7.1: fix de `couponCode` — `orders.coupon` real viene como
+ *         "%desc;montoDesc;CODIGO" (ej. "10;23000;MDZLOVER"), no solo el
+ *         código. Ahora se extrae únicamente el código (último segmento).
  * v1.7.0: /bookings agrega `couponCode` (código de cupón/descuento, orders.coupon).
  *         Grupo Económico, junto a paymentMethod/optionals.
  * v1.6.0: /cars agrega `avail` (toggle de disponibilidad del modelo). Andes lo
@@ -462,7 +465,7 @@ function andes_sync_normalize_order($r, $opts = null)
         'carCost'         => $money ? andes_sync_float_or_null($r['car_cost']) : null,
         'optionals'       => $money ? andes_sync_clean($r['optionals']) : null,
         'paymentMethod'   => $money ? andes_sync_payment_method($r['idpayment']) : null,
-        'couponCode'      => $money ? andes_sync_clean($r['coupon']) : null,
+        'couponCode'      => $money ? andes_sync_coupon_code($r['coupon']) : null,
     ];
 }
 
@@ -476,6 +479,24 @@ function andes_sync_payment_method($v)
     $eq = strpos($t, '=');
     $name = $eq !== false ? trim(substr($t, $eq + 1)) : $t;
     return $name === '' ? null : $name;
+}
+
+/**
+ * coupon ("10;23000;MDZLOVER" = % de descuento; monto del descuento; código) →
+ * "MDZLOVER". Andes solo muestra el código, no aplica el descuento. Si no hay
+ * `;` se asume que el valor ya es el código tal cual.
+ */
+function andes_sync_coupon_code($v)
+{
+    $t = andes_sync_clean($v);
+    if ($t === null) {
+        return null;
+    }
+    $parts = array_values(array_filter(array_map('trim', explode(';', $t)), fn($p) => $p !== ''));
+    if (empty($parts)) {
+        return null;
+    }
+    return end($parts);
 }
 
 function andes_sync_clean($v)

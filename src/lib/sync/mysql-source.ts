@@ -83,6 +83,21 @@ export function paymentMethodName(v: string | null): string | null {
   return name.length > 0 ? name : null;
 }
 
+/**
+ * coupon de VikRentCar ("10;23000;MDZLOVER" = % de descuento; monto del
+ * descuento; código) → "MDZLOVER". Andes solo muestra el código, no aplica el
+ * descuento. Si no hay `;` se asume que el valor ya es el código tal cual.
+ */
+export function couponCode(v: string | null): string | null {
+  const t = clean(v);
+  if (t == null) return null;
+  const parts = t
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  return parts.length > 0 ? parts[parts.length - 1] : null;
+}
+
 export class MysqlBookingSource implements BookingSource {
   readonly kind = "mysql" as const;
   private pool: mysql.Pool | null = null;
@@ -231,6 +246,6 @@ function normalizeOrder(r: OrderRow): RawBooking {
     returnPlace: clean(r.return_place),
     optionals: clean(r.optionals),
     paymentMethod: paymentMethodName(r.idpayment),
-    couponCode: clean(r.coupon),
+    couponCode: couponCode(r.coupon),
   };
 }
