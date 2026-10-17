@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
 import { getDecryptedAccount } from "@/lib/whatsapp/settings";
-import { sendSessionTextMessage, sendTemplateMessage, uploadMedia, sendMediaByMetaId } from "@/lib/whatsapp/chakra";
+import { sendSessionTextMessage, sendTemplateMessage, uploadMedia, sendMediaByLink } from "@/lib/whatsapp/chakra";
 import { classifyOutboundAttachment } from "@/lib/whatsapp/attachment-kind";
 
 const EXTENSION_BY_MIME: Record<string, string> = {
@@ -97,10 +97,10 @@ export async function sendMediaMessage(
   const account = await requireAccount();
   const { waType, kind } = classifyOutboundAttachment(file.mimeType);
 
-  const { mediaId } = await uploadMedia(account, file);
-  const { waMessageId } = await sendMediaByMetaId(account, conversation.phoneE164, {
+  const { mediaUrl } = await uploadMedia(account, file);
+  const { waMessageId } = await sendMediaByLink(account, conversation.phoneE164, {
     waType,
-    mediaId,
+    mediaUrl,
     caption,
     filename: file.filename,
   });

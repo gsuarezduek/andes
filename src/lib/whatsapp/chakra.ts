@@ -16,14 +16,20 @@
  * Chakra, no al pass-through. `parseInboundEvent` ya está verificado contra
  * un payload real capturado en producción.
  *
- * `uploadMedia` (adjuntos salientes, v75/v76) todavía NO está verificada
- * contra una llamada real exitosa: la primera hipótesis (v75, patrón de
- * mensajería) nunca se probó; la segunda (v76, copiando la ruta de
- * `downloadMedia`) dio 404 real contra la cuenta. Ahora vuelve al patrón de
- * mensajería (ver el comentario de `uploadMedia` más abajo para el detalle).
- * Probar un envío real antes de confiar en esto con un cliente; si la
- * respuesta de Chakra viene distinta, el error va a traer el cuerpo crudo
- * para poder ajustar sin ir a ciegas (mismo método que ya resolvió v19/v20).
+ * `uploadMedia`/envío de adjuntos salientes (v75/v76/v77) tuvo DOS hipótesis
+ * de ruta seguidas que dieron 404 real contra la cuenta (v76: copiando
+ * `downloadMedia`; v77: copiando el patrón de `messages`) — en los dos casos
+ * el error de fondo no era la ruta sino el **diseño**: se asumía que subir
+ * un adjunto devuelve un `media_id` de Meta para mandarlo después por
+ * `{id: mediaId}` (como la Cloud API nativa). Confirmado contra la
+ * documentación pública real de Chakra (apidocs.chakrahq.com/api-11313630 y
+ * api-22547477, 2026-10-17): Chakra NO expone ese flujo — subir un archivo
+ * (`POST /v1/ext/plugin/whatsapp/{pluginId}/upload-public-media`) devuelve
+ * una **URL pública** (`_data.publicMediaUrl`), y se manda por `{link: url}`
+ * en el mensaje, no por `{id}`. Sin verificar todavía con un envío real
+ * exitoso — es la primera vez que esta corrección se apoya en la
+ * documentación oficial en vez de en una hipótesis por analogía, así que la
+ * confianza es mayor, pero sigue pendiente de confirmar.
  */
 
 import "server-only";
@@ -140,39 +146,25 @@ export async function sendTemplateMessage(
 }
 
 /**
- * Sube un adjunto (lo que el equipo manda, no lo que llega) a la Cloud API,
- * para después referenciarlo por id en `sendMediaMessage`.
- *
- * Historial de esta ruta (para no repetir el mismo tanteo a ciegas):
- * 1. v75: se asumió el patrón de mensajería (`EXT_BASE` + pluginId) — nunca
- *    confirmado.
- * 2. v76: se cambió a `v2/whatsapp/{version}/{phoneNumberId}/media` (sin
- *    pluginId), copiando la forma de `downloadMedia` — **esto dio 404 real**
- *    contra la cuenta ("Chakra respondió 404... Not Found", un 404 de texto
- *    plano = la ruta no existe, no un error de aplicación).
- * 3. Ahora: se vuelve al patrón de mensajería/plantillas (`EXT_BASE` +
- *    `plugin/whatsapp/{pluginId}/api/{version}/{phoneNumberId}/media`) — es
- *    el único patrón 100% confirmado contra la cuenta real (`messages`), y
- *    subir media es la misma familia de operación (depende del número/plugin
- *    conectado) que mandar un mensaje, a diferencia de descargar (que solo
- *    necesita el `mediaId`, global en Meta, sin depender de qué plugin es).
- *    **Todavía sin confirmar con una llamada real** — si vuelve a dar 404 o
- *    cualquier otro código, el error trae el cuerpo crudo de Chakra para
- *    seguir ajustando sin ir a ciegas (mismo método que ya resolvió v19/v20).
+ * Sube un adjunto (lo que el equipo manda, no lo que llega) al endpoint
+ * "Upload Public Media" de Chakra — confirmado contra la documentación real
+ * (apidocs.chakrahq.com/api-11313630, 2026-10-17), después de que las dos
+ * hipótesis anteriores (v76/v77, que asumían un flujo tipo "subir → media_id
+ * de Meta → mandar por id", copiado de la Cloud API nativa) dieran 404 real.
+ * Chakra no expone ese flujo: esto sube el archivo y devuelve una URL
+ * **pública** (accesible por cualquiera que la tenga, sin autenticación —
+ * limitación del proveedor, no de Andes) para mandarla por `link` en
+ * `sendMediaByLink`. Sin confirmar todavía con un envío real exitoso.
  */
 export async function uploadMedia(
   account: ChakraAccount,
   file: { buffer: Buffer; mimeType: string; filename: string },
-): Promise<{ mediaId: string }> {
+): Promise<{ mediaUrl: string }> {
   const form = new FormData();
-  form.append("messaging_product", "whatsapp");
   form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }), file.filename);
+  form.append("filename", file.filename);
 
-  // Esta ruta todavía no está confirmada contra una llamada real exitosa
-  // (ver el historial arriba) — se loguea la URL completa + la respuesta
-  // cruda en el servidor (Railway) ante cualquier error, para diagnosticar
-  // sin depender de que el mensaje truncado llegue completo hasta la UI.
-  const url = `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`;
+  const url = `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/upload-public-media`;
   let res: Response;
   try {
     res = await fetch(url, {
@@ -196,21 +188,21 @@ export async function uploadMedia(
   } catch {
     throw new ChakraApiError(`Respuesta no-JSON al subir el adjunto: ${bodyText.slice(0, 300)}`, res.status);
   }
-  const mediaId =
-    (parsed as { id?: string })?.id ?? (parsed as { _data?: { id?: string } })?._data?.id;
-  if (!mediaId) {
-    throw new ChakraApiError(`No se encontró el id del adjunto en la respuesta: ${bodyText.slice(0, 300)}`, res.status);
+  const mediaUrl = (parsed as { _data?: { publicMediaUrl?: string } })?._data?.publicMediaUrl;
+  if (!mediaUrl) {
+    console.error(`[whatsapp] uploadMedia: sin publicMediaUrl en la respuesta de ${url}\nCuerpo: ${bodyText.slice(0, 1000)}`);
+    throw new ChakraApiError(`No se encontró la URL del adjunto en la respuesta: ${bodyText.slice(0, 300)}`, res.status);
   }
-  return { mediaId };
+  return { mediaUrl };
 }
 
-/** Manda una imagen/video/documento ya subido (ver `uploadMedia`), con caption opcional. */
-export async function sendMediaByMetaId(
+/** Manda una imagen/video/documento ya subido (ver `uploadMedia`) por su URL pública, con caption opcional. */
+export async function sendMediaByLink(
   account: ChakraAccount,
   toE164: string,
-  media: { waType: "image" | "video" | "document"; mediaId: string; caption?: string; filename?: string },
+  media: { waType: "image" | "video" | "document"; mediaUrl: string; caption?: string; filename?: string },
 ): Promise<SendResult> {
-  const mediaObject: Record<string, string> = { id: media.mediaId };
+  const mediaObject: Record<string, string> = { link: media.mediaUrl };
   if (media.caption) mediaObject.caption = media.caption;
   if (media.waType === "document" && media.filename) mediaObject.filename = media.filename;
 
