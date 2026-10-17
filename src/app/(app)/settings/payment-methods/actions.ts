@@ -1,10 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { PaymentMethodOwnership } from "@prisma/client";
+import { PaymentMethodOwnership, CommissionMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { parseDecimal } from "@/lib/number-input";
+
+/** Modo de comisión por egreso: `none` por default si llega algo raro. */
+function expenseCommissionModeOrDefault(v: string): CommissionMode {
+  return v === "same" || v === "custom" ? v : "none";
+}
 
 /** Texto recortado, o null si viene vacío. */
 function strOrNull(v: FormDataEntryValue | null): string | null {
@@ -70,6 +75,14 @@ export type PaymentMethodUpdateInput = {
   commissionPercent: string;
   commissionFixed: string;
   commissionCategoryId: string | null;
+  // Comisión que esta cuenta genera por cada egreso (solo cuentas propias) —
+  // ver `PaymentMethod.expenseCommissionMode` en el schema. "same" espeja en
+  // vivo la comisión por ingreso de arriba (no la copia); "custom" usa los
+  // campos propios de acá abajo.
+  expenseCommissionMode: string;
+  expenseCommissionPercent: string;
+  expenseCommissionFixed: string;
+  expenseCommissionCategoryId: string | null;
   // Corrección manual del saldo calculado (no tiene sentido en `misc`, que no
   // lleva cuenta corriente) — ver `PaymentMethod.balanceAdjustmentArs/Usd` en
   // el schema. Vacío = sin ajuste.
@@ -118,23 +131,55 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
   }
 
   // Comisión: números positivos y categoría existente. Solo tiene sentido en
-  // cuentas propias — en las demás se guarda vacía.
+  // cuentas propias — en las demás se guarda vacía. La comisión por egreso
+  // sigue el mismo criterio; en modo "custom" valida sus propios campos, en
+  // "same"/"none" se guardan nulos (en "same" se resuelve en vivo contra la
+  // comisión por ingreso — ver `resolveExpenseCommissionConfig` — no se
+  // copia nada acá).
   const categoryIds = new Set((await prisma.cashMovementCategory.findMany({ select: { id: true } })).map((c) => c.id));
   const commissions = new Map<string, { percent: number | null; fixed: number | null; categoryId: string | null }>();
+  const expenseCommissions = new Map<
+    string,
+    { mode: CommissionMode; percent: number | null; fixed: number | null; categoryId: string | null }
+  >();
   for (const u of valid) {
     const percent = percentOrNull(u.commissionPercent);
     const fixed = percentOrNull(u.commissionFixed);
     if ((percent != null && (percent < 0 || percent > 100)) || (fixed != null && fixed < 0)) {
-      throw new Error(`Comisión inválida en "${u.name.trim()}": el porcentaje va de 0 a 100 y el monto fijo no puede ser negativo.`);
+      throw new Error(
+        `Comisión por ingreso inválida en "${u.name.trim()}": el porcentaje va de 0 a 100 y el monto fijo no puede ser negativo.`,
+      );
     }
     if (u.commissionCategoryId && !categoryIds.has(u.commissionCategoryId)) {
-      throw new Error(`La categoría de la comisión de "${u.name.trim()}" ya no existe.`);
+      throw new Error(`La categoría de la comisión por ingreso de "${u.name.trim()}" ya no existe.`);
     }
     const own = u.ownership === "own";
     commissions.set(u.id, {
       percent: own && percent ? percent : null,
       fixed: own && fixed ? fixed : null,
       categoryId: own ? (u.commissionCategoryId ?? null) : null,
+    });
+
+    const expenseMode = expenseCommissionModeOrDefault(u.expenseCommissionMode);
+    const expensePercent = percentOrNull(u.expenseCommissionPercent);
+    const expenseFixed = percentOrNull(u.expenseCommissionFixed);
+    if (
+      expenseMode === "custom" &&
+      ((expensePercent != null && (expensePercent < 0 || expensePercent > 100)) ||
+        (expenseFixed != null && expenseFixed < 0))
+    ) {
+      throw new Error(
+        `Comisión por egreso inválida en "${u.name.trim()}": el porcentaje va de 0 a 100 y el monto fijo no puede ser negativo.`,
+      );
+    }
+    if (expenseMode === "custom" && u.expenseCommissionCategoryId && !categoryIds.has(u.expenseCommissionCategoryId)) {
+      throw new Error(`La categoría de la comisión por egreso de "${u.name.trim()}" ya no existe.`);
+    }
+    expenseCommissions.set(u.id, {
+      mode: own ? expenseMode : "none",
+      percent: own && expenseMode === "custom" && expensePercent ? expensePercent : null,
+      fixed: own && expenseMode === "custom" && expenseFixed ? expenseFixed : null,
+      categoryId: own && expenseMode === "custom" ? (u.expenseCommissionCategoryId ?? null) : null,
     });
   }
 
@@ -156,6 +201,10 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           commissionPercent: commissions.get(u.id)!.percent,
           commissionFixed: commissions.get(u.id)!.fixed,
           commissionCategoryId: commissions.get(u.id)!.categoryId,
+          expenseCommissionMode: expenseCommissions.get(u.id)!.mode,
+          expenseCommissionPercent: expenseCommissions.get(u.id)!.percent,
+          expenseCommissionFixed: expenseCommissions.get(u.id)!.fixed,
+          expenseCommissionCategoryId: expenseCommissions.get(u.id)!.categoryId,
           // No tiene sentido en `misc` (sin cuenta corriente) — ahí se guarda en 0.
           balanceAdjustmentArs: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentArs),
           balanceAdjustmentUsd: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentUsd),

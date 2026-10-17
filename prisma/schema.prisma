@@ -158,6 +158,17 @@ enum PaymentMethodOwnership {
   misc // gastos varios, sin cuenta corriente
 }
 
+/// Modo de la comisión por egreso de una cuenta propia (ver
+/// `PaymentMethod.expenseCommissionMode`). `same` espeja en vivo el % / monto
+/// fijo / categoría de la comisión por ingreso de la misma cuenta — si esos
+/// valores cambian después, la comisión por egreso los sigue sin que haga
+/// falta tocar nada acá.
+enum CommissionMode {
+  none
+  same
+  custom
+}
+
 /// Dispositivo detectado por User-Agent al iniciar sesión.
 enum LoginDevice {
   pc
@@ -1202,6 +1213,22 @@ model PaymentMethod {
   commissionCategoryId String?               @map("commission_category_id")
   commissionCategory   CashMovementCategory? @relation("CommissionCategory", fields: [commissionCategoryId], references: [id], onDelete: SetNull)
 
+  // Comisión que cobra esta cuenta por cada egreso (ej. transferencia saliente
+  // con costo) — mismo mecanismo que la comisión por ingreso, de un solo
+  // egreso extra por movimiento (ver `src/lib/commissions-sync.ts`). `none` =
+  // sin comisión; `same` = usa en vivo el % / monto fijo / categoría de la
+  // comisión por ingreso de arriba (`commissionPercent`/`commissionFixed`/
+  // `commissionCategoryId`), sin duplicarlos acá; `custom` = usa los campos
+  // propios de abajo. No aplica a garantías, a cuentas que no sean propias, ni
+  // es retroactivo — igual que la comisión por ingreso. Nunca se encadena: un
+  // egreso que ya es la comisión de otro movimiento (`commissionSourceId` no
+  // nulo) nunca genera a su vez una comisión propia.
+  expenseCommissionMode       CommissionMode        @default(none) @map("expense_commission_mode")
+  expenseCommissionPercent    Decimal?              @map("expense_commission_percent") @db.Decimal(6, 2)
+  expenseCommissionFixed      Decimal?              @map("expense_commission_fixed") @db.Decimal(12, 2)
+  expenseCommissionCategoryId String?               @map("expense_commission_category_id")
+  expenseCommissionCategory   CashMovementCategory? @relation("ExpenseCommissionCategory", fields: [expenseCommissionCategoryId], references: [id], onDelete: SetNull)
+
   // Corrección manual del saldo calculado (ej. alinear Andes contra el saldo
   // real de una cuenta propia al darla de alta acá, o dejar en $0 una cuenta
   // corriente de asociado/proveedor que venía desfasada de antes de llevarla
@@ -1429,8 +1456,9 @@ model CashMovementCategory {
   ordering Int     @default(0)
   active   Boolean @default(true)
 
-  movements         CashMovement[]
-  commissionMethods PaymentMethod[] @relation("CommissionCategory")
+  movements                CashMovement[]
+  commissionMethods        PaymentMethod[] @relation("CommissionCategory")
+  expenseCommissionMethods PaymentMethod[] @relation("ExpenseCommissionCategory")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

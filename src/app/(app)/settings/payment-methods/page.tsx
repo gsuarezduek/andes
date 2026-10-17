@@ -24,6 +24,8 @@ export default async function PaymentMethodsSettingsPage() {
     adjustmentPercent: it.adjustmentPercent ? Number(it.adjustmentPercent) : null,
     commissionPercent: it.commissionPercent ? Number(it.commissionPercent) : null,
     commissionFixed: it.commissionFixed ? Number(it.commissionFixed) : null,
+    expenseCommissionPercent: it.expenseCommissionPercent ? Number(it.expenseCommissionPercent) : null,
+    expenseCommissionFixed: it.expenseCommissionFixed ? Number(it.expenseCommissionFixed) : null,
     balanceAdjustmentArs: Number(it.balanceAdjustmentArs),
     balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd),
   }));

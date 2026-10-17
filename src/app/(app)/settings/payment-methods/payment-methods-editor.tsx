@@ -2,25 +2,34 @@
 
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
-import type { PaymentMethod, PaymentMethodOwnership } from "@prisma/client";
+import type { PaymentMethod, PaymentMethodOwnership, CommissionMode } from "@prisma/client";
 
 /**
  * `PaymentMethod` tal como llega desde el servidor para este editor: los
  * campos `Decimal` de Prisma (`adjustmentPercent`, `commissionPercent`,
- * `commissionFixed`, `balanceAdjustmentArs`, `balanceAdjustmentUsd`) ya
- * vienen convertidos a `number` en `page.tsx` antes de pasarlos a este
- * Client Component — un `Decimal` no es serializable a través del límite
- * servidor/cliente (React lo acepta igual porque `Decimal` tiene `toJSON()`,
- * pero React logea "Only plain objects can be passed to Client Components...
- * Decimal objects are not supported" en cada carga).
+ * `commissionFixed`, `expenseCommissionPercent`, `expenseCommissionFixed`,
+ * `balanceAdjustmentArs`, `balanceAdjustmentUsd`) ya vienen convertidos a
+ * `number` en `page.tsx` antes de pasarlos a este Client Component — un
+ * `Decimal` no es serializable a través del límite servidor/cliente (React lo
+ * acepta igual porque `Decimal` tiene `toJSON()`, pero React logea "Only
+ * plain objects can be passed to Client Components... Decimal objects are
+ * not supported" en cada carga).
  */
 export type PlainPaymentMethod = Omit<
   PaymentMethod,
-  "adjustmentPercent" | "commissionPercent" | "commissionFixed" | "balanceAdjustmentArs" | "balanceAdjustmentUsd"
+  | "adjustmentPercent"
+  | "commissionPercent"
+  | "commissionFixed"
+  | "expenseCommissionPercent"
+  | "expenseCommissionFixed"
+  | "balanceAdjustmentArs"
+  | "balanceAdjustmentUsd"
 > & {
   adjustmentPercent: number | null;
   commissionPercent: number | null;
   commissionFixed: number | null;
+  expenseCommissionPercent: number | null;
+  expenseCommissionFixed: number | null;
   balanceAdjustmentArs: number;
   balanceAdjustmentUsd: number;
 };
@@ -52,6 +61,10 @@ type Draft = {
   commissionPercent: string;
   commissionFixed: string;
   commissionCategoryId: string | null;
+  expenseCommissionMode: CommissionMode;
+  expenseCommissionPercent: string;
+  expenseCommissionFixed: string;
+  expenseCommissionCategoryId: string | null;
   balanceAdjustmentArs: string;
   balanceAdjustmentUsd: string;
 };
@@ -84,6 +97,10 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     commissionPercent: it.commissionPercent?.toString() ?? "",
     commissionFixed: it.commissionFixed?.toString() ?? "",
     commissionCategoryId: it.commissionCategoryId,
+    expenseCommissionMode: it.expenseCommissionMode,
+    expenseCommissionPercent: it.expenseCommissionPercent?.toString() ?? "",
+    expenseCommissionFixed: it.expenseCommissionFixed?.toString() ?? "",
+    expenseCommissionCategoryId: it.expenseCommissionCategoryId,
     balanceAdjustmentArs: Number(it.balanceAdjustmentArs) === 0 ? "" : it.balanceAdjustmentArs.toString(),
     balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd) === 0 ? "" : it.balanceAdjustmentUsd.toString(),
   };
@@ -103,6 +120,10 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.commissionPercent === b.commissionPercent &&
     a.commissionFixed === b.commissionFixed &&
     a.commissionCategoryId === b.commissionCategoryId &&
+    a.expenseCommissionMode === b.expenseCommissionMode &&
+    a.expenseCommissionPercent === b.expenseCommissionPercent &&
+    a.expenseCommissionFixed === b.expenseCommissionFixed &&
+    a.expenseCommissionCategoryId === b.expenseCommissionCategoryId &&
     a.balanceAdjustmentArs === b.balanceAdjustmentArs &&
     a.balanceAdjustmentUsd === b.balanceAdjustmentUsd
   );
@@ -304,6 +325,7 @@ function PaymentMethodRow({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
   const [expanded, setExpanded] = useState(false);
+  const [commissionTab, setCommissionTab] = useState(0);
   const isDirty = !draftsEqual(draft, draftFrom(item));
 
   const children = allItems.filter((i) => i.parentId === item.id);
@@ -495,47 +517,122 @@ function PaymentMethodRow({
               ))}
             {draft.ownership === "own" && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
-                <p className="text-sm font-medium text-foreground/80">Comisión por ingreso</p>
-                <p className="text-xs text-foreground/50">
-                  Cada ingreso en esta cuenta genera solo un egreso por la comisión, de la misma cuenta. Puede ser un
-                  porcentaje, un monto fijo (en pesos — no se aplica a ingresos en dólares) o ambos. No aplica a
-                  garantías ni a ingresos anteriores.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <TextField
-                    id={`commissionPercent-${item.id}`}
-                    label="% del monto"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Ej. 3,5"
-                    value={draft.commissionPercent}
-                    onChange={(e) => setField(item.id, "commissionPercent", e.target.value)}
-                  />
-                  <TextField
-                    id={`commissionFixed-${item.id}`}
-                    label="Monto fijo"
-                    type="text"
-                    inputMode="decimal"
-                    prefix="$"
-                    placeholder="Ej. 100"
-                    value={draft.commissionFixed}
-                    onChange={(e) => setField(item.id, "commissionFixed", e.target.value)}
-                  />
-                </div>
-                <SelectField
-                  id={`commissionCategoryId-${item.id}`}
-                  label="Categoría del egreso"
-                  hint="Opcional — la categoría de gasto con la que se registra la comisión (ej. Comisiones)."
-                  value={draft.commissionCategoryId ?? ""}
-                  onChange={(e) => setField(item.id, "commissionCategoryId", e.target.value || null)}
-                >
-                  <option value="">Sin categoría</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </SelectField>
+                <p className="text-sm font-medium text-foreground/80">Comisiones</p>
+                <TabBar
+                  sections={["Comisión por ingreso", "Comisión por egreso"]}
+                  active={commissionTab}
+                  onChange={setCommissionTab}
+                />
+                {commissionTab === 0 ? (
+                  <>
+                    <p className="text-xs text-foreground/50">
+                      Cada ingreso en esta cuenta genera solo un egreso por la comisión, de la misma cuenta. Puede ser
+                      un porcentaje, un monto fijo (en pesos — no se aplica a ingresos en dólares) o ambos. No aplica
+                      a garantías ni a ingresos anteriores.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <TextField
+                        id={`commissionPercent-${item.id}`}
+                        label="% del monto"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Ej. 3,5"
+                        value={draft.commissionPercent}
+                        onChange={(e) => setField(item.id, "commissionPercent", e.target.value)}
+                      />
+                      <TextField
+                        id={`commissionFixed-${item.id}`}
+                        label="Monto fijo"
+                        type="text"
+                        inputMode="decimal"
+                        prefix="$"
+                        placeholder="Ej. 100"
+                        value={draft.commissionFixed}
+                        onChange={(e) => setField(item.id, "commissionFixed", e.target.value)}
+                      />
+                    </div>
+                    <SelectField
+                      id={`commissionCategoryId-${item.id}`}
+                      label="Categoría del egreso"
+                      hint="Opcional — la categoría de gasto con la que se registra la comisión (ej. Comisiones)."
+                      value={draft.commissionCategoryId ?? ""}
+                      onChange={(e) => setField(item.id, "commissionCategoryId", e.target.value || null)}
+                    >
+                      <option value="">Sin categoría</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-foreground/50">
+                      Mismo mecanismo, pero sobre cada egreso de esta cuenta (ej. una transferencia saliente con
+                      costo) — genera un egreso extra, con su categoría. No aplica a garantías ni es retroactivo.
+                    </p>
+                    <SelectField
+                      id={`expenseCommissionMode-${item.id}`}
+                      label="Modo"
+                      value={draft.expenseCommissionMode}
+                      onChange={(e) =>
+                        setField(item.id, "expenseCommissionMode", e.target.value as Draft["expenseCommissionMode"])
+                      }
+                    >
+                      <option value="none">Sin comisión</option>
+                      <option value="same">Copiar de Ingreso</option>
+                      <option value="custom">Personalizada</option>
+                    </SelectField>
+                    {draft.expenseCommissionMode === "same" && (
+                      <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
+                        Usa en vivo lo de &quot;Comisión por ingreso&quot;: {draft.commissionPercent || "0"}%
+                        {draft.commissionFixed ? ` + $${draft.commissionFixed}` : ""} — categoría &quot;
+                        {categories.find((c) => c.id === draft.commissionCategoryId)?.name ?? "Sin categoría"}
+                        &quot;. Si cambiás esos valores, la comisión por egreso los sigue sola.
+                      </p>
+                    )}
+                    {draft.expenseCommissionMode === "custom" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <TextField
+                            id={`expenseCommissionPercent-${item.id}`}
+                            label="% del monto"
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="Ej. 3,5"
+                            value={draft.expenseCommissionPercent}
+                            onChange={(e) => setField(item.id, "expenseCommissionPercent", e.target.value)}
+                          />
+                          <TextField
+                            id={`expenseCommissionFixed-${item.id}`}
+                            label="Monto fijo"
+                            type="text"
+                            inputMode="decimal"
+                            prefix="$"
+                            placeholder="Ej. 100"
+                            value={draft.expenseCommissionFixed}
+                            onChange={(e) => setField(item.id, "expenseCommissionFixed", e.target.value)}
+                          />
+                        </div>
+                        <SelectField
+                          id={`expenseCommissionCategoryId-${item.id}`}
+                          label="Categoría del egreso"
+                          hint="Opcional — la categoría de gasto con la que se registra la comisión (ej. Comisiones)."
+                          value={draft.expenseCommissionCategoryId ?? ""}
+                          onChange={(e) => setField(item.id, "expenseCommissionCategoryId", e.target.value || null)}
+                        >
+                          <option value="">Sin categoría</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </SelectField>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
             {((draft.ownership === "own" && SHOW_BALANCE_ADJUSTMENT) ||

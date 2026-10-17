@@ -9,7 +9,7 @@ import { getCashMovementRow, type CashMovementFieldChange, type CashMovementRow 
 import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
-import { syncCommission, deleteCommissionOf } from "@/lib/commissions-sync";
+import { syncCommission, syncExpenseCommission, deleteCommissionOf } from "@/lib/commissions-sync";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
 
@@ -140,10 +140,13 @@ export async function createCashMovement(type: "income" | "expense", formData: F
         createdByName: displayName(user),
       },
     });
-    // Comisión automática del medio de pago (no aplica a garantías ni egresos;
-    // `syncCommission` lo resuelve solo). Atómica con el ingreso.
-    if (type === "income" && !isGuarantee) {
-      await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
+    // Comisión automática del medio de pago (no aplica a garantías; cada
+    // función resuelve sola si el medio tiene algo configurado). Atómica con
+    // el movimiento. Cubre Movimientos +Ingreso/+Egreso, "+ Pago" a un
+    // Proveedor y un egreso cargado a un Asociado — las tres pasan por acá.
+    if (!isGuarantee) {
+      if (type === "income") await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
+      else await syncExpenseCommission(tx, created.id, { id: user.id, name: displayName(user) });
     }
     if (rentalId) await autoUnverifyRental(tx, rentalId, `Se cargó un movimiento de Caja (${description}).`);
     if (roomBooking) await autoUnverifyRoomBooking(tx, roomBooking.id, `Se cargó un movimiento de Caja (${description}).`);
@@ -261,7 +264,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
   if (changes.length === 0) return;
 
   // Solo si cambió lo que la comisión depende (monto, moneda o cuenta) se
-  // recalcula: editar el detalle de un ingreso viejo no debe generarle una
+  // recalcula: editar el detalle de un movimiento viejo no debe generarle una
   // comisión retroactiva.
   const commissionInputsChanged =
     Number(existing.amount) !== amount || existing.currency !== currency || existing.paymentMethodId !== method.id;
@@ -286,8 +289,9 @@ export async function updateCashMovement(id: string, formData: FormData) {
     await tx.cashMovementEdit.create({
       data: { cashMovementId: id, action: "updated", changes, editedById: user.id, editedByName: displayName(user) },
     });
-    if (existing.type === "income" && commissionInputsChanged) {
-      await syncCommission(tx, id, { id: user.id, name: displayName(user) });
+    if (commissionInputsChanged) {
+      if (existing.type === "income") await syncCommission(tx, id, { id: user.id, name: displayName(user) });
+      else if (existing.type === "expense") await syncExpenseCommission(tx, id, { id: user.id, name: displayName(user) });
     }
     if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se editó un movimiento de Caja de la reserva.");
     if (existing.roomBookingId) {
@@ -320,7 +324,7 @@ export async function deleteCashMovement(id: string, formData: FormData) {
     await tx.cashMovementEdit.create({
       data: { cashMovementId: id, action: "deleted", changes, editedById: user.id, editedByName: displayName(user) },
     });
-    // Si este ingreso generó un egreso de comisión, se va con él.
+    // Si este movimiento generó un egreso de comisión, se va con él.
     await deleteCommissionOf(tx, id, { id: user.id, name: displayName(user) });
     if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se eliminó un movimiento de Caja de la reserva.");
     if (existing.roomBookingId) {
