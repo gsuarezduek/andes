@@ -1,5 +1,6 @@
 import { formatDateTime } from "@/lib/datetime";
 import { linkifyText } from "@/lib/linkify";
+import { splitByMatch } from "@/lib/highlight-match";
 import type { WhatsAppDirection } from "@prisma/client";
 
 export type MessageData = {
@@ -15,7 +16,7 @@ export type MessageData = {
   media: { storageKey: string; mimeType: string; kind: string; deletedAt?: Date | null } | null;
 };
 
-export function MessageBubble({ message }: { message: MessageData }) {
+export function MessageBubble({ message, highlightQuery }: { message: MessageData; highlightQuery?: string }) {
   const out = message.direction === "out";
   return (
     <div className={`flex flex-col ${out ? "items-end" : "items-start"}`}>
@@ -38,6 +39,18 @@ export function MessageBubble({ message }: { message: MessageData }) {
                 >
                   {segment.label}
                 </a>
+              ) : highlightQuery ? (
+                <span key={i}>
+                  {splitByMatch(segment.text, highlightQuery).map((part, j) =>
+                    part.match ? (
+                      <mark key={j} className="rounded bg-yellow-300/80 text-black dark:bg-yellow-500/50 dark:text-inherit">
+                        {part.text}
+                      </mark>
+                    ) : (
+                      part.text
+                    ),
+                  )}
+                </span>
               ) : (
                 <span key={i}>{segment.text}</span>
               ),
