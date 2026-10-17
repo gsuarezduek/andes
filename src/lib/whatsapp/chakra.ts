@@ -16,13 +16,14 @@
  * Chakra, no al pass-through. `parseInboundEvent` ya está verificado contra
  * un payload real capturado en producción.
  *
- * `uploadMedia`/`sendMediaMessage` (adjuntos salientes, v??) todavía NO están
- * verificados contra una llamada real — se armaron siguiendo el mismo patrón
- * de ruta que `messages` (ya confirmado) más el endpoint de subida de media
- * documentado por la Cloud API de Meta. Probar un envío real antes de
- * confiar en esto con un cliente; si la respuesta de Chakra viene distinta,
- * el error va a traer el cuerpo crudo para poder ajustar sin ir a ciegas
- * (mismo método que ya resolvió v19/v20).
+ * `uploadMedia` (adjuntos salientes, v75/v76) todavía NO está verificada
+ * contra una llamada real exitosa: la primera hipótesis (v75, patrón de
+ * mensajería) nunca se probó; la segunda (v76, copiando la ruta de
+ * `downloadMedia`) dio 404 real contra la cuenta. Ahora vuelve al patrón de
+ * mensajería (ver el comentario de `uploadMedia` más abajo para el detalle).
+ * Probar un envío real antes de confiar en esto con un cliente; si la
+ * respuesta de Chakra viene distinta, el error va a traer el cuerpo crudo
+ * para poder ajustar sin ir a ciegas (mismo método que ya resolvió v19/v20).
  */
 
 import "server-only";
@@ -140,14 +141,24 @@ export async function sendTemplateMessage(
 
 /**
  * Sube un adjunto (lo que el equipo manda, no lo que llega) a la Cloud API,
- * para después referenciarlo por id en `sendMediaMessage`. Misma ruta base
- * que mensajería/plantillas (`/v1/ext/plugin/whatsapp/{pluginId}/api/{ver}/
- * {phoneNumberId}/...`), siguiendo el patrón del endpoint de subida de media
- * de la Cloud API de Meta (`POST /{PHONE_NUMBER_ID}/media`) — **sin verificar
- * todavía contra una llamada real** (mismo criterio que el resto de esta
- * integración, ver el historial arriba): si Chakra envuelve la respuesta
- * distinto a lo esperado, el error de abajo lo va a decir con el cuerpo
- * crudo, no en silencio.
+ * para después referenciarlo por id en `sendMediaMessage`.
+ *
+ * Historial de esta ruta (para no repetir el mismo tanteo a ciegas):
+ * 1. v75: se asumió el patrón de mensajería (`EXT_BASE` + pluginId) — nunca
+ *    confirmado.
+ * 2. v76: se cambió a `v2/whatsapp/{version}/{phoneNumberId}/media` (sin
+ *    pluginId), copiando la forma de `downloadMedia` — **esto dio 404 real**
+ *    contra la cuenta ("Chakra respondió 404... Not Found", un 404 de texto
+ *    plano = la ruta no existe, no un error de aplicación).
+ * 3. Ahora: se vuelve al patrón de mensajería/plantillas (`EXT_BASE` +
+ *    `plugin/whatsapp/{pluginId}/api/{version}/{phoneNumberId}/media`) — es
+ *    el único patrón 100% confirmado contra la cuenta real (`messages`), y
+ *    subir media es la misma familia de operación (depende del número/plugin
+ *    conectado) que mandar un mensaje, a diferencia de descargar (que solo
+ *    necesita el `mediaId`, global en Meta, sin depender de qué plugin es).
+ *    **Todavía sin confirmar con una llamada real** — si vuelve a dar 404 o
+ *    cualquier otro código, el error trae el cuerpo crudo de Chakra para
+ *    seguir ajustando sin ir a ciegas (mismo método que ya resolvió v19/v20).
  */
 export async function uploadMedia(
   account: ChakraAccount,
@@ -157,19 +168,17 @@ export async function uploadMedia(
   form.append("messaging_product", "whatsapp");
   form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }), file.filename);
 
-  // Ojo: a diferencia de mensajería/plantillas (bajo EXT_BASE +
-  // plugin/.../pluginId), `downloadMedia` (la única otra llamada de media ya
-  // CONFIRMADA contra la cuenta real) vive bajo `v2/whatsapp/{version}/...`,
-  // sin pluginId — se sigue ese mismo patrón acá para subir, en vez del de
-  // mensajería, que es para otra familia de endpoints.
   let res: Response;
   try {
-    res = await fetch(`${API_ROOT}/v2/whatsapp/${API_VERSION}/${account.phoneNumberId}/media`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${account.accessToken}` },
-      body: form,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    res = await fetch(
+      `${EXT_BASE}/plugin/whatsapp/${account.pluginId}/api/${API_VERSION}/${account.phoneNumberId}/media`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${account.accessToken}` },
+        body: form,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+    );
   } catch (err) {
     throw new ChakraApiError(`No se pudo conectar con Chakra: ${err instanceof Error ? err.message : err}`, 0);
   }
