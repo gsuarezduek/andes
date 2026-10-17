@@ -12,6 +12,7 @@ import {
   getOwnCashMovements,
   getRentalPickerOptions,
   getRoomBookingPickerOptions,
+  getTotalOwnBalanceHistory,
   getUnconfirmedCashMovements,
   getUnpaidFinishedRentals,
   parseCashPeriod,
@@ -34,19 +35,35 @@ import { GuaranteesSection } from "@/components/cash/guarantees-section";
 import { InvoicingSection } from "@/components/cash/invoicing-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 import { UsdRateBadge } from "@/components/cash/usd-rate-badge";
+import { TransferLauncher, type TransferAccountOption } from "@/components/cash/transfer-launcher";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
+import { SAFE_ACCOUNT_ID, SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
+import { emptyCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
+import {
+  parseBalanceHistoryPeriod,
+  parseBalanceHistoryGranularity,
+  resolveBalanceHistoryGranularity,
+} from "@/lib/balance-history";
 
 export const metadata: Metadata = { title: "Caja — Andes" };
 
 export default async function CajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; balPeriod?: string; balGranularity?: string }>;
 }) {
   const user = await requireUser();
-  const { period: rawPeriod, from: rawFrom, to: rawTo } = await searchParams;
+  const {
+    period: rawPeriod,
+    from: rawFrom,
+    to: rawTo,
+    balPeriod: rawBalPeriod,
+    balGranularity: rawBalGranularity,
+  } = await searchParams;
   const period = parseCashPeriod(rawPeriod, rawFrom, rawTo);
+  const balPeriod = parseBalanceHistoryPeriod(rawBalPeriod);
+  const balGranularity = resolveBalanceHistoryGranularity(balPeriod, parseBalanceHistoryGranularity(rawBalGranularity));
 
   const [paymentMethods, expenseCategories, rentalOptions, roomBookingOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -133,14 +150,35 @@ export default async function CajaPage({
   // `/caja/saldos/[id]` (o `/caja/saldos/caja-fuerte`).
   const usdRate = await getCurrentUsdRate();
   const safeMonthActivity = isAdmin ? await getSafeMonthActivity() : null;
+  const accounts = isAdmin ? await getOwnAccountBalances() : [];
+  const safeBalance = isAdmin ? await getSafeBalance() : emptyCurrencyTotals();
+  const totalBalanceHistory = isAdmin ? await getTotalOwnBalanceHistory(balPeriod, balGranularity) : [];
+
+  // "Mover entre cuentas" vive en el header (al lado del valor del USD), no
+  // dentro de la pestaña Saldos — las cuentas elegibles como origen/destino
+  // (principales + subcuentas + Caja fuerte) y el saldo de cada principal
+  // (para avisar si un traspaso dejaría el origen en negativo) se calculan
+  // acá en vez de en `AccountsSection`.
+  const transferOptions: TransferAccountOption[] = accounts.flatMap((a) => [
+    { id: a.id, name: a.name, principalId: a.id },
+    ...a.subaccounts.map((s) => ({ id: s.id, name: `${a.name} · ${s.name}`, principalId: a.id })),
+  ]);
+  if (isAdmin) transferOptions.push({ id: SAFE_ACCOUNT_ID, name: SAFE_ACCOUNT_NAME, principalId: SAFE_ACCOUNT_ID });
+  const transferBalances: Record<string, CurrencyTotals> = {
+    ...Object.fromEntries(accounts.map((a) => [a.id, a.balance])),
+    [SAFE_ACCOUNT_ID]: safeBalance,
+  };
+
   const saldos = isAdmin ? (
     <AccountsSection
-      safeBalance={await getSafeBalance()}
+      safeBalance={safeBalance}
       safeMonthIncome={safeMonthActivity!.income}
       safeMonthExpense={safeMonthActivity!.expense}
-      accounts={await getOwnAccountBalances()}
+      accounts={accounts}
       transfers={await getAccountTransfers({ limit: 10 })}
-      usdRate={usdRate?.rate ?? null}
+      totalBalanceHistory={totalBalanceHistory}
+      balPeriod={balPeriod}
+      balGranularity={balGranularity}
     />
   ) : undefined;
 
@@ -166,7 +204,12 @@ export default async function CajaPage({
           <h1 className="text-2xl font-bold tracking-tight">Caja</h1>
           <p className="text-sm text-foreground/60">Registrá ingresos y egresos de las reservas.</p>
         </div>
-        <UsdRateBadge current={usdRate} canEdit={isAdmin} />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <UsdRateBadge current={usdRate} canEdit={isAdmin} />
+          {isAdmin && (
+            <TransferLauncher accounts={transferOptions} balances={transferBalances} usdRate={usdRate?.rate ?? null} />
+          )}
+        </div>
       </div>
 
       <UnpaidFinishedRentalsSection rentals={await getUnpaidFinishedRentals()} />

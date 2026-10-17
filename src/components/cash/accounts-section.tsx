@@ -1,12 +1,18 @@
 import { AccountCard } from "./account-card";
-import { TransferLauncher, type TransferAccountOption } from "./transfer-launcher";
 import { TransferList } from "./transfer-list";
+import { BalanceHistoryChart } from "./balance-history-chart";
 import { SectionTitle } from "@/components/ui/section-title";
 import { formatMoney } from "@/lib/contract";
-import { SAFE_ACCOUNT_ID, SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
+import { SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
 import { CURRENCIES, emptyCurrencyTotals, subtractCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
 import type { OwnAccountBalance } from "@/lib/cash";
 import type { AccountTransferRow } from "@/lib/account-transfers-queries";
+import {
+  BALANCE_HISTORY_PERIOD_OPTIONS,
+  type BalanceHistoryGranularity,
+  type BalanceHistoryPeriod,
+  type BalancePoint,
+} from "@/lib/balance-history";
 
 /**
  * Saldo de cada cuenta propia (Efectivo, banco, Mercado Pago, etc.) más la
@@ -18,14 +24,18 @@ import type { AccountTransferRow } from "@/lib/account-transfers-queries";
  * desglose "En cuenta"/"En fondos" agregado de todas ellas, y si hay
  * garantías activas en alguna cuenta el total agregado "En garantías" (en
  * rojo — es plata del cliente, no de la empresa; ver
- * `OwnAccountBalance.guaranteeBalance`). Solo admin (ver `caja/page.tsx`): a
- * diferencia de Proveedores/Asociados, esto es la posición de plata real de
- * la empresa.
+ * `OwnAccountBalance.guaranteeBalance`). Debajo, la evolución de ese saldo
+ * total (`getTotalOwnBalanceHistory`) — "Mover entre cuentas" ya no vive acá,
+ * subió al header de `/caja`, junto al valor del USD. Solo admin (ver
+ * `caja/page.tsx`): a diferencia de Proveedores/Asociados, esto es la
+ * posición de plata real de la empresa.
  */
 export function AccountsSection({
   accounts,
   transfers,
-  usdRate,
+  totalBalanceHistory,
+  balPeriod,
+  balGranularity,
   safeBalance,
   safeMonthIncome,
   safeMonthExpense,
@@ -37,20 +47,10 @@ export function AccountsSection({
   safeMonthExpense: CurrencyTotals;
   /** Últimos traspasos entre cuentas ("Mover entre cuentas"). */
   transfers: AccountTransferRow[];
-  usdRate: number | null;
+  totalBalanceHistory: BalancePoint[];
+  balPeriod: BalanceHistoryPeriod;
+  balGranularity: BalanceHistoryGranularity;
 }) {
-  // Cuentas elegibles como origen/destino de un traspaso (principales +
-  // subcuentas) y el saldo de cada principal, para avisar si un traspaso
-  // dejaría el origen en negativo.
-  const options: TransferAccountOption[] = [
-    ...accounts.flatMap((a) => [
-      { id: a.id, name: a.name, principalId: a.id },
-      ...a.subaccounts.map((s) => ({ id: s.id, name: `${a.name} · ${s.name}`, principalId: a.id })),
-    ]),
-    { id: SAFE_ACCOUNT_ID, name: SAFE_ACCOUNT_NAME, principalId: SAFE_ACCOUNT_ID },
-  ];
-  const balances = { ...Object.fromEntries(accounts.map((a) => [a.id, a.balance])), [SAFE_ACCOUNT_ID]: safeBalance };
-
   const total = emptyCurrencyTotals();
   const totalInvested = emptyCurrencyTotals();
   const totalGuarantee = emptyCurrencyTotals();
@@ -102,7 +102,41 @@ export function AccountsSection({
         )}
       </div>
 
-      <TransferLauncher accounts={options} balances={balances} usdRate={usdRate} />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle>Evolución del saldo total</SectionTitle>
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="tab" value="saldos" />
+            <select
+              name="balPeriod"
+              defaultValue={balPeriod}
+              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40"
+            >
+              {BALANCE_HISTORY_PERIOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              name="balGranularity"
+              defaultValue={balGranularity}
+              disabled={balPeriod === "12m"}
+              className="h-9 rounded-lg border border-foreground/15 bg-transparent px-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-50"
+            >
+              <option value="daily">Diario</option>
+              <option value="weekly">Semanal</option>
+            </select>
+            <button className="h-9 rounded-lg border border-foreground/15 px-3 text-sm font-medium">Aplicar</button>
+          </form>
+        </div>
+        {balPeriod === "12m" && (
+          <p className="text-xs text-foreground/50">
+            En el último año se muestra siempre semanal (diario sería demasiado ruido).
+          </p>
+        )}
+        <BalanceHistoryChart points={totalBalanceHistory} granularity={balGranularity} />
+      </div>
 
       {accounts.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">

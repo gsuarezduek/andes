@@ -893,3 +893,77 @@ export async function getOwnAccountBalanceHistory(
   const from = balanceHistoryFrom(now, balanceHistoryPeriodDays(period));
   return buildBalanceHistory(events, adjustment, from, now, granularity);
 }
+
+/**
+ * Evolución del saldo TOTAL de todas las cuentas propias + la Caja fuerte
+ * (gráfico "Evolución del saldo total" en Saldos, arriba de la grilla de
+ * cuentas) — mismo mecanismo que `getOwnAccountBalanceHistory`, pero sin
+ * acotar a una cuenta: todo ingreso/egreso de cualquier cuenta propia, los
+ * movimientos viejos de la Caja fuerte (`SafeMovement`, con fecha propia —
+ * a diferencia de `getLegacySafeBalance`, que solo da el total de siempre) y
+ * TODOS los traspasos, sin filtrar por cuenta. Un traspaso ("Mover entre
+ * cuentas") siempre es entre una cuenta propia y/o la Caja fuerte, nunca una
+ * cuenta ajena (ver `createAccountTransfer`), así que las dos puntas de
+ * cualquier traspaso ya caen dentro de este total: uno entre dos cuentas en
+ * la misma moneda se cancela solo (es mover plata de un bolsillo a otro),
+ * mientras que uno con cambio de moneda sí mueve el total de cada moneda por
+ * separado — es un cambio real de composición, no ruido.
+ */
+export async function getTotalOwnBalanceHistory(
+  period: BalanceHistoryPeriod,
+  granularity: BalanceHistoryGranularity,
+  now: Date = new Date(),
+): Promise<BalancePoint[]> {
+  const { principals, memberIds } = await resolveToPrincipal("own");
+
+  const adjustment = principals.reduce(
+    (acc, p) => ({ ars: acc.ars + p.balanceAdjustment.ars, usd: acc.usd + p.balanceAdjustment.usd }),
+    { ars: 0, usd: 0 },
+  );
+
+  const [movements, transfers, safeMovements] = await Promise.all([
+    prisma.cashMovement.findMany({
+      where: {
+        paymentMethodId: { in: memberIds },
+        deletedAt: null,
+        type: { in: ["income", "expense"] },
+        createdAt: { lte: now },
+      },
+      select: { type: true, amount: true, currency: true, createdAt: true },
+    }),
+    prisma.accountTransfer.findMany({
+      where: { deletedAt: null, createdAt: { lte: now } },
+      select: { fromAmount: true, fromCurrency: true, toAmount: true, toCurrency: true, createdAt: true },
+    }),
+    prisma.safeMovement.findMany({
+      where: { deletedAt: null, createdAt: { lte: now } },
+      select: { type: true, amount: true, currency: true, createdAt: true },
+    }),
+  ]);
+
+  const events: BalanceEvent[] = [
+    ...movements.map((m) => {
+      const signed = (m.type === "income" ? 1 : -1) * Number(m.amount);
+      return { date: m.createdAt, ars: m.currency === "ars" ? signed : 0, usd: m.currency === "usd" ? signed : 0 };
+    }),
+    ...transfers.flatMap((t) => [
+      {
+        date: t.createdAt,
+        ars: t.fromCurrency === "ars" ? -Number(t.fromAmount) : 0,
+        usd: t.fromCurrency === "usd" ? -Number(t.fromAmount) : 0,
+      },
+      {
+        date: t.createdAt,
+        ars: t.toCurrency === "ars" ? Number(t.toAmount) : 0,
+        usd: t.toCurrency === "usd" ? Number(t.toAmount) : 0,
+      },
+    ]),
+    ...safeMovements.map((m) => {
+      const signed = (m.type === "deposit" ? 1 : -1) * Number(m.amount);
+      return { date: m.createdAt, ars: m.currency === "ars" ? signed : 0, usd: m.currency === "usd" ? signed : 0 };
+    }),
+  ];
+
+  const from = balanceHistoryFrom(now, balanceHistoryPeriodDays(period));
+  return buildBalanceHistory(events, adjustment, from, now, granularity);
+}
