@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
@@ -12,9 +13,14 @@ import { WpPaymentMethodsEditor } from "@/components/settings/wp-payment-methods
 export const metadata: Metadata = { title: "Medios de pago — Andes" };
 
 export default async function PaymentMethodsSettingsPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
-  const rawItems = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  const rawAllItems = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
+  // Una cuenta `financeOnly` no existe para quien no sea Finanzas/Observador
+  // o el propietario — en esta pantalla, en Saldos, ni en ningún selector de
+  // medio de pago de la app (ver `hasFinanceAccess`).
+  const rawItems = canSeeFinanceOnly ? rawAllItems : rawAllItems.filter((it) => !it.financeOnly);
   // Los campos `Decimal` de Prisma no son serializables a un Client
   // Component (`PaymentMethodsEditor`) — se convierten a `number` acá mismo,
   // antes de cruzar ese límite (mismo criterio que el resto de la app, ver
@@ -97,7 +103,7 @@ export default async function PaymentMethodsSettingsPage() {
 
       <section className="flex flex-col gap-4">
         <SectionHeading>{items.length} medios de pago</SectionHeading>
-        <PaymentMethodsEditor items={items} categories={categories} />
+        <PaymentMethodsEditor items={items} categories={categories} isOwner={user.owner} />
       </section>
 
       <section className="flex flex-col gap-3">

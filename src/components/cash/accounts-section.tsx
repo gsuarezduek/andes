@@ -156,6 +156,7 @@ export function AccountsSection({
               guaranteeBalance={a.guaranteeBalance}
               monthIncome={a.monthIncome}
               monthExpense={a.monthExpense}
+              financeOnly={a.financeOnly}
             />
           ))}
           <AccountCard

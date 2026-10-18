@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { displayName } from "@/lib/user-display";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "admin") {
+  if (!user || !hasAdminAccess(user.role)) {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { OPERATOR_FILTER } from "@/lib/users";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
 import { PendingTaskList } from "@/components/tasks/pending-task-list";
@@ -27,7 +28,7 @@ export default async function TasksPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
 
   const filters: TaskFilters = {
     assignedToId: sp.assignedTo,

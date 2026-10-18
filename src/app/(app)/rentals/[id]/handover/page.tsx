@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
 import { kmPackPriceFor, type RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
@@ -18,7 +19,8 @@ export default async function HandoverPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireUser();
+  const user = await requireUser();
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
   const rental = await prisma.rental.findUnique({
     where: { id },
@@ -46,7 +48,7 @@ export default async function HandoverPage({
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, parentId: true },
     }),

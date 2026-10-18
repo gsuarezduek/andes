@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { SectionTitle } from "@/components/ui/section-title";
@@ -28,13 +29,14 @@ export default async function VehicleDetailPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
 
   const vehicle = await getVehicleDetail(id);
   if (!vehicle) notFound();
 
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const paymentMethods = await prisma.paymentMethod.findMany({
-    where: { active: true },
+    where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
     orderBy: { ordering: "asc" },
     select: { id: true, name: true, requiresNote: true, parentId: true },
   });

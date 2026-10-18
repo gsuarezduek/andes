@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { requireUser, EMPLOYEE_VIEW_COOKIE } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -27,7 +28,7 @@ export async function logout() {
 /** Activa "Ver como empleado" (menú de cuenta). Solo un admin real puede prenderla. */
 export async function enableEmployeeView() {
   const user = await requireUser();
-  if (user.realRole !== "admin") return;
+  if (!hasAdminAccess(user.realRole)) return;
 
   const cookieStore = await cookies();
   cookieStore.set(EMPLOYEE_VIEW_COOKIE, "1", {

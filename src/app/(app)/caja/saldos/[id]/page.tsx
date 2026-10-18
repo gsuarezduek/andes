@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin, getSessionUser } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getOwnAccountBalances, getOwnAccountLedger, getOwnAccountBalanceHistory } from "@/lib/cash";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
@@ -27,7 +29,9 @@ import {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const account = (await getOwnAccountBalances()).find((a) => a.id === id);
+  const sessionUser = await getSessionUser();
+  const canSeeFinanceOnly = sessionUser ? hasFinanceAccess(sessionUser.role, sessionUser.owner) : false;
+  const account = (await getOwnAccountBalances(canSeeFinanceOnly)).find((a) => a.id === id);
   return { title: account ? `${account.name} — Caja — Andes` : "Cuenta — Andes" };
 }
 
@@ -44,18 +48,19 @@ export default async function AccountLedgerPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ period?: string; granularity?: string }>;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const { id } = await params;
   const { period: rawPeriod, granularity: rawGranularity } = await searchParams;
   const period = parseBalanceHistoryPeriod(rawPeriod);
   const granularity = resolveBalanceHistoryGranularity(period, parseBalanceHistoryGranularity(rawGranularity));
 
   const [accounts, ledger, transfers, paymentMethods, expenseCategories, pm, balanceHistory] = await Promise.all([
-    getOwnAccountBalances(),
+    getOwnAccountBalances(canSeeFinanceOnly),
     getOwnAccountLedger(id),
     getAccountTransfers({ accountId: id, limit: 100 }),
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
     }),
@@ -88,7 +93,10 @@ export default async function AccountLedgerPage({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>
+            {account.financeOnly && <Badge tone="orange">Solo Finanzas</Badge>}
+          </div>
           {account.subaccounts.length > 0 && (
             <p className="text-sm text-foreground/60">Incluye {account.subaccounts.map((s) => s.name).join(", ")}</p>
           )}

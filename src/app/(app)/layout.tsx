@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { getAssignedPendingCount } from "@/lib/tasks";
 import { countNeedsReply } from "@/lib/whatsapp/conversations";
 import { touchPresence, getOnlineUsers } from "@/lib/presence";
@@ -18,8 +19,8 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
-  const isRealAdmin = user.realRole === "admin";
+  const isAdmin = hasAdminAccess(user.role);
+  const isRealAdmin = hasAdminAccess(user.realRole);
   const viewingAsEmployee = isRealAdmin && !isAdmin;
   const [taskCount, whatsappUnread, onlineUsers] = await Promise.all([
     getAssignedPendingCount(user.id),

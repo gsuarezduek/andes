@@ -42,7 +42,11 @@ function GuaranteeLine({ totals }: { totals: CurrencyTotals }) {
  * Movimientos/el ledger mensual (que las excluyen a propósito). Tarjeta
  * entera clickeable hacia la página con el historial completo. Genérica (no
  * depende de `OwnAccountBalance`/`PaymentMethod`) para que la Caja fuerte
- * pueda usarla igual que el resto (ver `AccountsSection`, v44).
+ * pueda usarla igual que el resto (ver `AccountsSection`, v44). Si la cuenta
+ * es `financeOnly` (ver `PaymentMethod.financeOnly`), se destaca con un
+ * borde naranja + etiqueta "Solo Finanzas" — quien la ve ya tiene acceso
+ * (la lista llega filtrada desde antes), esto es solo para no confundirla
+ * con una cuenta sin restricción.
  */
 export function AccountCard({
   href,
@@ -53,6 +57,7 @@ export function AccountCard({
   guaranteeBalance,
   monthIncome,
   monthExpense,
+  financeOnly,
 }: {
   href: string;
   name: string;
@@ -65,16 +70,25 @@ export function AccountCard({
   guaranteeBalance?: CurrencyTotals | null;
   monthIncome: CurrencyTotals;
   monthExpense: CurrencyTotals;
+  /** Visible solo para Finanzas/Observador/propietario — ver `OwnAccountBalance.financeOnly`. Resalta la tarjeta con un borde distinto para no confundirla con una cuenta cualquiera. */
+  financeOnly?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="flex h-full flex-col gap-2 rounded-xl border border-foreground/10 p-3.5 transition-colors hover:bg-foreground/5"
+      className={`flex h-full flex-col gap-2 rounded-xl border p-3.5 transition-colors hover:bg-foreground/5 ${
+        financeOnly ? "border-2 border-orange-500/60" : "border-foreground/10"
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold">{name}</h3>
           {caption && <p className="truncate text-xs text-foreground/50">{caption}</p>}
+          {financeOnly && (
+            <p className="mt-0.5 truncate text-xs font-medium text-orange-600 dark:text-orange-400">
+              Solo Finanzas
+            </p>
+          )}
         </div>
         <ChevronRightIcon className="size-4 shrink-0 text-foreground/30" />
       </div>

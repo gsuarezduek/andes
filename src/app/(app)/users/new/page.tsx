@@ -13,7 +13,7 @@ export default async function NewUserPage() {
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight">Nuevo usuario</h1>
-      <UserForm action={createUser} canGrantAdmin={actor?.owner ?? false} />
+      <UserForm action={createUser} canGrantElevated={actor?.owner ?? false} />
     </div>
   );
 }

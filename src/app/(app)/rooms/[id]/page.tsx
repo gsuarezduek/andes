@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { getRoomDetail, bookingGuestLabel, countsAsOccupancy, type RoomBookingView } from "@/lib/rooms/queries";
 import { nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
@@ -50,7 +51,7 @@ function BookingRow({ roomId, b }: { roomId: string; b: RoomBookingView }) {
 export default async function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
   const detail = await getRoomDetail(id);
   if (!detail) notFound();
   const { room, feeds, bookings } = detail;

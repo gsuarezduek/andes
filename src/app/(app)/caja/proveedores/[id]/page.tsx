@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { getProviderBalances, getProviderLedger } from "@/lib/providers";
 import { ThirdPartyAccountDetail } from "@/components/cash/third-party-account-detail";
@@ -22,12 +23,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function ProviderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
   const [providers, ledger, paymentMethods] = await Promise.all([
     getProviderBalances(),
     getProviderLedger(id),
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, requiresNote: true, parentId: true },
     }),
@@ -41,7 +43,7 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
       account={provider}
       activeSection="proveedores"
       ledger={ledger}
-      isAdmin={user.role === "admin"}
+      isAdmin={hasAdminAccess(user.role)}
       paymentMethods={paymentMethods}
       quickActions={<ProviderQuickActions provider={provider} paymentMethods={paymentMethods} />}
     />

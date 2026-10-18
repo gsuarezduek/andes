@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { compactControlClass } from "@/components/ui/fields";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { userRoleLabels, loginDeviceLabels } from "@/lib/labels";
+import { userRoleLabels, userRoleBadgeTone, loginDeviceLabels } from "@/lib/labels";
 import { formatDateTime } from "@/lib/datetime";
+import { RolesAccessSection } from "./roles-access-section";
 
 export const metadata: Metadata = { title: "Usuarios — Andes" };
 
@@ -44,6 +45,8 @@ export default async function UsersPage({
         <ButtonLink href="/users/new">Nuevo</ButtonLink>
       </div>
 
+      {actor?.owner && <RolesAccessSection />}
+
       <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
         {users.map((u) => {
           const editable = Boolean(actor) && !userManagementError(actor!, u);
@@ -56,11 +59,8 @@ export default async function UsersPage({
               </div>
               {!u.active ? <Badge tone="red">Inactivo</Badge> : null}
               {u.hasSchedule ? <Badge tone="emerald">Con horario</Badge> : null}
-              {u.observer ? <Badge tone="orange">Observador</Badge> : null}
               {u.owner ? <Badge tone="violet">Propietario</Badge> : null}
-              <Badge tone={u.role === "admin" ? "blue" : "neutral"}>
-                {userRoleLabels[u.role]}
-              </Badge>
+              <Badge tone={userRoleBadgeTone[u.role]}>{userRoleLabels[u.role]}</Badge>
             </>
           );
           return (

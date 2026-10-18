@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { SyncResult } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { env } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -134,7 +135,7 @@ export default async function SyncPage({
         )}
       </section>
 
-      {user.role === "admin" && (
+      {hasAdminAccess(user.role) && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
             Señas de VikRentCar pendientes de importar
@@ -160,7 +161,7 @@ export default async function SyncPage({
         </section>
       )}
 
-      {user.role === "admin" && (
+      {hasAdminAccess(user.role) && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">
             Resumen diario de alertas

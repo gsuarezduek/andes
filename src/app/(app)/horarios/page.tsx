@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { formatDateInput, formatDateTime } from "@/lib/datetime";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { normalizeWeek, shiftLabels, weekLabel, type Shift } from "@/lib/schedule";
@@ -21,7 +22,7 @@ const shiftOrFree = (s: Shift | null) => (s ? shiftLabels[s] : "Libre");
 
 export default async function HorariosPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
   const todayKey = formatDateInput(new Date());
   const weekStart = normalizeWeek((await searchParams).week, todayKey);
   const schedule = await getWeekSchedule(weekStart);

@@ -19,9 +19,19 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------------
 
+// Jerárquico: cada rol tiene además todo lo del anterior (empleado < admin <
+// finanzas < observador) — ver `ROLE_RANK`/`hasAdminAccess` en
+// src/lib/user-permissions.ts. Propietario (`User.owner`) sigue siendo un
+// flag aparte, no un valor de este enum (ver comentario en `User`).
 enum UserRole {
-  admin
   empleado
+  admin
+  // Mismos permisos que admin + ve las cuentas de Medios de pago marcadas
+  // "solo Finanzas" (`PaymentMethod.financeOnly`).
+  finanzas
+  // Mismos permisos que finanzas + no aparece en listas operativas
+  // (reemplaza el viejo checkbox `User.observer`).
+  observador
 }
 
 enum VehicleStatus {
@@ -228,9 +238,6 @@ model User {
   passwordHash String    @map("password_hash")
   role         UserRole  @default(empleado)
   active       Boolean   @default(true)
-  // Observador: entra con permisos de su rol (típicamente admin) pero no
-  // aparece en listas operativas (asignar tareas, "en línea"). Solo se ve en /users.
-  observer     Boolean   @default(false)
   // Con horario: aparece en la grilla de horarios semanales (/horarios). No
   // todos los usuarios tienen horario; el resto simplemente no figura.
   hasSchedule  Boolean   @default(false) @map("has_schedule")
@@ -1177,6 +1184,12 @@ model PaymentMethod {
   // los movimientos de Caja con este medio sale el saldo de "Billetera"
   // (ver `getWalletBalance` en cash.ts). Normalmente uno solo ("Efectivo").
   isCash            Boolean                @default(false) @map("is_cash")
+  // Oculta la cuenta para cualquiera que no tenga acceso de Finanzas
+  // (rol finanzas/observador o propietario) — en Configuración, en Saldos y
+  // en cualquier selector de medio de pago de la app (ver `hasFinanceAccess`
+  // en src/lib/user-permissions.ts). Solo tiene sentido en cuentas propias
+  // (`ownership: own`); se valida en `updatePaymentMethods`.
+  financeOnly       Boolean                @default(false) @map("finance_only")
   ordering          Int                    @default(0)
   active            Boolean                @default(true)
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { OPERATOR_FILTER } from "@/lib/users";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +66,7 @@ export default async function RentalDetailPage({
   const { id } = await params;
   const { entrega, devolucion, fusion, service } = await searchParams;
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
 
   const rental = await getRentalDetail(id);
   if (!rental) notFound();
@@ -121,8 +122,9 @@ export default async function RentalDetailPage({
   // Pago suelto (botón del header): solo tiene sentido antes de cerrar la reserva.
   const canAddPayment = rental.status === "reserved" || rental.status === "active" || rental.status === "finished";
   const usdRate = canAddPayment ? ((await getCurrentUsdRate())?.rate ?? null) : null;
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const rawPaymentMethods = await prisma.paymentMethod.findMany({
-    where: { active: true },
+    where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
     orderBy: { ordering: "asc" },
     select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, ownership: true, parentId: true },
   });

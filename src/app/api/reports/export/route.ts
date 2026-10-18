@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import {
   getReports,
   sortVehicleReports,
@@ -15,7 +16,7 @@ export const runtime = "nodejs";
 /** Exporta los reportes como CSV (admin). ?type=vehicles|months */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "admin") {
+  if (!user || !hasAdminAccess(user.role)) {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 

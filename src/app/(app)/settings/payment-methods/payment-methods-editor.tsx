@@ -56,6 +56,7 @@ type Draft = {
   requiresNote: boolean;
   isCash: boolean;
   hasInvestmentFunds: boolean;
+  financeOnly: boolean;
   parentId: string | null;
   whatsappPhone: string;
   commissionPercent: string;
@@ -92,6 +93,7 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     requiresNote: it.requiresNote,
     isCash: it.isCash,
     hasInvestmentFunds: it.hasInvestmentFunds,
+    financeOnly: it.financeOnly,
     parentId: it.parentId,
     whatsappPhone: it.whatsappPhone ?? "",
     commissionPercent: it.commissionPercent?.toString() ?? "",
@@ -115,6 +117,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
     a.hasInvestmentFunds === b.hasInvestmentFunds &&
+    a.financeOnly === b.financeOnly &&
     a.parentId === b.parentId &&
     a.whatsappPhone === b.whatsappPhone &&
     a.commissionPercent === b.commissionPercent &&
@@ -144,7 +147,16 @@ function draftsEqual(a: Draft, b: Draft): boolean {
  * entidad con más de una cuenta real — ver comentario en el schema y
  * `src/lib/providers.ts`).
  */
-export function PaymentMethodsEditor({ items, categories }: { items: PlainPaymentMethod[]; categories: CategoryOption[] }) {
+export function PaymentMethodsEditor({
+  items,
+  categories,
+  isOwner,
+}: {
+  items: PlainPaymentMethod[];
+  categories: CategoryOption[];
+  /** Solo el propietario puede marcar/desmarcar "Visible solo para Finanzas". */
+  isOwner: boolean;
+}) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(items.map((it) => [it.id, draftFrom(it)])),
   );
@@ -226,6 +238,7 @@ export function PaymentMethodsEditor({ items, categories }: { items: PlainPaymen
         setField={setField}
         emptyLabel={emptyLabel}
         categories={categories}
+        isOwner={isOwner}
       />
 
       {dirtyIds.length > 0 && (
@@ -262,6 +275,7 @@ function PaymentMethodGroup({
   setField,
   emptyLabel,
   categories,
+  isOwner,
 }: {
   items: PlainPaymentMethod[];
   allItems: PlainPaymentMethod[];
@@ -269,6 +283,7 @@ function PaymentMethodGroup({
   setField: <K extends keyof Draft>(id: string, field: K, value: Draft[K]) => void;
   emptyLabel: string;
   categories: CategoryOption[];
+  isOwner: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -295,6 +310,7 @@ function PaymentMethodGroup({
             isChild={isChild}
             isFirst={siblings[0]?.item.id === it.id}
             isLast={siblings[siblings.length - 1]?.item.id === it.id}
+            isOwner={isOwner}
           />
         );
       })}
@@ -311,6 +327,7 @@ function PaymentMethodRow({
   isChild,
   isFirst,
   isLast,
+  isOwner,
 }: {
   item: PlainPaymentMethod;
   allItems: PlainPaymentMethod[];
@@ -320,6 +337,7 @@ function PaymentMethodRow({
   isChild: boolean;
   isFirst: boolean;
   isLast: boolean;
+  isOwner: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -405,6 +423,7 @@ function PaymentMethodRow({
         {draft.ownership === "misc" && <Badge tone="violet">Varios</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.hasInvestmentFunds && <Badge tone="violet">Fondos</Badge>}
+        {draft.financeOnly && <Badge tone="orange">Solo Finanzas</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
         <button
@@ -698,6 +717,23 @@ function PaymentMethodRow({
                   className="h-4 w-4"
                 />
                 Tiene fondos de inversión
+              </label>
+            )}
+            {draft.ownership === "own" && isOwner && (
+              <label className="flex items-start gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={draft.financeOnly}
+                  onChange={(e) => setField(item.id, "financeOnly", e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  Visible solo para Finanzas
+                  <span className="block text-xs text-foreground/60">
+                    Se oculta para cualquiera que no sea Finanzas, Observador o el propietario — en
+                    Configuración, en Saldos y en cualquier selector de medio de pago de la app.
+                  </span>
+                </span>
               </label>
             )}
           </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { GpsDeviceForm } from "./gps-device-form";
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: "GPS — Andes" };
 
 export default async function GpsPage() {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
 
   const [devices, vehicles] = await Promise.all([
     prisma.gpsDevice.findMany({ orderBy: { identifier: "asc" } }),

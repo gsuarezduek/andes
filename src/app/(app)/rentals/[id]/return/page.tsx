@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { formatDateTime } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import type { ContractPricing } from "@/lib/contract";
@@ -18,7 +19,8 @@ export default async function ReturnPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireUser();
+  const user = await requireUser();
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
   const rental = await prisma.rental.findUnique({
     where: { id },
@@ -48,7 +50,7 @@ export default async function ReturnPage({
       select: { posX: true, posY: true, description: true },
     }),
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, parentId: true },
     }),

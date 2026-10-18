@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { getBookingDetail, bookingGuestLabel } from "@/lib/rooms/queries";
 import { nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
@@ -25,14 +26,15 @@ const fmt = (k: string) => `${k.slice(8, 10)}/${k.slice(5, 7)}/${k.slice(0, 4)}`
 export default async function RoomBookingPage({ params }: { params: Promise<{ id: string; bookingId: string }> }) {
   const { id, bookingId } = await params;
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const detail = await getBookingDetail(id, bookingId);
   if (!detail) notFound();
   const { booking: b, room, payments, mirrored, verifiedAt, verifiedByName, verifications } = detail;
 
   const [rawPaymentMethods, usdRateInfo] = await Promise.all([
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, adjustmentPercent: true, requiresNote: true, parentId: true },
     }),

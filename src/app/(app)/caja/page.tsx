@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import {
   currentMonth,
@@ -64,10 +65,11 @@ export default async function CajaPage({
   const period = parseCashPeriod(rawPeriod, rawFrom, rawTo);
   const balPeriod = parseBalanceHistoryPeriod(rawBalPeriod);
   const balGranularity = resolveBalanceHistoryGranularity(balPeriod, parseBalanceHistoryGranularity(rawBalGranularity));
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
   const [paymentMethods, expenseCategories, rentalOptions, roomBookingOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
-      where: { active: true },
+      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
     }),
@@ -80,13 +82,13 @@ export default async function CajaPage({
     getRoomBookingPickerOptions(),
   ]);
 
-  const isAdmin = user.role === "admin";
-  const periodDetail = await getCashPeriodDetail(period);
+  const isAdmin = hasAdminAccess(user.role);
+  const periodDetail = await getCashPeriodDetail(period, canSeeFinanceOnly);
 
   const movimientos = (
     <div className="flex flex-col gap-5">
       <CashMovementSearch
-        index={await getCashSearchIndex(isAdmin)}
+        index={await getCashSearchIndex(isAdmin, canSeeFinanceOnly)}
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
       />
@@ -99,7 +101,7 @@ export default async function CajaPage({
       />
 
       <UnconfirmedIncomesSection
-        movements={await getUnconfirmedCashMovements()}
+        movements={await getUnconfirmedCashMovements(canSeeFinanceOnly)}
         paymentMethods={paymentMethods}
       />
 
@@ -155,9 +157,17 @@ export default async function CajaPage({
   // `/caja/saldos/[id]` (o `/caja/saldos/caja-fuerte`).
   const usdRate = await getCurrentUsdRate();
   const safeMonthActivity = isAdmin ? await getSafeMonthActivity() : null;
-  const accounts = isAdmin ? await getOwnAccountBalances() : [];
+  const accounts = isAdmin ? await getOwnAccountBalances(canSeeFinanceOnly) : [];
   const safeBalance = isAdmin ? await getSafeBalance() : emptyCurrencyTotals();
-  const totalBalanceHistory = isAdmin ? await getTotalOwnBalanceHistory(balPeriod, balGranularity) : [];
+  const totalBalanceHistory = isAdmin
+    ? await getTotalOwnBalanceHistory(balPeriod, balGranularity, new Date(), canSeeFinanceOnly)
+    : [];
+  // Para que el traspaso ni se filtre por nombre en "Últimos traspasos".
+  const financeOnlyAccountIds = canSeeFinanceOnly
+    ? []
+    : (await prisma.paymentMethod.findMany({ where: { ownership: "own", financeOnly: true }, select: { id: true } })).map(
+        (a) => a.id,
+      );
 
   // "Mover entre cuentas" vive en el header (al lado del valor del USD), no
   // dentro de la pestaña Saldos — las cuentas elegibles como origen/destino
@@ -180,7 +190,7 @@ export default async function CajaPage({
       safeMonthIncome={safeMonthActivity!.income}
       safeMonthExpense={safeMonthActivity!.expense}
       accounts={accounts}
-      transfers={await getAccountTransfers({ limit: 10 })}
+      transfers={await getAccountTransfers({ limit: 10, excludeAccountIds: financeOnlyAccountIds })}
       totalBalanceHistory={totalBalanceHistory}
       balPeriod={balPeriod}
       balGranularity={balGranularity}
@@ -192,7 +202,7 @@ export default async function CajaPage({
   // movimientos derivados) para cualquier rol.
   const garantias = (
     <GuaranteesSection
-      guarantees={await getGuarantees()}
+      guarantees={await getGuarantees(canSeeFinanceOnly)}
       paymentMethods={paymentMethods}
       expenseCategories={expenseCategories}
     />
@@ -200,7 +210,9 @@ export default async function CajaPage({
 
   // Facturación (ver `needsInvoice`/modelo `Invoice`) — visible para
   // cualquier rol, mismo criterio que Garantías.
-  const facturacion = <InvoicingSection invoicing={await getInvoicing()} invoices={await getInvoices()} />;
+  const facturacion = (
+    <InvoicingSection invoicing={await getInvoicing(canSeeFinanceOnly)} invoices={await getInvoices()} />
+  );
 
   return (
     <div className="flex flex-col gap-6">

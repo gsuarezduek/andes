@@ -8,16 +8,15 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { getUserPerm } from "@/lib/user-access";
-import { userManagementError } from "@/lib/user-permissions";
+import { hasAdminAccess, userManagementError } from "@/lib/user-permissions";
 
 export type FormState = { error?: string };
 
 const baseSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio"),
   email: z.email("Email inválido"),
-  role: z.enum(["admin", "empleado"]),
+  role: z.enum(["admin", "empleado", "finanzas", "observador"]),
   active: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
-  observer: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
   hasSchedule: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
@@ -27,7 +26,6 @@ function readBase(formData: FormData) {
     email: formData.get("email"),
     role: formData.get("role"),
     active: formData.get("active"),
-    observer: formData.get("observer"),
     hasSchedule: formData.get("hasSchedule"),
   });
 }
@@ -56,7 +54,6 @@ export async function createUser(
         email: parsed.data.email.toLowerCase(),
         role: parsed.data.role,
         active: parsed.data.active,
-        observer: parsed.data.observer,
         hasSchedule: parsed.data.hasSchedule,
         passwordHash: await bcrypt.hash(password, 10),
       },
@@ -141,10 +138,12 @@ export async function updateUser(
   const denied = userManagementError(actor, target, parsed.data.role);
   if (denied) return { error: denied };
 
-  // Evitar que el admin se auto-bloquee o se quite el rol.
+  // Evitar que el admin se auto-bloquee o se quite el acceso de nivel admin.
   if (id === admin.id) {
     if (!parsed.data.active) return { error: "No podés desactivar tu propio usuario." };
-    if (parsed.data.role !== "admin") return { error: "No podés quitarte el rol de administrador." };
+    if (!hasAdminAccess(parsed.data.role)) {
+      return { error: "No podés quitarte el acceso de administrador." };
+    }
   }
 
   const password = String(formData.get("password") ?? "");
@@ -160,7 +159,6 @@ export async function updateUser(
         email: parsed.data.email.toLowerCase(),
         role: parsed.data.role,
         active: parsed.data.active,
-        observer: parsed.data.observer,
         hasSchedule: parsed.data.hasSchedule,
         ...(password.length >= 6
           ? { passwordHash: await bcrypt.hash(password, 10) }

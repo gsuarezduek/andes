@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { RecurrenceFreq, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { ruleFromDueDate } from "@/lib/task-recurrence";
@@ -118,7 +119,7 @@ export async function completeTask(id: string) {
 
 async function assertCanEditTask(taskId: string, user: { id: string; role: UserRole }) {
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  if (task.createdById !== user.id && user.role !== "admin") {
+  if (task.createdById !== user.id && !hasAdminAccess(user.role)) {
     throw new Error("Solo quien creó la tarea o un admin puede editarla.");
   }
 }

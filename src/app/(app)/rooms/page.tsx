@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { listRooms } from "@/lib/rooms/queries";
 import { formatArs } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
@@ -15,7 +16,7 @@ const short = (k: string) => `${k.slice(8, 10)}/${k.slice(5, 7)}`;
 
 export default async function RoomsPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
   const showArchived = (await searchParams).archived === "1";
   const [rooms, archivedRooms] = await Promise.all([listRooms({ archived: showArchived }), listRooms({ archived: true })]);
 

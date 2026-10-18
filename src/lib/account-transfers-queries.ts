@@ -25,7 +25,14 @@ export type AccountTransferRow = {
  * subcuentas. Con `safe`, solo los que entran o salen de la Caja fuerte.
  */
 export async function getAccountTransfers(
-  options: { accountId?: string; /** Solo los que tocan la Caja fuerte. */ safe?: boolean; limit?: number } = {},
+  options: {
+    accountId?: string;
+    /** Solo los que tocan la Caja fuerte. */
+    safe?: boolean;
+    limit?: number;
+    /** Oculta traspasos donde participe alguna de estas cuentas (ver `PaymentMethod.financeOnly`). */
+    excludeAccountIds?: string[];
+  } = {},
 ): Promise<AccountTransferRow[]> {
   let accountIds: string[] | null = null;
   if (options.accountId) {
@@ -41,6 +48,9 @@ export async function getAccountTransfers(
       deletedAt: null,
       ...(accountIds ? { OR: [{ fromAccountId: { in: accountIds } }, { toAccountId: { in: accountIds } }] } : {}),
       ...(options.safe ? { OR: [{ fromAccountId: null }, { toAccountId: null }] } : {}),
+      ...(options.excludeAccountIds?.length
+        ? { fromAccountId: { notIn: options.excludeAccountIds }, toAccountId: { notIn: options.excludeAccountIds } }
+        : {}),
     },
     orderBy: { createdAt: "desc" },
     take: options.limit ?? 50,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { getCalendarData, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import { prisma } from "@/lib/prisma";
@@ -75,7 +76,7 @@ export default async function CalendarPage({
         conversationOptions={conversationOptions}
         extraHourPercent={conditions?.extraHourPercent ?? null}
         userId={user.id}
-        isAdmin={user.role === "admin"}
+        isAdmin={hasAdminAccess(user.role)}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import "server-only";
 import type { UserRole } from "@prisma/client";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 
 export type QuoteInput = {
@@ -22,7 +23,7 @@ export async function createRentalQuote(input: QuoteInput, createdById: string, 
  *  criterio que `assertCanEditTask` en src/app/(app)/tasks/actions.ts. */
 async function assertCanEditQuote(quoteId: string, user: { id: string; role: UserRole }) {
   const quote = await prisma.rentalQuote.findUniqueOrThrow({ where: { id: quoteId } });
-  if (quote.createdById !== user.id && user.role !== "admin") {
+  if (quote.createdById !== user.id && !hasAdminAccess(user.role)) {
     throw new Error("Solo quien creó el presupuesto o un admin puede editarlo.");
   }
 }

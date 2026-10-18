@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { Prisma, VehicleStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { vehicleStatusLabels } from "@/lib/labels";
@@ -38,7 +39,7 @@ export default async function VehiclesPage({
   searchParams: Promise<{ archived?: string; sort?: string; dir?: string; status?: string }>;
 }) {
   const user = await requireUser();
-  const isAdmin = user.role === "admin";
+  const isAdmin = hasAdminAccess(user.role);
   const sp = await searchParams;
   const showArchived = sp.archived === "1";
 

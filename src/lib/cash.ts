@@ -190,7 +190,7 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
 
 async function findMovements(
   where: Prisma.CashMovementWhereInput,
-  opts?: { take?: number; guaranteeOnly?: boolean },
+  opts?: { take?: number; guaranteeOnly?: boolean; excludeAccountIds?: string[] },
 ): Promise<CashMovementRow[]> {
   const rows = await prisma.cashMovement.findMany({
     // Nunca trae deudas de proveedor (`type: "debt"`) — esas viven en
@@ -198,7 +198,20 @@ async function findMovements(
     // Tampoco mezcla Garantías con Movimientos reales (y viceversa, con
     // `guaranteeOnly`) — ver `getGuarantees` y el comentario de
     // `isGuarantee` en el schema.
-    where: { type: { in: ["income", "expense"] }, isGuarantee: !!opts?.guaranteeOnly, ...where, deletedAt: null },
+    where: {
+      type: { in: ["income", "expense"] },
+      isGuarantee: !!opts?.guaranteeOnly,
+      ...where,
+      deletedAt: null,
+      // Una cuenta `PaymentMethod.financeOnly` no debe asomar ni como medio
+      // ni como destino para quien no tenga acceso de Finanzas.
+      ...(opts?.excludeAccountIds?.length
+        ? {
+            paymentMethodId: { notIn: opts.excludeAccountIds },
+            recipientPaymentMethodId: { notIn: opts.excludeAccountIds },
+          }
+        : {}),
+    },
     include: MOVEMENT_INCLUDE,
     orderBy: { createdAt: "desc" },
     ...(opts?.take ? { take: opts.take } : {}),
@@ -217,12 +230,29 @@ export async function getCashMovementRow(id: string): Promise<CashMovementRow | 
 }
 
 /**
+ * Ids de las cuentas propias `financeOnly` — para excluirlas de cualquier
+ * listado de Movimientos cuando quien mira no tiene acceso de Finanzas (ver
+ * `hasFinanceAccess`). `canSeeFinanceOnly=true` (default): sin exclusión.
+ */
+async function financeOnlyAccountIds(canSeeFinanceOnly: boolean): Promise<string[]> {
+  if (canSeeFinanceOnly) return [];
+  const rows = await prisma.paymentMethod.findMany({
+    where: { ownership: "own", financeOnly: true },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/**
  * Ingresos importados automáticamente desde VikRentCar cuyo medio de pago no
  * se pudo resolver — independiente del período visible en Caja (no importa
  * cuándo llegó la seña: hasta que alguien lo confirme, sigue pendiente).
  */
-export async function getUnconfirmedCashMovements(): Promise<CashMovementRow[]> {
-  return findMovements({ needsConfirmation: true });
+export async function getUnconfirmedCashMovements(canSeeFinanceOnly = true): Promise<CashMovementRow[]> {
+  return findMovements(
+    { needsConfirmation: true },
+    { excludeAccountIds: await financeOnlyAccountIds(canSeeFinanceOnly) },
+  );
 }
 
 export type Invoicing = {
@@ -237,10 +267,11 @@ export type Invoicing = {
  * Facturación. Independiente del período visible en Caja: no importa cuándo
  * se cargó, sigue pendiente hasta que alguien lo marque facturado.
  */
-export async function getInvoicing(): Promise<Invoicing> {
+export async function getInvoicing(canSeeFinanceOnly = true): Promise<Invoicing> {
+  const excludeAccountIds = await financeOnlyAccountIds(canSeeFinanceOnly);
   const [pending, completed] = await Promise.all([
-    findMovements({ needsInvoice: true, invoicedAt: null }),
-    findMovements({ needsInvoice: true, invoicedAt: { not: null } }),
+    findMovements({ needsInvoice: true, invoicedAt: null }, { excludeAccountIds }),
+    findMovements({ needsInvoice: true, invoicedAt: { not: null } }, { excludeAccountIds }),
   ]);
   return { pending, completed, pendingTotal: sumByCurrency(pending) };
 }
@@ -306,9 +337,12 @@ export async function getUnpaidFinishedRentals(): Promise<UnpaidFinishedRental[]
   return result;
 }
 
-export async function getCashPeriodDetail(period: CashPeriod): Promise<CashPeriodDetail> {
+export async function getCashPeriodDetail(period: CashPeriod, canSeeFinanceOnly = true): Promise<CashPeriodDetail> {
   const { start, end, label } = resolveCashPeriod(period);
-  const rows = await findMovements({ createdAt: { gte: start, lt: end } });
+  const rows = await findMovements(
+    { createdAt: { gte: start, lt: end } },
+    { excludeAccountIds: await financeOnlyAccountIds(canSeeFinanceOnly) },
+  );
 
   const incomes = rows.filter((r) => r.type === "income");
   const expenses = rows.filter((r) => r.type === "expense");
@@ -350,10 +384,11 @@ export type Guarantees = {
  * pasa al historial, sin volver atrás — mismo criterio de "posición real de
  * la empresa" que Saldos/Caja fuerte, admin-only (ver `caja/page.tsx`).
  */
-export async function getGuarantees(): Promise<Guarantees> {
+export async function getGuarantees(canSeeFinanceOnly = true): Promise<Guarantees> {
+  const excludeAccountIds = await financeOnlyAccountIds(canSeeFinanceOnly);
   const [active, resolved] = await Promise.all([
-    findMovements({ type: "income", guaranteeResolvedAt: null }, { guaranteeOnly: true }),
-    findMovements({ type: "income", guaranteeResolvedAt: { not: null } }, { guaranteeOnly: true }),
+    findMovements({ type: "income", guaranteeResolvedAt: null }, { guaranteeOnly: true, excludeAccountIds }),
+    findMovements({ type: "income", guaranteeResolvedAt: { not: null } }, { guaranteeOnly: true, excludeAccountIds }),
   ]);
 
   // Movimientos que generó resolver cada garantía (el cobro, la devolución,
@@ -396,8 +431,14 @@ const SEARCH_INDEX_LIMIT = 500;
  * escribe). `includeExpenses` decide si entran los egresos — un empleado no
  * admin busca solo entre ingresos (misma restricción que el resto de Caja).
  */
-export async function getCashSearchIndex(includeExpenses: boolean): Promise<CashMovementRow[]> {
-  return findMovements(includeExpenses ? {} : { type: "income" }, { take: SEARCH_INDEX_LIMIT });
+export async function getCashSearchIndex(
+  includeExpenses: boolean,
+  canSeeFinanceOnly = true,
+): Promise<CashMovementRow[]> {
+  return findMovements(includeExpenses ? {} : { type: "income" }, {
+    take: SEARCH_INDEX_LIMIT,
+    excludeAccountIds: await financeOnlyAccountIds(canSeeFinanceOnly),
+  });
 }
 
 export type RentalPickerOption = {
@@ -671,6 +712,8 @@ export type OwnAccountBalance = {
    * propósito, ver `findMovements`). Nunca null — 0/0 si no hay ninguna activa.
    */
   guaranteeBalance: CurrencyTotals;
+  /** Visible solo para Finanzas/Observador/propietario — ver `PaymentMethod.financeOnly`. */
+  financeOnly: boolean;
 };
 
 /**
@@ -689,8 +732,8 @@ export type OwnAccountBalance = {
  * Info sensible (posición de plata real) — solo para admin, mismo criterio
  * que la Caja fuerte y la Billetera.
  */
-export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
-  const { principals, resolve, memberIds } = await resolveToPrincipal("own");
+export async function getOwnAccountBalances(canSeeFinanceOnly = true): Promise<OwnAccountBalance[]> {
+  const { principals, resolve, memberIds } = await resolveToPrincipal("own", canSeeFinanceOnly);
   if (principals.length === 0) return [];
 
   const fundAccountIds = principals.filter((p) => p.hasInvestmentFunds).map((p) => p.id);
@@ -816,6 +859,7 @@ export async function getOwnAccountBalances(): Promise<OwnAccountBalance[]> {
     monthExpense: monthExpense.get(p.id)!,
     investedBalance: p.hasInvestmentFunds ? fundBalance(fundMovementsByAccount.get(p.id) ?? []) : null,
     guaranteeBalance: guaranteeBalances.get(p.id)!,
+    financeOnly: p.financeOnly,
   }));
 }
 
@@ -913,8 +957,9 @@ export async function getTotalOwnBalanceHistory(
   period: BalanceHistoryPeriod,
   granularity: BalanceHistoryGranularity,
   now: Date = new Date(),
+  canSeeFinanceOnly = true,
 ): Promise<BalancePoint[]> {
-  const { principals, memberIds } = await resolveToPrincipal("own");
+  const { principals, memberIds } = await resolveToPrincipal("own", canSeeFinanceOnly);
 
   const adjustment = principals.reduce(
     (acc, p) => ({ ars: acc.ars + p.balanceAdjustment.ars, usd: acc.usd + p.balanceAdjustment.usd }),

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
+import { hasAdminAccess } from "@/lib/user-permissions";
 import { getDashboardData, type MovementState } from "@/lib/dashboard";
 import { getRentalPickerOptions } from "@/lib/cash";
 import { formatMoney } from "@/lib/contract";
@@ -166,7 +167,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       {/* HORARIOS DE LA SEMANA: quién está en turno ahora (verde) o activo en otro horario (azul).
           Colapsado por defecto (ocupaba mucho lugar en el Home); título + navegación de semana
           siempre visibles, la grilla se abre al tocar. */}
-      {schedule.people.length > 0 || user.role === "admin" ? (
+      {schedule.people.length > 0 || hasAdminAccess(user.role) ? (
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Horarios de la semana</h2>
@@ -221,7 +222,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </details>
           )}
           <Link href="/horarios" className="self-start text-xs font-medium text-foreground/60 underline">
-            {user.role === "admin" ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
+            {hasAdminAccess(user.role) ? "Ver y editar horarios →" : "Ver horarios de otras semanas →"}
           </Link>
           {/* Los colores dependen de la hora: se refrescan solos. */}
           <AutoRefresh intervalMs={300_000} />

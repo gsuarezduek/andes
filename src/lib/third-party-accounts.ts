@@ -67,7 +67,11 @@ async function resolveWhatsappConversationIds(phones: (string | null)[]): Promis
  * `getOwnAccountBalances` (`cash.ts`) para el mismo agrupado, con
  * `ownership: "own"`.
  */
-export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Promise<{
+export async function resolveToPrincipal(
+  ownership: PaymentMethodOwnership,
+  /** Solo tiene efecto en `ownership: "own"` — ver `PaymentMethod.financeOnly`. */
+  canSeeFinanceOnly = true,
+): Promise<{
   principals: {
     id: string;
     name: string;
@@ -80,12 +84,15 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
     // Fondos de inversión (solo tiene sentido en `own`, ver comentario en el
     // schema) — false en cualquier otra cuenta.
     hasInvestmentFunds: boolean;
+    // Visible solo para Finanzas/Observador/propietario (solo tiene sentido
+    // en `own`, ver comentario en el schema) — false en cualquier otra cuenta.
+    financeOnly: boolean;
   }[];
   resolve: Map<string, string>;
   memberIds: string[];
 }> {
   const accounts = await prisma.paymentMethod.findMany({
-    where: { ownership },
+    where: { ownership, ...(ownership === "own" && !canSeeFinanceOnly ? { financeOnly: false } : {}) },
     orderBy: { ordering: "asc" },
     select: {
       id: true,
@@ -97,6 +104,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
       balanceAdjustmentArs: true,
       balanceAdjustmentUsd: true,
       hasInvestmentFunds: true,
+      financeOnly: true,
     },
   });
   const resolve = new Map<string, string>();
@@ -113,6 +121,7 @@ export async function resolveToPrincipal(ownership: PaymentMethodOwnership): Pro
         .map((a) => ({ id: a.id, name: a.name, requiresNote: a.requiresNote })),
       balanceAdjustment: { ars: Number(p.balanceAdjustmentArs), usd: Number(p.balanceAdjustmentUsd) },
       hasInvestmentFunds: p.hasInvestmentFunds,
+      financeOnly: p.financeOnly,
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
 }

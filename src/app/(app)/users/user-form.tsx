@@ -13,12 +13,12 @@ type Action = (state: FormState, formData: FormData) => Promise<FormState>;
 export function UserForm({
   action,
   user,
-  canGrantAdmin,
+  canGrantElevated,
 }: {
   action: Action;
   user?: User;
-  /** Solo el propietario puede dejar a alguien como administrador. */
-  canGrantAdmin: boolean;
+  /** Solo el propietario puede dejar a alguien como admin, finanzas u observador. */
+  canGrantElevated: boolean;
 }) {
   const [state, formAction] = useActionState(action, {});
   const editing = Boolean(user);
@@ -27,9 +27,14 @@ export function UserForm({
     <form action={formAction} className="flex flex-col gap-4">
       <TextField id="name" label="Nombre" required defaultValue={user?.name} />
       <TextField id="email" label="Email" type="email" required defaultValue={user?.email} autoComplete="off" />
-      <SelectField id="role" label="Rol" defaultValue={user?.role ?? "empleado"}>
+      <SelectField
+        id="role"
+        label="Rol"
+        defaultValue={user?.role ?? "empleado"}
+        hint='Finanzas: igual que Admin, además ve las cuentas de Medios de pago marcadas "solo Finanzas". Observador: igual que Finanzas, además no aparece en las listas operativas (asignar tareas, usuarios en línea).'
+      >
         {Object.entries(userRoleLabels)
-          .filter(([value]) => canGrantAdmin || value !== "admin" || user?.role === "admin")
+          .filter(([value]) => canGrantElevated || value === "empleado" || user?.role === value)
           .map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -53,21 +58,6 @@ export function UserForm({
         />
         Usuario activo
       </label>
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="observer"
-          defaultChecked={user?.observer ?? false}
-          className="mt-0.5 h-4 w-4"
-        />
-        <span>
-          Observador
-          <span className="block text-xs text-foreground/60">
-            Entra y ve según su rol, pero no aparece en las listas operativas (asignar tareas, usuarios en línea).
-          </span>
-        </span>
-      </label>
-
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"

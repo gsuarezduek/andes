@@ -47,6 +47,17 @@ export const languageLabels: Record<Language, string> = {
 export const userRoleLabels: Record<UserRole, string> = {
   admin: "Administrador",
   empleado: "Empleado",
+  finanzas: "Finanzas",
+  observador: "Observador",
+};
+
+/** Tono del `Badge` de rol en /users — mismo criterio de color que usaba el
+ *  viejo checkbox "Observador" (naranja), sumando uno por rol nuevo. */
+export const userRoleBadgeTone: Record<UserRole, "neutral" | "blue" | "emerald" | "orange"> = {
+  empleado: "neutral",
+  admin: "blue",
+  finanzas: "emerald",
+  observador: "orange",
 };
 
 export const documentKindLabels: Record<DocumentKind, string> = {

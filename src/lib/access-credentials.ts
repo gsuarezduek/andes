@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { AccessCredentialField, UserRole } from "@prisma/client";
+import type { AccessCredentialField } from "@prisma/client";
+import { hasAdminAccess, type Role } from "@/lib/user-permissions";
 
 export type AccessCredentialRevealRow = {
   field: AccessCredentialField;
@@ -70,6 +71,6 @@ export async function listAccessCredentials(): Promise<AccessCredentialRow[]> {
  * solo admin si lo es. Pura — la validación real (server-side, nunca
  * confiando en el cliente) vive en `revealAccessCredentialField`.
  */
-export function canRevealAccessCredential(adminOnly: boolean, role: UserRole | string): boolean {
-  return !adminOnly || role === "admin";
+export function canRevealAccessCredential(adminOnly: boolean, role: Role): boolean {
+  return !adminOnly || hasAdminAccess(role);
 }

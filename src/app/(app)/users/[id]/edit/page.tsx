@@ -26,7 +26,7 @@ export default async function EditUserPage({
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight">Editar usuario</h1>
-      <UserForm action={updateUser.bind(null, id)} user={user} canGrantAdmin={actor.owner} />
+      <UserForm action={updateUser.bind(null, id)} user={user} canGrantElevated={actor.owner} />
       {user.id !== admin.id && (
         <UserDeleteButton userId={user.id} name={user.name} active={user.active} />
       )}

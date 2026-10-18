@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { getCashPeriodDetail, parseCashPeriod, type CashMovementRow, type CashPeriod } from "@/lib/cash";
 import { formatDateTime } from "@/lib/datetime";
 import { csvResponse } from "@/lib/csv";
@@ -35,7 +36,7 @@ function toRow(m: CashMovementRow): (string | number)[] {
 /** Exporta los movimientos de Caja del período visible como CSV (admin). ?period=today|week|month|date&from=YYYY-MM-DD&to=YYYY-MM-DD */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "admin") {
+  if (!user || !hasAdminAccess(user.role)) {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("from") ?? undefined,
     req.nextUrl.searchParams.get("to") ?? undefined,
   );
-  const detail = await getCashPeriodDetail(period);
+  const detail = await getCashPeriodDetail(period, hasFinanceAccess(user.role, user.owner));
 
   const rows: (string | number)[][] = [
     [
