@@ -10,6 +10,7 @@ import { formatArs } from "@/lib/contract";
 import { formatDateTimeInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { extensionExtraDays, suggestedExtensionAmount } from "@/lib/rental-extension";
 import { extendRental } from "@/app/(app)/rentals/[id]/extension-actions";
+import { resendActaEmail } from "@/app/(app)/rentals/[id]/acta-actions";
 
 /**
  * Botón-ícono en el header de la reserva para registrar que el cliente
@@ -17,15 +18,22 @@ import { extendRental } from "@/app/(app)/rentals/[id]/extension-actions";
  * "Editar devolución" (sin cargo), esto suma el importe al contrato — el
  * saldo/semáforo de pago dejan de mostrar "pagado" apenas se confirma, sin
  * depender de una nota.
+ *
+ * El acta de entrega toma la fecha de devolución en vivo de `rental.endAt`
+ * (ver `renderActaBuffer`), así que no hace falta "rehacerla": alcanza con
+ * reenviarla. Tras confirmar la extensión, se ofrece hacerlo de una —
+ * necesita `handoverInspectionId` (la entrega ya firmada de esta reserva).
  */
 export function ExtendRentalButton({
   rentalId,
   currentEndAt,
   dailyRate,
+  handoverInspectionId,
 }: {
   rentalId: string;
   currentEndAt: Date;
   dailyRate: number | null;
+  handoverInspectionId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [newEndAt, setNewEndAt] = useState("");
@@ -34,6 +42,9 @@ export function ExtendRentalButton({
   const [note, setNote] = useState("");
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
+  const [done, setDone] = useState(false);
+  const [resendPending, startResend] = useTransition();
+  const [resendResult, setResendResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const router = useRouter();
 
   const extraDays = useMemo(() => {
@@ -56,6 +67,8 @@ export function ExtendRentalButton({
     setAmountTouched(false);
     setNote("");
     setError(undefined);
+    setDone(false);
+    setResendResult(null);
     setOpen(true);
   }
 
@@ -68,8 +81,17 @@ export function ExtendRentalButton({
         setError(res.error);
         return;
       }
-      setOpen(false);
       router.refresh();
+      setDone(true);
+    });
+  }
+
+  function resendActa() {
+    if (!handoverInspectionId) return;
+    startResend(async () => {
+      setResendResult(null);
+      const r = await resendActaEmail(rentalId, handoverInspectionId);
+      setResendResult(r);
     });
   }
 
@@ -86,54 +108,92 @@ export function ExtendRentalButton({
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Extender alquiler">
-        <div className="flex flex-col gap-3">
-          <TextField
-            id="extend_new_end_at"
-            label="Nueva fecha y hora de devolución"
-            type="datetime-local"
-            value={newEndAt}
-            onChange={(e) => setNewEndAt(e.target.value)}
-          />
-          {newEndAt && extraDays <= 0 && (
-            <p className="text-xs font-medium text-red-600">Tiene que ser posterior a la fecha actual de devolución.</p>
-          )}
-          {extraDays > 0 && (
-            <p className="text-xs text-foreground/60">
-              {extraDays} día{extraDays === 1 ? "" : "s"} extra
-              {suggested != null ? ` · sugerido ${formatArs(suggested)} (tarifa diaria × días)` : ""}
+        {done ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-emerald-600">
+              Extensión confirmada — la nueva fecha de devolución ya figura en la reserva.
             </p>
-          )}
-          <TextField
-            id="extend_amount"
-            label="Cargo por la extensión"
-            type="text"
-            inputMode="decimal"
-            prefix="$"
-            value={amountValue}
-            onChange={(e) => {
-              setAmountTouched(true);
-              setAmount(e.target.value);
-            }}
-            hint={dailyRate == null ? "No hay tarifa diaria cargada — completalo a mano." : undefined}
-          />
-          <TextareaField
-            id="extend_note"
-            label="Motivo / quién autorizó"
-            hint="Opcional"
-            rows={2}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="mt-1 flex gap-2">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" className="flex-1" disabled={pending || extraDays <= 0 || !amountValid} onClick={confirm}>
-              {pending ? "Guardando…" : "Confirmar extensión"}
-            </Button>
+            {handoverInspectionId ? (
+              <>
+                <p className="text-sm text-foreground/70">
+                  El acta de entrega muestra la fecha de devolución en vivo: ¿querés reenviársela
+                  al cliente ya actualizada?
+                </p>
+                {resendResult && !resendPending && (
+                  <p className={`text-sm ${resendResult.ok ? "text-emerald-600" : "text-red-600"}`}>
+                    {resendResult.ok ? "Acta reenviada." : (resendResult.error ?? "No se pudo reenviar.")}
+                  </p>
+                )}
+                <div className="mt-1 flex gap-2">
+                  <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
+                    Cerrar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={resendPending || resendResult?.ok}
+                    onClick={resendActa}
+                  >
+                    {resendPending ? "Reenviando…" : resendResult?.ok ? "Reenviada ✓" : "Reenviar acta al cliente"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button type="button" className="w-full" onClick={() => setOpen(false)}>
+                Cerrar
+              </Button>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <TextField
+              id="extend_new_end_at"
+              label="Nueva fecha y hora de devolución"
+              type="datetime-local"
+              value={newEndAt}
+              onChange={(e) => setNewEndAt(e.target.value)}
+            />
+            {newEndAt && extraDays <= 0 && (
+              <p className="text-xs font-medium text-red-600">Tiene que ser posterior a la fecha actual de devolución.</p>
+            )}
+            {extraDays > 0 && (
+              <p className="text-xs text-foreground/60">
+                {extraDays} día{extraDays === 1 ? "" : "s"} extra
+                {suggested != null ? ` · sugerido ${formatArs(suggested)} (tarifa diaria × días)` : ""}
+              </p>
+            )}
+            <TextField
+              id="extend_amount"
+              label="Cargo por la extensión"
+              type="text"
+              inputMode="decimal"
+              prefix="$"
+              value={amountValue}
+              onChange={(e) => {
+                setAmountTouched(true);
+                setAmount(e.target.value);
+              }}
+              hint={dailyRate == null ? "No hay tarifa diaria cargada — completalo a mano." : undefined}
+            />
+            <TextareaField
+              id="extend_note"
+              label="Motivo / quién autorizó"
+              hint="Opcional"
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="mt-1 flex gap-2">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" className="flex-1" disabled={pending || extraDays <= 0 || !amountValid} onClick={confirm}>
+                {pending ? "Guardando…" : "Confirmar extensión"}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );

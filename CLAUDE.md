@@ -1096,6 +1096,11 @@ Antes, el saldo de una estadía solo sumaba los cobros en la moneda de su total:
 - Como antes, el saldo suma el importe cobrado en Caja (con el % del medio de pago), no el importe base — a diferencia de los alquileres de autos (v29).
 
 
+## v90 — Extender alquiler: ofrecer reenviar el acta de entrega
+
+Después de confirmar una extensión, el modal de "Extender alquiler" (`ExtendRentalButton`) ya no se cierra solo: muestra la confirmación y ofrece **"Reenviar acta al cliente"** (`resendActaEmail`, la misma acción del botón de reenvío que ya existía). El acta toma la fecha de devolución en vivo de `rental.endAt` (`renderActaBuffer`), así que el reenvío sale con la fecha nueva sin regenerar nada a mano (reemplaza el PDF guardado, como cualquier reenvío). Solo aparece si la reserva tiene entrega (`handoverInspectionId`, desde el detalle de la reserva). Sin migración.
+
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

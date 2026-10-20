@@ -199,6 +199,7 @@ export default async function RentalDetailPage({
               rentalId={rental.id}
               currentEndAt={rental.endAt}
               dailyRate={(rental.pricing as ContractPricing | null)?.dailyRate ?? null}
+              handoverInspectionId={rental.inspections.find((i) => i.type === "handover")?.id}
             />
           )}
           {wpOrderUrl && (
