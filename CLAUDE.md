@@ -1074,7 +1074,6 @@ El modo oscuro ya existía pero solo seguía al sistema (`prefers-color-scheme`)
 - **El tema efectivo es un atributo** `data-theme="light|dark"` en `<html>`, fijado antes del primer pintado por `THEME_INIT_SCRIPT` (`src/lib/theme.ts`, inline en `src/app/layout.tsx` — sin parpadeo; el CSP ya permitía `unsafe-inline`). En Automático escucha los cambios del sistema.
 - `globals.css`: los bloques `@media (prefers-color-scheme: dark)` pasaron a `[data-theme="dark"]`, y la variante `dark:` de Tailwind se redefinió con `@custom-variant dark` sobre ese atributo — las clases `dark:` existentes funcionan sin tocarlas. **Si se agregan colores de modo oscuro nuevos, usar `[data-theme="dark"]`, no la media query.** Se sumó `color-scheme: dark` (inputs/scrollbars nativos oscuros).
 
-
 ## v87 — Logout automático por inactividad a 10 minutos
 
 Antes 1 hora (v33). `session.maxAge: 10*60` en `src/auth.config.ts` + `INACTIVITY_LIMIT_MS` en `inactivity-logout.tsx` (tienen que quedar iguales). `updateAge` baja a 60s: el JWT puede vencer hasta `updateAge` antes de lo que marca la última request, y con 10 min eso tiene que quedar por debajo del aviso de 60s del cliente. **Ojo con el wizard sin señal:** el cliente cuenta taps como actividad, pero el servidor solo renueva la sesión con requests — si un empleado pasa más de 10 min en la entrega/devolución sin ninguna request (modo avión), al guardar la sesión ya venció y tiene que volver a loguearse (el borrador sobrevive en localStorage y la evidencia en IndexedDB).
@@ -1095,11 +1094,9 @@ Antes, el saldo de una estadía solo sumaba los cobros en la moneda de su total:
 - **Form de cobro** (`RoomPaymentForm`): la moneda arranca en la del total. Si la estadía es en dólares y se cobra en pesos, pide "Cotización del dólar" (precargada con el valor de referencia, editable) y muestra cuántos dólares salda. Un cobro en dólares de una estadía en pesos usa la cotización que ya pedía `PaymentAmountFields`.
 - Como antes, el saldo suma el importe cobrado en Caja (con el % del medio de pago), no el importe base — a diferencia de los alquileres de autos (v29).
 
-
 ## v90 — Extender alquiler: ofrecer reenviar el acta de entrega
 
 Después de confirmar una extensión, el modal de "Extender alquiler" (`ExtendRentalButton`) ya no se cierra solo: muestra la confirmación y ofrece **"Reenviar acta al cliente"** (`resendActaEmail`, la misma acción del botón de reenvío que ya existía). El acta toma la fecha de devolución en vivo de `rental.endAt` (`renderActaBuffer`), así que el reenvío sale con la fecha nueva sin regenerar nada a mano (reemplaza el PDF guardado, como cualquier reenvío). Solo aparece si la reserva tiene entrega (`handoverInspectionId`, desde el detalle de la reserva). Sin migración.
-
 
 ## Pendientes que dependen del dueño
 
