@@ -1067,6 +1067,10 @@ Pedido del dueño: una cuenta de Medios de pago que solo vean Finanzas, Observad
 - **Cuentas `financeOnly` destacadas en Saldos**: `OwnAccountBalance.financeOnly` (nuevo, `getOwnAccountBalances`) se propaga a `AccountCard` (borde naranja + etiqueta "Solo Finanzas", tanto en la grilla de `AccountsSection` como en el header de `/caja/saldos/[id]`) — quien la ve ya tiene acceso (llega filtrada desde antes), el borde es solo para no confundirla con una cuenta sin restricción de un vistazo.
 - **Verificado también esto de punta a punta con Playwright** (propietario ve "Roles y accesos" y el borde/etiqueta en Saldos; un admin sin ser propietario no ve la sección ni, como ya pasaba, la cuenta restringida).
 
+## v87 — Logout automático por inactividad a 10 minutos
+
+Antes 1 hora (v33). `session.maxAge: 10*60` en `src/auth.config.ts` + `INACTIVITY_LIMIT_MS` en `inactivity-logout.tsx` (tienen que quedar iguales). `updateAge` baja a 60s: el JWT puede vencer hasta `updateAge` antes de lo que marca la última request, y con 10 min eso tiene que quedar por debajo del aviso de 60s del cliente. **Ojo con el wizard sin señal:** el cliente cuenta taps como actividad, pero el servidor solo renueva la sesión con requests — si un empleado pasa más de 10 min en la entrega/devolución sin ninguna request (modo avión), al guardar la sesión ya venció y tiene que volver a loguearse (el borrador sobrevive en localStorage y la evidencia en IndexedDB).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

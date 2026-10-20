@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { logout } from "@/app/(app)/actions";
 
 // Mismo límite que `session.maxAge` en auth.config.ts — ver el comentario ahí.
-const INACTIVITY_LIMIT_MS = 60 * 60 * 1000;
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000;
 const WARNING_BEFORE_MS = 60 * 1000;
 
 // Eventos que cuentan como "actividad real" del empleado, incluso sin
