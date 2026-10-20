@@ -228,4 +228,22 @@ describe("upsertBooking — reserva todavía reservada (no entregada)", () => {
     expect(data.bookingPickupPlace).toBeUndefined();
     expect(data.bookingReturnPlace).toBeUndefined();
   });
+
+  it("sin edición manual, trae la info de la reserva (custdata)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental({ bookingNoteEditedAt: null }));
+
+    await upsertBooking(baseBooking({ custData: "Vuelo AR1234" }));
+
+    expect(prismaMock.rental.update.mock.calls[0][0].data.bookingNote).toBe("Vuelo AR1234");
+  });
+
+  it("con bookingNoteEditedAt (info editada a mano): no pisa la info de la reserva", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(reservedRental({ bookingNoteEditedAt: new Date("2026-01-01") }));
+
+    await upsertBooking(baseBooking({ custData: "Vuelo AR1234" }));
+
+    const data = prismaMock.rental.update.mock.calls[0][0].data;
+    expect(data.bookingNote).toBeUndefined();
+    expect("bookingNote" in data).toBe(false);
+  });
 });

@@ -650,6 +650,12 @@ model Rental {
   // patrón que `clientEditedAt`/`datesEditedAt`.
   placesEditedAt DateTime? @map("places_edited_at")
 
+  // "Info de la reserva" (`bookingNote`, custdata de VikRentCar) editada a
+  // mano en Andes. A partir de acá el sync deja de pisar `bookingNote` para
+  // esta reserva — mismo patrón que `clientEditedAt`/`placesEditedAt`.
+  bookingNoteEditedAt     DateTime? @map("booking_note_edited_at")
+  bookingNoteEditedByName String?   @map("booking_note_edited_by_name")
+
   // Conductores adicionales autorizados (además del titular). Array JSON
   // [{ name }]; sus fotos de licencia se guardan como RentalDocument con
   // holderName. Los nombres figuran en el acta como conductores autorizados.

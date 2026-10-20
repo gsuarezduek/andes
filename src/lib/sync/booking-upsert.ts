@@ -166,6 +166,10 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
   const placesEdited = existing.placesEditedAt != null;
   const { bookingPickupPlace: _pickupPlace, bookingReturnPlace: _returnPlace, ...bookingRest } = booking;
   const placesData = placesEdited ? {} : { bookingPickupPlace: _pickupPlace, bookingReturnPlace: _returnPlace };
+  // Ídem la "Info de la reserva" (custdata), si se editó a mano en Andes
+  // (ver `updateBookingNote`).
+  const { bookingNote: _bookingNote, ...bookingFields } = bookingRest;
+  const noteData = existing.bookingNoteEditedAt != null ? {} : { bookingNote: _bookingNote };
 
   await prisma.rental.update({
     where: { id: existing.id },
@@ -174,7 +178,8 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       ...datesData,
       ...vehicleData,
       ...clientData,
-      ...bookingRest,
+      ...bookingFields,
+      ...noteData,
       ...placesData,
     },
   });

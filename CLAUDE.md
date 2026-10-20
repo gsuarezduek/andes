@@ -1071,6 +1071,13 @@ Pedido del dueño: una cuenta de Medios de pago que solo vean Finanzas, Observad
 
 Antes 1 hora (v33). `session.maxAge: 10*60` en `src/auth.config.ts` + `INACTIVITY_LIMIT_MS` en `inactivity-logout.tsx` (tienen que quedar iguales). `updateAge` baja a 60s: el JWT puede vencer hasta `updateAge` antes de lo que marca la última request, y con 10 min eso tiene que quedar por debajo del aviso de 60s del cliente. **Ojo con el wizard sin señal:** el cliente cuenta taps como actividad, pero el servidor solo renueva la sesión con requests — si un empleado pasa más de 10 min en la entrega/devolución sin ninguna request (modo avión), al guardar la sesión ya venció y tiene que volver a loguearse (el borrador sobrevive en localStorage y la evidencia en IndexedDB).
 
+## v88 — Notas del service en Mantenimiento + "Info de la reserva" editable
+
+Pedido del dueño. tsc/lint/865 tests en verde (+2 en `upsert-booking.test.ts`); verificado por navegador (Playwright, 375px, como empleado) contra la base local con datos de prueba (después borrados). Migración `add_booking_note_edited` **aplicada solo en local, sin desplegar todavía**.
+
+- **Mantenimiento del vehículo** (`MaintenanceRow`): un registro creado desde "Marcar service/arreglo" (`MaintenanceLog.rentalId`) muestra **todas** las notas de equipo de esa reserva (sin resolver en rojo, resueltas en gris, con autor/fecha y quién la resolvió) + la "Info de la reserva" + link a la reserva. Los registros cargados directo desde la ficha (sin reserva) no cambian. Datos vía `getVehicleDetail` (include de `rental.teamNotes`).
+- **"Info de la reserva" editable** (`bookingNote`, custdata de VikRentCar) en el detalle de **cualquier** reserva, cualquier rol y cualquier estado (`BookingNoteSection` + `updateBookingNote`, `rentals/[id]/booking-note-actions.ts`). Sin texto, aparece "+ Agregar info de la reserva" (sirve también para reservas manuales). Al editar, `Rental.bookingNoteEditedAt`/`bookingNoteEditedByName` → el sync deja de pisar `bookingNote` para esa reserva (mismo patrón que `placesEditedAt`; ver `booking-upsert.ts`) y se muestra "Editado por X · fecha". El título pierde "(VikRentCar)" una vez editada. El texto editado se ve igual en el wizard de entrega y en el tooltip del Calendario (leen el mismo campo).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

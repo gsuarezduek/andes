@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { maintenanceTypeLabels } from "@/lib/labels";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, formatDateTime } from "@/lib/datetime";
 import { deleteMaintenance } from "@/app/(app)/vehicles/[id]/maintenance-actions";
 import type { MaintenanceType } from "@prisma/client";
 
@@ -19,6 +20,19 @@ type MaintenanceRowLog = {
   costLabel: string | null;
   place: string | null;
   description: string;
+  /** Reserva del service/arreglo (null si se cargó directo desde la ficha). */
+  rental: {
+    id: string;
+    bookingNote: string | null;
+    notes: {
+      id: string;
+      text: string;
+      createdByName: string;
+      createdAt: Date;
+      resolvedAt: Date | null;
+      resolvedByName: string | null;
+    }[];
+  } | null;
 };
 
 export function MaintenanceRow({
@@ -68,6 +82,7 @@ export function MaintenanceRow({
         </div>
         <p className="mt-1">{log.description}</p>
         {log.place && <p className="text-xs text-foreground/50">📍 {log.place}</p>}
+        {log.rental && <MaintenanceRentalNotes rental={log.rental} />}
       </div>
       <div className="flex flex-col items-end gap-1">
         {log.costLabel && <span className="font-medium">{log.costLabel}</span>}
@@ -81,6 +96,39 @@ export function MaintenanceRow({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Todas las notas de la reserva del service (activas y resueltas) + la "Info
+// de la reserva", para ver el contexto del arreglo sin entrar a la reserva.
+function MaintenanceRentalNotes({ rental }: { rental: NonNullable<MaintenanceRowLog["rental"]> }) {
+  const hasContent = rental.bookingNote || rental.notes.length > 0;
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      {rental.bookingNote && (
+        <div className="rounded-lg bg-foreground/[0.04] px-3 py-2">
+          <p className="text-xs font-medium text-foreground/60">Info de la reserva</p>
+          <p className="whitespace-pre-wrap text-xs text-foreground/80">{rental.bookingNote}</p>
+        </div>
+      )}
+      {rental.notes.map((n) => (
+        <div
+          key={n.id}
+          className={`rounded-lg px-3 py-2 ${n.resolvedAt ? "bg-foreground/[0.04]" : "border border-red-500/30 bg-red-500/5"}`}
+        >
+          <p className="whitespace-pre-wrap text-xs text-foreground/80">{n.text}</p>
+          <p className="mt-0.5 text-[11px] text-foreground/50">
+            {n.createdByName} · {formatDateTime(n.createdAt)}
+            {n.resolvedAt
+              ? ` · Resuelta por ${n.resolvedByName ?? "—"} · ${formatDateTime(n.resolvedAt)}`
+              : " · Sin resolver"}
+          </p>
+        </div>
+      ))}
+      <Link href={`/rentals/${rental.id}`} className="text-xs text-foreground/60 underline">
+        {hasContent ? "Ver reserva del service" : "Ver reserva del service (sin notas)"}
+      </Link>
     </div>
   );
 }

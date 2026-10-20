@@ -35,7 +35,23 @@ export async function getVehicleDetail(id: string) {
           repairedByName: true,
         },
       },
-      maintenanceLogs: { orderBy: { date: "desc" } },
+      maintenanceLogs: {
+        orderBy: { date: "desc" },
+        include: {
+          // Reserva del service/arreglo (si se creó desde "Marcar
+          // service/arreglo"): sus notas se muestran en el registro.
+          rental: {
+            select: {
+              id: true,
+              bookingNote: true,
+              teamNotes: {
+                orderBy: { createdAt: "asc" },
+                select: { id: true, text: true, createdByName: true, createdAt: true, resolvedAt: true, resolvedByName: true },
+              },
+            },
+          },
+        },
+      },
       gpsDevices: { select: { identifier: true }, orderBy: { identifier: "asc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },

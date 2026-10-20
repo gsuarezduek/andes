@@ -35,6 +35,8 @@ import { DocumentsSection } from "@/components/rentals/documents-section";
 import { InspectionsSection } from "@/components/rentals/inspections-section";
 import { DangerZoneSection } from "@/components/rentals/danger-zone-section";
 import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-section";
+import { BookingNoteSection } from "@/components/rentals/booking-note-section";
+import { formatDateTime } from "@/lib/datetime";
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
 import { computeRentalFlags } from "@/lib/rental-flags";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
@@ -292,13 +294,19 @@ export default async function RentalDetailPage({
         teamMembers={teamMembers}
       />
 
-      {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente. */}
-      {rental.bookingNote && (
-        <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
-          <p className="text-xs font-medium text-foreground/70">Info de la reserva (VikRentCar)</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/80">{rental.bookingNote}</p>
-        </div>
-      )}
+      {/* Info de la reserva (custdata): lo primero, arriba de datos del cliente.
+          Editable en cualquier reserva; una vez editada, el sync no la pisa. */}
+      <BookingNoteSection
+        key={rental.bookingNote ?? ""}
+        rentalId={rental.id}
+        note={rental.bookingNote}
+        fromVikRentCar={rental.origin === "vikrentcar"}
+        editedLabel={
+          rental.bookingNoteEditedAt
+            ? `Editado por ${rental.bookingNoteEditedByName ?? "—"} · ${formatDateTime(rental.bookingNoteEditedAt)}`
+            : null
+        }
+      />
 
       <RentalDetailTabs
         datos={

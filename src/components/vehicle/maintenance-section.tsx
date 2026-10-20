@@ -42,6 +42,13 @@ export function MaintenanceSection({
                 costLabel: m.cost != null ? formatArs(Number(m.cost)) : null,
                 place: m.place,
                 description: m.description,
+                rental: m.rental
+                  ? {
+                      id: m.rental.id,
+                      bookingNote: m.rental.bookingNote,
+                      notes: m.rental.teamNotes,
+                    }
+                  : null,
               }}
             />
           ))}
