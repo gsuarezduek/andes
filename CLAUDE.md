@@ -1067,6 +1067,14 @@ Pedido del dueño: una cuenta de Medios de pago que solo vean Finanzas, Observad
 - **Cuentas `financeOnly` destacadas en Saldos**: `OwnAccountBalance.financeOnly` (nuevo, `getOwnAccountBalances`) se propaga a `AccountCard` (borde naranja + etiqueta "Solo Finanzas", tanto en la grilla de `AccountsSection` como en el header de `/caja/saldos/[id]`) — quien la ve ya tiene acceso (llega filtrada desde antes), el borde es solo para no confundirla con una cuenta sin restricción de un vistazo.
 - **Verificado también esto de punta a punta con Playwright** (propietario ve "Roles y accesos" y el borde/etiqueta en Saldos; un admin sin ser propietario no ve la sección ni, como ya pasaba, la cuenta restringida).
 
+## v86 — Selector de tema (Automático / Claro / Oscuro) en Perfil
+
+El modo oscuro ya existía pero solo seguía al sistema (`prefers-color-scheme`). Ahora en **Perfil → Apariencia** (`theme-selector.tsx`) cada uno elige Automático / Claro / Oscuro. **Se guarda por dispositivo** (`localStorage` `andes-theme`, no en la base). tsc/lint/tests en verde; verificado con Playwright a 375px (los 3 modos, persistencia al recargar, y Automático siguiendo un cambio del sistema en vivo).
+
+- **El tema efectivo es un atributo** `data-theme="light|dark"` en `<html>`, fijado antes del primer pintado por `THEME_INIT_SCRIPT` (`src/lib/theme.ts`, inline en `src/app/layout.tsx` — sin parpadeo; el CSP ya permitía `unsafe-inline`). En Automático escucha los cambios del sistema.
+- `globals.css`: los bloques `@media (prefers-color-scheme: dark)` pasaron a `[data-theme="dark"]`, y la variante `dark:` de Tailwind se redefinió con `@custom-variant dark` sobre ese atributo — las clases `dark:` existentes funcionan sin tocarlas. **Si se agregan colores de modo oscuro nuevos, usar `[data-theme="dark"]`, no la media query.** Se sumó `color-scheme: dark` (inputs/scrollbars nativos oscuros).
+
+
 ## v87 — Logout automático por inactividad a 10 minutos
 
 Antes 1 hora (v33). `session.maxAge: 10*60` en `src/auth.config.ts` + `INACTIVITY_LIMIT_MS` en `inactivity-logout.tsx` (tienen que quedar iguales). `updateAge` baja a 60s: el JWT puede vencer hasta `updateAge` antes de lo que marca la última request, y con 10 min eso tiene que quedar por debajo del aviso de 60s del cliente. **Ojo con el wizard sin señal:** el cliente cuenta taps como actividad, pero el servidor solo renueva la sesión con requests — si un empleado pasa más de 10 min en la entrega/devolución sin ninguna request (modo avión), al guardar la sesión ya venció y tiene que volver a loguearse (el borrador sobrevive en localStorage y la evidencia en IndexedDB).

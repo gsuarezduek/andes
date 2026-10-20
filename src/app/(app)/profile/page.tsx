@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { userRoleLabels } from "@/lib/labels";
 import { PasswordForm } from "./password-form";
+import { ThemeSelector } from "./theme-selector";
 
 export const metadata: Metadata = { title: "Perfil — Andes" };
 
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
     <div className="mx-auto flex max-w-lg flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Perfil</h1>
-        <p className="text-sm text-foreground/60">Tu cuenta y contraseña.</p>
+        <p className="text-sm text-foreground/60">Tu cuenta, apariencia y contraseña.</p>
       </div>
 
       <section className="flex flex-col gap-3">
@@ -34,6 +35,11 @@ export default async function ProfilePage() {
           <Row label="Email" value={user.email ?? "—"} />
           <Row label="Rol" value={<Badge tone="neutral">{userRoleLabels[role] ?? role}</Badge>} />
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionHeading>Apariencia</SectionHeading>
+        <ThemeSelector />
       </section>
 
       <section className="flex flex-col gap-3">
