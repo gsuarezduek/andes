@@ -10,6 +10,8 @@ import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
 import { roomBarGeometry } from "@/lib/rooms/geometry";
 import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
 import { addDaysToKey } from "@/lib/rooms/ical";
+import { roomPaidTotal, type RoomPaymentForBalance } from "@/lib/rooms/payments";
+import { getUsdRateHistory } from "@/lib/usd-rate-queries";
 import { getSpecialDatesMap } from "@/lib/special-dates-queries";
 import { placeCode, type PlaceCode } from "@/lib/place-code";
 
@@ -747,21 +749,29 @@ export async function getCalendarData(opts?: {
     (v.ownership === "third_party" ? thirdPartyRows : rows).push(row);
   }
 
-  // Cobrado por estadía (ingresos de Caja vinculados, en la moneda del total).
+  // Cobrado por estadía (ingresos de Caja vinculados), expresado en la moneda
+  // del total: un cobro en la otra moneda se convierte (ver `roomPaidTotal`).
   const roomBookingIds = rooms.flatMap((r) => r.bookings.map((b) => b.id));
-  const paidRows = roomBookingIds.length
-    ? await prisma.cashMovement.groupBy({
-        by: ["roomBookingId", "currency"],
-        where: { roomBookingId: { in: roomBookingIds }, type: "income", deletedAt: null },
-        _sum: { amount: true },
-      })
-    : [];
-  const paidByBooking = new Map<string, { ars: number; usd: number }>();
-  for (const p of paidRows) {
+  const [roomPaymentRows, usdHistory] = roomBookingIds.length
+    ? await Promise.all([
+        prisma.cashMovement.findMany({
+          where: { roomBookingId: { in: roomBookingIds }, type: "income", deletedAt: null },
+          select: { roomBookingId: true, amount: true, currency: true, exchangeRate: true, createdAt: true },
+        }),
+        getUsdRateHistory(),
+      ])
+    : [[], []];
+  const paymentsByBooking = new Map<string, RoomPaymentForBalance[]>();
+  for (const p of roomPaymentRows) {
     if (!p.roomBookingId) continue;
-    const cur = paidByBooking.get(p.roomBookingId) ?? { ars: 0, usd: 0 };
-    cur[p.currency] += Number(p._sum.amount ?? 0);
-    paidByBooking.set(p.roomBookingId, cur);
+    const list = paymentsByBooking.get(p.roomBookingId) ?? [];
+    list.push({
+      amount: Number(p.amount),
+      currency: p.currency,
+      exchangeRate: p.exchangeRate == null ? null : Number(p.exchangeRate),
+      createdAt: p.createdAt,
+    });
+    paymentsByBooking.set(p.roomBookingId, list);
   }
 
   const roomRows: RoomCalendarRow[] = rooms.map((room) => {
@@ -787,7 +797,7 @@ export async function getCalendarData(opts?: {
         externalLabel: v.externalLabel,
         totalAmount: v.totalAmount,
         currency: v.currency,
-        paid: paidByBooking.get(v.id)?.[v.currency] ?? 0,
+        paid: roomPaidTotal(paymentsByBooking.get(v.id) ?? [], v.currency, usdHistory).paid,
       });
     }
     const { bars: laned, laneCount } = assignLanes(bars);

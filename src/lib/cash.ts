@@ -577,6 +577,7 @@ export function paymentsToCashMovements(
     invoicingCuit: p.needsInvoice ? p.invoicingCuit ?? null : null,
     rentalId: opts.rentalId ?? null,
     roomBookingId: opts.roomBookingId ?? null,
+    exchangeRate: p.exchangeRate ?? null,
     createdById: opts.createdById,
     createdByName: opts.createdByName,
   }));

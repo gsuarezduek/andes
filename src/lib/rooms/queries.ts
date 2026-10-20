@@ -213,6 +213,7 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
         description: m.description,
         amount: Number(m.amount),
         currency: m.currency,
+        exchangeRate: m.exchangeRate == null ? null : Number(m.exchangeRate),
         paymentMethodName: m.paymentMethodName,
         createdByName: m.createdByName,
         createdAt: m.createdAt,

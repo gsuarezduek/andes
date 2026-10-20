@@ -1355,6 +1355,13 @@ model CashMovement {
   roomBookingId String?      @map("room_booking_id")
   roomBooking   RoomBooking? @relation(fields: [roomBookingId], references: [id])
 
+  // Pesos por dólar pactados cuando el cobro se hizo en otra moneda que la
+  // del total que salda (ej. estadía en dólares pagada en pesos). Con esto el
+  // saldo de la reserva convierte con la cotización real del cobro; sin él
+  // (cobros viejos o cargados desde Caja) se usa el valor de referencia del
+  // USD vigente a la fecha del movimiento.
+  exchangeRate Decimal? @map("exchange_rate") @db.Decimal(14, 4)
+
   // true = importado automático desde VikRentCar sin poder resolver a qué
   // medio de pago de Andes corresponde (nombre desconocido, o mapeado a más
   // de uno) — falta que alguien confirme el medio real (cualquier usuario,

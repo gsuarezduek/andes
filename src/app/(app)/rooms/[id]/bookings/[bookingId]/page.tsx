@@ -9,7 +9,8 @@ import { nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { getCurrentUsdRate, getUsdRateHistory } from "@/lib/usd-rate-queries";
+import { paymentInCurrency, roomPaidTotal } from "@/lib/rooms/payments";
 import { canVerifyRoomBooking, isRoomBookingVerified } from "@/lib/room-booking-verification";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,13 +33,14 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
   if (!detail) notFound();
   const { booking: b, room, payments, mirrored, verifiedAt, verifiedByName, verifications } = detail;
 
-  const [rawPaymentMethods, usdRateInfo] = await Promise.all([
+  const [rawPaymentMethods, usdRateInfo, usdHistory] = await Promise.all([
     prisma.paymentMethod.findMany({
       where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, adjustmentPercent: true, requiresNote: true, parentId: true },
     }),
     getCurrentUsdRate(),
+    getUsdRateHistory(),
   ]);
   const paymentMethods = rawPaymentMethods.map((m) => ({
     ...m,
@@ -48,10 +50,10 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
 
   const nights = nightsBetween(b.startDate, b.endDate);
   const imported = b.source !== "manual";
-  // Cobrado por moneda (nunca se suman monedas distintas).
-  const paid = { ars: 0, usd: 0 };
-  for (const p of payments) paid[p.currency] += p.amount;
-  const remaining = b.totalAmount > 0 ? b.totalAmount - paid[b.currency] : null;
+  // Cobrado en la moneda del total: un cobro en la otra moneda se convierte con
+  // la cotización del cobro (o la de referencia a su fecha).
+  const { paid, unconverted } = roomPaidTotal(payments, b.currency, usdHistory);
+  const remaining = b.totalAmount > 0 ? Math.max(0, b.totalAmount - paid) : null;
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8">
@@ -131,7 +133,7 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
         <SectionHeading description="Van a Caja como ingresos vinculados a esta reserva.">Cobros</SectionHeading>
         {b.totalAmount > 0 ? (
           <p className="text-sm">
-            Total {formatMoney(b.totalAmount, b.currency)} · cobrado {formatMoney(paid[b.currency], b.currency)}
+            Total {formatMoney(b.totalAmount, b.currency)} · cobrado {formatMoney(paid, b.currency)}
             {remaining != null ? (
               remaining > 0 ? (
                 <span className="font-medium text-red-600"> · falta {formatMoney(remaining, b.currency)}</span>
@@ -139,6 +141,11 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
                 <span className="font-medium text-emerald-600"> · pagada</span>
               )
             ) : null}
+          </p>
+        ) : null}
+        {unconverted > 0 ? (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {unconverted === 1 ? "Un cobro" : `${unconverted} cobros`} en otra moneda no se pudo convertir (no hay valor de referencia del USD cargado en Caja): no se descuenta del saldo.
           </p>
         ) : null}
         {payments.length > 0 ? (
@@ -150,6 +157,7 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
                   <p className="text-xs text-foreground/50">
                     {p.paymentMethodName} · {formatDateTime(p.createdAt)} · {p.createdByName ?? "—"}
                   </p>
+                  {p.currency !== b.currency ? <ConvertedNote payment={p} target={b.currency} history={usdHistory} /> : null}
                 </div>
                 <span className="shrink-0 font-medium text-emerald-600">{formatMoney(p.amount, p.currency)}</span>
               </li>
@@ -158,8 +166,29 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
         ) : (
           <p className="text-sm text-foreground/50">Todavía no hay cobros registrados.</p>
         )}
-        <RoomPaymentForm bookingId={bookingId} paymentMethods={paymentMethods} defaultCurrency={b.currency} usdRate={usdRate} />
+        <RoomPaymentForm bookingId={bookingId} paymentMethods={paymentMethods} bookingCurrency={b.currency} usdRate={usdRate} />
       </section>
     </div>
+  );
+}
+
+/** "≈ US$ 100 a $ 1.535" para un cobro hecho en otra moneda que el total. */
+function ConvertedNote({
+  payment,
+  target,
+  history,
+}: {
+  payment: Parameters<typeof paymentInCurrency>[0];
+  target: "ars" | "usd";
+  history: Parameters<typeof paymentInCurrency>[2];
+}) {
+  const value = paymentInCurrency(payment, target, history);
+  if (value == null) return null;
+  const rate = payment.exchangeRate;
+  return (
+    <p className="text-xs text-foreground/50">
+      ≈ {formatMoney(value, target)}
+      {rate != null ? ` a ${formatMoney(rate, "ars")}` : " (cotización de referencia)"}
+    </p>
   );
 }

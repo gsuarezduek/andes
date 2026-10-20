@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TextField } from "@/components/ui/fields";
+import { formatMoney } from "@/lib/contract";
+import { parseDecimal } from "@/lib/number-input";
 import { Button } from "@/components/ui/button";
 import { PaymentMethodPicker, type PaymentMethodPickerOption } from "@/components/cash/payment-method-picker";
 import {
@@ -26,18 +28,21 @@ type Method = PaymentMethodPickerOption & { requiresNote: boolean; adjustmentPer
 export function RoomPaymentForm({
   bookingId,
   paymentMethods,
-  defaultCurrency,
+  bookingCurrency,
   usdRate = null,
 }: {
   bookingId: string;
   paymentMethods: Method[];
-  defaultCurrency: Currency;
+  /** Moneda del total de la estadía — precarga la del cobro. */
+  bookingCurrency: Currency;
   /** Valor de referencia del USD (Caja) — precarga la cotización de un pago en dólares. */
   usdRate?: number | null;
 }) {
   const router = useRouter();
   const [methodId, setMethodId] = useState("");
-  const [amount, setAmount] = useState<PaymentAmountState>({ ...emptyPaymentAmount(usdRate), currency: defaultCurrency });
+  const [amount, setAmount] = useState<PaymentAmountState>({ ...emptyPaymentAmount(usdRate), currency: bookingCurrency });
+  // Estadía en dólares cobrada en pesos: cotización para saber cuántos dólares salda.
+  const [crossRate, setCrossRate] = useState(usdRate != null ? String(usdRate) : "");
   const [note, setNote] = useState("");
   const [detail, setDetail] = useState("");
   const [error, setError] = useState<string>();
@@ -45,18 +50,24 @@ export function RoomPaymentForm({
   const [pending, start] = useTransition();
 
   const method = paymentMethods.find((m) => m.id === methodId);
+  const pesosForUsdStay = bookingCurrency === "usd" && amount.currency === "ars";
+  const crossRateValue = parseDecimal(crossRate) ?? 0;
+  const pesosValue = parseDecimal(amount.amount) ?? 0;
 
   function reset() {
     setMethodId("");
-    setAmount({ ...emptyPaymentAmount(usdRate), currency: defaultCurrency });
+    setAmount({ ...emptyPaymentAmount(usdRate), currency: bookingCurrency });
+    setCrossRate(usdRate != null ? String(usdRate) : "");
     setNote("");
     setDetail("");
   }
 
   function confirm() {
     if (!method) return;
-    const payment = buildPayment(method, amount, { note, isGuarantee: false });
-    if (!payment) return;
+    const built = buildPayment(method, amount, { note, isGuarantee: false });
+    if (!built) return;
+    if (pesosForUsdStay && crossRateValue <= 0) return;
+    const payment = pesosForUsdStay ? { ...built, exchangeRate: crossRateValue } : built;
     setError(undefined);
     setOk(false);
     start(async () => {
@@ -96,6 +107,29 @@ export function RoomPaymentForm({
         }}
         adjustmentPercent={method?.adjustmentPercent}
       />
+      {pesosForUsdStay ? (
+        <>
+          <TextField
+            id="room_payment_cross_rate"
+            label="Cotización del dólar (pesos por dólar)"
+            hint="La estadía está en dólares: con esto se calcula cuánto descuenta del saldo. Viene con el valor de referencia de Caja — corregila si acordaron otra."
+            type="text"
+            inputMode="decimal"
+            prefix="$"
+            value={crossRate}
+            onChange={(e) => {
+              setCrossRate(e.target.value);
+              setOk(false);
+            }}
+          />
+          <p className="text-sm text-foreground/70">
+            Salda:{" "}
+            <span className="font-semibold text-foreground">
+              {pesosValue > 0 && crossRateValue > 0 ? formatMoney(pesosValue / crossRateValue, "usd") : "—"}
+            </span>
+          </p>
+        </>
+      ) : null}
       {method?.requiresNote ? (
         <TextField
           id="room_payment_note"
@@ -117,7 +151,13 @@ export function RoomPaymentForm({
       {ok ? <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">Cobro registrado en Caja.</p> : null}
       <Button
         type="button"
-        disabled={pending || !method || !isPaymentAmountReady(amount) || (method.requiresNote && !note.trim())}
+        disabled={
+          pending ||
+          !method ||
+          !isPaymentAmountReady(amount) ||
+          (method.requiresNote && !note.trim()) ||
+          (pesosForUsdStay && crossRateValue <= 0)
+        }
         onClick={confirm}
       >
         {pending ? "Registrando…" : "Registrar cobro"}

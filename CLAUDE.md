@@ -1086,6 +1086,16 @@ Pedido del dueño. tsc/lint/865 tests en verde (+2 en `upsert-booking.test.ts`);
 - **Mantenimiento del vehículo** (`MaintenanceRow`): un registro creado desde "Marcar service/arreglo" (`MaintenanceLog.rentalId`) muestra **todas** las notas de equipo de esa reserva (sin resolver en rojo, resueltas en gris, con autor/fecha y quién la resolvió) + la "Info de la reserva" + link a la reserva. Los registros cargados directo desde la ficha (sin reserva) no cambian. Datos vía `getVehicleDetail` (include de `rental.teamNotes`).
 - **"Info de la reserva" editable** (`bookingNote`, custdata de VikRentCar) en el detalle de **cualquier** reserva, cualquier rol y cualquier estado (`BookingNoteSection` + `updateBookingNote`, `rentals/[id]/booking-note-actions.ts`). Sin texto, aparece "+ Agregar info de la reserva" (sirve también para reservas manuales). Al editar, `Rental.bookingNoteEditedAt`/`bookingNoteEditedByName` → el sync deja de pisar `bookingNote` para esa reserva (mismo patrón que `placesEditedAt`; ver `booking-upsert.ts`) y se muestra "Editado por X · fecha". El título pierde "(VikRentCar)" una vez editada. El texto editado se ve igual en el wizard de entrega y en el tooltip del Calendario (leen el mismo campo).
 
+## v89 — Habitaciones: cobros en otra moneda que la del total (con cotización)
+
+Antes, el saldo de una estadía solo sumaba los cobros en la moneda de su total: una estadía en dólares cobrada en pesos (o al revés) no descontaba nada. Ahora cada cobro se convierte a la moneda del total. tsc/lint/865 tests en verde (`rooms/__tests__/payments.test.ts`). Migración `add_cash_movement_exchange_rate`.
+
+- **`CashMovement.exchangeRate`** (Decimal, pesos por dólar, opcional): la cotización pactada en ese cobro. `paymentsToCashMovements` la copia de `RentalPayment.exchangeRate` (un pago en dólares de un alquiler de auto ya la traía desde v49; ahora también queda en Caja, sin cambiar nada más ahí).
+- **Lógica pura** `src/lib/rooms/payments.ts`: `paymentInCurrency`/`roomPaidTotal` convierten con la cotización del cobro y, si no tiene, con el valor de referencia del USD de Caja a su fecha (`usdRateAt`). Sin ningún valor cargado, el cobro no se descuenta y la ficha lo avisa (`unconverted`). La usan la ficha de la reserva (`/rooms/[id]/bookings/[bookingId]`, saldo nunca negativo + "≈ US$ X a $ Y" en cada cobro de otra moneda) y el tooltip del Calendario.
+- **Form de cobro** (`RoomPaymentForm`): la moneda arranca en la del total. Si la estadía es en dólares y se cobra en pesos, pide "Cotización del dólar" (precargada con el valor de referencia, editable) y muestra cuántos dólares salda. Un cobro en dólares de una estadía en pesos usa la cotización que ya pedía `PaymentAmountFields`.
+- Como antes, el saldo suma el importe cobrado en Caja (con el % del medio de pago), no el importe base — a diferencia de los alquileres de autos (v29).
+
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
