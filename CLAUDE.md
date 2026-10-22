@@ -1098,6 +1098,14 @@ Antes, el saldo de una estadía solo sumaba los cobros en la moneda de su total:
 
 Después de confirmar una extensión, el modal de "Extender alquiler" (`ExtendRentalButton`) ya no se cierra solo: muestra la confirmación y ofrece **"Reenviar acta al cliente"** (`resendActaEmail`, la misma acción del botón de reenvío que ya existía). El acta toma la fecha de devolución en vivo de `rental.endAt` (`renderActaBuffer`), así que el reenvío sale con la fecha nueva sin regenerar nada a mano (reemplaza el PDF guardado, como cualquier reenvío). Solo aparece si la reserva tiene entrega (`handoverInspectionId`, desde el detalle de la reserva). Sin migración.
 
+## v91 — El propietario no se desconecta por inactividad
+
+Pedido del dueño: la cuenta del propietario (`User.owner`) mantiene la sesión iniciada por tiempo indeterminado; el resto sigue con el corte de 10 min de v87. tsc/lint/870 tests en verde (+5 en `session-idle.test.ts`); verificado contra el servidor local con cookies firmadas a mano (empleado con 15 min sin actividad → login; con 5 min → adentro; propietario con 15 min y con 300 días → adentro) y con un login real (cookie a 365 días, renovada en cada request). Sin migración.
+
+- **Auth.js no admite un vencimiento por usuario** (firma todos los JWT con el mismo `session.maxAge`). Por eso `maxAge` pasa a ser largo para todos (`SESSION_MAX_AGE_S`, 1 año, renovado en cada request) y el corte por inactividad lo hace `applyIdleTimeout` (`src/lib/session-idle.ts`, pura y testeada) desde el callback `jwt` de `auth.config.ts` (el que corre el proxy en cada request) y de `auth.ts`: guarda `lastSeen` en el token y devuelve `null` (Auth.js borra la cookie) si quien no es propietario pasó más de `IDLE_TIMEOUT_MS` (10 min) sin requests. `updateAge` se sacó (no aplica a sesiones JWT). Un token emitido antes del cambio (sin `lastSeen`) cuenta como activo.
+- **Aviso "¿Seguís ahí?"** (`InactivityLogout`): usa el mismo `IDLE_TIMEOUT_MS` y no se monta para el propietario (`getSessionUser().realOwner`, que no cambia con "Ver como empleado").
+- **Límites conocidos:** "indeterminado" = mientras abra la app al menos una vez al año (si no, vence la cookie). El flag `owner` se lee del token al iniciar sesión: si algún día se le quita a una cuenta, su sesión ya abierta sigue sin vencer hasta que cierre sesión a mano (no hay revocación de JWT). Un celular perdido con la sesión del propietario abierta queda con acceso total hasta cerrar sesión desde ese dispositivo o rotar `AUTH_SECRET` (cierra la sesión de todos).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

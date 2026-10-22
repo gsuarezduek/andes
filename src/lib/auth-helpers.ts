@@ -24,7 +24,10 @@ export async function getSessionUser() {
   if (!user) return null;
 
   const realRole = user.role;
-  if (!hasAdminAccess(realRole)) return { ...user, realRole };
+  // `realOwner`: propietario real, aunque esté en "Ver como empleado" (la
+  // vista no debe cambiar que su sesión no venza por inactividad).
+  const realOwner = user.owner;
+  if (!hasAdminAccess(realRole)) return { ...user, realRole, realOwner };
 
   const cookieStore = await cookies();
   const viewingAsEmployee = cookieStore.get(EMPLOYEE_VIEW_COOKIE)?.value === "1";
@@ -33,6 +36,7 @@ export async function getSessionUser() {
     role: viewingAsEmployee ? ("empleado" as const) : realRole,
     owner: viewingAsEmployee ? false : user.owner,
     realRole,
+    realOwner,
   };
 }
 

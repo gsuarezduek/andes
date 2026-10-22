@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 import { detectLoginDevice } from "@/lib/user-agent";
+import { applyIdleTimeout } from "@/lib/session-idle";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -75,14 +76,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.name = dbUser.name;
           token.email = dbUser.email;
         }
-        return token;
+        return applyIdleTimeout(token, Date.now());
       }
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.owner = user.owner;
       }
-      return token;
+      // Corte por inactividad (todos menos el propietario) — ver session-idle.ts.
+      return applyIdleTimeout(token, Date.now());
     },
   },
   events: {

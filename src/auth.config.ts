@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import type { UserRole } from "@prisma/client";
+import { applyIdleTimeout, SESSION_MAX_AGE_S } from "@/lib/session-idle";
 
 /**
  * Configuración edge-safe de Auth.js (sin Prisma ni bcrypt).
@@ -16,19 +17,13 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
-    // Cierre de sesión por inactividad (10 minutos): el proxy corre `auth()` en
-    // cada request protegida y renueva la cookie mientras haya actividad
-    // (rolling session); sin requests durante 10 minutos, el JWT expira solo.
-    // Es el backstop server-side; el logout activo por inactividad real
-    // (sin requests, ej. tab abierta sin tocar nada) vive en
-    // `inactivity-logout.tsx`, montado en el layout autenticado — debe
-    // quedar con el mismo límite que acá, si no el backstop puede cortar la
-    // sesión antes de que el aviso del cliente llegue a mostrarse.
-    maxAge: 10 * 60,
-    // Renovar como mucho cada minuto: el JWT puede vencer hasta `updateAge`
-    // antes de lo que marca la última request, y con 10 min de límite eso
-    // tiene que quedar por debajo del aviso de 60s del cliente.
-    updateAge: 60,
+    // Vencimiento largo para todos (se renueva en cada request): Auth.js no
+    // admite un `maxAge` por usuario. El corte por inactividad de 10 min
+    // (todos menos el propietario, que queda conectado indefinidamente) lo
+    // aplica `applyIdleTimeout` en el callback `jwt` — ver `session-idle.ts`.
+    // El aviso "¿Seguís ahí?" del cliente (`inactivity-logout.tsx`) usa el
+    // mismo `IDLE_TIMEOUT_MS`.
+    maxAge: SESSION_MAX_AGE_S,
   },
   callbacks: {
     // Protege toda la app; deja pasar /login. Redirige al home si ya hay sesión.
@@ -48,7 +43,7 @@ export const authConfig = {
         token.role = user.role;
         token.owner = user.owner;
       }
-      return token;
+      return applyIdleTimeout(token, Date.now());
     },
     session({ session, token }) {
       if (session.user) {

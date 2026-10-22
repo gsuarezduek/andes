@@ -22,5 +22,7 @@ declare module "next-auth/jwt" {
     id: string;
     role: UserRole;
     owner: boolean;
+    /** Última request (ms) — corte por inactividad, ver `session-idle.ts`. */
+    lastSeen?: number;
   }
 }

@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { logout } from "@/app/(app)/actions";
+import { IDLE_TIMEOUT_MS } from "@/lib/session-idle";
 
-// Mismo límite que `session.maxAge` en auth.config.ts — ver el comentario ahí.
-const INACTIVITY_LIMIT_MS = 10 * 60 * 1000;
+// Mismo límite que el corte server-side (`applyIdleTimeout`, session-idle.ts).
+const INACTIVITY_LIMIT_MS = IDLE_TIMEOUT_MS;
 const WARNING_BEFORE_MS = 60 * 1000;
 
 // Eventos que cuentan como "actividad real" del empleado, incluso sin
 // conexión: taps/touches/teclado dentro del wizard (fotos, checklist, firma)
 // no siempre generan un request al servidor, así que no alcanza con el
-// backstop de `session.maxAge` en auth.config.ts.
+// corte server-side de `applyIdleTimeout` (session-idle.ts).
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
 
 export function InactivityLogout() {

@@ -62,7 +62,8 @@ export default async function AppLayout({
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
 
-      <InactivityLogout />
+      {/* El propietario no se desconecta por inactividad (ver session-idle.ts). */}
+      {!user.realOwner && <InactivityLogout />}
       <EvidenceSync />
       <WhatsappSoundNotifier />
     </div>
