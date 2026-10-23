@@ -443,7 +443,7 @@ export function assignLanes<T extends { startIndex: number; span: number }>(
 /** Fila cruda de `SeasonRate` tal como llega de la base. `carIds` es opcional
  *  porque `seasonsForDay` (fleet-wide) no lo necesita — solo lo usa
  *  `seasonsForDayAndCar`. */
-type SeasonRateRow = {
+export type SeasonRateRow = {
   fromSeconds: number;
   toSeconds: number;
   year: number | null;

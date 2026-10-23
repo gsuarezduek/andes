@@ -62,7 +62,7 @@ describe("generateBotReply", () => {
     const tools = makeTools();
     vi.mocked(tools.checkAvailability).mockResolvedValue({
       ok: true,
-      available: [{ label: "Fiat Cronos", dailyRate: 80000 }],
+      available: [{ label: "Fiat Cronos", quote: { total: 160000, days: 2, pricePerDay: 80000, seasonalIncrease: false } }],
       truncated: false,
       priceConfirmed: true,
     });

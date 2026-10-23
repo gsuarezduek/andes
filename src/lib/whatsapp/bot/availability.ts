@@ -8,16 +8,18 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { vehicleBrandModel } from "@/lib/vehicle-ui";
+import { seasonsForDayAndCar, type SeasonRateRow } from "@/lib/calendar";
+import { buildQuoteRange, estimateQuoteTotal, quoteDaysBreakdown, quotePricePerDay } from "@/lib/quote-estimate";
 
 /** Como máximo, cuántos días de rango puede pedir una consulta. */
 export const MAX_AVAILABILITY_RANGE_DAYS = 60;
 /** Como máximo, cuánto hacia adelante puede empezar el rango consultado. */
 export const MAX_AVAILABILITY_HORIZON_DAYS = 180;
 /**
- * Ventana en la que `Vehicle.dailyRate` (la tarifa "de hoy", recalculada por
- * el cron de sync — ver `src/lib/sync/car-rates.ts`) se considera un precio
- * confirmado. Más allá, puede haber una temporada/aumento todavía sin cargar
- * en VikRentCar — no hay que cotizar ese número como si fuera el precio real.
+ * Ventana en la que la cotización del bot (tarifa base × temporadas de cada
+ * día, ver `estimateBotQuote`) se considera un precio confirmado. Más allá,
+ * puede haber una temporada/aumento todavía sin cargar en VikRentCar — no hay
+ * que cotizar ese número como si fuera el precio real.
  */
 export const MAX_PRICE_HORIZON_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -76,7 +78,59 @@ export type AvailabilityVehicle = {
   model: string;
   name: string | null;
   dailyRate: number | null;
+  /** Modelo de VikRentCar — para saber qué temporadas le aplican. */
+  wpCarId?: number | null;
 };
+
+/** Mismo horario por defecto que el presupuestador del Calendario
+ *  (`DEFAULT_TIME` en quote-form-modal.tsx): retiro y devolución a la misma
+ *  hora → se cobran las noches entre las dos fechas (mínimo 1 día). */
+const BOT_QUOTE_TIME = "09:00";
+
+export type BotQuote = {
+  /** Total del rango, con la temporada de cada día aplicada. */
+  total: number;
+  /** Días que se cobran. */
+  days: number;
+  /** Promedio por día (total ÷ días). */
+  pricePerDay: number | null;
+  /** `true` si algún día cobrado tiene un aumento de temporada/fecha especial. */
+  seasonalIncrease: boolean;
+};
+
+/**
+ * Cotización del bot para un auto y un rango "YYYY-MM-DD" — **el mismo
+ * cálculo que el presupuestador del Calendario** (`estimateQuoteTotal`):
+ * reconstruye la tarifa base a partir de `dailyRate` (que ya trae la
+ * temporada de HOY) y vuelve a aplicar, día por día, las temporadas vigentes
+ * ese día para ese modelo. Pura (recibe `now` y las temporadas explícitas).
+ * `null` si el auto no tiene tarifa.
+ */
+export function estimateBotQuote(input: {
+  dailyRate: number | null;
+  wpCarId: number | null;
+  seasonRows: SeasonRateRow[];
+  startDate: string;
+  endDate: string;
+  now: Date;
+}): BotQuote | null {
+  const { startAt, endAt } = buildQuoteRange(input.startDate, input.endDate, BOT_QUOTE_TIME, BOT_QUOTE_TIME);
+  const breakdown = quoteDaysBreakdown(startAt, endAt);
+  // Una entrada por día de calendario desde el retiro (igual que la grilla
+  // del Calendario); `estimateQuoteTotal` cobra los primeros `breakdown.days`.
+  const daySeasons = Array.from({ length: breakdown.days }, (_, i) =>
+    seasonsForDayAndCar(input.seasonRows, new Date(startAt.getTime() + i * DAY_MS), input.wpCarId ?? null),
+  );
+  const todaySeasons = seasonsForDayAndCar(input.seasonRows, input.now, input.wpCarId ?? null);
+  const estimate = estimateQuoteTotal(input.dailyRate, todaySeasons, daySeasons, breakdown, null);
+  if (!estimate) return null;
+  return {
+    total: estimate.total,
+    days: breakdown.days,
+    pricePerDay: quotePricePerDay(estimate.total, breakdown.days),
+    seasonalIncrease: daySeasons.some((d) => d.some((season) => season.diffPercent > 0)),
+  };
+}
 
 export type BlockingRental = { vehicleId: string | null; startAt: Date; endAt: Date };
 
@@ -106,11 +160,12 @@ const MAX_AVAILABILITY_RESULTS = 8;
 export type AvailabilityToolResult =
   | {
       ok: true;
-      available: { label: string; dailyRate: number | null }[];
+      /** `quote` null = sin precio (auto sin tarifa, o `priceConfirmed` false). */
+      available: { label: string; quote: BotQuote | null }[];
       truncated: boolean;
       /**
        * `false` si la fecha de retiro queda más allá de `MAX_PRICE_HORIZON_DAYS`
-       * — en ese caso `dailyRate` viaja en `null` a propósito (puede haber una
+       * — en ese caso `quote` viaja en `null` a propósito (puede haber una
        * temporada/aumento todavía sin confirmar en VikRentCar para esas
        * fechas). El prompt le indica al bot qué decir en ese caso.
        */
@@ -150,26 +205,49 @@ export async function checkAvailability(input: {
           }
         : {}),
     },
-    select: { id: true, brand: true, model: true, name: true, dailyRate: true },
+    select: { id: true, brand: true, model: true, name: true, dailyRate: true, wpCarId: true },
   });
   if (vehicles.length === 0) return { ok: true, available: [], truncated: false, priceConfirmed };
 
-  const rentals = await prisma.rental.findMany({
-    where: { vehicleId: { in: vehicles.map((v) => v.id) }, status: { in: [...BLOCKING_STATUSES] } },
-    select: { vehicleId: true, startAt: true, endAt: true },
-  });
+  const [rentals, seasonRates] = await Promise.all([
+    prisma.rental.findMany({
+      where: { vehicleId: { in: vehicles.map((v) => v.id) }, status: { in: [...BLOCKING_STATUSES] } },
+      select: { vehicleId: true, startAt: true, endAt: true },
+    }),
+    prisma.seasonRate.findMany({
+      select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true, carIds: true },
+    }),
+  ]);
+  const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({ ...s, diffPercent: Number(s.diffPercent) }));
 
   const available = filterAvailableVehicles(
     vehicles.map((v) => ({ ...v, dailyRate: v.dailyRate != null ? Number(v.dailyRate) : null })),
     rentals,
     parsed.range,
-  ).sort((a, b) => (a.dailyRate ?? Infinity) - (b.dailyRate ?? Infinity));
+  )
+    .map((v) => ({
+      vehicle: v,
+      quote: priceConfirmed
+        ? estimateBotQuote({
+            dailyRate: v.dailyRate,
+            wpCarId: v.wpCarId ?? null,
+            seasonRows,
+            startDate: input.startDate,
+            endDate: input.endDate,
+            now,
+          })
+        : null,
+    }))
+    .sort(
+      (a, b) =>
+        (a.quote?.total ?? a.vehicle.dailyRate ?? Infinity) - (b.quote?.total ?? b.vehicle.dailyRate ?? Infinity),
+    );
 
   return {
     ok: true,
-    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map((v) => ({
-      label: vehicleBrandModel(v),
-      dailyRate: priceConfirmed ? v.dailyRate : null,
+    available: available.slice(0, MAX_AVAILABILITY_RESULTS).map(({ vehicle, quote }) => ({
+      label: vehicleBrandModel(vehicle),
+      quote,
     })),
     truncated: available.length > MAX_AVAILABILITY_RESULTS,
     priceConfirmed,
