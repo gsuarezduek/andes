@@ -41,14 +41,29 @@ type SeriesChartProps = {
 function CurrencyLineChart({ points, currency, granularity, colorClassName, title }: SeriesChartProps) {
   const [active, setActive] = useState<{ index: number; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Ancho real disponible (sin el padding del contenedor), medido en el cliente:
+  // el viewBox se arma con ese ancho para que el gráfico ocupe todo el espacio
+  // sin importar cuántos puntos tenga el período (antes, con pocos puntos el SVG
+  // se escalaba por alto y quedaba centrado con márgenes en blanco).
+  const [availableW, setAvailableW] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setAvailableW(Math.floor(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.scrollWidth;
-  }, [points.length]);
+  }, [points.length, availableW]);
 
   const values = points.map((p) => (currency === "ars" ? p.ars : p.usd));
-  const w = Math.max(320, MARGIN.left + MARGIN.right + (points.length - 1) * POINT_SPACING);
+  // Mínimo para que los puntos no queden pegados; si no entra, scroll horizontal.
+  const minW = Math.max(320, MARGIN.left + MARGIN.right + (points.length - 1) * POINT_SPACING);
+  const w = Math.max(availableW ?? 0, minW);
   const h = CHART_H;
   const innerW = w - MARGIN.left - MARGIN.right;
   const innerH = h - MARGIN.top - MARGIN.bottom;
@@ -80,8 +95,8 @@ function CurrencyLineChart({ points, currency, granularity, colorClassName, titl
       <div ref={scrollRef} className="overflow-x-auto rounded-xl border border-foreground/10 p-3">
         <svg
           viewBox={`0 0 ${w} ${h}`}
-          className="h-[180px] w-full"
-          style={{ minWidth: w > 560 ? w : undefined }}
+          className="block h-[180px]"
+          style={{ width: availableW == null ? "100%" : w }}
           role="img"
           aria-label={title}
           onClick={() => setActive(null)}
