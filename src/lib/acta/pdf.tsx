@@ -48,7 +48,7 @@ export function ActaDocument(props: ActaData) {
 
       {/* Página 2 — condiciones generales y firma */}
       <Page size="A4" style={styles.page}>
-        <LegalSection dict={dict} />
+        <LegalSection contract={props.contract} />
         <SignatureSection data={props} />
 
         <Footer companyName={props.company.name} dateStr={props.dateStr} />

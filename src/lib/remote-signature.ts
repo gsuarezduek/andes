@@ -32,6 +32,13 @@ export type SignatureSummary = {
    * solo cubre daños; el km extra/nafta se cobran aparte).
    */
   balanceRows?: SummaryRow[];
+  /**
+   * Versión de las condiciones generales que el wizard le está mostrando al
+   * cliente (null = texto original del sistema). La pantalla de firma remota
+   * muestra ESA versión, así el cliente lee lo mismo que queda en el acta.
+   * Los pedidos previos a Configuración → Contrato no lo tienen (= original).
+   */
+  contractVersionId?: string | null;
 };
 
 /**

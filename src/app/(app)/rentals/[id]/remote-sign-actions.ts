@@ -19,6 +19,7 @@ const summarySchema = z.object({
   conditions: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
   settlementRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
   balanceRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  contractVersionId: z.string().min(1).nullable().optional(),
 });
 
 const inputSchema = z.object({

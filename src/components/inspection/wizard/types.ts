@@ -2,6 +2,7 @@ import type { ContractPricing, RentalPayment } from "@/lib/contract";
 import type { InspectionInput, SaveResult, DocumentKindInput } from "@/lib/inspection-input";
 import type { CreateRemoteSignatureResult } from "@/app/(app)/rentals/[id]/remote-sign-actions";
 import type { SignatureSummary } from "@/lib/remote-signature";
+import type { ResolvedContract } from "@/lib/contract-text";
 
 export type Lang = "es" | "en";
 export type Mode = "handover" | "return";
@@ -109,6 +110,10 @@ export type InspectionWizardProps = {
    *  original — no bloquea, es solo una alerta contra errores de tipeo. */
   bookingTotal?: number;
   returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
+  /** Condiciones generales vigentes al abrir el wizard (Configuración →
+   *  Contrato). Es lo que lee el cliente — acá y por QR — y la versión que
+   *  queda guardada en la inspección como firmada. */
+  contract: ResolvedContract;
   /** Server action para firma remota (el cliente sigue la entrega/devolución
    *  en vivo desde su teléfono y firma ahí cuando el borrador está listo). */
   createRemoteSignature?: (input: {

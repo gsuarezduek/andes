@@ -73,6 +73,9 @@ export type InspectionInput = {
   // `pendingEvidence`, entrada `kind: "signature"`) — "avanzar sin señal".
   signatureKey?: string;
   signerName: string;
+  // Versión de las condiciones generales (Configuración → Contrato) que el
+  // wizard le mostró al cliente. Null = texto original del sistema.
+  contractVersionId?: string | null;
   licenseExpiry?: string;
   pricing?: ContractPricing;
   // Documentos del cliente (licencia/DNI/pasaporte), solo en la entrega. Solo

@@ -1,19 +1,17 @@
 import { View, Text } from "@react-pdf/renderer";
 import { styles } from "../styles";
-import type { Dictionary } from "@/lib/i18n";
+import type { ContractText } from "@/lib/contract-text";
 
-export function LegalSection({ dict }: { dict: Dictionary }) {
+/** Condiciones generales: la versión del contrato que firmó esta inspección. */
+export function LegalSection({ contract }: { contract: ContractText }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{dict.legal.title}</Text>
-      {dict.legal.paragraphs.map((p, i) => (
+      <Text style={styles.sectionTitle}>{contract.title}</Text>
+      {contract.paragraphs.map((p, i) => (
         <Text key={i} style={styles.legalP}>
           {p}
         </Text>
       ))}
-      <Text style={styles.legalP}>{dict.legal.photoConsent}</Text>
-      <Text style={styles.legalP}>{dict.legal.jurisdiction}</Text>
-      <Text style={styles.legalP}>{dict.legal.acceptance}</Text>
     </View>
   );
 }

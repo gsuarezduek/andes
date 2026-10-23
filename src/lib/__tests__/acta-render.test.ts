@@ -4,6 +4,7 @@ import { createElement, type ReactElement } from "react";
 import { ActaDocument, type ActaData } from "@/lib/acta/pdf";
 import { getDictionary } from "@/lib/i18n";
 import { COMPANY } from "@/lib/contract";
+import { defaultContractText } from "@/lib/contract-text";
 
 /**
  * Smoke test del acta: renderiza el PDF completo (incluye el croquis SVG con
@@ -15,6 +16,7 @@ describe("ActaDocument", () => {
     const data: ActaData = {
       kind: "handover",
       dict: getDictionary("es"),
+      contract: defaultContractText("es"),
       company: COMPANY,
       dateStr: "14/07/2026 10:00",
       registeredBy: "Empleado Test",
@@ -57,6 +59,7 @@ describe("ActaDocument", () => {
     const data: ActaData = {
       kind: "handover",
       dict: getDictionary("es"),
+      contract: defaultContractText("es"),
       company: COMPANY,
       dateStr: "14/07/2026 10:00",
       vehicleLabel: "Toyota Etios",

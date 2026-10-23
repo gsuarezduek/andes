@@ -1,5 +1,6 @@
 import type { Dictionary } from "@/lib/i18n";
 import type { Settlement } from "@/lib/settlement";
+import type { ContractText } from "@/lib/contract-text";
 
 export type ActaRow = { label: string; value: string };
 export type ActaChecklist = { label: string; status: "ok" | "fail" };
@@ -49,4 +50,7 @@ export type ActaData = {
   signerName?: string | null;
   signatureDataUri?: string;
   photoDataUris: string[];
+  /** Condiciones generales que firmó esta inspección (su `ContractVersion`,
+   *  o el texto original del sistema si es null), en el idioma del acta. */
+  contract: ContractText;
 };

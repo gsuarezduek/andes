@@ -5,6 +5,7 @@ import { getDictionary, type Locale } from "@/lib/i18n";
 import { COMPANY } from "@/lib/contract";
 import { AutoRefresh } from "@/components/auto-refresh";
 import type { ClientFieldKey, SignatureSummary } from "@/lib/remote-signature";
+import { defaultContractTexts, type ContractTexts } from "@/lib/contract-text";
 import { RemoteSignForm, SignatureSummaryView } from "./sign-form";
 import { ClientContactForm } from "./contact-form";
 
@@ -27,6 +28,7 @@ export function SignPageClient({
   waitingForCompletion,
   isReturn,
   summary,
+  contract,
   missingFields,
   defaultName,
 }: {
@@ -36,11 +38,15 @@ export function SignPageClient({
   waitingForCompletion?: boolean;
   isReturn?: boolean;
   summary?: SignatureSummary;
+  /** Condiciones generales a mostrar (la versión que eligió el wizard). Las
+   *  pantallas sin pedido válido no las muestran: cae al texto original. */
+  contract?: ContractTexts;
   missingFields?: ClientFieldKey[];
   defaultName?: string;
 }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const dict = getDictionary(locale);
+  const legal = (contract ?? defaultContractTexts())[locale];
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 px-5 py-8">
@@ -67,14 +73,17 @@ export function SignPageClient({
           {/* Lo más importante de la pantalla: las condiciones generales del
               contrato, completas y legibles — no un recuadro chico con scroll. */}
           <section className="flex flex-col gap-3 rounded-xl border border-foreground/15 bg-foreground/[0.03] p-4">
-            <h2 className="text-base font-semibold text-foreground">{dict.legal.title}</h2>
+            <h2 className="text-base font-semibold text-foreground">{legal.title}</h2>
             <div className="flex flex-col gap-3 text-sm leading-relaxed text-foreground/80">
-              {dict.legal.paragraphs.map((p, i) => (
-                <p key={i}>{p}</p>
+              {legal.paragraphs.map((p, i) => (
+                // La última cláusula es la de aceptación: destacada.
+                <p
+                  key={i}
+                  className={`whitespace-pre-line ${i === legal.paragraphs.length - 1 ? "font-medium text-foreground" : ""}`}
+                >
+                  {p}
+                </p>
               ))}
-              <p>{dict.legal.photoConsent}</p>
-              <p>{dict.legal.jurisdiction}</p>
-              <p className="font-medium text-foreground">{dict.legal.acceptance}</p>
             </div>
           </section>
 

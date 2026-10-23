@@ -411,6 +411,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
       clientName: (draft.signerName || draft.clientName || "").trim() || undefined,
       datesLabel: props.datesLabel,
       ...summaryConditions(draft, isHandover, dict, settlement),
+      contractVersionId: props.contract.versionId,
     };
   }
 
@@ -700,12 +701,9 @@ export function InspectionWizard(props: InspectionWizardProps) {
   // en este dispositivo. Mismo contenido que ve por QR.
   const signConditions = summaryConditions(draft, isHandover, dict, settlement);
   const signConditionRows = isHandover ? signConditions.conditions : signConditions.settlementRows;
-  const generalParagraphs = [
-    ...dict.legal.paragraphs,
-    dict.legal.photoConsent,
-    dict.legal.jurisdiction,
-    dict.legal.acceptance,
-  ];
+  const generalContract = props.contract.texts[draft.language];
+  const generalParagraphs = generalContract.paragraphs;
+  const generalTitle = generalContract.title;
 
   const ctx: StepContext = {
     props: wizardProps,
@@ -725,6 +723,7 @@ export function InspectionWizard(props: InspectionWizardProps) {
     settlement,
     signConditionRows,
     generalParagraphs,
+    generalTitle,
     clientAccepted,
     setClientAccepted,
     sigRef,

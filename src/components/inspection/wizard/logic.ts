@@ -299,6 +299,7 @@ export function buildInspectionPayload(
     photoKeys: draft.photos.filter((p) => p.key).map((p) => p.key!),
     signatureKey: signature.key,
     signerName: draft.signerName.trim(),
+    contractVersionId: props.contract.versionId,
     pendingEvidence: pendingEvidence.length ? pendingEvidence : undefined,
     ...(isHandover
       ? {

@@ -25,6 +25,11 @@ vi.mock("@/lib/commissions-sync", () => ({ syncCommission: vi.fn(), deleteCommis
 vi.mock("@/lib/rental-verification-server", () => ({ autoUnverifyRental: autoUnverifyMock }));
 // No ejecutamos el post-guardado asíncrono (acta/emails) en los tests.
 vi.mock("next/server", () => ({ after: vi.fn() }));
+// La resolución real de la versión del contrato se prueba aparte (contract-text.test.ts);
+// acá solo importa que lo que devuelve quede guardado en la inspección.
+vi.mock("@/lib/contract-version", () => ({
+  resolveSignedContractVersionId: vi.fn(async (requested?: string | null) => (requested === undefined ? "cv-current" : requested)),
+}));
 
 import { saveHandover } from "@/app/(app)/rentals/[id]/handover/actions";
 import { saveReturn } from "@/app/(app)/rentals/[id]/return/actions";
@@ -87,6 +92,19 @@ describe("saveHandover", () => {
     expect(tx.rental.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "active" }) }));
     expect(tx.vehicle.update).toHaveBeenCalledWith({ where: { id: "v1" }, data: { status: "rented", currentKm: 10_500 } });
     expect(autoUnverifyMock).toHaveBeenCalledWith(tx, "r1", expect.any(String));
+  });
+
+  it("guarda la versión del contrato que el wizard le mostró al cliente", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue({ id: "r1", status: "reserved", inspections: [] });
+    prismaMock.vehicle.findUnique.mockResolvedValue({ id: "v1" });
+
+    await saveHandover({ ...baseInput, contractVersionId: "cv-shown" });
+    expect(tx.inspection.create.mock.calls[0][0].data.contractVersionId).toBe("cv-shown");
+
+    // null = el cliente vio el texto original del sistema (no había versión guardada).
+    wireTransaction();
+    await saveHandover({ ...baseInput, contractVersionId: null });
+    expect(tx.inspection.create.mock.calls[0][0].data.contractVersionId).toBeNull();
   });
 
   it("rechaza si el alquiler no está reservado (inmutabilidad)", async () => {

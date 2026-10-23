@@ -19,6 +19,7 @@ import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { kmPackPriceFor } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
+import { resolveSignedContractVersionId } from "@/lib/contract-version";
 
 const optNum = z.number().nonnegative().optional();
 const pricingSchema = z
@@ -80,6 +81,7 @@ const saveSchema = z.object({
   // sin señal"). Se exige alguna de las dos más abajo, fuera del schema.
   signatureKey: z.string().min(1, "Falta la firma del cliente").optional(),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
+  contractVersionId: z.string().min(1).nullable().optional(),
   licenseExpiry: z.string().optional(), // "YYYY-MM-DD"
   pricing: pricingSchema,
   documents: z
@@ -136,6 +138,11 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
   const clash = await findOverlappingRental(vehicle.id, rental.startAt, rental.endAt, rental.id);
   if (clash) return { ok: false, error: overlapErrorMessage(clash) };
 
+  // Contrato que firmó el cliente: el que le mostró el wizard (ver
+  // `resolveSignedContractVersionId`). Queda fijo en la inspección para que el
+  // acta regenerada nunca cambie aunque se edite Configuración → Contrato.
+  const contractVersionId = await resolveSignedContractVersionId(data.contractVersionId);
+
   let inspection;
   try {
     inspection = await prisma.$transaction(async (tx) => {
@@ -152,6 +159,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
           observations: data.observations ?? null,
           signatureUrl: data.signatureKey ?? null,
           signerName: data.signerName,
+          contractVersionId,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
           pendingEvidence: data.pendingEvidence?.length ? data.pendingEvidence : undefined,

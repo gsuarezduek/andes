@@ -6,6 +6,7 @@ import { hasFinanceAccess } from "@/lib/user-permissions";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
 import { kmPackPriceFor, type RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
+import { getCurrentContract } from "@/lib/contract-version";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveHandover } from "./actions";
 import { createRemoteSignature } from "../remote-sign-actions";
@@ -173,6 +174,7 @@ export default async function HandoverPage({
         existingDamages={existingDamages}
         language={rental.language}
         createRemoteSignature={createRemoteSignature}
+        contract={await getCurrentContract()}
       />
     </div>
   );

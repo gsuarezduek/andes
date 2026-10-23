@@ -222,6 +222,10 @@ const es: Dictionary = {
       note: "Nota",
     },
   },
+  // Texto ORIGINAL del contrato (ver src/lib/contract-text.ts): rige mientras no
+  // se guarde una versión en Configuración → Contrato, y es el que firmaron las
+  // inspecciones con `contractVersionId` null. No editar acá: cambiaría el acta
+  // regenerada de esas inspecciones. Los cambios se hacen desde Configuración.
   legal: {
     title: "Condiciones generales",
     paragraphs: [

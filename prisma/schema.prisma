@@ -277,6 +277,7 @@ model User {
   deletedSafeMovements           SafeMovement[]            @relation("SafeMovementDeleter")
   safeMovementEdits              SafeMovementEdit[]        @relation("SafeMovementEditor")
   conditionSettingsEdits         ConditionSettingsEdit[]
+  contractVersions               ContractVersion[]         @relation("ContractVersionCreatedBy")
   loginEvents                    LoginEvent[]
   storageCleanupRuns             StorageCleanupRun[]
   storageExports                 StorageExport[]
@@ -341,40 +342,40 @@ model PasswordResetToken {
 // ---------------------------------------------------------------------------
 
 model Vehicle {
-  id                String        @id @default(cuid())
-  plate             String        @unique // patente
+  id                    String        @id @default(cuid())
+  plate                 String        @unique // patente
   // Apodo interno para referirse al auto (ej. "El rojo", "Wagon 2"). Cuando
   // está cargado, pasa a ser la referencia principal del auto en toda la app
   // (reservas, calendario, caja, etc.), por delante de marca/modelo/patente.
-  name              String?
-  brand             String // marca
-  model             String // modelo
-  year              Int?
-  color             String?
-  currentKm         Int           @default(0) @map("current_km")
-  status            VehicleStatus @default(available)
-  nextServiceKm     Int?          @map("next_service_km")
+  name                  String?
+  brand                 String // marca
+  model                 String // modelo
+  year                  Int?
+  color                 String?
+  currentKm             Int           @default(0) @map("current_km")
+  status                VehicleStatus @default(available)
+  nextServiceKm         Int?          @map("next_service_km")
   // Cantidad de líneas/octavos del tanque de este auto (4–16, default 8). El
   // nivel de nafta de cada inspección se mide 0..fuelLevels. Configurable por
   // unidad: distintos autos tienen distinta granularidad de aguja.
-  fuelLevels        Int           @default(8) @map("fuel_levels")
+  fuelLevels            Int           @default(8) @map("fuel_levels")
   // Intervalo de service en km. Al registrar un service, el próximo se
   // reprograma a (km del service + intervalo). Alimenta las alertas.
-  serviceIntervalKm Int?          @map("service_interval_km")
+  serviceIntervalKm     Int?          @map("service_interval_km")
   // Alerta de service pospuesta ("Posponer" desde el Home): mientras el km
   // actual no llegue a `serviceSnoozedUntilKm` o no pase `serviceSnoozedUntil`,
   // la alerta no se muestra (ni en el Home ni en el resumen diario). Se usa uno
   // u otro según lo elegido. Se limpia al registrar un service.
-  serviceSnoozedUntilKm Int?      @map("service_snoozed_until_km")
-  serviceSnoozedUntil   DateTime? @map("service_snoozed_until")
-  serviceSnoozedByName  String?   @map("service_snoozed_by_name")
-  photoUrl          String?       @map("photo_url")
-  notes             String?
+  serviceSnoozedUntilKm Int?          @map("service_snoozed_until_km")
+  serviceSnoozedUntil   DateTime?     @map("service_snoozed_until")
+  serviceSnoozedByName  String?       @map("service_snoozed_by_name")
+  photoUrl              String?       @map("photo_url")
+  notes                 String?
   // Camioneta vs auto: VikRentCar tiene dos precios distintos de "Opciones
   // del Vehículo" para el pack de km extra (uno para autos, otro más caro
   // para camionetas). Alimenta qué precio de referencia (`ConditionSettings
   // .kmPackPrice` vs `.kmPackPriceTruck`) se precarga en la entrega.
-  isTruck           Boolean       @default(false) @map("is_truck")
+  isTruck               Boolean       @default(false) @map("is_truck")
 
   // Propio vs. de un tercero (el dueño real no es MDZ Rent a Car, pero se
   // alquila y se entrega/devuelve exactamente igual — mismo flujo de
@@ -904,6 +905,14 @@ model Inspection {
 
   signatureUrl String? @map("signature_url") // firma del cliente (R2)
   signerName   String? @map("signer_name")
+
+  // Versión de las condiciones generales (Configuración → Contrato) que se le
+  // mostró al cliente y firmó. El acta siempre se regenera con ESA versión,
+  // aunque el contrato se edite después. Null = texto original del sistema
+  // (diccionario i18n `legal`) — todas las inspecciones previas a poder
+  // editar el contrato, y las firmadas mientras no se guardó ninguna versión.
+  contractVersionId String?          @map("contract_version_id")
+  contractVersion   ContractVersion? @relation(fields: [contractVersionId], references: [id], onDelete: Restrict)
 
   // Liquidación de la devolución (solo en return_): excedente de km, nafta
   // faltante y cargos por daño nuevo contra el depósito. Ver src/lib/settlement.
@@ -1658,6 +1667,30 @@ model ConditionSettingsEdit {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("condition_settings_edits")
+}
+
+// Condiciones generales del contrato que firma el cliente (Configuración →
+// Contrato). Historial append-only: editar crea una versión nueva, nunca se
+// pisa ni se borra una anterior — cada `Inspection` apunta a la versión que
+// firmó (`contractVersionId`), así el acta regenerada sale con ese texto. La
+// vigente es la más nueva; sin ninguna, rige el texto original del diccionario
+// i18n (`legal`, src/lib/i18n/dictionaries.ts). El cuerpo es texto plano con
+// las cláusulas separadas por una línea en blanco (ver src/lib/contract-text.ts).
+model ContractVersion {
+  id            String   @id @default(cuid())
+  esTitle       String   @map("es_title")
+  esBody        String   @map("es_body")
+  enTitle       String   @map("en_title")
+  enBody        String   @map("en_body")
+  createdById   String?  @map("created_by_id")
+  createdBy     User?    @relation("ContractVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  inspections Inspection[]
+
+  @@index([createdAt])
+  @@map("contract_versions")
 }
 
 // Textos editables de los correos transaccionales y casilla remitente.

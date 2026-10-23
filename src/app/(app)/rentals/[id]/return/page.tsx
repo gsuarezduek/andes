@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { hasFinanceAccess } from "@/lib/user-permissions";
 import { formatDateTime } from "@/lib/datetime";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
+import { getCurrentContract } from "@/lib/contract-version";
 import type { ContractPricing } from "@/lib/contract";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { saveReturn } from "./actions";
@@ -91,6 +92,7 @@ export default async function ReturnPage({
           parentId: m.parentId,
         }))}
         createRemoteSignature={createRemoteSignature}
+        contract={await getCurrentContract()}
         returnContext={{
           handoverKm: handover.km,
           handoverFuel: handover.fuelLevel,

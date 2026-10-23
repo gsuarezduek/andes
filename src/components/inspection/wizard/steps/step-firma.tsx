@@ -15,6 +15,7 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
     settlement,
     signConditionRows,
     generalParagraphs,
+    generalTitle,
     clientAccepted,
     setClientAccepted,
     sigRef,
@@ -43,10 +44,10 @@ export function StepFirma({ ctx }: { ctx: StepContext }) {
 
       {/* Condiciones generales (texto legal completo). */}
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground/80">{dict.legal.title}</h3>
+        <h3 className="text-sm font-semibold text-foreground/80">{generalTitle}</h3>
         <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-foreground/10 px-4 py-3 text-xs leading-relaxed text-foreground/70">
           {generalParagraphs.map((p, i) => (
-            <p key={i}>{p}</p>
+            <p key={i} className="whitespace-pre-line">{p}</p>
           ))}
         </div>
       </section>

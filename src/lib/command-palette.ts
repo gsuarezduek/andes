@@ -48,6 +48,7 @@ const COMMANDS: Command[] = [
   { id: "settings-calendar", label: "Orden del calendario", href: "/settings/calendar", group: "Configuración", keywords: ["autos"], adminOnly: true },
   { id: "settings-payment-methods", label: "Medios de pago", href: "/settings/payment-methods", group: "Configuración", keywords: ["cuentas", "comision", "recargo", "efectivo", "tarjeta"], adminOnly: true },
   { id: "settings-expense-categories", label: "Categorías de gasto", href: "/settings/expense-categories", group: "Configuración", keywords: ["egresos"], adminOnly: true },
+  { id: "settings-contract", label: "Contrato", href: "/settings/contract", group: "Configuración", keywords: ["condiciones generales", "clausulas", "legal", "firma", "acta"], adminOnly: true },
   { id: "settings-emails", label: "Correos electrónicos", href: "/settings/emails", group: "Configuración", keywords: ["mails", "resend", "acta"], adminOnly: true },
   { id: "settings-whatsapp", label: "Cuenta de WhatsApp", href: "/settings/whatsapp", group: "Configuración", keywords: ["chakra", "webhook", "plantillas"], adminOnly: true },
   { id: "settings-whatsapp-bot", label: "Bot de WhatsApp", href: "/settings/whatsapp/bot", group: "Configuración", keywords: ["ia", "entrenar", "prompt", "documentos"], adminOnly: true },

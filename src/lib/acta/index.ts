@@ -4,6 +4,7 @@ import { createElement, type ReactElement } from "react";
 import { prisma } from "@/lib/prisma";
 import { storage, actaKey } from "@/lib/storage";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import { getContractByVersion } from "@/lib/contract-version";
 import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDateTime, formatDate } from "@/lib/datetime";
 import {
@@ -216,9 +217,14 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     : [];
   const authorizedDrivers = [r.clientName, ...extraDrivers].filter(Boolean);
 
+  // Condiciones generales: la versión que firmó el cliente, nunca la vigente
+  // hoy — el acta es regenerable ("Reenviar acta") y no puede cambiar lo firmado.
+  const contract = (await getContractByVersion(inspection.contractVersionId)).texts[locale];
+
   const data: ActaData = {
     kind: inspection.type === "handover" ? "handover" : "return",
     dict,
+    contract,
     company: COMPANY,
     comparison,
     settlement,

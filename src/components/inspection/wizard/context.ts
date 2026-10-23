@@ -28,6 +28,7 @@ export type StepContext = {
   settlement: Settlement | null;
   signConditionRows?: { label: string; value: string }[];
   generalParagraphs: string[];
+  generalTitle: string;
   clientAccepted: boolean;
   setClientAccepted: (v: boolean) => void;
   sigRef: RefObject<SignaturePadHandle | null>;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/lib/i18n";
 import { missingClientFields, type SignatureSummary } from "@/lib/remote-signature";
+import { getContractByVersion } from "@/lib/contract-version";
 import { SignPageClient, type SignOutcome } from "./sign-page-client";
 
 export const metadata: Metadata = { title: "Firma — MDZ Rent a Car" };
@@ -43,6 +44,10 @@ export default async function RemoteSignPage({
   // firmar. Mientras tanto no hay canvas — solo condiciones + resumen en vivo.
   const waitingForCompletion = outcome === "active" && !request.readyToSign;
   const summary = (request.summary as SignatureSummary | null) ?? undefined;
+  // Las condiciones que el wizard le está mostrando al cliente (ver
+  // `SignatureSummary.contractVersionId`), en los dos idiomas: la pantalla
+  // tiene su propio toggle ES/EN.
+  const contract = (await getContractByVersion(summary?.contractVersionId)).texts;
   const isReturn = request.type === "return_";
   // Datos del cliente que todavía no cargó el staff (VikRentCar no siempre
   // los trae) — el cliente los completa él mismo mientras sigue la entrega en
@@ -66,6 +71,7 @@ export default async function RemoteSignPage({
       waitingForCompletion={waitingForCompletion}
       isReturn={isReturn}
       summary={summary}
+      contract={contract}
       missingFields={missingFields}
       defaultName={request.signerName ?? ""}
     />

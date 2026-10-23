@@ -26,6 +26,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Categorías opcionales para clasificar los Egresos en Caja.",
   },
   {
+    href: "/settings/contract",
+    title: "Contrato",
+    description: "Condiciones generales que el cliente lee y firma en la entrega y la devolución.",
+  },
+  {
     href: "/settings/emails",
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",

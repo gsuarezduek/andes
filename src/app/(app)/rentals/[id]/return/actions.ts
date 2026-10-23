@@ -16,6 +16,7 @@ import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { computeSettlement, rollupSettlement } from "@/lib/settlement";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
+import { resolveSignedContractVersionId } from "@/lib/contract-version";
 
 const damageSchema = z.object({
   id: z.string().optional(),
@@ -64,6 +65,7 @@ const saveSchema = z.object({
   // sin señal"). Se exige alguna de las dos más abajo, fuera del schema.
   signatureKey: z.string().min(1, "Falta la firma del cliente").optional(),
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
+  contractVersionId: z.string().min(1).nullable().optional(),
   settlement: settlementSchema,
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -132,6 +134,11 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
       })
     : undefined;
 
+  // Contrato que firmó el cliente: el que le mostró el wizard (ver
+  // `resolveSignedContractVersionId`). Queda fijo en la inspección para que el
+  // acta regenerada nunca cambie aunque se edite Configuración → Contrato.
+  const contractVersionId = await resolveSignedContractVersionId(data.contractVersionId);
+
   let inspection;
   try {
     inspection = await prisma.$transaction(async (tx) => {
@@ -148,6 +155,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           observations: data.observations ?? null,
           signatureUrl: data.signatureKey ?? null,
           signerName: data.signerName,
+          contractVersionId,
           settlement: settlementForPersist ?? undefined,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
