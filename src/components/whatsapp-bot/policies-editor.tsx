@@ -14,19 +14,36 @@ export function PoliciesEditor({ policies: initial }: { policies: Policy[] }) {
   const [policies, setPolicies] = useState<Policy[]>(initial);
   const [topic, setTopic] = useState("");
   const [text, setText] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const add = () => {
+  const save = () => {
     if (!topic.trim() || !text.trim()) return;
-    const next = [...policies, { topic: topic.trim(), text: text.trim() }];
+    const entry = { topic: topic.trim(), text: text.trim() };
+    const next =
+      editingIndex === null ? [...policies, entry] : policies.map((p, idx) => (idx === editingIndex ? entry : p));
     setPolicies(next);
     setTopic("");
     setText("");
+    setEditingIndex(null);
     run(() => updatePolicies(next));
+  };
+
+  const edit = (i: number) => {
+    setTopic(policies[i].topic);
+    setText(policies[i].text);
+    setEditingIndex(i);
+  };
+
+  const cancelEdit = () => {
+    setTopic("");
+    setText("");
+    setEditingIndex(null);
   };
 
   const remove = (i: number) => {
     const next = policies.filter((_, idx) => idx !== i);
     setPolicies(next);
+    if (editingIndex === i) cancelEdit();
     run(() => updatePolicies(next));
   };
 
@@ -56,26 +73,39 @@ export function PoliciesEditor({ policies: initial }: { policies: Policy[] }) {
           onChange={(e) => setText(e.target.value)}
           rows={3}
         />
-        <Button type="button" variant="secondary" onClick={add} className="self-start">
-          + Agregar tema
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="secondary" onClick={save} className="self-start">
+            {editingIndex === null ? "+ Agregar tema" : "Guardar cambios"}
+          </Button>
+          {editingIndex !== null ? (
+            <button type="button" onClick={cancelEdit} className="text-xs text-foreground/50 hover:text-foreground">
+              Cancelar
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {policies.length > 0 ? (
         <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
           {policies.map((p, i) => (
-            <li key={`${p.topic}-${i}`} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+            <li
+              key={`${p.topic}-${i}`}
+              className={`flex items-start justify-between gap-3 px-4 py-3 text-sm ${
+                editingIndex === i ? "bg-amber-500/10" : ""
+              }`}
+            >
               <div>
                 <p className="font-medium">{p.topic}</p>
                 <p className="whitespace-pre-wrap text-foreground/60">{p.text}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="shrink-0 text-xs text-foreground/40 hover:text-red-600"
-              >
-                Sacar
-              </button>
+              <div className="flex shrink-0 items-center gap-3">
+                <button type="button" onClick={() => edit(i)} className="text-xs text-foreground/40 hover:text-foreground">
+                  Editar
+                </button>
+                <button type="button" onClick={() => remove(i)} className="text-xs text-foreground/40 hover:text-red-600">
+                  Sacar
+                </button>
+              </div>
             </li>
           ))}
         </ul>
