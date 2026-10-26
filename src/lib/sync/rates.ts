@@ -44,6 +44,38 @@ export function secondsIntoYear(now: Date): { year: number; seconds: number } {
   return { year, seconds };
 }
 
+/** Ventana mínima de una temporada para chequear vigencia / convertir a fechas. */
+type SeasonWindow = { from: number; to: number; year: number | null };
+
+/** Resultado de evaluar una temporada en un día puntual. */
+type SeasonMatch = { active: boolean; fromYear: number };
+
+/**
+ * ¿Está vigente `season` el día `now`? Si `season.to < season.from`, la
+ * temporada **cruza fin de año** (ej. 1-dic a 31-ene: `from` ≈ día 335,
+ * `to` ≈ día 31, un valor menor) — vigente tanto en su "cola" (diciembre,
+ * mismo año que `now`) como en su "cabeza" (enero, el año siguiente al de
+ * `from`). `fromYear` siempre identifica el año de `from` (el año "de
+ * arranque" de esa ocurrencia), aunque `now` caiga del lado de enero.
+ */
+function matchSeason(season: SeasonWindow, now: Date): SeasonMatch {
+  const { year, seconds } = secondsIntoYear(now);
+  if (season.from <= season.to) {
+    const active =
+      (season.year == null || season.year === year) && seconds >= season.from && seconds <= season.to;
+    return { active, fromYear: year };
+  }
+  // Cruza fin de año: `now` cae en la cola (diciembre) o en la cabeza (enero).
+  if (seconds >= season.from) {
+    return { active: season.year == null || season.year === year, fromYear: year };
+  }
+  if (seconds <= season.to) {
+    const fromYear = year - 1;
+    return { active: season.year == null || season.year === fromYear, fromYear };
+  }
+  return { active: false, fromYear: year };
+}
+
 /**
  * Tarifa por 1 día vigente hoy para un modelo (`idcar`). `null` si no hay tarifa
  * base cargada. Aplica las temporadas activas que incluyan el modelo.
@@ -55,34 +87,41 @@ export function computeDailyRate(
   now: Date,
 ): number | null {
   if (base == null || !Number.isFinite(base)) return null;
-  const { year, seconds } = secondsIntoYear(now);
   let multiplier = 1;
   for (const s of seasons) {
-    if (s.year != null && s.year !== year) continue;
-    if (seconds < s.from || seconds > s.to) continue;
     if (!s.idcars.includes(idcar)) continue;
+    if (!matchSeason({ from: s.from, to: s.to, year: s.year }, now).active) continue;
     multiplier *= 1 + s.diffPercent / 100;
   }
   return Math.round(base * multiplier);
 }
 
-/** Ventana mínima de una temporada para chequear vigencia / convertir a fechas. */
-type SeasonWindow = { from: number; to: number; year: number | null };
-
 /** ¿Está vigente `season` el día `now` (cualquier año si `season.year` es null)? */
 export function isSeasonActiveOn(season: SeasonWindow, now: Date): boolean {
-  const { year, seconds } = secondsIntoYear(now);
-  if (season.year != null && season.year !== year) return false;
-  return seconds >= season.from && seconds <= season.to;
+  return matchSeason(season, now).active;
+}
+
+/**
+ * Año de inicio (`from`) de la vigencia de `season` el día `now`, o `null` si
+ * no está vigente ese día — el "año ancla" correcto para pasarle a
+ * `seasonDateRange`, incluso cuando `now` cae del lado de enero de una
+ * temporada que cruza fin de año (ahí el año de `now` es el de `to`, uno más
+ * que el de `from`).
+ */
+export function seasonFromYear(season: SeasonWindow, now: Date): number | null {
+  const match = matchSeason(season, now);
+  return match.active ? match.fromYear : null;
 }
 
 /**
  * Traduce el rango `from`/`to` (segundos dentro del año) de una temporada a
- * fechas calendario reales ("YYYY-MM-DD", hora de Mendoza) para un año
- * concreto — el inverso de `secondsIntoYear`. Como `from`/`to` son siempre
- * límites de día completo, sumar los segundos a la medianoche del 1° de enero
- * cae directo en el día correcto (sin lidiar con años bisiestos a mano: el
- * propio avance de fechas ya contempla el 29 de febrero).
+ * fechas calendario reales ("YYYY-MM-DD", hora de Mendoza), a partir del año
+ * de `from` (`year`) — el inverso de `secondsIntoYear`. Como `from`/`to` son
+ * siempre límites de día completo, sumar los segundos a la medianoche del 1°
+ * de enero cae directo en el día correcto (sin lidiar con años bisiestos a
+ * mano: el propio avance de fechas ya contempla el 29 de febrero). Si
+ * `to < from` (cruza fin de año), `to` se cuenta desde el 1° de enero del año
+ * SIGUIENTE a `year`.
  */
 export function seasonDateRange(
   season: Pick<SeasonWindow, "from" | "to">,
@@ -90,6 +129,8 @@ export function seasonDateRange(
 ): { start: string; end: string } {
   const jan1 = mendozaWallTimeToUtc(`${year}-01-01T00:00`);
   const start = formatDateInput(new Date(jan1.getTime() + season.from * 1000));
-  const end = formatDateInput(new Date(jan1.getTime() + season.to * 1000));
+  const wraps = season.to < season.from;
+  const endJan1 = wraps ? mendozaWallTimeToUtc(`${year + 1}-01-01T00:00`) : jan1;
+  const end = formatDateInput(new Date(endJan1.getTime() + season.to * 1000));
   return { start, end };
 }

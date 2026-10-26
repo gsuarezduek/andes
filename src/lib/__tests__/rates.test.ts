@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { computeDailyRate, parseIdCars, isSeasonActiveOn, seasonDateRange } from "@/lib/sync/rates";
+import {
+  computeDailyRate,
+  parseIdCars,
+  isSeasonActiveOn,
+  seasonDateRange,
+  seasonFromYear,
+} from "@/lib/sync/rates";
 import type { RawSeason } from "@/lib/sync/types";
 
 // Temporadas de ejemplo (espejan la forma real de VikRentCar):
@@ -9,6 +15,16 @@ const SEASONS: RawSeason[] = [
   { from: 17_107_200, to: 18_403_200, year: 2026, diffPercent: 15, idcars: [5, 20] },
   { from: 23_587_200, to: 26_179_200, year: null, diffPercent: 30, idcars: [5] },
 ];
+
+// 1-dic → 31-ene, recurrente, +20%, idcar 5: cruza fin de año (`to` < `from`).
+// (335-1)*86400 (1-dic) y (31-1)*86400 (31-ene) — doy en año no bisiesto.
+const YEAR_END_SEASON: RawSeason = {
+  from: 28_857_600,
+  to: 2_592_000,
+  year: null,
+  diffPercent: 20,
+  idcars: [5],
+};
 
 // T12:00Z → 09:00 en Mendoza (mismo día), evita bordes de medianoche.
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -100,5 +116,49 @@ describe("seasonDateRange", () => {
     const range2028 = seasonDateRange({ from: 23_587_200, to: 26_179_200 }, 2028);
     expect(range2027).toEqual({ start: "2027-10-01", end: "2027-10-31" });
     expect(range2028).toEqual({ start: "2028-09-30", end: "2028-10-30" });
+  });
+
+  it("temporada que cruza fin de año: `to` cae en el 1° de enero del año siguiente", () => {
+    expect(seasonDateRange({ from: 28_857_600, to: 2_592_000 }, 2026)).toEqual({
+      start: "2026-12-01",
+      end: "2027-01-31",
+    });
+  });
+});
+
+describe("temporadas que cruzan fin de año (ej. 1-dic a 31-ene)", () => {
+  it("vigente en diciembre (la 'cola', mismo año que `from`)", () => {
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2026-12-15"))).toBe(true);
+    expect(computeDailyRate(70_000, [YEAR_END_SEASON], 5, at("2026-12-15"))).toBe(84_000);
+  });
+
+  it("vigente en enero (la 'cabeza', año siguiente al de `from`)", () => {
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2027-01-15"))).toBe(true);
+    expect(computeDailyRate(70_000, [YEAR_END_SEASON], 5, at("2027-01-15"))).toBe(84_000);
+  });
+
+  it("no vigente justo antes (30-nov) ni justo después (1-feb)", () => {
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2026-11-30"))).toBe(false);
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2027-02-01"))).toBe(false);
+  });
+
+  it("los bordes (1-dic y 31-ene) son inclusive", () => {
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2026-12-01"))).toBe(true);
+    expect(isSeasonActiveOn(YEAR_END_SEASON, at("2027-01-31"))).toBe(true);
+  });
+
+  it("seasonFromYear ancla siempre al año de `from`, caiga `now` en dic o en ene", () => {
+    expect(seasonFromYear(YEAR_END_SEASON, at("2026-12-15"))).toBe(2026);
+    expect(seasonFromYear(YEAR_END_SEASON, at("2027-01-15"))).toBe(2026);
+    expect(seasonFromYear(YEAR_END_SEASON, at("2026-11-30"))).toBeNull();
+  });
+
+  it("con año fijo, la ocurrencia de dic-2026/ene-2027 no se confunde con otra dic/ene", () => {
+    const fixed = { ...YEAR_END_SEASON, year: 2026 };
+    expect(isSeasonActiveOn(fixed, at("2026-12-15"))).toBe(true);
+    expect(isSeasonActiveOn(fixed, at("2027-01-15"))).toBe(true);
+    // Diciembre de OTRO año (2027) o enero de otro año (2026, de la temporada 2025→2026) no aplican.
+    expect(isSeasonActiveOn(fixed, at("2027-12-15"))).toBe(false);
+    expect(isSeasonActiveOn(fixed, at("2026-01-15"))).toBe(false);
   });
 });

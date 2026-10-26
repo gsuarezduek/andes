@@ -167,6 +167,26 @@ describe("seasonsForDay", () => {
       { diffPercent: 30, from: "2026-07-18", to: "2026-08-02" },
     ]);
   });
+
+  // 1-dic → 31-ene, recurrente: cruza fin de año (`toSeconds` < `fromSeconds`).
+  const YEAR_END = [{ fromSeconds: 28_857_600, toSeconds: 2_592_000, year: null, diffPercent: 20 }];
+
+  it("temporada que cruza fin de año: se ve en diciembre con el rango completo", () => {
+    expect(seasonsForDay(YEAR_END, at("2026-12-15"))).toEqual([
+      { diffPercent: 20, from: "2026-12-01", to: "2027-01-31" },
+    ]);
+  });
+
+  it("temporada que cruza fin de año: también se ve en enero, mismo rango", () => {
+    expect(seasonsForDay(YEAR_END, at("2027-01-15"))).toEqual([
+      { diffPercent: 20, from: "2026-12-01", to: "2027-01-31" },
+    ]);
+  });
+
+  it("temporada que cruza fin de año: no se ve en noviembre ni en febrero", () => {
+    expect(seasonsForDay(YEAR_END, at("2026-11-30"))).toEqual([]);
+    expect(seasonsForDay(YEAR_END, at("2027-02-01"))).toEqual([]);
+  });
 });
 
 describe("seasonsForDayAndCar", () => {
@@ -190,5 +210,15 @@ describe("seasonsForDayAndCar", () => {
 
   it("día fuera de la temporada → [] aunque el auto esté incluido", () => {
     expect(seasonsForDayAndCar(SEASONS, at("2026-07-15"), 5)).toEqual([]);
+  });
+
+  it("temporada que cruza fin de año: se ve igual en diciembre y en enero", () => {
+    const yearEnd = [{ fromSeconds: 28_857_600, toSeconds: 2_592_000, year: null, diffPercent: 20, carIds: [5] }];
+    expect(seasonsForDayAndCar(yearEnd, at("2026-12-20"), 5)).toEqual([
+      { diffPercent: 20, from: "2026-12-01", to: "2027-01-31" },
+    ]);
+    expect(seasonsForDayAndCar(yearEnd, at("2027-01-20"), 5)).toEqual([
+      { diffPercent: 20, from: "2026-12-01", to: "2027-01-31" },
+    ]);
   });
 });

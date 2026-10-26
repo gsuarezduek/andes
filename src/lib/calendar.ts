@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { isRentalVerified } from "@/lib/rental-verification";
 import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
-import { isSeasonActiveOn, seasonDateRange, secondsIntoYear } from "@/lib/sync/rates";
+import { seasonDateRange, seasonFromYear } from "@/lib/sync/rates";
 import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
 import { roomBarGeometry } from "@/lib/rooms/geometry";
 import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
@@ -459,13 +459,12 @@ export type SeasonRateRow = {
  * separada de `getCalendarData`.
  */
 export function seasonsForDay(seasonRates: SeasonRateRow[], day: Date): CalendarColumnSeason[] {
-  const { year } = secondsIntoYear(day);
-  return seasonRates
-    .filter((s) => isSeasonActiveOn({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day))
-    .map((s) => {
-      const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, year);
-      return { diffPercent: Number(s.diffPercent), from: range.start, to: range.end };
-    });
+  return seasonRates.flatMap((s) => {
+    const fromYear = seasonFromYear({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day);
+    if (fromYear == null) return [];
+    const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, fromYear);
+    return [{ diffPercent: Number(s.diffPercent), from: range.start, to: range.end }];
+  });
 }
 
 /**
@@ -481,17 +480,13 @@ export function seasonsForDayAndCar(
   wpCarId: number | null,
 ): CalendarColumnSeason[] {
   if (wpCarId == null) return [];
-  const { year } = secondsIntoYear(day);
-  return seasonRates
-    .filter(
-      (s) =>
-        isSeasonActiveOn({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day) &&
-        (s.carIds ?? []).includes(wpCarId),
-    )
-    .map((s) => {
-      const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, year);
-      return { diffPercent: Number(s.diffPercent), from: range.start, to: range.end };
-    });
+  return seasonRates.flatMap((s) => {
+    if (!(s.carIds ?? []).includes(wpCarId)) return [];
+    const fromYear = seasonFromYear({ from: s.fromSeconds, to: s.toSeconds, year: s.year }, day);
+    if (fromYear == null) return [];
+    const range = seasonDateRange({ from: s.fromSeconds, to: s.toSeconds }, fromYear);
+    return [{ diffPercent: Number(s.diffPercent), from: range.start, to: range.end }];
+  });
 }
 
 /**
