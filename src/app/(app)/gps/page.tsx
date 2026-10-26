@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { hasAdminAccess } from "@/lib/user-permissions";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { FleetTabs } from "@/components/rooms/fleet-tabs";
 import { GpsDeviceForm } from "./gps-device-form";
 import { GpsDeviceRow } from "./gps-device-row";
 
@@ -26,6 +27,7 @@ export default async function GpsPage() {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8">
+      <FleetTabs active="gps" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">GPS</h1>
         <p className="text-sm text-foreground/60">

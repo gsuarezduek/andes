@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-/** Alterna entre Vehículos, Terceros y Habitaciones (mismo lugar del menú, tres listados). */
-export function FleetTabs({ active }: { active: "vehicles" | "thirdParty" | "rooms" }) {
+/** Alterna entre Vehículos, Terceros, Permisos, GPS y Habitaciones (mismo lugar del menú, cinco listados). */
+export function FleetTabs({ active }: { active: "vehicles" | "thirdParty" | "permits" | "gps" | "rooms" }) {
   const tab = (href: string, label: string, isActive: boolean) => (
     <Link
       href={href}
@@ -17,6 +17,8 @@ export function FleetTabs({ active }: { active: "vehicles" | "thirdParty" | "roo
     <div className="inline-flex w-fit gap-1 rounded-lg border border-foreground/15 p-1">
       {tab("/vehicles", "Vehículos", active === "vehicles")}
       {tab("/third-party-vehicles", "Terceros", active === "thirdParty")}
+      {tab("/permits", "Permisos", active === "permits")}
+      {tab("/gps", "GPS", active === "gps")}
       {tab("/rooms", "Habitaciones", active === "rooms")}
     </div>
   );

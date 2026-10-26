@@ -4,6 +4,7 @@ import { listAccessCredentials, canRevealAccessCredential } from "@/lib/access-c
 import { SectionHeading } from "@/components/ui/section-heading";
 import { AccessCredentialForm } from "@/components/access/access-credential-form";
 import { AccessCredentialList } from "@/components/access/access-credential-list";
+import { TeamTabs } from "@/components/tasks/team-tabs";
 
 export const metadata: Metadata = { title: "Accesos — Andes" };
 
@@ -13,6 +14,7 @@ export default async function AccessPage() {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8">
+      <TeamTabs active="access" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Accesos</h1>
         <p className="text-sm text-foreground/60">

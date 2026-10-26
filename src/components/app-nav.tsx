@@ -17,11 +17,15 @@ import type { OnlineUser } from "@/lib/presence";
  *   frecuente para un admin como el resto de la barra principal. Usuarios vive dentro de
  *   Configuración (`/users`, un ítem más de esa pantalla), no en la barra. Tareas muestra un
  *   contador rojo con las tareas pendientes asignadas al usuario logueado (`taskCount`).
+ *   **Vehículos** agrupa, además de la flota propia, Terceros/Permisos/GPS/Habitaciones —
+ *   pestañas dentro de la página (`FleetTabs`), mismo ítem de la barra. **Tareas** agrupa del
+ *   mismo modo Horarios y Accesos (`TeamTabs`).
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
- *   Perfil, Sincronización, GPS, Configuración (solo admin), "Ver como empleado"
+ *   Perfil, Sincronización, Configuración (solo admin), "Ver como empleado"
  *   (solo si `isRealAdmin` — deja probar la vista de un usuario normal sin salir
  *   de la sesión de admin) y Salir — ajustes/administración menos frecuentes que
- *   la navegación operativa de la barra principal.
+ *   la navegación operativa de la barra principal. "Competencia" se saca del todo del menú
+ *   (sin ocultar la ruta/feature) mientras se sigue puliendo — ver `/competitor-prices`.
  * - En mobile todo colapsa en un menú hamburguesa.
  * - Paleta de comandos (Ctrl/⌘ + K, o la lupa del header) para saltar a cualquier sección.
  */
@@ -87,32 +91,28 @@ export function AppNav({
   const menuItems: Item[] = [
     { href: "/profile", label: "Perfil" },
     { href: "/sync", label: "Sincronización" },
-    // GPS es tarea operativa de cualquier empleado (instalan/mueven los
-    // dispositivos), pero poco frecuente — no amerita un lugar en la barra
-    // principal, vive acá igual que Sincronización.
-    { href: "/gps", label: "GPS" },
-    // Horarios del equipo: todos los roles lo ven (el editor es solo admin).
-    { href: "/horarios", label: "Horarios" },
-    // Gestor de contraseñas compartido del equipo — cualquier rol carga/ve.
-    { href: "/access", label: "Accesos" },
-    // "Competencia" queda en el menú de cuenta (no en la barra principal) a
-    // propósito, mientras se sigue puliendo — pasa a la barra principal más
-    // adelante.
-    ...(isAdmin
-      ? [
-          { href: "/competitor-prices", label: "Competencia" },
-          { href: "/settings", label: "Configuración" },
-        ]
-      : []),
+    // GPS, Horarios y Accesos pasaron a vivir dentro de Vehículos/Tareas
+    // (pestañas, ver FleetTabs/TeamTabs) — ya no están sueltos acá.
+    // "Competencia" se saca del menú (sin tocar la ruta/feature) mientras se
+    // sigue puliendo — no se logró dejarla bien todavía.
+    ...(isAdmin ? [{ href: "/settings", label: "Configuración" }] : []),
   ];
 
-  // Terceros y Habitaciones viven dentro de Vehículos (mismo ítem del menú, tres pestañas).
+  // Terceros, Permisos, GPS y Habitaciones viven dentro de Vehículos (mismo
+  // ítem del menú, pestañas de FleetTabs); Horarios y Accesos viven dentro de
+  // Tareas (pestañas de TeamTabs).
   const isActive = (href: string) =>
     href === "/"
       ? pathname === "/"
       : href === "/vehicles"
-        ? pathname.startsWith("/vehicles") || pathname.startsWith("/third-party-vehicles") || pathname.startsWith("/rooms")
-        : pathname.startsWith(href);
+        ? pathname.startsWith("/vehicles") ||
+          pathname.startsWith("/third-party-vehicles") ||
+          pathname.startsWith("/permits") ||
+          pathname.startsWith("/gps") ||
+          pathname.startsWith("/rooms")
+        : href === "/tasks"
+          ? pathname.startsWith("/tasks") || pathname.startsWith("/horarios") || pathname.startsWith("/access")
+          : pathname.startsWith(href);
 
   return (
     <>

@@ -37,7 +37,7 @@ export function DesktopNav({
       {/* Desktop: menú principal inline */}
       <nav className="ml-2 hidden flex-1 items-center gap-1 sm:flex">
         {mainItems.map((it) => (
-          <NavLink key={it.href} href={it.href} badge={it.badge}>
+          <NavLink key={it.href} href={it.href} active={isActive(it.href)} badge={it.badge}>
             {it.label}
           </NavLink>
         ))}

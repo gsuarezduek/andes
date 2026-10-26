@@ -11,9 +11,9 @@ import { requireAdmin } from "@/lib/auth-helpers";
  * o cargas manuales erróneas. **Guarda de evidencia:** no se puede eliminar una
  * reserva que ya tiene una inspección (entrega/acta firmada es inmutable) — esas
  * se conservan siempre. Borra en cascada los documentos y pedidos de firma
- * (que solo existen si hubo un intento de entrega) y las notas del equipo —
- * todas con FK obligatoria a la reserva, sin borrarlas la base rechaza el
- * borrado — dentro de una transacción.
+ * (que solo existen si hubo un intento de entrega), las notas del equipo y
+ * los permisos (ver `Permit`) — todas con FK obligatoria a la reserva, sin
+ * borrarlas la base rechaza el borrado — dentro de una transacción.
  */
 export async function deleteRental(id: string): Promise<void> {
   await requireAdmin();
@@ -34,6 +34,8 @@ export async function deleteRental(id: string): Promise<void> {
     prisma.signatureRequest.deleteMany({ where: { rentalId: id } }),
     prisma.rentalDocument.deleteMany({ where: { rentalId: id } }),
     prisma.rentalVerification.deleteMany({ where: { rentalId: id } }),
+    prisma.permitEdit.deleteMany({ where: { permit: { rentalId: id } } }),
+    prisma.permit.deleteMany({ where: { rentalId: id } }),
     prisma.rental.delete({ where: { id } }),
   ]);
 

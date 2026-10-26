@@ -7,6 +7,7 @@ import { hasAdminAccess } from "@/lib/user-permissions";
 import { compactControlClass } from "@/components/ui/fields";
 import { TaskForm } from "@/components/tasks/task-form";
 import { PendingTaskList } from "@/components/tasks/pending-task-list";
+import { TeamTabs } from "@/components/tasks/team-tabs";
 import { getRentalPickerOptions } from "@/lib/cash";
 import {
   getPendingTasks,
@@ -89,6 +90,7 @@ export default async function TasksPage({
 
   return (
     <div className="flex flex-col gap-5">
+      <TeamTabs active="tasks" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Tareas</h1>
         <p className="text-sm text-foreground/60">Coordinación del equipo: lavados, trámites, compras y demás.</p>

@@ -26,12 +26,15 @@ const COMMANDS: Command[] = [
   { id: "calendar", label: "Calendario", href: "/calendar", group: "Ir a", keywords: ["agenda", "timeline", "gantt", "disponibilidad"] },
   { id: "vehicles", label: "Vehículos", href: "/vehicles", group: "Ir a", keywords: ["autos", "flota", "patente", "service"] },
   { id: "third-party-vehicles", label: "Terceros", href: "/third-party-vehicles", group: "Ir a", keywords: ["vehiculos de terceros", "autos de terceros", "titular"] },
+  { id: "permits", label: "Permisos", href: "/permits", group: "Ir a", keywords: ["contrato", "formulario", "arca", "permiso de circulacion"] },
   { id: "rooms", label: "Habitaciones", href: "/rooms", group: "Ir a", keywords: ["airbnb", "booking", "temporario", "hospedaje", "cuarto"] },
   { id: "caja", label: "Caja", href: "/caja", group: "Ir a", keywords: ["plata", "cobros", "pagos", "ingresos", "egresos", "saldos", "garantias", "proveedores", "asociados"] },
   { id: "tasks", label: "Tareas", href: "/tasks", group: "Ir a", keywords: ["pendientes", "todo"] },
   { id: "reports", label: "Reportes", href: "/reports", group: "Ir a", keywords: ["estadisticas", "ocupacion", "ingresos", "metricas"], adminOnly: true },
-  { id: "competitor-prices", label: "Precios de la competencia", href: "/competitor-prices", group: "Ir a", keywords: ["competencia", "tarifas", "comparar"], adminOnly: true },
+  // "Precios de la competencia" se saca de la paleta junto con el menú de
+  // cuenta (ver app-nav.tsx) mientras se sigue puliendo la feature.
   { id: "gps", label: "GPS", href: "/gps", group: "Ir a", keywords: ["dispositivos", "rastreo"] },
+  { id: "horarios", label: "Horarios", href: "/horarios", group: "Ir a", keywords: ["turnos", "equipo", "guardia"] },
   { id: "access", label: "Accesos", href: "/access", group: "Ir a", keywords: ["contraseñas", "passwords", "credenciales", "usuarios"] },
   { id: "sync", label: "Sincronización", href: "/sync", group: "Ir a", keywords: ["vikrentcar", "wordpress", "importar", "flota"] },
   { id: "profile", label: "Perfil", href: "/profile", group: "Ir a", keywords: ["contraseña", "cuenta"] },

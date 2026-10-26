@@ -295,6 +295,9 @@ model User {
   createdAccessCredentials       AccessCredential[]        @relation("AccessCredentialCreator")
   updatedAccessCredentials       AccessCredential[]        @relation("AccessCredentialUpdater")
   accessCredentialReveals        AccessCredentialReveal[]
+  createdPermits                 Permit[]                  @relation("PermitCreator")
+  deletedPermits                 Permit[]                  @relation("PermitDeleter")
+  permitEdits                    PermitEdit[]              @relation("PermitEditor")
 
   @@map("users")
 }
@@ -734,6 +737,7 @@ model Rental {
   maintenanceLogs       MaintenanceLog[]
   whatsAppConversations WhatsAppConversation[]
   tasks                 Task[]
+  permits               Permit[]
 
   @@index([status])
   @@index([startAt])
@@ -823,6 +827,78 @@ model RentalDocument {
 
   @@index([rentalId])
   @@map("rental_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Permisos (vehículos → pestaña "Permisos"): registro de contratos/permisos
+// de circulación cargados a mano por el equipo, uno por reserva. Aviso fijo
+// en la pantalla con el email de reclamo ante ARCA.
+// ---------------------------------------------------------------------------
+model Permit {
+  id String @id @default(cuid())
+
+  // "Nro de contrato": correlativo propio de Andes, para siempre (nunca se
+  // reinicia por año ni se reutiliza, aunque se borre un permiso).
+  number Int @unique @default(autoincrement())
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id])
+
+  // Nombre del cliente y vehículo salen de `rental` (no se duplican acá).
+  formNumber String   @map("form_number") // número completo del formulario
+  expiresAt  DateTime @map("expires_at") @db.Date // vencimiento del contrato/permiso
+
+  // Clave de storage (R2/local) del formulario escaneado (foto o PDF).
+  // Opcional: se puede cargar el permiso y adjuntar después (requiere editar).
+  fileUrl String? @map("file_url")
+
+  createdById   String? @map("created_by_id")
+  createdBy     User?   @relation("PermitCreator", fields: [createdById], references: [id])
+  createdByName String  @map("created_by_name")
+
+  // Soft delete: un permiso nunca se borra de verdad, solo se oculta (mismo
+  // criterio que SafeMovement/CashMovement — es un registro con valor legal).
+  deletedAt     DateTime? @map("deleted_at")
+  deletedById   String?   @map("deleted_by_id")
+  deletedBy     User?     @relation("PermitDeleter", fields: [deletedById], references: [id])
+  deletedByName String?   @map("deleted_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  edits PermitEdit[]
+
+  @@index([rentalId])
+  @@index([createdAt])
+  @@map("permits")
+}
+
+/// Acción registrada en el historial de ediciones de un Permit.
+enum PermitEditAction {
+  updated
+  deleted
+}
+
+/// Auditoría de ediciones/borrados de Permisos (alta: cualquier rol vía
+/// `createPermit`; edición/borrado: solo admin).
+model PermitEdit {
+  id String @id @default(cuid())
+
+  permitId String @map("permit_id")
+  permit   Permit @relation(fields: [permitId], references: [id])
+
+  action  PermitEditAction
+  changes Json?
+
+  editedById   String? @map("edited_by_id")
+  editedBy     User?   @relation("PermitEditor", fields: [editedById], references: [id])
+  editedByName String  @map("edited_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([permitId])
+  @@index([createdAt])
+  @@map("permit_edits")
 }
 
 // ---------------------------------------------------------------------------

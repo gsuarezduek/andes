@@ -38,8 +38,20 @@ function sniffContentType(buffer: Buffer): string {
   if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
     return "video/webm";
   }
+  // PDF (ej. el formulario escaneado de un Permiso, Configuración → Vehículos → Permisos).
+  if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "%PDF") {
+    return "application/pdf";
+  }
   return "application/octet-stream";
 }
+
+const EXT_BY_CONTENT_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "video/webm": "webm",
+  "application/pdf": "pdf",
+};
 
 /** Subida en segundo plano de una foto/firma/daño de un borrador de inspección. */
 export async function POST(req: NextRequest) {
@@ -64,12 +76,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "tamaño inválido" }, { status: 413 });
   }
 
-  const ext = kind === "video" ? "webm" : kind === "signature" ? "png" : "jpg";
-  const key = uploadKey(draftId, kind, id, ext);
   // La firma la genera el propio canvas (siempre PNG, sin archivo de por
   // medio); el resto son archivos que el cliente eligió — nunca se confía en
-  // su Content-Type declarado, se detecta por los bytes reales.
+  // su Content-Type declarado, se detecta por los bytes reales. La extensión
+  // de la clave se deriva del tipo real detectado (antes era fija por `kind`,
+  // siempre ".jpg" salvo video/firma — incorrecto para un PDF, ej. el
+  // formulario escaneado de un Permiso).
   const contentType = kind === "signature" ? "image/png" : sniffContentType(buffer);
+  const ext = kind === "signature" ? "png" : EXT_BY_CONTENT_TYPE[contentType] ?? "bin";
+  const key = uploadKey(draftId, kind, id, ext);
 
   await storage().put(key, buffer, contentType);
   return NextResponse.json({ key });

@@ -35,6 +35,7 @@ export function RentalPicker({
   options,
   roomBookingOptions = [],
   initial = null,
+  label = "Reserva (opcional)",
 }: {
   options: RentalPickerOption[];
   /** Reservas de habitación candidatas (ver `getRoomBookingPickerOptions`) — opcional, solo donde aplica. */
@@ -42,6 +43,10 @@ export function RentalPicker({
   /** Reserva ya vinculada (ej. al editar) — puede no estar en `options` (que
    *  solo trae candidatas recientes) y aun así se muestra preseleccionada. */
   initial?: RentalPickerOption | null;
+  /** Label del campo — por default dice "(opcional)"; los callers donde la
+   *  reserva es obligatoria (ej. Permisos) lo pisan. La obligatoriedad real
+   *  la valida el server action, esto es solo el texto. */
+  label?: string;
 }) {
   const combined = useMemo(() => combineOptions(options, roomBookingOptions), [options, roomBookingOptions]);
   const [query, setQuery] = useState("");
@@ -58,7 +63,7 @@ export function RentalPicker({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-foreground/80">Reserva (opcional)</span>
+      <span className="text-sm font-medium text-foreground/80">{label}</span>
       <input type="hidden" name="rentalId" value={selected?.kind === "rental" ? selected.id : ""} />
       <input type="hidden" name="roomBookingId" value={selected?.kind === "room" ? selected.id : ""} />
       {selected ? (

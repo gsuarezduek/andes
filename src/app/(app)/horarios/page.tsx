@@ -14,6 +14,7 @@ import { WeekScheduleGrid } from "@/components/schedule/week-schedule-grid";
 import { WeekEditor } from "@/components/schedule/week-editor";
 import { SpecialDatesButton } from "@/components/schedule/special-dates-button";
 import { UpcomingSpecialDates } from "@/components/schedule/upcoming-special-dates";
+import { TeamTabs } from "@/components/tasks/team-tabs";
 
 export const metadata: Metadata = { title: "Horarios — Andes" };
 
@@ -41,6 +42,7 @@ export default async function HorariosPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <TeamTabs active="schedule" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Horarios</h1>

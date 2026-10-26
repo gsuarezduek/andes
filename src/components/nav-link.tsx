@@ -1,20 +1,24 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
+/**
+ * Link del menú principal de desktop. El estado activo lo decide el caller
+ * (`DesktopNav`, vía la misma `isActive` que ya usa el menú de cuenta) — antes
+ * este componente calculaba el suyo por separado con `usePathname()`, así que
+ * páginas que viven "dentro" de otro ítem del menú (ej. `/gps` dentro de
+ * Vehículos, `/horarios` dentro de Tareas) no resaltaban el ítem padre en la
+ * barra de desktop aunque sí lo hacían en mobile (que ya usaba `isActive`).
+ */
 export function NavLink({
   href,
+  active,
   children,
   badge,
 }: {
   href: string;
+  active: boolean;
   children: string;
   badge?: number;
 }) {
-  const pathname = usePathname();
-  const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-
   return (
     <Link
       href={href}
