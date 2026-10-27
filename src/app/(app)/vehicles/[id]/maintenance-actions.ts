@@ -54,8 +54,10 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
   });
   if (!vehicle) throw new Error("El vehículo no existe.");
 
+  // "No cargar deuda": el costo queda en el mantenimiento pero la deuda se
+  // registra aparte con una compensación (ver MaintenanceDebtAccountField).
   const debt =
-    cost != null && cost > 0
+    cost != null && cost > 0 && formData.get("skipDebt") !== "on"
       ? await buildMaintenanceDebt({
           accountId: parsed.data.accountId,
           accountNote: parsed.data.accountNote,

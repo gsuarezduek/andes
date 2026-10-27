@@ -20,19 +20,59 @@ export type DebtAccountOption = {
  * después desde Caja. Viaja como `accountId` (+ `accountNote` si la cuenta
  * exige aclaración). `<select>` nativo (no `PaymentMethodPicker`) para que
  * `required` lo valide el navegador antes de enviar.
+ *
+ * Excepción: la casilla "No cargar deuda" (`skipDebt`) deja el costo anotado
+ * en el mantenimiento sin crear la deuda — para cuando se registra aparte con
+ * una compensación entre cuentas corrientes (Caja → Compensar), que ya crea
+ * esa deuda; si no, quedaría duplicada.
  */
 export function MaintenanceDebtAccountField({ accounts }: { accounts: DebtAccountOption[] }) {
   const [accountId, setAccountId] = useState("");
+  const [skipDebt, setSkipDebt] = useState(false);
   const selected = accounts.find((a) => a.id === accountId);
   const providers = groupSubaccounts(accounts.filter((a) => a.ownership === "provider"));
   const associates = groupSubaccounts(accounts.filter((a) => a.ownership === "associate"));
 
+  const skipCheckbox = (
+    <label className="flex items-start gap-2 text-sm text-foreground/70">
+      <input
+        type="checkbox"
+        name="skipDebt"
+        checked={skipDebt}
+        onChange={(e) => setSkipDebt(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-foreground/30"
+      />
+      <span>
+        No cargar deuda
+        <span className="block text-xs text-foreground/50">
+          Solo deja anotado el costo. Usalo cuando lo vas a registrar con una compensación entre cuentas
+          corrientes (Caja → Compensar), que ya carga la deuda.
+        </span>
+      </span>
+    </label>
+  );
+
+  if (skipDebt) {
+    return (
+      <>
+        {skipCheckbox}
+        <p className="rounded-lg border border-foreground/10 bg-foreground/5 p-3 text-sm text-foreground/70">
+          El costo queda anotado en el mantenimiento, pero <strong>no se carga ninguna deuda</strong> ni
+          movimiento de caja. Acordate de registrar la compensación desde Caja.
+        </p>
+      </>
+    );
+  }
+
   if (accounts.length === 0) {
     return (
-      <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
-        No hay proveedores cargados. Creá uno en Configuración → Medios de pago (pestaña Proveedores) para
-        poder cargarle la deuda.
-      </p>
+      <>
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+          No hay proveedores cargados. Creá uno en Configuración → Medios de pago (pestaña Proveedores) para
+          poder cargarle la deuda.
+        </p>
+        {skipCheckbox}
+      </>
     );
   }
 
@@ -78,6 +118,7 @@ export function MaintenanceDebtAccountField({ accounts }: { accounts: DebtAccoun
       {selected?.requiresNote && (
         <TextField id="accountNote" label="¿A dónde fue?" hint="Obligatorio para esta cuenta" required />
       )}
+      {skipCheckbox}
     </>
   );
 }

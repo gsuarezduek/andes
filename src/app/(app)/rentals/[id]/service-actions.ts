@@ -159,8 +159,10 @@ export async function returnVehicleFromService(
   });
   if (!log) throw new Error("No se encontró el registro de service/arreglo de esta reserva.");
 
+  // "No cargar deuda": el costo queda en el mantenimiento pero la deuda se
+  // registra aparte con una compensación (ver MaintenanceDebtAccountField).
   const debt =
-    data.cost != null && data.cost > 0
+    data.cost != null && data.cost > 0 && formData.get("skipDebt") !== "on"
       ? await buildMaintenanceDebt({
           accountId: data.accountId,
           accountNote: data.accountNote,
