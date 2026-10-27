@@ -122,8 +122,8 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function beginTransaction()
     {
-        $booking = (array) $this->get('order', []);
-        $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
+        $booking = $this->orderRow();
+        $orderId = (int) $this->orderValue('id');
         $env     = $this->resolveEnvironment();
 
         $secret = $this->getSecretKey();
@@ -208,7 +208,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
         ];
 
         // Prellenar el email del cliente en Stripe cuando la reserva lo tiene.
-        $email = $this->customerEmail($booking);
+        $email = $this->customerEmail(array_merge(['custmail' => $this->get('custmail')], $booking));
         if ($email) {
             $payload['customer_email'] = $email;
         }
@@ -279,8 +279,9 @@ class VikRentCarAndesPayStripePayment extends JPayment
      */
     protected function validateTransaction(JPaymentStatus &$status)
     {
-        $booking = (array) $this->get('order', []);
-        $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
+        // Acá (notifypayment) la orden NO viene en 'order': llega "plana"
+        // (get('id'), get('sid'), get('ts')). orderValue() cubre los dos casos.
+        $orderId = (int) $this->orderValue('id');
         $env     = $this->resolveEnvironment();
 
         $input     = JFactory::getApplication()->input;
@@ -334,8 +335,8 @@ class VikRentCarAndesPayStripePayment extends JPayment
         $ref     = isset($session->client_reference_id) ? (string) $session->client_reference_id : '';
         $metaSid = isset($meta->sid) ? (string) $meta->sid : '';
         $metaTs  = isset($meta->ts) ? (string) $meta->ts : '';
-        $sid     = isset($booking['sid']) ? (string) $booking['sid'] : (string) $this->get('sid');
-        $ts      = isset($booking['ts']) ? (string) $booking['ts'] : (string) $this->get('ts');
+        $sid     = (string) $this->orderValue('sid');
+        $ts      = (string) $this->orderValue('ts');
 
         $mismatch = [];
         if ($orderId > 0 && $ref !== '' && $ref !== (string) $orderId) {
@@ -375,6 +376,9 @@ class VikRentCarAndesPayStripePayment extends JPayment
         if (function_exists('andes_pay_stripe_claim_session')
             && !andes_pay_stripe_claim_session($sessionId, $orderId, $viaWebhook ? 'webhook' : 'return')) {
             $this->alreadyProcessed = true;
+            // Sin esto VikRentCar le manda al admin el mail de "pago no
+            // verificado" por el aviso repetido, aunque el pago sí entró.
+            $status->setData('skip_email', 1);
             $status->appendLog("Sesión {$sessionId} ya procesada antes: no se vuelve a sumar el pago.");
             $this->logEvent('duplicate', $env, $orderId, $sessionId, $pi, $currency, $paid, 'Aviso repetido de un pago ya aplicado (recarga de la página o retorno + webhook). Ignorado, no se sumó dos veces.');
             return false;
@@ -589,6 +593,38 @@ class VikRentCarAndesPayStripePayment extends JPayment
             return (float) $minor;
         }
         return $minor / 100;
+    }
+
+    /**
+     * Fila de la orden. En beginTransaction() VikRentCar la pasa en 'order';
+     * en validateTransaction() (task notifypayment) los datos llegan "planos"
+     * y no hay 'order' (site/controller.php ~l.976). Se prueba 'order', después
+     * getOrder() si existe; si nada, vacío y orderValue() lee el dato plano.
+     *
+     * @return array
+     */
+    protected function orderRow()
+    {
+        $row = $this->get('order', []);
+        if (empty($row) && method_exists($this, 'getOrder')) {
+            $row = $this->getOrder();
+        }
+        return (is_array($row) || is_object($row)) ? (array) $row : [];
+    }
+
+    /**
+     * Un dato de la orden (id, sid, ts…), de la fila si está, si no del dato plano.
+     *
+     * @param  string  $key
+     * @return mixed
+     */
+    protected function orderValue($key)
+    {
+        $row = $this->orderRow();
+        if (isset($row[$key]) && $row[$key] !== '') {
+            return $row[$key];
+        }
+        return $this->get($key);
     }
 
     /**

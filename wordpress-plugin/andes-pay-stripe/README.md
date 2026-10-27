@@ -112,8 +112,12 @@ Checklist de seña/total:
 1. Reservar eligiendo **seña** → Stripe cobra el 30%; en VikRentCar `totpaid` =
    seña y la reserva queda confirmada; en Pagos, "Pagado" con etiqueta **Seña**.
 2. Reservar eligiendo **total** → cobra el total; etiqueta **Total**.
-3. Después de pagar, **recargar** la página de vuelta de Stripe → en Pagos
-   aparece "Repetido (ignorado)" y `totpaid` no cambia.
+3. Después de pagar, **recargar** la página de vuelta de Stripe → `totpaid` no
+   cambia. VikRentCar ve la orden ya confirmada y corta antes de llamar al
+   plugin, así que esto no deja registro en Pagos.
+4. Pagar y llamar al `notify_url` dos veces a la vez (o el retorno y el webhook
+   juntos, antes de que la orden se confirme) → uno queda "Pagado" y el otro
+   "Repetido (ignorado)", sin mail de "pago no verificado" al admin.
 
 Cuando esté todo OK, cambiá el **Entorno a Live** y cargá la `sk_live_…`.
 
@@ -128,8 +132,13 @@ Cuando esté todo OK, cambiá el **Entorno a Live** y cargá la `sk_live_…`.
 - La sesión tiene que ser de **esa** reserva (`client_reference_id`, y `sid`/`ts`
   en el metadata): si no coincide, se rechaza.
 - **Cada sesión se aplica una sola vez** (tabla `wp_andes_pay_stripe_claims`,
-  clave única por sesión). Una recarga de la página de vuelta, o el retorno y
-  el webhook llegando a la vez, no suman el pago dos veces.
+  clave única por sesión). Si el retorno y el webhook llegan a la vez, antes
+  de que la orden quede confirmada, el segundo no suma el pago de nuevo. Una
+  recarga posterior ni llega al plugin: VikRentCar corta antes porque la orden
+  ya está confirmada.
+- En la validación (task `notifypayment`) VikRentCar no pasa la orden en
+  `order`: los datos llegan "planos" (`get('id')`, `get('sid')`, `get('ts')`).
+  El plugin lee los dos formatos.
 - El `session_id` viaja en la URL de retorno; aunque alguien la manipule, la
   verificación contra Stripe falla si el pago no existe o no corresponde.
 
@@ -187,7 +196,8 @@ Una sola entrada de menú, con dos pestañas:
   - **Pagado (con aviso)**: sólo en registros anteriores a v1.3.0 (pagado con
     una referencia que no coincidía). Desde v1.3.0 eso se rechaza como **No pagado**.
   - **Repetido (ignorado)**: llegó un segundo aviso de un pago ya aplicado
-    (recarga de la página, o retorno + webhook). No se sumó dos veces.
+    (retorno + webhook a la vez). No se sumó dos veces ni se mandó el mail de
+    "pago no verificado".
   - **Pagado (webhook, sin retorno)**: el cliente no volvió del checkout;
     Stripe avisó por webhook y se completó la reserva sola.
   - **No pagado**: el cliente volvió, pero Stripe todavía no reporta el pago
