@@ -112,6 +112,11 @@ export async function updateAccountMovement(id: string, formData: FormData) {
   ) {
     throw new Error("Movimiento no encontrado");
   }
+  // La deuda de una compensación va atada a su pago (ver offset-actions.ts):
+  // editar una sola mitad las desalinearía — se borra y se carga de nuevo.
+  if (await prisma.cashMovement.findUnique({ where: { offsetDebtId: id }, select: { id: true } })) {
+    throw new Error("Esta deuda es parte de una compensación: para corregirla, eliminala y cargala de nuevo.");
+  }
 
   // Cuenta (destino): solo dentro de la misma entidad que la actual.
   const current = await prisma.paymentMethod.findUnique({ where: { id: existing.recipientPaymentMethodId } });
@@ -196,36 +201,53 @@ export async function updateAccountMovement(id: string, formData: FormData) {
   revalidatePath("/caja");
 }
 
-// Borrado de un movimiento de cuenta corriente mal cargado (Deuda o Pago).
-// Solo admin. Soft delete, mismo criterio que el resto de Caja.
+// Borrado de un movimiento de cuenta corriente mal cargado (Deuda, Pago o
+// Compensación). Solo admin. Soft delete, mismo criterio que el resto de Caja.
+// Una compensación son dos filas (la deuda con una cuenta y el pago a la
+// otra, ver offset-actions.ts): borrar cualquiera de las dos borra el par, para
+// que nunca quede una mitad suelta.
 export async function deleteAccountMovement(id: string, formData: FormData) {
   const user = await requireAdmin();
   const note = z.string().trim().min(1).max(300).parse(formData.get("note"));
 
-  const existing = await prisma.cashMovement.findUnique({ where: { id } });
+  const existing = await prisma.cashMovement.findUnique({
+    where: { id },
+    include: { offsetPayment: { select: { id: true, deletedAt: true } } },
+  });
   if (
     !existing ||
     existing.deletedAt ||
-    (existing.type !== "debt" && existing.type !== "expense") ||
+    (existing.type !== "debt" && existing.type !== "expense" && existing.type !== "offset") ||
     !existing.recipientPaymentMethodId
   ) {
     throw new Error("Movimiento no encontrado");
   }
 
+  const pairId =
+    existing.type === "offset"
+      ? existing.offsetDebtId
+      : existing.offsetPayment && !existing.offsetPayment.deletedAt
+        ? existing.offsetPayment.id
+        : null;
+  const ids = pairId ? [id, pairId] : [id];
+  const editedByName = displayName(user);
+
   await prisma.$transaction([
-    prisma.cashMovement.update({
-      where: { id },
-      data: { deletedAt: new Date(), deletedById: user.id, deletedByName: displayName(user) },
+    prisma.cashMovement.updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { deletedAt: new Date(), deletedById: user.id, deletedByName: editedByName },
     }),
-    prisma.cashMovementEdit.create({
-      data: {
-        cashMovementId: id,
-        action: "deleted",
-        changes: [{ field: "Motivo", from: "—", to: note }],
-        editedById: user.id,
-        editedByName: displayName(user),
-      },
-    }),
+    ...ids.map((cashMovementId) =>
+      prisma.cashMovementEdit.create({
+        data: {
+          cashMovementId,
+          action: "deleted",
+          changes: [{ field: "Motivo", from: "—", to: note }],
+          editedById: user.id,
+          editedByName,
+        },
+      }),
+    ),
   ]);
 
   revalidatePath("/caja");

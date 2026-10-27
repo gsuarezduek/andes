@@ -30,7 +30,13 @@ const KIND_LABELS: Record<ThirdPartyLedgerRow["kind"], string> = {
   debt: "Deuda",
   company_payment: "Pago de la empresa",
   client_payment: "Pago directo del cliente",
+  offset: "Pago por compensación",
 };
+
+/** Página de la cuenta corriente de la otra mitad de una compensación. */
+function offsetAccountHref(offset: NonNullable<ThirdPartyLedgerRow["offset"]>): string {
+  return `/caja/${offset.ownership === "associate" ? "asociados" : "proveedores"}/${offset.accountId}`;
+}
 
 /**
  * Toggle Pago/Deuda — mismo mecanismo visual que `CurrencyToggle` pero
@@ -74,7 +80,9 @@ function TypeToggle({ value, onChange }: { value: Kind; onChange: (kind: Kind) =
  * mismo — un `TypeToggle` Pago/Deuda corrige un movimiento mal cargado sin
  * borrarlo (al pasar a Pago pide el Origen; al pasar a Deuda lo saca) — y la
  * cuenta (Destino) solo dentro de la misma entidad (principal ↔ subcuentas);
- * a otra entidad, se borra y se carga de nuevo.
+ * a otra entidad, se borra y se carga de nuevo. Las dos mitades de una
+ * compensación (el pago por compensación y la deuda que lo originó, ver
+ * `createOffsetMovement`) no se editan — solo se eliminan, y juntas.
  */
 export function AccountMovementRow({
   movement,
@@ -99,7 +107,9 @@ export function AccountMovementRow({
   const selectedOrigin = paymentMethods.find((m) => m.id === paymentMethodId);
   const selectedAccount = accountOptions.find((m) => m.id === accountId);
   const isDebt = movement.kind === "debt";
-  const canEdit = isAdmin && movement.kind !== "client_payment";
+  const offset = movement.offset;
+  const canDelete = isAdmin && movement.kind !== "client_payment";
+  const canEdit = canDelete && !offset;
   const amountText = `${isDebt ? "+" : "−"}${formatMoney(movement.amount, movement.currency)}`;
   const amountToneClass = isDebt ? "text-amber-700 dark:text-amber-400" : "text-emerald-600";
   // Si la cuenta usada es una subcuenta, lo aclara — la vista sigue unificada
@@ -132,7 +142,12 @@ export function AccountMovementRow({
         <div className="min-w-0 flex-1">
           <p className="truncate">{movement.description}</p>
           <p className="mt-0.5 truncate text-xs text-foreground/50">
-            {movement.accountName || principalName} · {formatDateTime(movement.createdAt)}
+            {offset
+              ? movement.kind === "offset"
+                ? `Compensado con deuda a ${offset.accountName}`
+                : `Compensa un pago a ${offset.accountName}`
+              : movement.accountName || principalName}{" "}
+            · {formatDateTime(movement.createdAt)}
           </p>
         </div>
         <span className={`shrink-0 font-semibold ${amountToneClass}`}>{amountText}</span>
@@ -155,6 +170,16 @@ export function AccountMovementRow({
                   value={movement.originName + (movement.originNote ? ` (${movement.originNote})` : "")}
                 />
               )}
+              {offset && (
+                <DetailRow
+                  label={movement.kind === "offset" ? "Deuda cargada a" : "Pago a"}
+                  value={
+                    <Link href={offsetAccountHref(offset)} className="underline hover:text-foreground/70">
+                      {offset.accountName}
+                    </Link>
+                  }
+                />
+              )}
               {movement.rentalId && (
                 <DetailRow
                   label="Reserva"
@@ -173,11 +198,22 @@ export function AccountMovementRow({
                 />
               )}
             </dl>
-            {canEdit && (
+            {offset && (
+              <p className="rounded-lg bg-foreground/5 p-2.5 text-xs text-foreground/60">
+                Compensación entre cuentas corrientes: no es un movimiento de caja.{" "}
+                {movement.kind === "offset"
+                  ? `Este pago se saldó con la deuda que se le cargó a ${offset.accountName}.`
+                  : `Esta deuda se contrajo para pagarle a ${offset.accountName}.`}{" "}
+                No se edita: si está mal, eliminala (se borran las dos partes) y cargala de nuevo.
+              </p>
+            )}
+            {canDelete && (
               <div className="mt-1 flex gap-2">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
-                  Editar
-                </Button>
+                {canEdit && (
+                  <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
+                    Editar
+                  </Button>
+                )}
                 <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
                   Eliminar
                 </Button>
@@ -269,6 +305,10 @@ export function AccountMovementRow({
               <>
                 ¿Eliminar &quot;{movement.description}&quot; ({formatMoney(movement.amount, movement.currency)})?{" "}
                 {isDebt ? "Deja de sumar a la deuda con esta cuenta." : "Deja de contar como pago a esta cuenta."}
+                {offset &&
+                  (movement.kind === "offset"
+                    ? ` También se elimina la deuda que se le cargó a ${offset.accountName}.`
+                    : ` También se elimina el pago por compensación a ${offset.accountName}.`)}
               </>
             }
             action={deleteAccountMovement.bind(null, movement.id)}

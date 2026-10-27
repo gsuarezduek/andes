@@ -138,7 +138,7 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
   const { principals, resolve, memberIds } = await resolveToPrincipal(ownership);
   if (principals.length === 0) return [];
 
-  const [debts, clientPayments, companyPayments] = await Promise.all([
+  const [debts, clientPayments, companyPayments, offsets] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["recipientPaymentMethodId", "currency"],
       where: { type: "debt", deletedAt: null, recipientPaymentMethodId: { in: memberIds } },
@@ -154,6 +154,12 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
       where: { type: "expense", deletedAt: null, recipientPaymentMethodId: { in: memberIds } },
       _sum: { amount: true },
     }),
+    // Compensación: pago a esta cuenta saldado con una deuda a otra (sin caja).
+    prisma.cashMovement.groupBy({
+      by: ["recipientPaymentMethodId", "currency"],
+      where: { type: "offset", deletedAt: null, recipientPaymentMethodId: { in: memberIds } },
+      _sum: { amount: true },
+    }),
   ]);
 
   const balances = new Map(principals.map((p) => [p.id, emptyCurrencyTotals()]));
@@ -167,7 +173,7 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
     const totals = principalId && balances.get(principalId);
     if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
   }
-  for (const row of companyPayments) {
+  for (const row of [...companyPayments, ...offsets]) {
     const principalId = row.recipientPaymentMethodId && resolve.get(row.recipientPaymentMethodId);
     const totals = principalId && balances.get(principalId);
     if (totals) totals[row.currency] -= Number(row._sum.amount ?? 0);
@@ -193,8 +199,10 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
 
 export type ThirdPartyLedgerRow = {
   id: string;
-  // "debt" suma al saldo (le debemos más); los otros dos lo saldan.
-  kind: "debt" | "client_payment" | "company_payment";
+  // "debt" suma al saldo (le debemos más); los otros tres lo saldan.
+  // "offset" = pago por compensación: se saldó con una deuda contraída con
+  // otra cuenta corriente, sin movimiento de caja (ver `offset`).
+  kind: "debt" | "client_payment" | "company_payment" | "offset";
   description: string;
   amount: number;
   currency: Currency;
@@ -221,6 +229,10 @@ export type ThirdPartyLedgerRow = {
   // muestra en el lugar mismo del movimiento (ver `AccountMovementRow`).
   lastEditedByName: string | null;
   lastEditedAt: Date | null;
+  // Compensación entre cuentas corrientes: en la fila "offset" es la cuenta a
+  // la que se le cargó la deuda; en la "debt" que la originó, la cuenta a la
+  // que se le pagó. `accountId` es la principal (para linkear su página).
+  offset: { accountId: string; accountName: string; ownership: PaymentMethodOwnership } | null;
 };
 
 /**
@@ -243,10 +255,13 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
         { type: "debt", recipientPaymentMethodId: { in: memberIds } },
         { type: "income", paymentMethodId: { in: memberIds } },
         { type: "expense", recipientPaymentMethodId: { in: memberIds } },
+        { type: "offset", recipientPaymentMethodId: { in: memberIds } },
       ],
     },
     include: {
       rental: { select: { clientName: true } },
+      offsetDebt: { select: { recipientPaymentMethod: { select: OFFSET_ACCOUNT_SELECT } } },
+      offsetPayment: { select: { recipientPaymentMethod: { select: OFFSET_ACCOUNT_SELECT } } },
       edits: {
         where: { action: "updated" },
         orderBy: { createdAt: "desc" },
@@ -257,7 +272,14 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
   });
   return rows.map((r) => ({
     id: r.id,
-    kind: r.type === "debt" ? "debt" : r.type === "income" ? "client_payment" : "company_payment",
+    kind:
+      r.type === "debt"
+        ? "debt"
+        : r.type === "income"
+          ? "client_payment"
+          : r.type === "offset"
+            ? "offset"
+            : "company_payment",
     description: r.description,
     amount: Number(r.amount),
     currency: r.currency,
@@ -273,5 +295,29 @@ export async function getThirdPartyLedger(accountId: string): Promise<ThirdParty
     originNote: r.type === "expense" ? r.paymentMethodNote : null,
     lastEditedByName: r.edits[0]?.editedByName ?? null,
     lastEditedAt: r.edits[0]?.createdAt ?? null,
+    offset: offsetCounterpart(
+      r.type === "offset" ? r.offsetDebt?.recipientPaymentMethod : r.offsetPayment?.recipientPaymentMethod,
+    ),
   }));
+}
+
+const OFFSET_ACCOUNT_SELECT = {
+  id: true,
+  name: true,
+  ownership: true,
+  parent: { select: { id: true, name: true } },
+} as const;
+
+function offsetCounterpart(
+  account:
+    | { id: string; name: string; ownership: PaymentMethodOwnership; parent: { id: string; name: string } | null }
+    | null
+    | undefined,
+): ThirdPartyLedgerRow["offset"] {
+  if (!account) return null;
+  return {
+    accountId: account.parent?.id ?? account.id,
+    accountName: account.parent?.name ?? account.name,
+    ownership: account.ownership,
+  };
 }

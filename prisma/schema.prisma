@@ -143,6 +143,7 @@ enum CashMovementType {
   income // cobro
   expense // pago
   debt // deuda con un proveedor, sin origen (cuenta corriente)
+  offset // compensación: pago a una cuenta corriente saldado con una deuda a otra, sin caja
 }
 
 /// Tipo de movimiento de Caja Fuerte: ingreso o retiro de efectivo físico.
@@ -1490,6 +1491,15 @@ model CashMovement {
   guaranteeSourceId String?        @map("guarantee_source_id")
   guaranteeSource   CashMovement?  @relation("GuaranteeDerivative", fields: [guaranteeSourceId], references: [id])
   guaranteeDerived  CashMovement[] @relation("GuaranteeDerivative")
+
+  // Compensación entre cuentas corrientes (ver `caja/offset-actions.ts`): la
+  // fila `type: offset` es el pago a una cuenta (ej. la dueña del auto) y
+  // apunta a la deuda (`type: debt`) que se contrajo con otra cuenta para
+  // hacerlo (ej. el taller). Las dos nacen y se borran juntas; ninguna es
+  // caja real (`findMovements`/Reportes solo leen income/expense).
+  offsetDebtId  String?       @unique @map("offset_debt_id")
+  offsetDebt    CashMovement? @relation("OffsetDebt", fields: [offsetDebtId], references: [id])
+  offsetPayment CashMovement? @relation("OffsetDebt")
 
   // Hay que emitirle una factura a este ingreso (nunca se usa en un Egreso).
   // Es una etiqueta simple, no un vínculo formal con `Invoice` — el registro

@@ -1148,6 +1148,16 @@ Pedido del dueño: el costo de un mantenimiento no es un pago real en el momento
 - **UI**: `MaintenanceDebtAccountField` (nuevo) reemplaza el "De dónde sale" de la ficha y el selector de "Cuenta" del cierre de service. Es un `<select>` "Proveedor" con proveedores y asociados agrupados (subcuentas con "↳"), con la aclaración "¿A dónde fue?" si la cuenta la exige, y un aviso si no hay proveedores cargados. Al elegir una cuenta aparece un cartel ámbar: se anota como deuda en la cuenta corriente de ese proveedor, no sale como egreso en la caja, y el pago se registra después desde Caja → Cuentas corrientes (o Asociados). Solo aparece si se cargó un costo.
 - **Ya no se puede** cargar un mantenimiento pagado en el momento desde la ficha del vehículo. Si se pagó en el acto, se carga la deuda y después el "+ Pago" en la cuenta del proveedor (Caja → Cuentas corrientes). Los registros cargados antes de este cambio siguen como egresos.
 
+## v96 — Compensación entre cuentas corrientes
+
+Caso real: el auto de un asociado (Claudia) se arregló en un taller (German). Al taller le quedamos debiendo, y ese mismo importe es un pago hacia el asociado, sin que pase plata por la caja. Antes no había forma de anotarlo: un "Pago" siempre es un egreso de caja con Origen. tsc/lint/898 tests en verde; **verificado con Playwright a 375px contra la base local**: alta desde la página del asociado, saldos de las dos cuentas, detalle del movimiento y borrado de a pares desde la cuenta del proveedor (datos de prueba borrados). Migración `add_cash_movement_offset` **aplicada solo en local, sin desplegar todavía**.
+
+- **`CashMovementType.offset`** + **`CashMovement.offsetDebtId`** (`@unique`, autorrelación "OffsetDebt"): la fila `offset` es el pago a una cuenta y apunta a la `debt` que se contrajo con otra para hacerlo. Ninguna de las dos es caja real: Movimientos, Saldos, Billetera, Reportes y el CSV solo leen `income`/`expense`, así que quedan afuera sin tocar esas consultas.
+- **`createOffsetMovement`** (`caja/offset-actions.ts`, cualquier rol, igual que una deuda o un pago): crea las dos filas en una transacción. Las dos cuentas tienen que ser proveedores o asociados, de entidades distintas. Devuelve `{error}` en vez de tirar.
+- **Saldo e historial** (`third-party-accounts.ts`): la `offset` resta del saldo de la cuenta que cobra, igual que un pago de la empresa; la `debt` suma en la otra, como cualquier deuda. `ThirdPartyLedgerRow` suma `kind: "offset"` y `offset` (la otra cuenta, resuelta a la principal, para linkear su página).
+- **Botón "Compensar"** en las tarjetas y páginas de proveedores y asociados (`ProviderQuickActions`/`AssociateQuickActions` → `OffsetMovementForm`): se elige a quién se le carga la deuda, con detalle, monto y moneda, y un cartel ámbar que aclara que no se mueve caja. En el historial, la fila dice "Compensado con deuda a X" / "Compensa un pago a X" y el modal linkea a la otra cuenta.
+- **No se edita, solo se elimina, y de a pares** (`deleteAccountMovement`): borrar cualquiera de las dos mitades borra las dos, con su registro en `CashMovementEdit`. `updateAccountMovement` rechaza la deuda de una compensación, para no desalinear las dos mitades.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

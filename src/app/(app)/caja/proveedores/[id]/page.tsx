@@ -31,7 +31,7 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
     prisma.paymentMethod.findMany({
       where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
-      select: { id: true, name: true, requiresNote: true, parentId: true },
+      select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
     }),
   ]);
 
