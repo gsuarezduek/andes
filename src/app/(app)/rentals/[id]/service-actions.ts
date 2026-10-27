@@ -10,6 +10,7 @@ import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { buildMaintenanceDebt } from "@/lib/maintenance-debt";
 
 const optNum = z.preprocess(
   (v) => (v === "" || v == null ? undefined : Number(v)),
@@ -111,9 +112,9 @@ const closeSchema = z.object({
  * `markVehicleService` en esta misma reserva. El auto vuelve a `available`
  * (con el service reprogramado si correspondía) y la reserva placeholder
  * pasa a `cancelled` con la fecha real de vuelta — sin importar si tardó más
- * o menos de lo estimado. El costo final (si lo hay) se paga en el momento o
- * se carga como deuda a un proveedor/asociado (cuenta corriente de Caja),
- * según la cuenta elegida.
+ * o menos de lo estimado. El costo final (si lo hay) se carga como deuda
+ * al proveedor/asociado (cuenta corriente de Caja) — el pago real se anota
+ * después desde Caja, ver `buildMaintenanceDebt`.
  */
 export async function returnVehicleFromService(
   rentalId: string,
@@ -158,20 +159,16 @@ export async function returnVehicleFromService(
   });
   if (!log) throw new Error("No se encontró el registro de service/arreglo de esta reserva.");
 
-  let method: { id: string; name: string; ownership: string; requiresNote: boolean } | null = null;
-  if (data.cost != null && data.cost > 0) {
-    if (!data.accountId) throw new Error("Indicá de dónde sale (o a quién se le debe) este gasto.");
-    method = await prisma.paymentMethod.findUnique({
-      where: { id: data.accountId },
-      select: { id: true, name: true, ownership: true, requiresNote: true },
-    });
-    if (!method) throw new Error("Cuenta inválida.");
-    if (method.requiresNote && !data.accountNote) {
-      throw new Error("Esta cuenta requiere indicar a dónde fue.");
-    }
-  }
-
-  const cmDescription = `${maintenanceTypeLabels[log.type]} — ${vehicleDisplayName(vehicle)}: ${log.description}`;
+  const debt =
+    data.cost != null && data.cost > 0
+      ? await buildMaintenanceDebt({
+          accountId: data.accountId,
+          accountNote: data.accountNote,
+          amount: data.cost,
+          description: `${maintenanceTypeLabels[log.type]} — ${vehicleDisplayName(vehicle)}: ${log.description}`,
+          user: { id: user.id, name: displayName(user) },
+        })
+      : null;
 
   await prisma.$transaction([
     prisma.maintenanceLog.update({
@@ -200,38 +197,7 @@ export async function returnVehicleFromService(
       where: { id: rentalId },
       data: { status: "cancelled", endAt: mendozaWallTimeToUtc(`${data.date}T12:00`) },
     }),
-    ...(method
-      ? [
-          // "own"/"misc": egreso inmediato, sin cuenta corriente que llevar.
-          // "associate"/"provider": queda a deber (ver comentario más arriba).
-          method.ownership === "own" || method.ownership === "misc"
-            ? prisma.cashMovement.create({
-                data: {
-                  type: "expense" as const,
-                  description: cmDescription,
-                  amount: data.cost!,
-                  paymentMethodId: method.id,
-                  paymentMethodName: method.name,
-                  paymentMethodNote: method.requiresNote ? (data.accountNote ?? null) : null,
-                  createdById: user.id,
-                  createdByName: displayName(user),
-                },
-              })
-            : prisma.cashMovement.create({
-                data: {
-                  type: "debt" as const,
-                  description: cmDescription,
-                  amount: data.cost!,
-                  paymentMethodName: "",
-                  recipientPaymentMethodId: method.id,
-                  recipientPaymentMethodName: method.name,
-                  recipientPaymentMethodNote: method.requiresNote ? (data.accountNote ?? null) : null,
-                  createdById: user.id,
-                  createdByName: displayName(user),
-                },
-              }),
-        ]
-      : []),
+    ...(debt ? [prisma.cashMovement.create({ data: debt })] : []),
   ]);
 
   revalidatePath(`/vehicles/${vehicleId}`);

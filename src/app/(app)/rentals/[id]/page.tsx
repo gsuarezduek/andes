@@ -138,9 +138,11 @@ export default async function RentalDetailPage({
     requiresNote: m.requiresNote,
     parentId: m.parentId,
   }));
-  // Para "volver a poner en servicio": cuenta propia (pago ahora) o
-  // proveedor/asociado (queda a deber, cuenta corriente de Caja).
-  const serviceAccounts = rawPaymentMethods.map((m) => ({
+  // Para "volver a poner en servicio": el costo queda como deuda del
+  // proveedor/asociado (cuenta corriente de Caja), nunca como egreso propio.
+  const serviceAccounts = rawPaymentMethods
+    .filter((m) => m.ownership === "provider" || m.ownership === "associate")
+    .map((m) => ({
     id: m.id,
     name: m.name,
     requiresNote: m.requiresNote,

@@ -2,21 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, unstable_rethrow } from "next/navigation";
-import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { TextField, SelectField } from "@/components/ui/fields";
+import { TextField } from "@/components/ui/fields";
 import { ServiceIcon } from "@/components/ui/icons";
 import { formatDateInput } from "@/lib/datetime";
 import { markVehicleService, returnVehicleFromService } from "@/app/(app)/rentals/[id]/service-actions";
-import { MaintenanceFormFields, type PaymentMethodOption } from "@/components/vehicle/maintenance-form-fields";
+import { MaintenanceFormFields } from "@/components/vehicle/maintenance-form-fields";
+import { MaintenanceDebtAccountField, type DebtAccountOption } from "@/components/vehicle/maintenance-debt-account-field";
 
 const SERVICE_TYPES = [
   { value: "service", label: "Service" },
   { value: "repair", label: "Arreglo" },
 ];
-
-export type AccountOption = PaymentMethodOption & { ownership: PaymentMethodOwnership };
 
 /**
  * Ícono de "Service / arreglo" del header de una reserva: dos modos según el
@@ -26,8 +24,8 @@ export type AccountOption = PaymentMethodOption & { ownership: PaymentMethodOwne
  * - **open** (reserva `reserved`, sin entrega): registra el motivo y deja el
  *   auto y la reserva "en service" — sin costo todavía, se carga al cerrar.
  * - **close** (reserva `out_of_service`): el auto vuelve a estar disponible.
- *   El costo final, si lo hay, se paga en el momento o se carga como deuda a
- *   un proveedor/asociado (cuenta corriente de Caja).
+ *   El costo final, si lo hay, se carga como deuda al proveedor/asociado
+ *   (cuenta corriente de Caja); el pago real se anota después desde Caja.
  *
  * El envío se maneja a mano (en vez de `<form action>` nativo): así el modal
  * se queda abierto mientras la acción corre y sólo se cierra si termina bien.
@@ -37,17 +35,14 @@ export function AddServiceButton({
   vehicleId,
   currentKm,
   mode,
-  paymentMethods,
   accounts,
 }: {
   rentalId: string;
   vehicleId: string;
   currentKm: number | null;
   mode: "open" | "close";
-  /** Solo para `mode="open"` (siempre "cuenta propia" hoy: sin costo acá). */
-  paymentMethods?: PaymentMethodOption[];
-  /** Solo para `mode="close"`: cuentas propias + proveedor/asociado. */
-  accounts?: AccountOption[];
+  /** Solo para `mode="close"`: proveedores/asociados a los que cargar la deuda. */
+  accounts?: DebtAccountOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -131,7 +126,6 @@ export function AddServiceButton({
               <MaintenanceFormFields
                 types={SERVICE_TYPES}
                 currentKm={currentKm}
-                paymentMethods={paymentMethods ?? []}
                 showCost={false}
               />
             </fieldset>
@@ -194,26 +188,20 @@ function CloseServiceForm({
   onSubmit,
 }: {
   currentKm: number | null;
-  accounts: AccountOption[];
+  accounts: DebtAccountOption[];
   error: string | undefined;
   pending: boolean;
   onCancel: () => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }) {
   const [cost, setCost] = useState("");
-  const [accountId, setAccountId] = useState("");
   const hasCost = cost.trim() !== "" && Number(cost) > 0;
-  const selectedAccount = accounts.find((a) => a.id === accountId);
-  // Propia o Varios: se paga ahora (egreso inmediato, sin cuenta corriente).
-  // Asociado/proveedor: queda a deber (ver `service-actions.ts`).
-  const paidNowAccounts = accounts.filter((a) => a.ownership === "own" || a.ownership === "misc");
-  const debtAccounts = accounts.filter((a) => a.ownership === "associate" || a.ownership === "provider");
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <p className="text-xs text-foreground/60">
-        El auto vuelve a estar <strong>disponible</strong>. Si hubo un costo final, elegí de dónde
-        sale — o cargalo como deuda a un proveedor/asociado si todavía no se pagó.
+        El auto vuelve a estar <strong>disponible</strong>. Si hubo un costo final, queda como
+        deuda en la cuenta corriente del proveedor — el pago se anota después desde Caja.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <TextField id="date" label="Fecha de vuelta" type="date" required defaultValue={formatDateInput(new Date())} />
@@ -229,42 +217,7 @@ function CloseServiceForm({
         value={cost}
         onChange={(e) => setCost(e.target.value)}
       />
-      {hasCost && (
-        <>
-          <SelectField
-            id="accountId"
-            label="Cuenta"
-            required
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-          >
-            <option value="" disabled>
-              Elegí una cuenta
-            </option>
-            {paidNowAccounts.length > 0 && (
-              <optgroup label="Pago ahora">
-                {paidNowAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {debtAccounts.length > 0 && (
-              <optgroup label="Proveedor / asociado — queda a deber">
-                {debtAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </SelectField>
-          {selectedAccount?.requiresNote && (
-            <TextField id="accountNote" label="¿A dónde fue?" hint="Obligatorio para esta cuenta" required />
-          )}
-        </>
-      )}
+      {hasCost && <MaintenanceDebtAccountField accounts={accounts} />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Button type="button" variant="secondary" className="flex-1" onClick={onCancel} disabled={pending}>

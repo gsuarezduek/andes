@@ -9,6 +9,7 @@ import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { maintenanceTypeLabels } from "@/lib/labels";
 import { parseDecimal } from "@/lib/number-input";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
+import { buildMaintenanceDebt } from "@/lib/maintenance-debt";
 
 const optInt = z.preprocess(
   (v) => (v === "" || v == null ? undefined : Number(v)),
@@ -26,11 +27,10 @@ const schema = z.object({
   cost: optCost,
   place: z.string().trim().optional(),
   description: z.string().trim().min(1),
-  // Si hay costo, de dónde sale la plata — igual que un "Pago" de Caja. El
-  // gasto queda en Caja como gasto general del negocio (no vinculado a
-  // ninguna reserva: es un costo del auto, no del cliente).
-  paymentMethodId: z.string().optional(),
-  paymentMethodNote: z.string().trim().max(300).optional(),
+  // Si hay costo, a qué proveedor/asociado se le debe: queda como deuda en su
+  // cuenta corriente de Caja (ver `buildMaintenanceDebt`), no como egreso.
+  accountId: z.string().optional(),
+  accountNote: z.string().trim().max(300).optional(),
 });
 
 export async function createMaintenance(vehicleId: string, formData: FormData) {
@@ -42,27 +42,28 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
     cost: formData.get("cost"),
     place: formData.get("place"),
     description: formData.get("description"),
-    paymentMethodId: formData.get("paymentMethodId") || undefined,
-    paymentMethodNote: formData.get("paymentMethodNote") || undefined,
+    accountId: formData.get("accountId") || undefined,
+    accountNote: formData.get("accountNote") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Datos inválidos.");
-  const { cost, paymentMethodId, paymentMethodNote } = parsed.data;
-
-  let method: { id: string; name: string; requiresNote: boolean } | null = null;
-  if (cost != null && cost > 0) {
-    if (!paymentMethodId) throw new Error("Indicá de dónde sale la plata para este gasto.");
-    method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
-    if (!method) throw new Error("Medio de pago inválido");
-    if (method.requiresNote && !paymentMethodNote) {
-      throw new Error("Este medio de pago requiere indicar a dónde fue.");
-    }
-  }
+  const { cost } = parsed.data;
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
     select: { plate: true, name: true, brand: true, model: true, currentKm: true, serviceIntervalKm: true },
   });
   if (!vehicle) throw new Error("El vehículo no existe.");
+
+  const debt =
+    cost != null && cost > 0
+      ? await buildMaintenanceDebt({
+          accountId: parsed.data.accountId,
+          accountNote: parsed.data.accountNote,
+          amount: cost,
+          description: `${maintenanceTypeLabels[parsed.data.type]} — ${vehicleDisplayName(vehicle)}: ${parsed.data.description}`,
+          user: { id: user.id, name: displayName(user) },
+        })
+      : null;
 
   await prisma.$transaction([
     prisma.maintenanceLog.create({
@@ -93,22 +94,7 @@ export async function createMaintenance(vehicleId: string, formData: FormData) {
           }),
         ]
       : []),
-    ...(method
-      ? [
-          prisma.cashMovement.create({
-            data: {
-              type: "expense",
-              description: `${maintenanceTypeLabels[parsed.data.type]} — ${vehicleDisplayName(vehicle)}: ${parsed.data.description}`,
-              amount: cost!,
-              paymentMethodId: method.id,
-              paymentMethodName: method.name,
-              paymentMethodNote: method.requiresNote ? (paymentMethodNote ?? null) : null,
-              createdById: user.id,
-              createdByName: displayName(user),
-            },
-          }),
-        ]
-      : []),
+    ...(debt ? [prisma.cashMovement.create({ data: debt })] : []),
   ]);
 
   revalidatePath(`/vehicles/${vehicleId}`);

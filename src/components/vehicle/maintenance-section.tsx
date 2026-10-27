@@ -3,27 +3,26 @@ import { MaintenanceForm } from "@/components/vehicle/maintenance-form";
 import { MaintenanceRow } from "@/components/vehicle/maintenance-row";
 import { formatArs } from "@/lib/contract";
 import type { VehicleDetail } from "@/lib/vehicle-detail-queries";
-
-type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
+import type { DebtAccountOption } from "@/components/vehicle/maintenance-debt-account-field";
 
 export function MaintenanceSection({
   vehicleId,
   isAdmin,
   currentKm,
   logs,
-  paymentMethods,
+  debtAccounts,
 }: {
   vehicleId: string;
   isAdmin: boolean;
   currentKm: number;
   logs: VehicleDetail["maintenanceLogs"];
-  paymentMethods: PaymentMethodOption[];
+  debtAccounts: DebtAccountOption[];
 }) {
   return (
     <section className="flex flex-col gap-2">
       <SectionTitle>Mantenimiento</SectionTitle>
 
-      <MaintenanceForm vehicleId={vehicleId} currentKm={currentKm} paymentMethods={paymentMethods} />
+      <MaintenanceForm vehicleId={vehicleId} currentKm={currentKm} debtAccounts={debtAccounts} />
 
       {logs.length === 0 ? (
         <p className="rounded-lg border border-foreground/10 px-4 py-3 text-sm text-foreground/50">Sin registros de mantenimiento.</p>

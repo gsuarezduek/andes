@@ -35,10 +35,16 @@ export default async function VehicleDetailPage({
   if (!vehicle) notFound();
 
   const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
-  const paymentMethods = await prisma.paymentMethod.findMany({
-    where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
+  // El costo de un mantenimiento queda como deuda del proveedor/asociado
+  // (cuenta corriente de Caja), nunca como egreso de una cuenta propia.
+  const debtAccounts = await prisma.paymentMethod.findMany({
+    where: {
+      active: true,
+      ownership: { in: ["provider", "associate"] },
+      ...(canSeeFinanceOnly ? {} : { financeOnly: false }),
+    },
     orderBy: { ordering: "asc" },
-    select: { id: true, name: true, requiresNote: true, parentId: true },
+    select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
   });
 
   const activeDamages = vehicle.damages.filter((d) => !d.repaired);
@@ -134,7 +140,7 @@ export default async function VehicleDetailPage({
             isAdmin={isAdmin}
             currentKm={vehicle.currentKm}
             logs={vehicle.maintenanceLogs}
-            paymentMethods={paymentMethods}
+            debtAccounts={debtAccounts}
           />
         }
       />

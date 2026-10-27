@@ -3,37 +3,36 @@
 import { useState } from "react";
 import { TextField, SelectField, TextareaField } from "@/components/ui/fields";
 import { formatDateInput } from "@/lib/datetime";
+import { MaintenanceDebtAccountField, type DebtAccountOption } from "./maintenance-debt-account-field";
 
-export type PaymentMethodOption = { id: string; name: string; requiresNote: boolean };
 export type MaintenanceTypeOption = { value: string; label: string };
 
 /**
  * Campos del formulario de service/arreglo (tipo, fecha, km, costo, lugar,
- * descripción y, si hay costo, de dónde sale la plata) — antes copiado tres
+ * descripción y, si hay costo, a qué proveedor se le debe — el costo queda
+ * como deuda en su cuenta corriente, ver `buildMaintenanceDebt`) — antes copiado tres
  * veces (ficha del vehículo, acceso rápido del header de la reserva, y el
  * bloque que daba de baja el auto) con un className hecho a mano en cada
  * una. `types` deja elegir qué opciones ofrece el <select> (el acceso
  * rápido de la reserva solo ofrece Service/Arreglo). `showCost=false`
- * (formulario de "marcar service" desde una reserva) oculta costo/medio de
- * pago — ahí muchas veces todavía no se sabe cuánto va a salir; se carga
+ * (formulario de "marcar service" desde una reserva) oculta costo/proveedor — ahí muchas veces todavía no se sabe cuánto va a salir; se carga
  * al cerrar el service, con `returnVehicleFromService`.
  */
 export function MaintenanceFormFields({
   types,
   defaultType,
   currentKm,
-  paymentMethods,
+  debtAccounts = [],
   showCost = true,
 }: {
   types: MaintenanceTypeOption[];
   defaultType?: string;
   currentKm?: number | null;
-  paymentMethods: PaymentMethodOption[];
+  /** Proveedores/asociados a los que se les puede cargar la deuda del costo. */
+  debtAccounts?: DebtAccountOption[];
   showCost?: boolean;
 }) {
   const [cost, setCost] = useState("");
-  const [paymentMethodId, setPaymentMethodId] = useState("");
-  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const hasCost = showCost && cost.trim() !== "" && Number(cost) > 0;
 
   return (
@@ -62,34 +61,7 @@ export function MaintenanceFormFields({
       </div>
       <TextField id="place" label="Lugar / taller" placeholder="Opcional" />
       <TextareaField id="description" label="Descripción" required rows={2} placeholder="Ej. cambio de aceite y filtros" />
-      {hasCost && (
-        <>
-          <SelectField
-            id="paymentMethodId"
-            label="De dónde sale"
-            required
-            value={paymentMethodId}
-            onChange={(e) => setPaymentMethodId(e.target.value)}
-          >
-            <option value="" disabled>
-              Elegí un medio de pago
-            </option>
-            {paymentMethods.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </SelectField>
-          {selectedMethod?.requiresNote && (
-            <TextField
-              id="paymentMethodNote"
-              label="¿A dónde fue?"
-              hint="Obligatorio para este medio de pago"
-              required
-            />
-          )}
-        </>
-      )}
+      {hasCost && <MaintenanceDebtAccountField accounts={debtAccounts} />}
     </>
   );
 }
