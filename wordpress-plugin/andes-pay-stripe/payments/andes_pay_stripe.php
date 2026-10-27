@@ -2,7 +2,10 @@
 /**
  * Andes Pay Stripe — pasarela de pago para VikRentCar (Stripe Checkout).
  *
- * Cobra el TOTAL de la reserva con tarjeta usando Stripe Checkout: el cliente es
+ * Cobra lo que VikRentCar define como "total a pagar ahora" (`total_to_pay`):
+ * el TOTAL de la reserva o la SEÑA, según lo que haya elegido el cliente en el
+ * checkout (VikRentCar resuelve la elección y el cálculo; acá sólo se cobra ese
+ * monto). Usa Stripe Checkout: el cliente es
  * redirigido a una página alojada por Stripe (PCI mínimo, sin datos de tarjeta
  * en el sitio) y al volver se verifica el pago consultando la API de Stripe.
  * No confía en el navegador: el estado "pagado" se confirma server-side.
@@ -39,6 +42,26 @@ class VikRentCarAndesPayStripePayment extends JPayment
     protected $lastError = '';
 
     /**
+     * Qué se está cobrando: 'deposit' (seña), 'full' (total) o '' si no se
+     * sabe todavía. Lo setean beginTransaction() (desde leave_deposit) y
+     * validateTransaction() (desde el metadata de la sesión); logEvent() lo
+     * guarda en cada registro para que la pestaña Pagos muestre Seña/Total.
+     *
+     * @var string
+     */
+    protected $paymentKind = '';
+
+    /**
+     * True si validateTransaction() rechazó el aviso porque esa sesión ya se
+     * había procesado (el cliente recargó la página de vuelta, o llegaron el
+     * retorno y el webhook a la vez). complete() lo usa para mostrar el
+     * mensaje de "gracias" en vez de "pago no verificado": el pago sí existe.
+     *
+     * @var bool
+     */
+    protected $alreadyProcessed = false;
+
+    /**
      * @override
      */
     public function __construct($alias, $order, $params = [])
@@ -57,7 +80,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
             'intro' => [
                 'type'  => 'custom',
                 'label' => '',
-                'html'  => '<p>Cobra el total de la reserva con tarjeta vía <strong>Stripe Checkout</strong>. '
+                'html'  => '<p>Cobra con tarjeta vía <strong>Stripe Checkout</strong> el importe que VikRentCar define para pagar ahora: el <strong>total</strong> o la <strong>seña</strong>, según lo que elija el cliente (se configura en las opciones de seña de VikRentCar). '
                     . 'Podés cargar las claves acá <em>o</em> en <strong>Ajustes → Andes Pay Stripe</strong> del panel de WordPress. '
                     . 'Si dejás un campo vacío acá, se usa el valor del panel. Empezá siempre en modo <em>Test</em> con claves <code>sk_test_…</code>.</p>',
             ],
@@ -92,7 +115,8 @@ class VikRentCarAndesPayStripePayment extends JPayment
 
     /**
      * @override
-     * Inicia la transacción: crea una Stripe Checkout Session por el total y
+     * Inicia la transacción: crea una Stripe Checkout Session por total_to_pay
+     * (total o seña, ya resuelto por VikRentCar) y
      * redirige al cliente a la página de pago de Stripe. Este output se ejecuta
      * dentro de un buffer, así que se puede imprimir directamente.
      */
@@ -109,9 +133,15 @@ class VikRentCarAndesPayStripePayment extends JPayment
             return true;
         }
 
+        // total_to_pay ya viene con la seña aplicada (si el cliente la eligió) y
+        // con el recargo/descuento del método de pago. NUNCA usar order_total
+        // para cobrar: es el total de la reserva, no lo que se paga ahora.
         $currency = strtolower((string) $this->get('transaction_currency'));
         $total    = (float) $this->get('total_to_pay');
         $minor    = $this->toMinorUnits($total, $currency);
+
+        $isDeposit         = !empty($this->get('leave_deposit'));
+        $this->paymentKind = $isDeposit ? 'deposit' : 'full';
 
         if ($orderId <= 0 || $currency === '' || $minor <= 0) {
             $this->logEvent('error', $env, $orderId, '', '', $currency, $total, 'Datos de la reserva incompletos al iniciar el pago.');
@@ -139,6 +169,18 @@ class VikRentCarAndesPayStripePayment extends JPayment
             $itemName = substr($itemName, 0, 250);
         }
 
+        if ($itemName === '') {
+            $itemName = 'Reserva #' . $orderId;
+        }
+        // En la página de Stripe el cliente ve si está pagando la seña.
+        if ($isDeposit) {
+            $itemName = function_exists('mb_substr')
+                ? mb_substr('Seña – ' . $itemName, 0, 250)
+                : substr('Seña – ' . $itemName, 0, 250);
+        }
+
+        $kindLabel = $isDeposit ? 'Seña' : 'Total';
+
         $payload = [
             'mode'                                              => 'payment',
             'success_url'                                       => $successUrl,
@@ -146,10 +188,23 @@ class VikRentCarAndesPayStripePayment extends JPayment
             'client_reference_id'                               => (string) $orderId,
             'metadata[source]'                                  => 'vikrentcar-andes',
             'metadata[order_id]'                                => (string) $orderId,
+            // sid/ts identifican la orden en VikRentCar (es lo que usa
+            // notifypayment para buscarla); validateTransaction() los compara.
+            'metadata[sid]'                                     => (string) $this->get('sid'),
+            'metadata[ts]'                                      => (string) $this->get('ts'),
+            'metadata[payment_kind]'                            => $this->paymentKind,
+            'metadata[leave_deposit]'                           => $isDeposit ? '1' : '0',
+            'metadata[amount_expected]'                         => (string) $total,
+            // El mismo dato en el PaymentIntent, para verlo en la lista de
+            // pagos del Dashboard de Stripe sin abrir la sesión de Checkout.
+            'payment_intent_data[description]'                  => $kindLabel . ' reserva #' . $orderId,
+            'payment_intent_data[metadata][source]'             => 'vikrentcar-andes',
+            'payment_intent_data[metadata][order_id]'           => (string) $orderId,
+            'payment_intent_data[metadata][payment_kind]'       => $this->paymentKind,
             'line_items[0][quantity]'                           => '1',
             'line_items[0][price_data][currency]'               => $currency,
             'line_items[0][price_data][unit_amount]'            => (string) $minor,
-            'line_items[0][price_data][product_data][name]'     => $itemName !== '' ? $itemName : ('Reserva #' . $orderId),
+            'line_items[0][price_data][product_data][name]'     => $itemName,
         ];
 
         // Prellenar el email del cliente en Stripe cuando la reserva lo tiene.
@@ -175,10 +230,10 @@ class VikRentCarAndesPayStripePayment extends JPayment
             return true;
         }
 
-        $this->logEvent('created', $env, $orderId, $session->id, '', $currency, $total, 'Sesión de Checkout creada, esperando a que el cliente pague.', $notifyUrl);
+        $this->logEvent('created', $env, $orderId, $session->id, '', $currency, $total, 'Sesión de Checkout creada (' . strtolower($kindLabel) . '), esperando a que el cliente pague.', $notifyUrl);
 
         // Aviso de depósito/seña si VikRentCar lo indica (mismo comportamiento que la pasarela oficial).
-        if ($this->get('leave_deposit')) {
+        if ($isDeposit) {
             echo '<p class="vrc-leave-deposit"><span>' . JText::_('VRLEAVEDEPOSIT') . '</span>'
                 . $this->get('currency_symb') . ' ' . VikRentCar::numberFormat($this->get('total_to_pay')) . '</p><br/>';
         }
@@ -195,7 +250,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
         ?>
         <div class="andes-pay-stripe">
             <a class="andes-pay-stripe-btn" href="<?php echo htmlspecialchars($stripeUrl, ENT_QUOTES); ?>">
-                Pagar con tarjeta
+                <?php echo $isDeposit ? 'Pagar la seña con tarjeta' : 'Pagar con tarjeta'; ?>
             </a>
             <p class="andes-pay-stripe-hint">Hacé clic para pagar de forma segura con Stripe.</p>
         </div>
@@ -216,9 +271,11 @@ class VikRentCarAndesPayStripePayment extends JPayment
 
     /**
      * @override
-     * Valida el pago al volver de Stripe. Recupera la Checkout Session por su id
-     * y confirma server-side que está pagada, con la moneda correcta, el monto
-     * esperado y asociada a ESTA orden (evita replay entre reservas).
+     * Valida el pago al volver de Stripe (o cuando el webhook dispara el mismo
+     * notify_url). Recupera la Checkout Session por su id y confirma
+     * server-side que está pagada y que pertenece a ESTA orden. Cada sesión se
+     * acepta una sola vez: un segundo aviso (recarga de la página, o retorno +
+     * webhook a la vez) no vuelve a sumar el pago.
      */
     protected function validateTransaction(JPaymentStatus &$status)
     {
@@ -226,7 +283,11 @@ class VikRentCarAndesPayStripePayment extends JPayment
         $orderId = isset($booking['id']) ? (int) $booking['id'] : 0;
         $env     = $this->resolveEnvironment();
 
-        $sessionId = JFactory::getApplication()->input->getString('session_id');
+        $input     = JFactory::getApplication()->input;
+        $sessionId = $input->getString('session_id');
+        // El webhook agrega andes_via=webhook al notify_url. Sólo cambia cómo se
+        // etiqueta el registro en Pagos; no da ningún permiso extra.
+        $viaWebhook = ($input->getString('andes_via') === 'webhook');
         if (!$sessionId) {
             $status->appendLog('Falta session_id en el request de retorno.');
             $this->logEvent('error', $env, $orderId, '', '', '', null, 'Falta session_id en el request de retorno.');
@@ -261,6 +322,38 @@ class VikRentCarAndesPayStripePayment extends JPayment
             return false;
         }
 
+        $meta = (isset($session->metadata) && is_object($session->metadata)) ? $session->metadata : new stdClass();
+        if (isset($meta->payment_kind) && in_array($meta->payment_kind, ['deposit', 'full'], true)) {
+            $this->paymentKind = $meta->payment_kind;
+        }
+
+        // La sesión tiene que ser de ESTA orden. Si no, alguien está usando un
+        // pago de otra reserva en el notify_url de ésta: se rechaza. Sólo se
+        // compara lo que esté disponible de los dos lados (sesiones viejas no
+        // traen sid/ts en el metadata).
+        $ref     = isset($session->client_reference_id) ? (string) $session->client_reference_id : '';
+        $metaSid = isset($meta->sid) ? (string) $meta->sid : '';
+        $metaTs  = isset($meta->ts) ? (string) $meta->ts : '';
+        $sid     = isset($booking['sid']) ? (string) $booking['sid'] : (string) $this->get('sid');
+        $ts      = isset($booking['ts']) ? (string) $booking['ts'] : (string) $this->get('ts');
+
+        $mismatch = [];
+        if ($orderId > 0 && $ref !== '' && $ref !== (string) $orderId) {
+            $mismatch[] = "reserva #{$ref}";
+        }
+        if ($metaSid !== '' && $sid !== '' && $metaSid !== $sid) {
+            $mismatch[] = 'sid distinto';
+        }
+        if ($metaTs !== '' && $ts !== '' && $metaTs !== $ts) {
+            $mismatch[] = 'ts distinto';
+        }
+        if ($mismatch) {
+            $msg = 'La sesión de Stripe pertenece a otra reserva (' . implode(', ', $mismatch) . "). Pago NO aplicado a la reserva #{$orderId}.";
+            $status->appendLog($msg);
+            $this->logEvent('failed', $env, $orderId, $sessionId, '', '', null, $msg);
+            return false;
+        }
+
         // Monto realmente cobrado, según Stripe (fuente de verdad del pago). No se
         // compara contra el total del pedido: en el contexto de validación esos
         // datos no siempre están disponibles y VikRentCar ya asocia el pago al
@@ -274,13 +367,17 @@ class VikRentCarAndesPayStripePayment extends JPayment
             $pi = is_object($session->payment_intent) ? $session->payment_intent->id : $session->payment_intent;
         }
 
-        // Chequeo blando: si tenemos el id del pedido, avisamos (sin bloquear) si
-        // la referencia de la sesión no coincide. Queda marcado en el log local
-        // como "Pagado (con aviso)" para poder revisarlo después.
-        $ref      = isset($session->client_reference_id) ? (string) $session->client_reference_id : '';
-        $mismatch = ($orderId > 0 && $ref !== '' && $ref !== (string) $orderId);
-        if ($mismatch) {
-            $status->appendLog("Aviso: client_reference_id ({$ref}) distinto del pedido ({$orderId}).");
+        // Una sola vez por sesión. La reserva se toma con un INSERT atómico
+        // (tabla de claims con clave única): si dos avisos llegan a la vez,
+        // sólo uno la gana. Sin esto, una recarga de la página de vuelta (o el
+        // retorno y el webhook juntos) podría sumar el pago dos veces en
+        // VikRentCar (totpaid).
+        if (function_exists('andes_pay_stripe_claim_session')
+            && !andes_pay_stripe_claim_session($sessionId, $orderId, $viaWebhook ? 'webhook' : 'return')) {
+            $this->alreadyProcessed = true;
+            $status->appendLog("Sesión {$sessionId} ya procesada antes: no se vuelve a sumar el pago.");
+            $this->logEvent('duplicate', $env, $orderId, $sessionId, $pi, $currency, $paid, 'Aviso repetido de un pago ya aplicado (recarga de la página o retorno + webhook). Ignorado, no se sumó dos veces.');
+            return false;
         }
 
         // Guardar el id de la transacción (payment_intent) para referencia/reembolsos.
@@ -289,17 +386,18 @@ class VikRentCarAndesPayStripePayment extends JPayment
         }
 
         // Pago verificado. VikRentCar marca la orden como pagada/confirmada.
-        $status->appendLog("Pago verificado por Stripe: {$paid} " . strtoupper($currency) . " (session {$session->id}).");
+        $kindText = $this->paymentKind === 'deposit' ? ' (seña)' : ($this->paymentKind === 'full' ? ' (total)' : '');
+        $status->appendLog("Pago verificado por Stripe{$kindText}: {$paid} " . strtoupper($currency) . " (session {$session->id}).");
         $this->logEvent(
-            $mismatch ? 'paid_mismatch' : 'paid',
+            $viaWebhook ? 'webhook_completed' : 'paid',
             $env,
             $orderId,
             $sessionId,
             $pi,
             $currency,
             $paid,
-            $mismatch
-                ? "Pagado, pero client_reference_id ({$ref}) no coincide con el pedido ({$orderId})."
+            $viaWebhook
+                ? 'El cliente no volvió del checkout: Stripe avisó por webhook y se confirmó la reserva automáticamente.'
                 : 'Pago verificado por Stripe.'
         );
         $status->paid($paid);
@@ -338,6 +436,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
             'amount'            => $amount,
             'message'           => $message,
             'notify_url'        => $notifyUrl,
+            'payment_kind'      => $this->paymentKind,
         ]);
     }
 
@@ -354,7 +453,7 @@ class VikRentCarAndesPayStripePayment extends JPayment
             . '&ts=' . $this->get('ts')
             . (!empty($itemid) ? '&Itemid=' . $itemid : '');
 
-        if ($res < 1) {
+        if ($res < 1 && !$this->alreadyProcessed) {
             $app->enqueueMessage(JText::_('VRPAYMENTNOTVER'), 'error');
         } else {
             $app->enqueueMessage(JText::_('VRTHANKSONE'));

@@ -1,7 +1,8 @@
 # Andes Pay Stripe — método de pago para VikRentCar
 
-Agrega **"Andes Pay Stripe"** como forma de pago de VikRentCar Pro. Cobra el
-**total de la reserva** con tarjeta usando **Stripe Checkout**: el cliente es
+Agrega **"Andes Pay Stripe"** como forma de pago de VikRentCar. Cobra con
+tarjeta el **total** o la **seña** de la reserva (lo que elija el cliente)
+usando **Stripe Checkout**: el cliente es
 redirigido a una página alojada por Stripe (no se ingresan datos de tarjeta en
 el sitio → PCI mínimo) y, al volver, el pago se **verifica contra la API de
 Stripe** antes de confirmar la reserva. Es el mismo patrón que la pasarela
@@ -13,6 +14,12 @@ VikRentCar descubre las pasarelas por dos hooks de WordPress. Este plugin se
 engancha a ellos, así que la pasarela **sobrevive a las actualizaciones** de
 VikRentCar (la carpeta `admin/payments/` del plugin se pisa en cada update; acá
 no tocamos nada de eso).
+
+**Si se modifica el código de VikRentCar** (lo mantenemos nosotros): el plugin
+depende de los hooks `get_supported_payments_vikrentcar` y
+`load_payment_gateway_vikrentcar`, de la clase `JPayment` y de que la vista de
+la orden le pase `total_to_pay`, `leave_deposit`, `notify_url`, `sid` y `ts`.
+Si algo de eso cambia, el método de pago deja de aparecer o de cobrar bien.
 
 ## Instalación
 
@@ -29,9 +36,37 @@ no tocamos nada de eso).
 4. En **VikRentCar → Global Config → Payments** (o "Nuevo método de pago"),
    agregá un método y elegí **Andes Pay Stripe** de la lista para que aparezca
    en el checkout.
-5. Habilitá ese método de pago en el flujo de reserva de VikRentCar (según cómo
-   tengas configurados los pagos/depósitos). El cobro es por el importe que
-   VikRentCar define como "total a pagar ahora" — configurado para el **total**.
+5. Habilitá ese método de pago en el flujo de reserva de VikRentCar. El cobro
+   es por el importe que VikRentCar define como "total a pagar ahora"
+   (`total_to_pay`): el total o la seña, ver **Seña o total** abajo.
+
+## Seña o total
+
+El cliente elige en el checkout de VikRentCar si paga el total o la seña.
+VikRentCar calcula el monto y se lo pasa al plugin en `total_to_pay`; el plugin
+cobra exactamente eso (nunca `order_total`). Configuración en VikRentCar
+(**afecta a todos los métodos de pago**, no sólo a Stripe):
+
+| Opción | Valor |
+|---|---|
+| Pagar monto total | **OFF** |
+| Elección del cliente (seña o total) | **ON** |
+| Seña | **30%** |
+| Permitir pagos múltiples | **OFF** |
+
+**El saldo se cobra al retirar el auto** y se carga a mano en Andes (Caja /
+entrega), no por Stripe. Por eso "Pagos múltiples" va apagado: si estuviera
+prendido, la página de la orden le ofrecería al cliente pagar el saldo online,
+y como Andes no escribe en WordPress, un saldo cobrado en el local no se vería
+en VikRentCar → el cliente podría pagarlo dos veces.
+
+Cuando el cliente paga la seña:
+- La página de Stripe muestra "Seña – …" y el botón dice "Pagar la seña con tarjeta".
+- En el Dashboard de Stripe el pago figura como "Seña reserva #N" (y `metadata.payment_kind = deposit`).
+- En la pestaña **Pagos** el monto lleva la etiqueta **Seña**.
+- VikRentCar suma el pago a `totpaid` y confirma la reserva; Andes lo importa a
+  Caja en el próximo sync y el saldo queda pendiente hasta que se cargue el
+  resto al entregar.
 
 ## Dónde cargar las claves
 
@@ -67,18 +102,34 @@ WordPress). **Serví siempre por HTTPS.**
 
 1. Con el **Entorno = Test**, hacé una reserva y elegí *Andes Pay Stripe*.
 2. Serás redirigido a Stripe. Usá una tarjeta de prueba:
-   - **4242 4242 4242 4242**, fecha futura cualquiera, CVC cualquiera.
+   - **4000 0566 5566 5556** (débito), fecha futura cualquiera, CVC cualquiera.
+   - La 4242 4242 4242 4242 (crédito US) se rechaza con nuestra cuenta de EE. UU.
+     cobrando en ARS ("try a debit card"): es esperado.
 3. Al pagar, Stripe te devuelve al sitio y la reserva queda **confirmada/pagada**
    en VikRentCar. Verificá en el panel de Stripe (Test mode) que figure el pago.
+
+Checklist de seña/total:
+1. Reservar eligiendo **seña** → Stripe cobra el 30%; en VikRentCar `totpaid` =
+   seña y la reserva queda confirmada; en Pagos, "Pagado" con etiqueta **Seña**.
+2. Reservar eligiendo **total** → cobra el total; etiqueta **Total**.
+3. Después de pagar, **recargar** la página de vuelta de Stripe → en Pagos
+   aparece "Repetido (ignorado)" y `totpaid` no cambia.
 
 Cuando esté todo OK, cambiá el **Entorno a Live** y cargá la `sk_live_…`.
 
 ## Cómo verifica el pago (seguridad)
 
-- El monto, la moneda y la orden se validan **server-side** consultando la
-  Checkout Session en la API de Stripe (`payment_status = paid`, moneda esperada,
-  `amount_total ≥ total`, y `client_reference_id` = id de la reserva). No se
-  confía en nada que venga del navegador.
+- El pago se valida **server-side** consultando la Checkout Session en la API
+  de Stripe (`payment_status = paid`). No se confía en nada que venga del
+  navegador.
+- El monto que se le informa a VikRentCar es el que Stripe dice que cobró
+  (`amount_total`). No se compara contra el total: en la validación VikRentCar
+  no pasa `total_to_pay`, y la seña sería menor que el total igual.
+- La sesión tiene que ser de **esa** reserva (`client_reference_id`, y `sid`/`ts`
+  en el metadata): si no coincide, se rechaza.
+- **Cada sesión se aplica una sola vez** (tabla `wp_andes_pay_stripe_claims`,
+  clave única por sesión). Una recarga de la página de vuelta, o el retorno y
+  el webhook llegando a la vez, no suman el pago dos veces.
 - El `session_id` viaja en la URL de retorno; aunque alguien la manipule, la
   verificación contra Stripe falla si el pago no existe o no corresponde.
 
@@ -118,9 +169,9 @@ cliente hubiese vuelto por su cuenta, reusando su lógica real.
 Sin el secreto de un entorno cargado, los webhooks de ese entorno se ignoran
 (nada se rompe, simplemente no hacen efecto — el flujo normal por retorno
 sigue funcionando igual). En la pestaña **Pagos**, un registro completado por
-esta vía aparece como **"Pagado (webhook, sin retorno)"** — vale la pena
-revisar esas reservas igual, ya que la confirmación automática no compara el
-monto contra el total esperado (mismo criterio que la validación normal).
+esta vía aparece como **"Pagado (webhook, sin retorno)"**. Si VikRentCar no
+aplica el pago (aunque responda HTTP 200), queda un **Error** que lo dice: el
+webhook confirma mirando si la sesión quedó aplicada, no el código HTTP.
 
 ## Pantalla de admin (Ajustes → Andes Pay Stripe)
 
@@ -133,12 +184,14 @@ Una sola entrada de menú, con dos pestañas:
     cliente pague (o vuelva).
   - **Pagado**: Stripe confirmó `payment_status = paid` y VikRentCar marcó la
     reserva como pagada.
-  - **Pagado (con aviso)**: pagado, pero el `client_reference_id` de la sesión
-    no coincide con el pedido — vale la pena revisarlo a mano.
+  - **Pagado (con aviso)**: sólo en registros anteriores a v1.3.0 (pagado con
+    una referencia que no coincidía). Desde v1.3.0 eso se rechaza como **No pagado**.
+  - **Repetido (ignorado)**: llegó un segundo aviso de un pago ya aplicado
+    (recarga de la página, o retorno + webhook). No se sumó dos veces.
   - **Pagado (webhook, sin retorno)**: el cliente no volvió del checkout;
     Stripe avisó por webhook y se completó la reserva sola.
   - **No pagado**: el cliente volvió, pero Stripe todavía no reporta el pago
-    como completado.
+    como completado, o la sesión era de otra reserva.
   - **Error**: falta configuración, no se pudo hablar con la API de Stripe, o
     faltaban datos de la reserva. El mensaje incluye el **código HTTP y el
     error real que devolvió Stripe** (p. ej. clave inválida, moneda no
@@ -154,8 +207,10 @@ registro paralelo pensado para auditoría.
 
 ## Notas
 
-- **No toca la base de datos** ni el esquema de WordPress: VikRentCar marca la
-  reserva como pagada a través de su propio framework de pagos.
+- **No toca las tablas de VikRentCar**: VikRentCar marca la reserva como pagada
+  a través de su propio framework de pagos. Sólo usa dos tablas propias
+  (`wp_andes_pay_stripe_log` y `wp_andes_pay_stripe_claims`), que se crean solas
+  al entrar al admin después de actualizar.
 - La pasarela es inmutable respecto de VikRentCar: sólo se registra vía hooks.
 - El logo (`assets/andes_pay_stripe.png`) es opcional; sin él, el método aparece
   igual, sólo sin imagen.

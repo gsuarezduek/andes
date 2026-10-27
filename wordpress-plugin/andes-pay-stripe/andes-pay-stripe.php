@@ -1,11 +1,19 @@
 <?php
 /**
  * Plugin Name: Andes Pay Stripe (VikRentCar)
- * Description: Agrega "Andes Pay Stripe" como método de pago de VikRentCar Pro. Cobra el total de la reserva con tarjeta usando Stripe Checkout (redirección alojada por Stripe, PCI mínimo). Verifica el pago contra la API de Stripe en el retorno, igual que la pasarela oficial de PayPal Checkout.
- * Version: 1.2.1
+ * Description: Agrega "Andes Pay Stripe" como método de pago de VikRentCar. Cobra con tarjeta el total o la seña de la reserva (lo que elija el cliente) usando Stripe Checkout (redirección alojada por Stripe, PCI mínimo). Verifica el pago contra la API de Stripe en el retorno, igual que la pasarela oficial de PayPal Checkout.
+ * Version: 1.3.0
  * Author: MDZ Rent a Car
  * License: GPL-2.0-or-later
  *
+ * v1.3.0: seña o total. El cliente elige en el checkout de VikRentCar y el
+ *         plugin cobra total_to_pay (ya venía así; ahora la página de Stripe,
+ *         el Dashboard y la pestaña Pagos dicen si fue Seña o Total). Cada
+ *         sesión de Stripe se aplica una sola vez (tabla de claims con clave
+ *         única): una recarga de la página de vuelta, o el retorno y el
+ *         webhook a la vez, ya no pueden sumar el pago dos veces. Una sesión
+ *         de otra reserva ahora se rechaza (antes sólo dejaba un aviso). El
+ *         webhook confirma por el claim, no por el código HTTP.
  * v1.2.1: una sola página de admin (antes eran dos separadas) con pestañas
  *         Pagos (default) / Configuración; aclaración de que la Secret Key de
  *         VikRentCar tiene prioridad sobre la del panel. stripeRequest() ahora
@@ -74,7 +82,7 @@ define('ANDES_PAY_STRIPE_ZERO_DECIMAL', [
  * cruzar a mano el Dashboard de Stripe contra las órdenes de VikRentCar.
  * ---------------------------------------------------------------------- */
 
-define('ANDES_PAY_STRIPE_LOG_DB_VERSION', '1.1');
+define('ANDES_PAY_STRIPE_LOG_DB_VERSION', '1.2');
 define('ANDES_PAY_STRIPE_LOG_DB_VERSION_OPTION', 'andes_pay_stripe_log_db_version');
 
 /** Nombre completo de la tabla del log (con el prefijo de WordPress). */
@@ -84,7 +92,14 @@ function andes_pay_stripe_log_table()
     return $wpdb->prefix . 'andes_pay_stripe_log';
 }
 
-/** Crea/actualiza la tabla del log. dbDelta es idempotente: no hace nada si el esquema ya coincide. */
+/** Tabla de claims: una fila por sesión de Stripe ya aplicada a una reserva. */
+function andes_pay_stripe_claims_table()
+{
+    global $wpdb;
+    return $wpdb->prefix . 'andes_pay_stripe_claims';
+}
+
+/** Crea/actualiza las tablas del log y de claims. dbDelta es idempotente: no hace nada si el esquema ya coincide. */
 function andes_pay_stripe_install_log_table()
 {
     global $wpdb;
@@ -104,14 +119,26 @@ function andes_pay_stripe_install_log_table()
         amount DECIMAL(14,2) NULL DEFAULT NULL,
         message TEXT NULL,
         notify_url TEXT NULL,
+        payment_kind VARCHAR(10) NOT NULL DEFAULT '',
         PRIMARY KEY  (id),
         KEY order_id (order_id),
         KEY status (status),
         KEY created_at (created_at)
     ) {$charset};";
 
+    // session_id es la clave primaria: es lo que hace atómico el claim.
+    $claims    = andes_pay_stripe_claims_table();
+    $claimsSql = "CREATE TABLE {$claims} (
+        session_id VARCHAR(120) NOT NULL,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        via VARCHAR(10) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY  (session_id)
+    ) {$charset};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql);
+    dbDelta($claimsSql);
 
     update_option(ANDES_PAY_STRIPE_LOG_DB_VERSION_OPTION, ANDES_PAY_STRIPE_LOG_DB_VERSION);
 }
@@ -133,7 +160,7 @@ add_action('admin_init', function () {
  * Registra un evento de pago. Nunca lanza: un fallo de logging no debe
  * interrumpir un cobro real (best-effort, igual que el resto del plugin).
  *
- * @param array $data status,environment,order_id,session_id,payment_intent_id,currency,amount,message,notify_url
+ * @param array $data status,environment,order_id,session_id,payment_intent_id,currency,amount,message,notify_url,payment_kind
  */
 function andes_pay_stripe_log_event(array $data)
 {
@@ -150,20 +177,75 @@ function andes_pay_stripe_log_event(array $data)
             'amount'            => isset($data['amount']) ? (float) $data['amount'] : null,
             'message'           => isset($data['message']) ? (string) $data['message'] : null,
             'notify_url'        => isset($data['notify_url']) ? (string) $data['notify_url'] : null,
-        ], ['%s', '%s', '%s', '%d', '%s', '%s', '%s', '%f', '%s', '%s']);
+            'payment_kind'      => substr((string) ($data['payment_kind'] ?? ''), 0, 10),
+        ], ['%s', '%s', '%s', '%d', '%s', '%s', '%s', '%f', '%s', '%s', '%s']);
     } catch (Exception $e) {
         // best-effort: nunca romper el flujo de pago por un error de log.
     }
 }
 
 /**
+ * Toma la sesión para aplicarla a la reserva. Devuelve true sólo al primero
+ * que llega: el INSERT IGNORE contra la clave primaria es atómico, así que si
+ * el retorno del cliente y el webhook llegan a la vez, uno solo gana.
+ *
+ * Si la tabla no existe (plugin actualizado y todavía nadie entró al admin
+ * para que corra dbDelta), se crea en el momento y se reintenta. Si aun así
+ * falla, devuelve true: es mejor no bloquear un cobro real por un problema de
+ * esta tabla (es el mismo comportamiento que antes de v1.3.0).
+ *
+ * @param  string  $sessionId
+ * @param  int     $orderId
+ * @param  string  $via  'return' | 'webhook'
+ * @return bool
+ */
+function andes_pay_stripe_claim_session($sessionId, $orderId, $via)
+{
+    global $wpdb;
+    $table = andes_pay_stripe_claims_table();
+    $sql   = $wpdb->prepare(
+        "INSERT IGNORE INTO {$table} (session_id, order_id, via, created_at) VALUES (%s, %d, %s, %s)",
+        substr((string) $sessionId, 0, 120),
+        (int) $orderId,
+        substr((string) $via, 0, 10),
+        current_time('mysql')
+    );
+
+    $result = $wpdb->query($sql);
+    if ($result === false) {
+        andes_pay_stripe_install_log_table();
+        $result = $wpdb->query($sql);
+        if ($result === false) {
+            return true;
+        }
+    }
+    return $result === 1;
+}
+
+/** ¿La sesión ya fue tomada (aplicada a una reserva)? */
+function andes_pay_stripe_session_claimed($sessionId)
+{
+    global $wpdb;
+    $table = andes_pay_stripe_claims_table();
+    $found = $wpdb->get_var($wpdb->prepare(
+        "SELECT session_id FROM {$table} WHERE session_id = %s",
+        $sessionId
+    ));
+    return $found !== null;
+}
+
+/**
  * ¿Esta sesión ya quedó resuelta como pagada (por el retorno del cliente o
  * por un webhook anterior)? La usa el handler del webhook para no disparar
- * dos veces la confirmación de la misma reserva.
+ * dos veces la confirmación de la misma reserva. Mira los claims y, para
+ * pagos anteriores a v1.3.0 (sin claim), el log.
  */
 function andes_pay_stripe_log_already_settled($sessionId)
 {
     global $wpdb;
+    if (andes_pay_stripe_session_claimed($sessionId)) {
+        return true;
+    }
     $table = andes_pay_stripe_log_table();
     $count = (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM {$table} WHERE session_id = %s AND status IN ('paid','paid_mismatch','webhook_completed')",
@@ -554,6 +636,7 @@ function andes_pay_stripe_status_meta($status)
         'paid'              => ['Pagado',                     '#166534', '#dcfce7'],
         'paid_mismatch'     => ['Pagado (con aviso)',         '#92400e', '#fef3c7'],
         'webhook_completed' => ['Pagado (webhook, sin retorno)', '#075985', '#e0f2fe'],
+        'duplicate'         => ['Repetido (ignorado)',        '#374151', '#e5e7eb'],
         'failed'            => ['No pagado',                  '#991b1b', '#fee2e2'],
         'error'             => ['Error',                      '#991b1b', '#fee2e2'],
     ];
@@ -604,7 +687,7 @@ function andes_pay_stripe_render_payments_tab()
             <label>Estado<br/>
                 <select name="status">
                     <option value="">Todos</option>
-                    <?php foreach (['created' => 'Iniciado', 'paid' => 'Pagado', 'paid_mismatch' => 'Pagado (con aviso)', 'webhook_completed' => 'Pagado (webhook, sin retorno)', 'failed' => 'No pagado', 'error' => 'Error'] as $val => $label): ?>
+                    <?php foreach (['created' => 'Iniciado', 'paid' => 'Pagado', 'paid_mismatch' => 'Pagado (con aviso)', 'webhook_completed' => 'Pagado (webhook, sin retorno)', 'duplicate' => 'Repetido (ignorado)', 'failed' => 'No pagado', 'error' => 'Error'] as $val => $label): ?>
                         <option value="<?php echo esc_attr($val); ?>" <?php selected($filters['status'], $val); ?>><?php echo esc_html($label); ?></option>
                     <?php endforeach; ?>
                 </select>
@@ -656,7 +739,15 @@ function andes_pay_stripe_render_payments_tab()
                     </td>
                     <td><?php echo esc_html($row->environment !== '' ? ucfirst($row->environment) : '—'); ?></td>
                     <td><?php echo $row->order_id ? esc_html('#' . $row->order_id) : '—'; ?></td>
-                    <td><?php echo ($row->amount !== null && $row->amount !== '') ? esc_html(number_format((float) $row->amount, 2) . ' ' . strtoupper($row->currency)) : '—'; ?></td>
+                    <td>
+                        <?php echo ($row->amount !== null && $row->amount !== '') ? esc_html(number_format((float) $row->amount, 2) . ' ' . strtoupper($row->currency)) : '—'; ?>
+                        <?php $kind = isset($row->payment_kind) ? $row->payment_kind : ''; ?>
+                        <?php if ($kind === 'deposit' || $kind === 'full'): ?>
+                            <br/><span style="font-size:11px;font-weight:600;color:<?php echo $kind === 'deposit' ? '#9a3412' : '#374151'; ?>;">
+                                <?php echo $kind === 'deposit' ? 'Seña' : 'Total'; ?>
+                            </span>
+                        <?php endif; ?>
+                    </td>
                     <td style="font-size:12px;color:#6b7280;">
                         <?php if ($row->session_id): ?>cs: <?php echo esc_html(substr($row->session_id, 0, 24)); ?>…<br/><?php endif; ?>
                         <?php if ($row->payment_intent_id): ?>pi: <?php echo esc_html($row->payment_intent_id); ?><br/><?php endif; ?>
@@ -809,6 +900,7 @@ function andes_pay_stripe_handle_webhook(WP_REST_Request $request)
 
     $sessionId = (string) $session->id;
     $orderId   = isset($session->metadata->order_id) ? (int) $session->metadata->order_id : 0;
+    $kind      = isset($session->metadata->payment_kind) ? (string) $session->metadata->payment_kind : '';
 
     // Idempotencia: si el retorno normal del cliente (u otro webhook) ya
     // resolvió esta sesión, no hay nada más que hacer.
@@ -829,6 +921,7 @@ function andes_pay_stripe_handle_webhook(WP_REST_Request $request)
             'session_id'  => $sessionId,
             'currency'    => $currency,
             'amount'      => $paid,
+            'payment_kind' => $kind,
             'message'     => 'Webhook: Stripe confirma el pago pero no se encontró el notify_url guardado (sesión creada antes de activar el webhook, o log incompleto). No se pudo completar la reserva sola — revisala a mano en VikRentCar.',
         ]);
         return new WP_REST_Response(['error' => 'notify_url no encontrado'], 200);
@@ -837,8 +930,10 @@ function andes_pay_stripe_handle_webhook(WP_REST_Request $request)
     // Reconstruye la misma URL de retorno que Stripe le habría dado al
     // navegador del cliente, y la dispara server-to-server: VikRentCar la
     // procesa exactamente igual (vuelve a llamar a validateTransaction()).
+    // andes_via=webhook sólo sirve para que el registro en Pagos diga
+    // "Pagado (webhook, sin retorno)".
     $glue        = (strpos($notifyUrl, '?') !== false) ? '&' : '?';
-    $completeUrl = $notifyUrl . $glue . 'session_id=' . rawurlencode($sessionId);
+    $completeUrl = $notifyUrl . $glue . 'session_id=' . rawurlencode($sessionId) . '&andes_via=webhook';
 
     $response = wp_remote_get($completeUrl, [
         'timeout'     => 20,
@@ -853,25 +948,31 @@ function andes_pay_stripe_handle_webhook(WP_REST_Request $request)
             'session_id'  => $sessionId,
             'currency'    => $currency,
             'amount'      => $paid,
+            'payment_kind' => $kind,
             'message'     => 'Webhook: falló el request interno a VikRentCar para completar la reserva (' . $response->get_error_message() . ').',
         ]);
         return new WP_REST_Response(['error' => 'notify request failed'], 200);
     }
 
-    $code = (int) wp_remote_retrieve_response_code($response);
-    $ok   = ($code >= 200 && $code < 400);
+    // El éxito se confirma por el claim, no por el código HTTP: VikRentCar
+    // puede responder 200 con una página de error. Si validateTransaction()
+    // aceptó el pago (en este request o en el retorno del cliente), la sesión
+    // quedó tomada. El registro "Pagado (webhook…)" ya lo dejó validate.
+    if (andes_pay_stripe_session_claimed($sessionId)) {
+        return new WP_REST_Response(['ok' => true], 200);
+    }
 
+    $code = (int) wp_remote_retrieve_response_code($response);
     andes_pay_stripe_log_event([
-        'status'      => $ok ? 'webhook_completed' : 'error',
-        'environment' => $env,
-        'order_id'    => $orderId,
-        'session_id'  => $sessionId,
-        'currency'    => $currency,
-        'amount'      => $paid,
-        'message'     => $ok
-            ? 'El cliente no volvió del checkout — Stripe avisó por webhook y se disparó la confirmación en VikRentCar automáticamente. Conviene verificar la reserva.'
-            : "Webhook: el request interno a VikRentCar respondió HTTP {$code} al intentar completar la reserva.",
+        'status'       => 'error',
+        'environment'  => $env,
+        'order_id'     => $orderId,
+        'session_id'   => $sessionId,
+        'currency'     => $currency,
+        'amount'       => $paid,
+        'payment_kind' => $kind,
+        'message'      => "Webhook: Stripe confirma el pago, pero VikRentCar no lo aplicó a la reserva (respondió HTTP {$code}). Revisala a mano en VikRentCar.",
     ]);
 
-    return new WP_REST_Response(['ok' => $ok], 200);
+    return new WP_REST_Response(['ok' => false], 200);
 }
