@@ -29,3 +29,14 @@ export function nightsBetween(startKey: string, endKey: string): number {
 export function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
+
+/**
+ * ¿Se cancela una reserva sincronizada que ya no aparece en el feed? Solo si
+ * todavía no empezó. Airbnb y Booking sacan del iCal las estadías a partir del
+ * día de entrada (Booking exporta solo las llegadas futuras): que desaparezca
+ * una estadía en curso o terminada es la plataforma limpiando su feed, no una
+ * cancelación.
+ */
+export function shouldCancelMissingBooking(startKey: string, todayKey: string): boolean {
+  return startKey > todayKey;
+}

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput } from "@/lib/datetime";
 import { parseIcal, isBlockEvent } from "./ical";
-import { keyToDate, dateToKey } from "./dates";
+import { keyToDate, dateToKey, shouldCancelMissingBooking } from "./dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -39,8 +39,9 @@ async function fetchIcal(url: string): Promise<string> {
 
 /**
  * Sincroniza UN feed iCal: crea/actualiza las reservas y cancela las que
- * desaparecieron del feed (solo las que todavía no terminaron — Airbnb y
- * Booking sacan del feed las estadías viejas y eso no es una cancelación).
+ * desaparecieron del feed (solo las que todavía no empezaron — Airbnb y
+ * Booking sacan del feed las estadías desde el día de entrada, y eso no es una
+ * cancelación; ver `shouldCancelMissingBooking`).
  * Nunca pisa lo cargado por una persona (notas, total, cobros). Si el feed no
  * se pudo leer o no es un iCal válido, NO se cancela nada.
  */
@@ -121,10 +122,10 @@ export async function syncRoomFeed(feedId: string): Promise<FeedSyncResult> {
     updated++;
   }
 
-  // Las que ya no están en el feed y todavía no terminaron → canceladas.
+  // Las que ya no están en el feed y todavía no empezaron → canceladas.
   for (const b of existing) {
     if (b.status !== "confirmed" || !b.externalUid || seen.has(b.externalUid)) continue;
-    if (dateToKey(b.endDate) < todayKey) continue;
+    if (!shouldCancelMissingBooking(dateToKey(b.startDate), todayKey)) continue;
     await prisma.roomBooking.update({ where: { id: b.id }, data: { status: "cancelled", cancelledAt: new Date() } });
     cancelled++;
   }

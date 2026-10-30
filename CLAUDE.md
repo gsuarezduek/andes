@@ -1176,6 +1176,10 @@ Caso real: el auto de un asociado (Claudia) se arregló en un taller (German). A
 - **Lógica** pura en `src/lib/agenda.ts` (título, día válido, oficina sí/no, estado, orden, posición de "ahora"); lectura en `src/lib/agenda-queries.ts` (`getAgenda`). Habitaciones: mismo criterio que el Calendario (sin espejos de otro canal ni bloqueos sincronizados; hora de entrada/salida de la habitación). Las queries de entregas/devoluciones de hoy salieron de `getDashboardData` (ya no las usaba nadie más).
 - El bloque "Tareas" del Home (mis pendientes) no cambia. Una tarea con agenda de un día pasado que quedó sin hacer **no** se arrastra a la agenda de hoy (sigue en "Tareas" como vencida).
 
+## v98 — Fix: las habitaciones desaparecían el día de entrada
+
+Bug reportado por el dueño: una reserva de habitación se veía bien mientras era futura y desaparecía el día de entrada. Causa: Airbnb y Booking sacan la estadía de su iCal a partir del día de llegada (Booking exporta solo las llegadas futuras), y `syncRoomFeed` cancelaba toda reserva ausente del feed que todavía no hubiera **terminado** — o sea, la cancelaba justo al llegar el huésped, y las canceladas no se dibujan. Ahora solo se cancela si todavía no **empezó** (`shouldCancelMissingBooking`, `src/lib/rooms/dates.ts`, testeada). La migración `restore_room_bookings_cancelled_on_arrival` restaura las ya afectadas: importadas por iCal y canceladas el día de entrada o después (hora Mendoza) — las importadas solo las cancela el sync. Límite conocido: una cancelación real hecha el mismo día de entrada (ej. un no-show cancelado en la plataforma) ya no se refleja sola; se ve como ocupada hasta la salida. tsc/lint/tests en verde; la SQL de la migración se probó contra la base local con un caso a restaurar y uno que no. **Sin desplegar todavía.**
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
