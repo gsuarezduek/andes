@@ -22,6 +22,7 @@ export async function generateNextOccurrence(
       assignedToId: recurrence.assignedToId,
       assignedToName: recurrence.assignedToName,
       vehicleId: recurrence.vehicleId,
+      scheduledTime: recurrence.scheduledTime,
       recurrenceId: recurrence.id,
       createdById: recurrence.createdById,
       createdByName: recurrence.createdByName,

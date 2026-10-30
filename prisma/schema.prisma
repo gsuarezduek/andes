@@ -1165,6 +1165,12 @@ model Task {
   status   TaskStatus   @default(pending)
   dueDate  DateTime?    @map("due_date")
 
+  // "Tarea con agenda": hora ("HH:MM", hora Mendoza) en la que hay que hacerla
+  // el día de `dueDate`. Con hora, la tarea aparece en la Agenda del Home junto
+  // a las entregas/devoluciones de ese día. Null = tarea sin agenda. Requiere
+  // `dueDate` (lo valida la acción, no la base).
+  scheduledTime String? @map("scheduled_time")
+
   vehicleId String?  @map("vehicle_id")
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
 
@@ -1236,6 +1242,8 @@ model TaskRecurrence {
   assignedToName String?      @map("assigned_to_name")
   vehicleId      String?      @map("vehicle_id")
   vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  // Hora de agenda que hereda cada ocurrencia (ver Task.scheduledTime).
+  scheduledTime  String?      @map("scheduled_time")
 
   createdById   String? @map("created_by_id")
   createdBy     User?   @relation("TaskRecurrenceCreator", fields: [createdById], references: [id])

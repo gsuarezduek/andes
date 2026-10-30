@@ -20,6 +20,7 @@ import {
   RECURRENCE_OPTIONS,
   type RecurrenceFormFreq,
 } from "@/components/tasks/recurrence-options";
+import { ScheduledTimeField } from "@/components/tasks/scheduled-time-field";
 
 type UserOption = { id: string; name: string };
 type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
@@ -77,6 +78,7 @@ export function TaskRow({
   const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
   const [scope, setScope] = useState<"instance" | "series">("instance");
   const [editFreq, setEditFreq] = useState<RecurrenceFormFreq>(task.recurrence?.freq ?? "daily");
+  const [scheduled, setScheduled] = useState(task.scheduledTime != null);
 
   if (mode === "confirmDelete") {
     return (
@@ -111,8 +113,10 @@ export function TaskRow({
               label="Fecha"
               type="date"
               defaultValue={task.dueDate ? formatDateInput(task.dueDate) : ""}
+              required={scheduled}
             />
           </div>
+          <ScheduledTimeField checked={scheduled} onCheckedChange={setScheduled} defaultTime={task.scheduledTime} />
           <div className="grid grid-cols-2 gap-3">
             <SelectField id="assignedToId" label="Asignar a" defaultValue={task.assignedToId ?? ""}>
               <option value="">Sin asignar</option>
@@ -216,7 +220,10 @@ export function TaskRow({
           <span className="whitespace-pre-wrap">{task.text}</span>
           {task.priority === "high" && <Badge tone="red">Alta</Badge>}
           {task.dueDate && (
-            <Badge tone={overdue ? "red" : dueToday ? "amber" : "neutral"}>{formatDate(task.dueDate)}</Badge>
+            <Badge tone={overdue ? "red" : dueToday ? "amber" : "neutral"}>
+              {formatDate(task.dueDate)}
+              {task.scheduledTime ? ` · ${task.scheduledTime}` : ""}
+            </Badge>
           )}
           {task.recurrenceId && task.recurrence?.active && (
             <span title={describeRecurrence(task.recurrence)} aria-label="Tarea recurrente">

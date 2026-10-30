@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { hasAdminAccess } from "@/lib/user-permissions";
-import { getDashboardData, type MovementState } from "@/lib/dashboard";
+import { getDashboardData } from "@/lib/dashboard";
 import { getRentalPickerOptions } from "@/lib/cash";
 import { formatMoney } from "@/lib/contract";
 import { getHomeTasks, isTaskOverdue, isTaskDueToday } from "@/lib/tasks";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { HomeSearch } from "@/components/home-search";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatTime } from "@/lib/datetime";
 import { paymentBorderClass } from "@/lib/rental-ui";
-import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/rental-payments";
+import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { vehicleDisplayName, vehicleLabelWithPlate } from "@/lib/vehicle-ui";
+import { normalizeAgendaDay } from "@/lib/agenda";
+import { getAgenda } from "@/lib/agenda-queries";
+import { AgendaSection } from "@/components/home/agenda-section";
 import { formatDateInput } from "@/lib/datetime";
 import { normalizeWeek, weekLabel } from "@/lib/schedule";
 import { addDaysToKey } from "@/lib/rooms/ical";
@@ -21,12 +23,6 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { HomeTaskList } from "@/components/home/home-task-list";
 import { SnoozeServiceButton } from "@/components/vehicle/snooze-service-button";
-
-const stateTone: Record<MovementState, "amber" | "emerald" | "red"> = {
-  pendiente: "amber",
-  completada: "emerald",
-  demorada: "red",
-};
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -45,52 +41,32 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MovementRow({
-  href,
-  title,
-  subtitle,
-  time,
-  state,
-  unconfirmed,
-  accent,
-}: {
-  href: string;
-  title: string;
-  subtitle: string;
-  time: string;
-  state: MovementState;
-  unconfirmed?: boolean;
-  accent?: PaymentAccent;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.03] ${paymentBorderClass(accent ?? null)}`}
-    >
-      <div className="flex-1">
-        <p className="flex items-center gap-2 font-medium">
-          {title}
-          {unconfirmed ? <Badge tone="orange">Sin confirmar</Badge> : null}
-        </p>
-        <p className="text-sm text-foreground/60">{subtitle}</p>
-        <p className="text-xs text-foreground/50">{time}</p>
-      </div>
-      <Badge tone={stateTone[state]}>{state}</Badge>
-    </Link>
-  );
-}
-
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ week?: string; day?: string }> }) {
   const user = await requireUser();
-  const todayKey = formatDateInput(new Date());
+  const now = new Date();
+  const todayKey = formatDateInput(now);
+  const params = await searchParams;
   const currentWeek = normalizeWeek(undefined, todayKey);
-  const weekStart = normalizeWeek((await searchParams).week, todayKey);
-  const [{ today, fleet, alerts }, rentalOptions, tasks, schedule] = await Promise.all([
+  const weekStart = normalizeWeek(params.week, todayKey);
+  const agendaDay = normalizeAgendaDay(params.day, todayKey);
+  const [{ fleet, alerts }, rentalOptions, tasks, schedule, agenda] = await Promise.all([
     getDashboardData(),
     getRentalPickerOptions(),
     getHomeTasks(user.id),
     getWeekSchedule(weekStart),
+    getAgenda(agendaDay, now),
   ]);
+  // La agenda (`?day=`) y los horarios (`?week=`) navegan por separado: cada
+  // link conserva lo que el otro tenga elegido.
+  const homeHref = (next: { day?: string; week?: string }) => {
+    const q = new URLSearchParams();
+    const day = next.day ?? agendaDay;
+    const week = next.week ?? weekStart;
+    if (day !== todayKey) q.set("day", day);
+    if (week !== currentWeek) q.set("week", week);
+    const qs = q.toString();
+    return qs ? `/?${qs}` : "/";
+  };
   const hasAlerts =
     alerts.overdueReturns.length > 0 ||
     alerts.upcomingServices.length > 0 ||
@@ -101,7 +77,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Hola, {user.name?.split(" ")[0] ?? "equipo"}</h1>
-        <p className="text-sm text-foreground/60">Movimientos de hoy y estado de la flota.</p>
+        <p className="text-sm text-foreground/60">Agenda del día y estado de la flota.</p>
       </div>
 
       {/* Buscador + acceso rápido: la pantalla más usada del día no debería
@@ -173,19 +149,19 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/60">Horarios de la semana</h2>
             <div className="flex items-center gap-0.5">
               <Link
-                href={`/?week=${addDaysToKey(weekStart, -7)}`}
+                href={homeHref({ week: addDaysToKey(weekStart, -7) })}
                 aria-label="Semana anterior"
                 className="rounded-md p-1 text-foreground/50 transition-colors hover:bg-foreground/5 hover:text-foreground"
               >
                 <ChevronRightIcon className="size-4 rotate-180" />
               </Link>
               {weekStart !== currentWeek ? (
-                <Link href="/" className="px-1 text-[11px] font-medium text-foreground/50 underline">
+                <Link href={homeHref({ week: currentWeek })} className="px-1 text-[11px] font-medium text-foreground/50 underline">
                   Hoy
                 </Link>
               ) : null}
               <Link
-                href={`/?week=${addDaysToKey(weekStart, 7)}`}
+                href={homeHref({ week: addDaysToKey(weekStart, 7) })}
                 aria-label="Semana siguiente"
                 className="rounded-md p-1 text-foreground/50 transition-colors hover:bg-foreground/5 hover:text-foreground"
               >
@@ -229,50 +205,18 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </section>
       ) : null}
 
-      {/* HOY */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Section title={`Entregas de hoy (${today.handovers.length})`}>
-          {today.handovers.length === 0 ? (
-            <Empty>No hay entregas programadas para hoy.</Empty>
-          ) : (
-            <div className="divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-              {today.handovers.map(({ rental, state }) => (
-                <MovementRow
-                  key={rental.id}
-                  href={`/rentals/${rental.id}`}
-                  title={rental.clientName}
-                  subtitle={rental.vehicle ? vehicleLabelWithPlate(rental.vehicle) : "Sin vehículo asignado"}
-                  time={`Retiro ${formatDateTime(rental.startAt)}`}
-                  state={state}
-                  unconfirmed={!rental.bookingConfirmed}
-                  accent={paymentAccent(rental.status, rental.bookingConfirmed, computeRentalPayments(rental))}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-
-        <Section title={`Devoluciones de hoy (${today.returns.length})`}>
-          {today.returns.length === 0 ? (
-            <Empty>No hay devoluciones programadas para hoy.</Empty>
-          ) : (
-            <div className="divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
-              {today.returns.map(({ rental, state }) => (
-                <MovementRow
-                  key={rental.id}
-                  href={`/rentals/${rental.id}`}
-                  title={rental.clientName}
-                  subtitle={rental.vehicle ? vehicleLabelWithPlate(rental.vehicle) : "Sin vehículo"}
-                  time={`Devolución ${formatDateTime(rental.endAt)}`}
-                  state={state}
-                  unconfirmed={!rental.bookingConfirmed}
-                  accent={paymentAccent(rental.status, rental.bookingConfirmed, computeRentalPayments(rental))}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      </div>
+      {/* AGENDA: entregas, devoluciones, tareas con agenda y check-in por
+          horario; aparte, lo que pasa en la oficina sin salir. Hoy por
+          defecto, navegable día por día. */}
+      <AgendaSection
+        agenda={agenda}
+        dayKey={agendaDay}
+        todayKey={todayKey}
+        nowTime={formatTime(now)}
+        dayHref={(day) => homeHref({ day })}
+      />
+      {/* El estado (pendiente/demorada) y la línea de "ahora" dependen de la hora. */}
+      <AutoRefresh intervalMs={120_000} />
 
       {/* TAREAS: mis pendientes + las de cualquiera que vencen hoy o ya vencieron. */}
       <Section title={`Tareas (${tasks.length})`}>

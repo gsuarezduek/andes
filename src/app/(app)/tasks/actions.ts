@@ -9,6 +9,7 @@ import { hasAdminAccess } from "@/lib/user-permissions";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { ruleFromDueDate } from "@/lib/task-recurrence";
+import { isValidTime } from "@/lib/agenda";
 import { completeTaskTx, generateNextOccurrence } from "@/lib/task-completion";
 
 function emptyToNull(v: FormDataEntryValue | null): string | null {
@@ -23,6 +24,7 @@ const taskFormSchema = z.object({
   assignedToId: z.string().nullable(),
   vehicleId: z.string().nullable(),
   rentalId: z.string().nullable(),
+  scheduledTime: z.string().nullable(),
 });
 
 async function parseTaskForm(formData: FormData) {
@@ -33,7 +35,13 @@ async function parseTaskForm(formData: FormData) {
     assignedToId: emptyToNull(formData.get("assignedToId")),
     vehicleId: emptyToNull(formData.get("vehicleId")),
     rentalId: emptyToNull(formData.get("rentalId")),
+    // "Tarea con agenda": la hora solo cuenta con el checkbox tildado.
+    scheduledTime: formData.get("scheduled") === "on" ? emptyToNull(formData.get("scheduledTime")) : null,
   });
+  if (formData.get("scheduled") === "on") {
+    if (!parsed.dueDate) throw new Error("Una tarea con agenda necesita una fecha.");
+    if (!isValidTime(parsed.scheduledTime)) throw new Error("Elegí la hora de la tarea con agenda.");
+  }
   const assignedTo = parsed.assignedToId
     ? await prisma.user.findUnique({ where: { id: parsed.assignedToId }, select: { name: true } })
     : null;
@@ -45,6 +53,7 @@ async function parseTaskForm(formData: FormData) {
     assignedToName: assignedTo?.name ?? null,
     vehicleId: parsed.vehicleId,
     rentalId: parsed.rentalId,
+    scheduledTime: parsed.scheduledTime,
   };
 }
 
@@ -87,6 +96,7 @@ export async function createTask(formData: FormData) {
           assignedToId: data.assignedToId,
           assignedToName: data.assignedToName,
           vehicleId: data.vehicleId,
+          scheduledTime: data.scheduledTime,
           createdById: user.id,
           createdByName: displayName(user),
         },
@@ -151,6 +161,7 @@ export async function updateTask(id: string, formData: FormData) {
           assignedToId: data.assignedToId,
           assignedToName: data.assignedToName,
           vehicleId: data.vehicleId,
+          scheduledTime: data.scheduledTime,
           ...(rule ?? {}),
         },
       }),

@@ -95,7 +95,7 @@ export function PendingTaskList({
             <ul className="flex flex-col divide-y divide-foreground/10 overflow-hidden rounded-xl border border-foreground/10">
               {group.tasks.map(({ task, overdue, dueToday, canEdit }) => (
                 <TaskRow
-                  key={`${task.id}-${task.text}-${task.priority}-${task.dueDate?.getTime()}-${task.assignedToId}-${task.vehicleId}-${task.rentalId}-${task.recurrenceId}-${task.recurrence?.freq}-${task.recurrence?.interval}`}
+                  key={`${task.id}-${task.text}-${task.priority}-${task.dueDate?.getTime()}-${task.assignedToId}-${task.vehicleId}-${task.rentalId}-${task.recurrenceId}-${task.recurrence?.freq}-${task.recurrence?.interval}-${task.scheduledTime}`}
                   task={task}
                   overdue={overdue}
                   dueToday={dueToday}

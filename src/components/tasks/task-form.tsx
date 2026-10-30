@@ -13,6 +13,7 @@ import {
   RECURRENCE_OPTIONS,
   type RecurrenceFormFreq,
 } from "@/components/tasks/recurrence-options";
+import { ScheduledTimeField } from "@/components/tasks/scheduled-time-field";
 
 type UserOption = { id: string; name: string };
 type VehicleOption = { id: string; name: string | null; brand: string; model: string; plate: string };
@@ -31,6 +32,8 @@ export function TaskForm({
 }) {
   const [open, setOpen] = useState(false);
   const [recurrenceFreq, setRecurrenceFreq] = useState<RecurrenceFormFreq>("none");
+  const [scheduled, setScheduled] = useState(false);
+  const dateRequired = recurrenceFreq !== "none" || scheduled;
 
   if (!open) {
     return (
@@ -42,6 +45,7 @@ export function TaskForm({
           // se abrió el panel — y con eso, "Fecha" queda marcada obligatoria
           // sin que se note por qué en una tarea nueva sin repetición.
           setRecurrenceFreq("none");
+          setScheduled(false);
         }}
       >
         + Nueva tarea
@@ -67,10 +71,13 @@ export function TaskForm({
           id="dueDate"
           label="Fecha"
           type="date"
-          hint={recurrenceFreq === "none" ? "Opcional" : "Obligatoria para poder repetir"}
-          required={recurrenceFreq !== "none"}
+          hint={
+            recurrenceFreq !== "none" ? "Obligatoria para poder repetir" : scheduled ? "Obligatoria para la agenda" : "Opcional"
+          }
+          required={dateRequired}
         />
       </div>
+      <ScheduledTimeField checked={scheduled} onCheckedChange={setScheduled} />
       <div className="grid grid-cols-2 gap-3">
         <SelectField
           id="recurrenceFreq"

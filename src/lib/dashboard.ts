@@ -1,30 +1,23 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { getUnpaidFinishedRentals } from "@/lib/cash";
 import { serviceOverdueSeverity, isServiceAlertSnoozed, DEFAULT_SERVICE_OVERDUE_RED_PERCENT } from "@/lib/service-alerts";
 
 const SERVICE_KM_THRESHOLD = 500; // avisar cuando falten ≤ 500 km para el service
 
-export type MovementState = "pendiente" | "completada" | "demorada";
-
 /**
  * Datos agregados para el dashboard (§4.3). A propósito **sin caché** (a
  * diferencia de getReports en reports.ts): esto es el estado operativo del
  * día — un empleado que acaba de cerrar una devolución necesita verla
- * reflejada al instante en "Hoy", no hasta 60s después. Además las queries ya
- * están acotadas por su naturaleza (flota chica, ventana de "hoy", filtros de
- * estado), así que el costo de recalcular en cada carga es bajo.
+ * reflejada al instante, no hasta 60s después. Además las queries ya están
+ * acotadas por su naturaleza (flota chica, filtros de estado), así que el
+ * costo de recalcular en cada carga es bajo. Las entregas/devoluciones del
+ * día viven en la Agenda (`agenda-queries.ts`), no acá.
  */
 export async function getDashboardData() {
   const now = new Date();
-  const todayStr = formatDateInput(now);
-  const dayStart = mendozaWallTimeToUtc(`${todayStr}T00:00`);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   const [
-    todayHandovers,
-    todayReturns,
     rented,
     available,
     outOfService,
@@ -34,21 +27,6 @@ export async function getDashboardData() {
     conditionSettings,
     unpaidFinished,
   ] = await Promise.all([
-    // Entregas programadas hoy (por fecha de retiro). Excluye canceladas y
-    // los placeholders "en service" (no son entregas reales a un cliente).
-    prisma.rental.findMany({
-      where: { status: { notIn: ["cancelled", "out_of_service"] }, startAt: { gte: dayStart, lt: dayEnd } },
-      include: { vehicle: true, inspections: { select: { type: true } } },
-      orderBy: { startAt: "asc" },
-    }),
-    // Devoluciones programadas hoy (por fecha de devolución). Incluye reservas
-    // aún no iniciadas en la app: si WordPress dice que el auto vuelve hoy, se
-    // muestra aunque la entrega no se haya cargado en Andes.
-    prisma.rental.findMany({
-      where: { status: { notIn: ["cancelled", "out_of_service"] }, endAt: { gte: dayStart, lt: dayEnd } },
-      include: { vehicle: true, inspections: { select: { type: true } } },
-      orderBy: { endAt: "asc" },
-    }),
     prisma.rental.findMany({
       where: { status: "active" },
       include: { vehicle: true },
@@ -77,15 +55,6 @@ export async function getDashboardData() {
     getUnpaidFinishedRentals(),
   ]);
 
-  const handoverState = (r: (typeof todayHandovers)[number]): MovementState => {
-    if (r.inspections.some((i) => i.type === "handover")) return "completada";
-    return now > r.startAt ? "demorada" : "pendiente";
-  };
-  const returnState = (r: (typeof todayReturns)[number]): MovementState => {
-    if (r.status === "finished") return "completada";
-    return now > r.endAt ? "demorada" : "pendiente";
-  };
-
   const serviceRedPercent = conditionSettings?.serviceOverdueRedPercent ?? DEFAULT_SERVICE_OVERDUE_RED_PERCENT;
   const upcomingServices = serviceCandidates
     .filter((v) => v.nextServiceKm != null && v.currentKm >= v.nextServiceKm - SERVICE_KM_THRESHOLD)
@@ -104,10 +73,6 @@ export async function getDashboardData() {
     });
 
   return {
-    today: {
-      handovers: todayHandovers.map((r) => ({ rental: r, state: handoverState(r) })),
-      returns: todayReturns.map((r) => ({ rental: r, state: returnState(r) })),
-    },
     fleet: {
       rented,
       available,
