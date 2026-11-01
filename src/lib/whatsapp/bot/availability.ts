@@ -94,8 +94,6 @@ export type BotQuote = {
   days: number;
   /** Promedio por día (total ÷ días). */
   pricePerDay: number | null;
-  /** `true` si algún día cobrado tiene un aumento de temporada/fecha especial. */
-  seasonalIncrease: boolean;
 };
 
 /**
@@ -128,7 +126,6 @@ export function estimateBotQuote(input: {
     total: estimate.total,
     days: breakdown.days,
     pricePerDay: quotePricePerDay(estimate.total, breakdown.days),
-    seasonalIncrease: daySeasons.some((d) => d.some((season) => season.diffPercent > 0)),
   };
 }
 

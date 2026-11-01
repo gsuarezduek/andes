@@ -1290,6 +1290,11 @@ model PaymentMethod {
   // en src/lib/user-permissions.ts). Solo tiene sentido en cuentas propias
   // (`ownership: own`); se valida en `updatePaymentMethods`.
   financeOnly       Boolean                @default(false) @map("finance_only")
+  // Todo ingreso que entra a esta cuenta va solo a Caja → Facturación
+  // (ej. Mercado Pago, tarjetas, BBVA) — ver `syncAutoInvoice` en
+  // src/lib/auto-invoice.ts. Solo cuentas propias. No es retroactivo: rige
+  // para los ingresos que se cargan (o cambian de cuenta) después de marcarlo.
+  autoInvoice       Boolean                @default(false) @map("auto_invoice")
   ordering          Int                    @default(0)
   active            Boolean                @default(true)
 
@@ -1516,6 +1521,10 @@ model CashMovement {
   // (pestaña Caja → Facturación). `invoicingName`/`invoicingCuit` se tipean al
   // momento de marcar el ingreso, no salen de ningún catálogo.
   needsInvoice   Boolean   @default(false) @map("needs_invoice")
+  // true = entró a Facturación solo por la cuenta (`PaymentMethod.autoInvoice`),
+  // no porque lo pidió el cliente ni porque alguien lo agregó a mano. Es lo que
+  // permite sacarlo solo si después se cambia a una cuenta que no factura.
+  invoiceAuto    Boolean   @default(false) @map("invoice_auto")
   invoicingName  String?   @map("invoicing_name")
   invoicingCuit  String?   @map("invoicing_cuit")
   invoicedAt     DateTime? @map("invoiced_at")

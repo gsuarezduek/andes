@@ -120,19 +120,18 @@ describe("estimateBotQuote (mismo cálculo que el presupuestador del Calendario)
 
   it("sin temporadas cobra la tarifa por cada noche", () => {
     const q = estimateBotQuote({ ...base, seasonRows: [], startDate: "2026-11-10", endDate: "2026-11-13" });
-    expect(q).toEqual({ total: 240000, days: 3, pricePerDay: 80000, seasonalIncrease: false });
+    expect(q).toEqual({ total: 240000, days: 3, pricePerDay: 80000 });
   });
 
   it("aplica el aumento solo a los días que caen en la temporada", () => {
     // Se cobran 13, 14 y 15: 80.000 + 96.000 + 96.000.
     const q = estimateBotQuote({ ...base, seasonRows: [LONG_WEEKEND], startDate: "2026-11-13", endDate: "2026-11-16" });
-    expect(q).toEqual({ total: 272000, days: 3, pricePerDay: 90667, seasonalIncrease: true });
+    expect(q).toEqual({ total: 272000, days: 3, pricePerDay: 90667 });
   });
 
   it("no aplica una temporada de otro modelo", () => {
     const q = estimateBotQuote({ ...base, wpCarId: 8, seasonRows: [LONG_WEEKEND], startDate: "2026-11-13", endDate: "2026-11-16" });
     expect(q?.total).toBe(240000);
-    expect(q?.seasonalIncrease).toBe(false);
   });
 
   it("des-aplica la temporada de hoy para reconstruir la tarifa base", () => {
@@ -144,7 +143,7 @@ describe("estimateBotQuote (mismo cálculo que el presupuestador del Calendario)
 
   it("retiro y devolución el mismo día cobran 1 día", () => {
     const q = estimateBotQuote({ ...base, seasonRows: [LONG_WEEKEND], startDate: "2026-11-14", endDate: "2026-11-14" });
-    expect(q).toEqual({ total: 96000, days: 1, pricePerDay: 96000, seasonalIncrease: true });
+    expect(q).toEqual({ total: 96000, days: 1, pricePerDay: 96000 });
   });
 
   it("sin tarifa no cotiza", () => {

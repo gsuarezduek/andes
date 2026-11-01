@@ -10,6 +10,8 @@ import { diffDescriptionAndAmount } from "@/lib/movement-audit";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import { currencyLabels } from "@/lib/currency";
 import { syncCommission, syncExpenseCommission, deleteCommissionOf } from "@/lib/commissions-sync";
+import { syncAutoInvoice } from "@/lib/auto-invoice";
+import { invoicedChangeError } from "@/lib/invoicing-rules";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
 
@@ -148,6 +150,8 @@ export async function createCashMovement(type: "income" | "expense", formData: F
       if (type === "income") await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
       else await syncExpenseCommission(tx, created.id, { id: user.id, name: displayName(user) });
     }
+    // Cuenta que factura sola (Mercado Pago, tarjetas, …) → va a Facturación.
+    await syncAutoInvoice(tx, created.id);
     if (rentalId) await autoUnverifyRental(tx, rentalId, `Se cargó un movimiento de Caja (${description}).`);
     if (roomBooking) await autoUnverifyRoomBooking(tx, roomBooking.id, `Se cargó un movimiento de Caja (${description}).`);
     return created.id;
@@ -208,6 +212,14 @@ export async function updateCashMovement(id: string, formData: FormData) {
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
   if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
+
+  const invoicedError = invoicedChangeError(existing.invoicedAt != null, {
+    account: existing.paymentMethodId !== paymentMethodId,
+    amount: Number(existing.amount) !== amount,
+    currency: existing.currency !== currency,
+  });
+  // La UI ya lo bloquea (ver MovementDetailModal); esto es la guarda de servidor.
+  if (invoicedError) throw new Error(invoicedError);
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
@@ -293,6 +305,8 @@ export async function updateCashMovement(id: string, formData: FormData) {
       if (existing.type === "income") await syncCommission(tx, id, { id: user.id, name: displayName(user) });
       else if (existing.type === "expense") await syncExpenseCommission(tx, id, { id: user.id, name: displayName(user) });
     }
+    // Solo si cambió la cuenta: entra o sale de Facturación según la nueva.
+    if (existing.paymentMethodId !== method.id) await syncAutoInvoice(tx, id);
     if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se editó un movimiento de Caja de la reserva.");
     if (existing.roomBookingId) {
       await autoUnverifyRoomBooking(tx, existing.roomBookingId, "Se editó un movimiento de Caja de la reserva.");
@@ -313,6 +327,9 @@ export async function deleteCashMovement(id: string, formData: FormData) {
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
   if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
+  const invoicedError = invoicedChangeError(existing.invoicedAt != null, { delete: true });
+  // La UI ya lo bloquea (ver MovementDetailModal); esto es la guarda de servidor.
+  if (invoicedError) throw new Error(invoicedError);
 
   const changes: CashMovementFieldChange[] = [{ field: "Motivo", from: "—", to: note }];
 
@@ -391,8 +408,10 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
         editedByName: displayName(user),
       },
     });
-    // Recién ahora se sabe el medio real: si tiene comisión, se genera.
+    // Recién ahora se sabe el medio real: si tiene comisión, se genera, y si
+    // la cuenta factura sola, va a Facturación.
     await syncCommission(tx, id, { id: user.id, name: displayName(user) });
+    await syncAutoInvoice(tx, id);
 
     if (existing.rentalId) {
       await autoUnverifyRental(tx, existing.rentalId, "Se confirmó el medio de pago de un cobro de la reserva.");

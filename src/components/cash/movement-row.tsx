@@ -104,6 +104,9 @@ export function MovementDetailModal({
   const isExpense = movement.type === "expense";
   const thirdPartyMethods = paymentMethods.filter((m) => m.ownership !== "own");
   const amountToneClass = tone === "emerald" ? "text-emerald-600" : "text-red-600";
+  // Ya facturado: cuenta, monto y moneda quedan fijos y no se puede borrar
+  // (ver `invoicedChangeError`) — solo se puede corregir el detalle.
+  const invoiced = movement.invoicedAt != null;
 
   // Reset al cerrar (no al abrir, para no llamar setState desde un efecto):
   // la próxima vez que se abra, ya arranca en modo vista con los valores
@@ -207,37 +210,65 @@ export function MovementDetailModal({
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
                 Editar
               </Button>
-              <Button type="button" variant="danger" className="flex-1" onClick={() => setMode("confirmDelete")}>
+              <Button
+                type="button"
+                variant="danger"
+                className="flex-1"
+                disabled={invoiced}
+                onClick={() => setMode("confirmDelete")}
+              >
                 Eliminar
               </Button>
             </div>
+            {invoiced && (
+              <p className="text-xs text-foreground/50">
+                Ya está facturado: no se puede eliminar ni cambiar cuenta, monto o moneda. Si se marcó por error,
+                volvelo a pendiente en Caja → Facturación.
+              </p>
+            )}
           </div>
         )}
 
         {mode === "edit" && (
           <form action={updateCashMovement.bind(null, movement.id)} className="flex flex-col gap-2">
             <TextareaField id="description" label="Detalle" defaultValue={movement.description} required rows={2} />
-            <div className="grid grid-cols-[7fr_3fr] gap-2">
-              <TextField
-                id="amount"
-                label="Monto"
-                type="number"
-                step="0.01"
-                min="0"
-                prefix="$"
-                defaultValue={movement.amount}
-                required
-              />
-              <CurrencyToggle value={currency} onChange={setCurrency} />
-            </div>
-            <PaymentMethodPicker
-              id="paymentMethodId"
-              label={isExpense ? "Origen" : "Medio de pago"}
-              options={paymentMethods}
-              value={paymentMethodId}
-              onChange={setPaymentMethodId}
-              placeholder={isExpense ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
-            />
+            {invoiced ? (
+              <div className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
+                <input type="hidden" name="amount" value={movement.amount} />
+                <input type="hidden" name="currency" value={movement.currency} />
+                <input type="hidden" name="paymentMethodId" value={movement.paymentMethodId ?? ""} />
+                <p>
+                  {formatMoney(movement.amount, movement.currency)} · {movement.paymentMethodName}
+                </p>
+                <p className="mt-0.5 text-xs text-foreground/50">
+                  Ya está facturado: la cuenta, el monto y la moneda no se pueden cambiar.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-[7fr_3fr] gap-2">
+                  <TextField
+                    id="amount"
+                    label="Monto"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    prefix="$"
+                    defaultValue={movement.amount}
+                    required
+                  />
+                  <CurrencyToggle value={currency} onChange={setCurrency} />
+                </div>
+                <PaymentMethodPicker
+                  id="paymentMethodId"
+                  label={isExpense ? "Origen" : "Medio de pago"}
+                  options={paymentMethods}
+                  value={paymentMethodId}
+                  onChange={setPaymentMethodId}
+                  placeholder={isExpense ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
+                />
+              </>
+            )}
             {selectedMethod?.requiresNote && (
               <TextField
                 id="paymentMethodNote"
