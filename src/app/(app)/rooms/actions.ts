@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { syncCommission } from "@/lib/commissions-sync";
+import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { validateFeedUrl, FEED_SOURCES, roomSourceLabels } from "@/lib/rooms/feed-url";
 import { syncRoomFeed } from "@/lib/rooms/sync";
 import { isDateKey, keyToDate, nightsBetween, rangesOverlap } from "@/lib/rooms/dates";
@@ -321,6 +322,7 @@ export async function addRoomPayment(bookingId: string, input: unknown, detail?:
       })[0],
     });
     await syncCommission(tx, created.id, { id: user.id, name: displayName(user) });
+    await syncAutoInvoice(tx, created.id);
     await autoUnverifyRoomBooking(tx, bookingId, "Se cargó un cobro nuevo.");
   });
 

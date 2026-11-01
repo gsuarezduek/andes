@@ -192,9 +192,10 @@ export function CashMovementForm({
               className="mt-0.5 h-4 w-4 rounded border-foreground/30"
             />
             <span>
-              Hay que facturar
+              El cliente pidió factura
               <span className="block text-xs text-foreground/50">
-                Queda pendiente en Caja → Facturación hasta que se cargue la factura correspondiente.
+                Queda en Caja → Facturación como pedido del cliente, a su nombre. Lo que entra a cuentas que
+                facturan solas (Mercado Pago, tarjetas…) va igual, aunque no lo marques.
               </span>
             </span>
           </label>

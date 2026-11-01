@@ -63,6 +63,8 @@ export type PaymentMethodUpdateInput = {
   // Solo cuentas propias — ver `PaymentMethod.hasInvestmentFunds` en el
   // schema. Habilita el bloque "Fondos de inversión" en su página de Saldos.
   hasInvestmentFunds: boolean;
+  // Solo cuentas propias — ver `PaymentMethod.autoInvoice` en el schema.
+  autoInvoice: boolean;
   // Solo cuentas propias, y solo el propietario puede cambiarlo — ver
   // `PaymentMethod.financeOnly` en el schema. Un no-propietario que mande un
   // valor distinto es ignorado (se conserva el que ya estaba en la base).
@@ -201,6 +203,7 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           isCash: u.isCash,
           // Solo tiene sentido en cuentas propias — en las demás se guarda en false.
           hasInvestmentFunds: u.ownership === "own" ? u.hasInvestmentFunds : false,
+          autoInvoice: u.ownership === "own" ? u.autoInvoice : false,
           // Solo cuentas propias y solo el propietario puede cambiarlo — un
           // no-propietario que mande otro valor es ignorado (se conserva el
           // que ya estaba en la base).

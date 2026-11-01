@@ -21,6 +21,8 @@ vi.mock("@/lib/acta", () => ({ generateAndSendActa: actaMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // La comisión automática se prueba aparte (commissions-sync.test.ts).
 vi.mock("@/lib/commissions-sync", () => ({ syncCommission: vi.fn(), deleteCommissionOf: vi.fn() }));
+// La facturación automática se prueba aparte (invoicing-rules.test.ts).
+vi.mock("@/lib/auto-invoice", () => ({ syncAutoInvoice: vi.fn() }));
 // La desverificación automática se prueba aparte (rental-verification-server.test.ts).
 vi.mock("@/lib/rental-verification-server", () => ({ autoUnverifyRental: autoUnverifyMock }));
 // No ejecutamos el post-guardado asíncrono (acta/emails) en los tests.

@@ -27,6 +27,7 @@ export async function getRentalDetail(id: string) {
       cashMovements: {
         where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
+        include: { paymentMethod: { select: { autoInvoice: true, ownership: true } } },
       },
     },
   });

@@ -14,6 +14,7 @@ import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
+import { InvoiceRequestControl } from "@/components/cash/invoice-request-control";
 import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
 
@@ -157,8 +158,9 @@ export function MovementDetailModal({
                     label="Facturación"
                     value={movement.invoicedAt ? "Facturado" : "Pendiente de facturar"}
                   />
-                  <DetailRow label="Nombre/Razón Social" value={movement.invoicingName ?? "—"} />
-                  <DetailRow label="CUIT" value={movement.invoicingCuit ?? "—"} />
+                  {movement.invoiceAuto && <DetailRow label="Motivo" value="La cuenta factura sola" />}
+                  {movement.invoicingName && <DetailRow label="Facturar a" value={movement.invoicingName} />}
+                  {movement.invoicingCuit && <DetailRow label="CUIT" value={movement.invoicingCuit} />}
                   {movement.invoicedAt && (
                     <DetailRow
                       label="Facturado por"
@@ -206,6 +208,17 @@ export function MovementDetailModal({
                 />
               )}
             </dl>
+            {movement.invoiceEligible && (
+              <InvoiceRequestControl
+                key={`${movement.needsInvoice}:${movement.invoicingName ?? ""}:${movement.invoicingCuit ?? ""}`}
+                movementId={movement.id}
+                needsInvoice={movement.needsInvoice}
+                invoiced={invoiced}
+                invoicingName={movement.invoicingName}
+                invoicingCuit={movement.invoicingCuit}
+                accountAutoInvoice={movement.accountAutoInvoice}
+              />
+            )}
             <div className="mt-1 flex gap-2">
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setMode("edit")}>
                 Editar

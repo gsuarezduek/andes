@@ -340,6 +340,12 @@ export default async function RentalDetailPage({
                 needsConfirmation: m.needsConfirmation,
                 createdByName: m.createdByName ?? null,
                 createdAt: m.createdAt,
+                invoiceEligible: m.type === "income" && !m.isGuarantee && m.guaranteeSourceId == null,
+                needsInvoice: m.needsInvoice,
+                invoicedAt: m.invoicedAt,
+                invoicingName: m.invoicingName,
+                invoicingCuit: m.invoicingCuit,
+                accountAutoInvoice: m.paymentMethod?.ownership === "own" && !!m.paymentMethod.autoInvoice,
               }))}
               paymentMethods={paymentMethods}
             />

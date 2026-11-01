@@ -10,6 +10,7 @@ import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { generateAndSendActa } from "@/lib/acta";
 import { syncCommission } from "@/lib/commissions-sync";
+import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
@@ -251,6 +252,7 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
         // Comisión automática del medio de pago de cada ingreso (si la tiene).
         for (const row of incomeRows) {
           await syncCommission(tx, row.id!, { id: user.id, name: displayName(user) });
+          await syncAutoInvoice(tx, row.id!);
         }
       }
 

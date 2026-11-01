@@ -56,6 +56,7 @@ type Draft = {
   requiresNote: boolean;
   isCash: boolean;
   hasInvestmentFunds: boolean;
+  autoInvoice: boolean;
   financeOnly: boolean;
   parentId: string | null;
   whatsappPhone: string;
@@ -93,6 +94,7 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     requiresNote: it.requiresNote,
     isCash: it.isCash,
     hasInvestmentFunds: it.hasInvestmentFunds,
+    autoInvoice: it.autoInvoice,
     financeOnly: it.financeOnly,
     parentId: it.parentId,
     whatsappPhone: it.whatsappPhone ?? "",
@@ -117,6 +119,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
     a.hasInvestmentFunds === b.hasInvestmentFunds &&
+    a.autoInvoice === b.autoInvoice &&
     a.financeOnly === b.financeOnly &&
     a.parentId === b.parentId &&
     a.whatsappPhone === b.whatsappPhone &&
@@ -423,6 +426,7 @@ function PaymentMethodRow({
         {draft.ownership === "misc" && <Badge tone="violet">Varios</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
         {draft.hasInvestmentFunds && <Badge tone="violet">Fondos</Badge>}
+        {draft.ownership === "own" && draft.autoInvoice && <Badge tone="blue">Factura</Badge>}
         {draft.financeOnly && <Badge tone="orange">Solo Finanzas</Badge>}
         {draft.requiresNote && <Badge tone="orange">Requiere aclaración</Badge>}
         {!item.active && <Badge tone="neutral">Inactivo</Badge>}
@@ -717,6 +721,23 @@ function PaymentMethodRow({
                   className="h-4 w-4"
                 />
                 Tiene fondos de inversión
+              </label>
+            )}
+            {draft.ownership === "own" && (
+              <label className="flex items-start gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={draft.autoInvoice}
+                  onChange={(e) => setField(item.id, "autoInvoice", e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  Facturar automáticamente
+                  <span className="block text-xs text-foreground/60">
+                    Todo ingreso que entre a esta cuenta va solo a Caja → Facturación (ej. Mercado Pago, tarjetas).
+                    Rige para lo que se cargue desde ahora, no para lo anterior.
+                  </span>
+                </span>
               </label>
             )}
             {draft.ownership === "own" && isOwner && (

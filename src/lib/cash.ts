@@ -110,6 +110,12 @@ export type CashMovementRow = {
   // Hay que facturar este ingreso (ver comentario de `needsInvoice` en el
   // schema) — nunca true en un Egreso. `invoicedAt` nulo = pendiente.
   needsInvoice: boolean;
+  // Entró a Facturación solo por la cuenta (ver `CashMovement.invoiceAuto`).
+  invoiceAuto: boolean;
+  // La cuenta factura sola (`PaymentMethod.autoInvoice`): no se puede quitar de Facturación.
+  accountAutoInvoice: boolean;
+  // Se puede mandar a Facturación: ingreso que no es (ni sale de) una garantía.
+  invoiceEligible: boolean;
   invoicingName: string | null;
   invoicingCuit: string | null;
   invoicedAt: Date | null;
@@ -143,6 +149,7 @@ const MOVEMENT_INCLUDE = {
     },
   },
   edits: { where: { action: "updated" as const }, orderBy: { createdAt: "desc" as const }, take: 1 },
+  paymentMethod: { select: { autoInvoice: true, ownership: true } },
 } satisfies Prisma.CashMovementInclude;
 
 type RawMovement = Prisma.CashMovementGetPayload<{ include: typeof MOVEMENT_INCLUDE }>;
@@ -181,6 +188,9 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
     guaranteeReturnedAmount: r.guaranteeReturnedAmount != null ? Number(r.guaranteeReturnedAmount) : null,
     guaranteeResolvedByName: r.guaranteeResolvedByName,
     needsInvoice: r.needsInvoice,
+    invoiceAuto: r.invoiceAuto,
+    accountAutoInvoice: r.paymentMethod?.ownership === "own" && r.paymentMethod.autoInvoice,
+    invoiceEligible: r.type === "income" && !r.isGuarantee && r.guaranteeSourceId == null,
     invoicingName: r.invoicingName,
     invoicingCuit: r.invoicingCuit,
     invoicedAt: r.invoicedAt,
