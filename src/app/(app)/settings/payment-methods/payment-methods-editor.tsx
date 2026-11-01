@@ -416,9 +416,12 @@ function PaymentMethodRow({
             </button>
           </form>
         </div>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {isChild && <span className="mr-1 text-foreground/40">↳</span>}
-          {item.name}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+          <span className="min-w-0 truncate">
+            {isChild && <span className="mr-1 text-foreground/40">↳</span>}
+            {item.name}
+          </span>
+          <AdjustmentTag value={draft.adjustmentPercent} />
         </span>
         {isDirty && <Badge tone="amber">Sin guardar</Badge>}
         {draft.ownership === "provider" && <Badge tone="blue">Proveedor</Badge>}
@@ -761,5 +764,28 @@ function PaymentMethodRow({
         </>
       )}
     </li>
+  );
+}
+
+/**
+ * Recargo/descuento del medio, al lado del nombre (ej. "+10%" / "−5%"). Lee el
+ * borrador, así refleja lo que se está tipeando antes de guardar. Vacío o 0 →
+ * no muestra nada.
+ */
+function AdjustmentTag({ value }: { value: string }) {
+  const n = Number(value.replace(",", "."));
+  if (!value.trim() || !Number.isFinite(n) || n === 0) return null;
+  const label = `${n > 0 ? "+" : "−"}${Math.abs(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}%`;
+  return (
+    <span
+      title={n > 0 ? "Recargo" : "Descuento"}
+      className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+        n > 0
+          ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
