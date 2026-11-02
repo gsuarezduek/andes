@@ -6,6 +6,7 @@ export async function getVehicleDetail(id: string) {
     where: { id },
     include: {
       competitorCategory: { select: { label: true } },
+      ownerContracts: { orderBy: { createdAt: "desc" } },
       rentals: {
         orderBy: { startAt: "desc" },
         include: { inspections: { select: { type: true, km: true } } },

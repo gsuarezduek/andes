@@ -62,6 +62,9 @@ const vehicleSchema = z
     ownership: z.enum(["own", "third_party"]).default("own"),
     ownerName: optionalStr,
     ownerPhone: optionalStr,
+    ownerDocNumber: optionalStr,
+    ownerAddress: optionalStr,
+    ownerEmail: optionalStr,
   })
   .refine((v) => v.ownership !== "third_party" || v.ownerName != null, {
     message: "El nombre del titular es obligatorio para un auto de tercero.",
@@ -91,6 +94,9 @@ function parse(formData: FormData) {
     ownership: formData.get("ownership") || undefined,
     ownerName: formData.get("ownerName"),
     ownerPhone: formData.get("ownerPhone"),
+    ownerDocNumber: formData.get("ownerDocNumber"),
+    ownerAddress: formData.get("ownerAddress"),
+    ownerEmail: formData.get("ownerEmail"),
   });
 }
 

@@ -21,7 +21,12 @@ export function VehicleInfo({ vehicle }: { vehicle: VehicleDetail }) {
           <SubsectionTitle>General</SubsectionTitle>
           <div className="divide-y divide-foreground/10 rounded-xl border border-foreground/10 px-4">
             {vehicle.ownership === "third_party" ? (
-              <Row label="Titular" value={`${vehicle.ownerName ?? "—"}${vehicle.ownerPhone ? ` · ${vehicle.ownerPhone}` : ""}`} />
+              <>
+                <Row label="Titular" value={`${vehicle.ownerName ?? "—"}${vehicle.ownerPhone ? ` · ${vehicle.ownerPhone}` : ""}`} />
+                {vehicle.ownerDocNumber ? <Row label="Documento del titular" value={vehicle.ownerDocNumber} /> : null}
+                {vehicle.ownerAddress ? <Row label="Domicilio del titular" value={vehicle.ownerAddress} /> : null}
+                {vehicle.ownerEmail ? <Row label="Email del titular" value={vehicle.ownerEmail} /> : null}
+              </>
             ) : null}
             <Row label="Año" value={vehicle.year} />
             <Row label="Color" value={vehicle.color} />

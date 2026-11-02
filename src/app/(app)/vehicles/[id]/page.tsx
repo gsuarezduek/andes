@@ -19,15 +19,22 @@ import { MaintenanceSection } from "@/components/vehicle/maintenance-section";
 import { vehicleStatusLabels } from "@/lib/labels";
 import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { getVehicleDetail } from "@/lib/vehicle-detail-queries";
+import { OwnerContractsSection } from "@/components/owner-contract/owner-contracts-section";
+import { SavedBanner } from "@/components/ui/saved-banner";
+import { ButtonLink } from "@/components/ui/button";
+import { currentOwnerContract } from "@/lib/owner-contract";
 
 export const metadata: Metadata = { title: "Vehículo — Andes" };
 
 export default async function VehicleDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; signed?: string }>;
 }) {
   const { id } = await params;
+  const { tab, signed } = await searchParams;
   const user = await requireUser();
   const isAdmin = hasAdminAccess(user.role);
 
@@ -66,6 +73,12 @@ export default async function VehicleDetailPage({
     }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const hasActiveRental = vehicle.status === "rented" || vehicle.rentals.some((r) => r.status === "active");
+
+  const isThirdParty = vehicle.ownership === "third_party";
+  // Server component: se evalúa una vez por request, leer el reloj acá es correcto.
+  // eslint-disable-next-line react-hooks/purity
+  const now = new Date(Date.now());
+  const hasCurrentContract = currentOwnerContract(vehicle.ownerContracts, now) != null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -109,6 +122,16 @@ export default async function VehicleDetailPage({
         />
       </div>
 
+      <SavedBanner show={signed === "1"} label="Contrato firmado." />
+
+      {/* El auto se puede alquilar igual: es un aviso, no un bloqueo. */}
+      {isThirdParty && !hasCurrentContract && !vehicle.archivedAt && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3">
+          <p className="text-sm text-amber-700 dark:text-amber-400">Este auto no tiene un contrato de cesión vigente con su titular.</p>
+          <ButtonLink href={`/vehicles/${vehicle.id}/owner-contract/new`} variant="secondary">Crear contrato</ButtonLink>
+        </div>
+      )}
+
       {/* El resto (info general, daños, alquileres, mantenimiento) crecía
           indefinido en un solo scroll — partido en pestañas, mismo patrón que
           el detalle de la reserva (RentalDetailTabs). */}
@@ -143,6 +166,12 @@ export default async function VehicleDetailPage({
             debtAccounts={debtAccounts}
           />
         }
+        contrato={
+          isThirdParty ? (
+            <OwnerContractsSection vehicleId={vehicle.id} isAdmin={isAdmin} contracts={vehicle.ownerContracts} now={now} />
+          ) : undefined
+        }
+        openContract={tab === "contrato"}
       />
     </div>
   );

@@ -265,7 +265,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type EmailAttempt = { status: "sent" | "failed" | "skipped"; error?: string; sentAt?: Date };
+export type EmailAttempt = { status: "sent" | "failed" | "skipped"; error?: string; sentAt?: Date };
 
 /**
  * Manda un email con el acta adjunta y nunca tira excepción por un rechazo de
@@ -273,7 +273,7 @@ type EmailAttempt = { status: "sent" | "failed" | "skipped"; error?: string; sen
  * ante un email inválido/dominio no verificado/rate limit, así que sin este
  * chequeo explícito el fallo queda invisible (ni log, ni excepción).
  */
-async function sendActaEmailTo(
+export async function sendActaEmailTo(
   resend: Resend,
   params: { from: string; to: string; subject: string; html: string; pdf: Buffer; filename: string },
 ): Promise<EmailAttempt> {

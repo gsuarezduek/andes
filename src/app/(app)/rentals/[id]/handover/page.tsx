@@ -1,3 +1,4 @@
+import { activeOwnerContractWhere } from "@/lib/owner-contract-server";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
@@ -45,7 +46,15 @@ export default async function HandoverPage({
     prisma.vehicle.findMany({
       where: { archivedAt: null },
       orderBy: [{ brand: "asc" }, { model: "asc" }],
-      select: { id: true, plate: true, name: true, brand: true, model: true, ownership: true },
+      select: {
+        id: true,
+        plate: true,
+        name: true,
+        brand: true,
+        model: true,
+        ownership: true,
+        ownerContracts: { where: activeOwnerContractWhere(), take: 1, select: { id: true } },
+      },
     }),
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.paymentMethod.findMany({
@@ -125,9 +134,19 @@ export default async function HandoverPage({
       })
     : [];
 
+  const vehicleMissingContract =
+    rental.vehicle?.ownership === "third_party" &&
+    !vehicles.find((v) => v.id === rental.vehicleId)?.ownerContracts.length;
+
   return (
     <div className="mx-auto flex max-w-md flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight">Entrega</h1>
+      {/* Aviso, no bloqueo: una entrega no se traba por un papel pendiente con el titular. */}
+      {vehicleMissingContract && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          Este auto de tercero no tiene un contrato de cesión vigente con su titular. Podés entregarlo igual.
+        </p>
+      )}
       <InspectionWizard
         mode="handover"
         save={saveHandover}
@@ -168,7 +187,13 @@ export default async function HandoverPage({
         maxFuel={rental.vehicle?.fuelLevels}
         vehicleOptions={vehicles.map((v) => ({
           id: v.id,
-          label: vehicleLabelWithPlate(v) + (v.ownership === "third_party" ? " (Tercero)" : ""),
+          label:
+            vehicleLabelWithPlate(v) +
+            (v.ownership === "third_party"
+              ? v.ownerContracts.length > 0
+                ? " (Tercero)"
+                : " (Tercero, sin contrato de cesión)"
+              : ""),
         }))}
         checklistItems={checklistItems}
         existingDamages={existingDamages}

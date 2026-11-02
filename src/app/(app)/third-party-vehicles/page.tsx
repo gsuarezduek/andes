@@ -9,6 +9,8 @@ import { vehicleStatusLabels } from "@/lib/labels";
 import { vehicleStatusTone, vehicleDisplayName } from "@/lib/vehicle-ui";
 import { FleetTabs } from "@/components/rooms/fleet-tabs";
 import { VehicleFilters } from "../vehicles/vehicle-filters";
+import { formatDate } from "@/lib/datetime";
+import { activeOwnerContractWhere } from "@/lib/owner-contract-server";
 
 export const metadata: Metadata = { title: "Vehículos de terceros — Andes" };
 
@@ -60,6 +62,7 @@ export default async function ThirdPartyVehiclesPage({
       orderBy: orderByFor(sort, dir),
       include: {
         teamNotes: { where: { resolvedAt: null }, orderBy: { createdAt: "desc" }, select: { id: true, text: true } },
+        ownerContracts: { where: activeOwnerContractWhere(), orderBy: { endsAt: "desc" }, take: 1, select: { endsAt: true } },
       },
     }),
     prisma.vehicle.count({ where: { ownership: "third_party", archivedAt: { not: null } } }),
@@ -124,6 +127,11 @@ export default async function ThirdPartyVehiclesPage({
                     {v.name ? `${v.brand} ${v.model} · ${v.plate}` : v.plate} · {v.currentKm.toLocaleString("es-AR")} km · Titular: {v.ownerName}
                     {v.ownerPhone ? ` (${v.ownerPhone})` : ""}
                   </p>
+                  {v.ownerContracts[0] ? (
+                    <p className="text-xs text-foreground/50">Contrato de cesión hasta {formatDate(v.ownerContracts[0].endsAt)}</p>
+                  ) : (
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Sin contrato de cesión vigente</p>
+                  )}
                 </div>
                 <Badge tone={vehicleStatusTone[v.status]}>{vehicleStatusLabels[v.status]}</Badge>
               </Link>

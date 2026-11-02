@@ -31,6 +31,11 @@ const options: { href: string; title: string; description: string }[] = [
     description: "Condiciones generales que el cliente lee y firma en la entrega y la devolución.",
   },
   {
+    href: "/settings/owner-contract",
+    title: "Contrato de cesión",
+    description: "Cláusulas del contrato con los dueños de los autos de terceros.",
+  },
+  {
     href: "/settings/emails",
     title: "Correos electrónicos",
     description: "Textos de los correos al cliente y casilla desde donde se envían.",

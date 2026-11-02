@@ -279,6 +279,8 @@ model User {
   safeMovementEdits              SafeMovementEdit[]        @relation("SafeMovementEditor")
   conditionSettingsEdits         ConditionSettingsEdit[]
   contractVersions               ContractVersion[]         @relation("ContractVersionCreatedBy")
+  ownerContractVersions          OwnerContractVersion[]    @relation("OwnerContractVersionCreatedBy")
+  ownerContracts                 OwnerContract[]           @relation("OwnerContractCreatedBy")
   loginEvents                    LoginEvent[]
   storageCleanupRuns             StorageCleanupRun[]
   storageExports                 StorageExport[]
@@ -389,6 +391,11 @@ model Vehicle {
   ownership  VehicleOwnership @default(own)
   ownerName  String?          @map("owner_name")
   ownerPhone String?          @map("owner_phone")
+  // Datos del titular para el contrato de cesión (OwnerContract): se precargan
+  // al armar uno y se actualizan con lo último que se firmó.
+  ownerDocNumber String? @map("owner_doc_number")
+  ownerAddress   String? @map("owner_address")
+  ownerEmail     String? @map("owner_email")
 
   // Identificación y seguro (opcionales, se cargan a mano en la ficha).
   engineNumber          String? @map("engine_number") // número de motor
@@ -433,6 +440,7 @@ model Vehicle {
   damages         Damage[]
   maintenanceLogs MaintenanceLog[]
   teamNotes       VehicleNote[]
+  ownerContracts  OwnerContract[]
   tasks           Task[]
   taskRecurrences TaskRecurrence[]
   gpsDevices      GpsDevice[]
@@ -1832,6 +1840,95 @@ model ContractVersion {
 
   @@index([createdAt])
   @@map("contract_versions")
+}
+
+// Condiciones del contrato de cesión entre MDZ Rent a Car y el dueño de un auto
+// de tercero (Configuración → Contrato de cesión). Mismo criterio que
+// ContractVersion: historial append-only, la vigente es la más nueva y sin
+// ninguna rige el texto original (`ORIGINAL_OWNER_CONTRACT_TEXT`,
+// src/lib/owner-contract.ts). Solo en español.
+model OwnerContractVersion {
+  id            String   @id @default(cuid())
+  title         String
+  body          String
+  createdById   String?  @map("created_by_id")
+  createdBy     User?    @relation("OwnerContractVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  contracts OwnerContract[]
+
+  @@index([createdAt])
+  @@map("owner_contract_versions")
+}
+
+// Contrato de cesión entre MDZ Rent a Car y el dueño de un auto de tercero. Es
+// independiente del alquiler al cliente (Rental/Inspection), que sigue igual que
+// en cualquier auto propio. Solo existe ya firmado por las dos partes y es
+// inmutable: propietario, auto y estado quedan como snapshot, y para renovar o
+// cambiar condiciones se firma uno nuevo. La baja (`voidedAt`) no borra nada: el
+// contrato deja de contar como vigente y queda en el historial. El PDF se arma a
+// demanda desde esta fila. El `id` se genera en el cliente para que un reintento
+// del guardado no duplique el contrato.
+model OwnerContract {
+  id     String @id
+  number Int    @unique @default(autoincrement())
+
+  vehicleId String  @map("vehicle_id")
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+
+  // null = texto original del sistema.
+  versionId String?               @map("version_id")
+  version   OwnerContractVersion? @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  place    String
+  startsAt DateTime @map("starts_at")
+  endsAt   DateTime @map("ends_at")
+
+  ownerName      String  @map("owner_name")
+  ownerDocNumber String  @map("owner_doc_number")
+  ownerAddress   String  @map("owner_address")
+  ownerEmail     String? @map("owner_email")
+  ownerPhone     String? @map("owner_phone")
+
+  vehicleBrand          String  @map("vehicle_brand")
+  vehicleModel          String  @map("vehicle_model")
+  vehicleYear           Int?    @map("vehicle_year")
+  vehiclePlate          String  @map("vehicle_plate")
+  insuranceCompany      String? @map("insurance_company")
+  insurancePolicyNumber String? @map("insurance_policy_number")
+
+  // Lo que varía de un auto a otro (qué le corresponde al propietario, quién
+  // paga service y multas…). Texto libre; se imprime solo si se cargó.
+  commercialTerms String? @map("commercial_terms")
+
+  km           Int
+  fuelLevel    Int     @map("fuel_level")
+  fuelLevels   Int     @map("fuel_levels")
+  condition    Json // ConditionGroup[], con los textos tal como se firmaron
+  observations String?
+
+  companySignerName   String @map("company_signer_name")
+  companySignatureKey String @map("company_signature_key")
+  ownerSignerName     String @map("owner_signer_name")
+  ownerSignatureKey   String @map("owner_signature_key")
+
+  createdById   String?  @map("created_by_id")
+  createdBy     User?    @relation("OwnerContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String   @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  voidedAt     DateTime? @map("voided_at")
+  voidedReason String?   @map("voided_reason")
+  voidedByName String?   @map("voided_by_name")
+
+  // Envío al propietario (sent/failed/skipped). La copia al admin no se registra acá.
+  emailStatus String?   @map("email_status")
+  emailError  String?   @map("email_error")
+  emailSentAt DateTime? @map("email_sent_at")
+
+  @@index([vehicleId, endsAt])
+  @@map("owner_contracts")
 }
 
 // Textos editables de los correos transaccionales y casilla remitente.

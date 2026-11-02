@@ -19,18 +19,25 @@ export function VehicleDetailTabs({
   danos,
   alquileres,
   mantenimiento,
+  contrato,
+  openContract = false,
 }: {
   general: ReactNode;
   danos: ReactNode;
   alquileres: ReactNode;
   mantenimiento: ReactNode;
+  /** Contrato con el titular: solo existe en autos de terceros. */
+  contrato?: ReactNode;
+  /** Abre directo en esa pestaña (ej. al volver de firmar un contrato). */
+  openContract?: boolean;
 }) {
-  const [section, setSection] = useState(0);
-  const panels = [general, danos, alquileres, mantenimiento];
+  const sections = contrato ? [...SECTIONS, "Contrato"] : SECTIONS;
+  const panels = contrato ? [general, danos, alquileres, mantenimiento, contrato] : [general, danos, alquileres, mantenimiento];
+  const [section, setSection] = useState(contrato && openContract ? SECTIONS.length : 0);
 
   return (
     <div className="flex flex-col gap-4">
-      <TabBar sections={SECTIONS} active={section} onChange={setSection} />
+      <TabBar sections={sections} active={section} onChange={setSection} />
       {panels[section]}
     </div>
   );

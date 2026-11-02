@@ -47,6 +47,11 @@ export function VehicleForm({
         <div className="grid gap-4 rounded-lg border border-foreground/10 bg-foreground/[0.02] p-3 sm:grid-cols-2">
           <TextField id="ownerName" label="Nombre del titular" required defaultValue={vehicle?.ownerName ?? ""} />
           <TextField id="ownerPhone" label="Teléfono del titular" hint="Opcional" defaultValue={vehicle?.ownerPhone ?? ""} />
+          <TextField id="ownerDocNumber" label="DNI / Pasaporte / CUIT del titular" hint="Opcional. Se precarga en el contrato de cesión." defaultValue={vehicle?.ownerDocNumber ?? ""} />
+          <TextField id="ownerEmail" type="email" label="Email del titular" hint="Opcional. Recibe la copia del contrato de cesión." defaultValue={vehicle?.ownerEmail ?? ""} />
+          <div className="sm:col-span-2">
+            <TextField id="ownerAddress" label="Domicilio del titular" hint="Opcional. Se precarga en el contrato de cesión." defaultValue={vehicle?.ownerAddress ?? ""} />
+          </div>
         </div>
       ) : null}
 
