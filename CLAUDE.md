@@ -1191,6 +1191,17 @@ Pedido del dueño: todo lo que entra a Mercado Pago, tarjetas (débito/crédito)
 - **Un ingreso facturado no se toca** (`invoicedChangeError`): no se puede cambiar cuenta, monto ni moneda, ni eliminarlo. En `MovementDetailModal` esos campos quedan fijos y "Eliminar" deshabilitado, con explicación. `updateCashMovement`/`deleteCashMovement` lo rechazan server-side. Para corregirlo, primero "volver a pendiente" en Facturación.
 - **Nota de proceso:** parte de este cambio (schema, migración, `auto-invoice.ts`, `invoicing-rules.ts`, `caja/actions.ts`, parte de `movement-row.tsx`) quedó dentro del commit `2d58223` de otra sesión (fix del bot de WhatsApp), que lo agregó con "agregar todo" mientras se construía. Ese estado intermedio compila y no rompe nada.
 
+## v99 — Cambios en VikRentCar con la reserva ya entregada: lugar de devolución y aviso de total
+
+Caso real: una devolución pasa de oficina a aeropuerto en VikRentCar, la web suma el costo, y Andes no mostraba ni el lugar ni el costo. Con la reserva ya entregada, el sync no tocaba el lugar, y el saldo sale del contrato (`pricing.total`), que el sync nunca pisa. tsc/lint/949 tests en verde; **verificado con el sync real contra la base local y Playwright a 375px** (aviso, aplicar, ignorar, carrera entre dos empleados y línea del acta; datos de prueba borrados). Migración `add_rental_total_changes` **aplicada solo en local, sin desplegar todavía**.
+
+- **Lugar de devolución**: en una reserva `active`, el sync lo trae (`booking-upsert.ts`). No pisa una corrección a mano (`placesEditedAt`), no lo borra si el plugin no lo manda, y no toca el lugar de retiro ni las finalizadas.
+- **Aviso de cambio de total** (`RentalTotalChange`, estados pending/applied/dismissed): si cambia `order_total` en una reserva `active` o `finished` con contrato cargado, el sync registra la diferencia y **sigue sin tocar `pricing`**. El detalle de la reserva muestra `PendingTotalChangeBanner`, con "Sumar al contrato" / "Restar del contrato" (importe precargado y editable, porque el contrato puede no coincidir con la web) e "Ignorar". Cualquier rol lo resuelve (`total-change-actions.ts`, con guarda contra doble aplicación); aplicar desverifica la reserva.
+- **Un solo aviso pendiente por reserva** (`recordTotalChange`): si el total vuelve a cambiar se actualiza el mismo, siempre contra el total original; si vuelve a ese valor, se borra.
+- **Para no cobrar dos veces una extensión**: si en la misma corrida se detecta una extensión, no se crea aviso (esa diferencia es su cobro); si el alquiler ya tiene una extensión, el aviso lo advierte.
+- **Historial** en la pestaña Datos (`RentalTotalChangesSection`) y línea "Ajuste del total" en el acta (i18n es/en), igual que la de extensión. El acta guardada no se regenera sola: sale actualizada al reenviarla.
+- **Límites conocidos:** la diferencia solo se detecta a partir de este cambio: una orden cuyo total ya se sincronizó antes no genera aviso. El aviso se ve solo en el detalle de la reserva (sin alerta en el Home). Los cambios de extras dentro de una reserva todavía sin entregar no necesitan aviso: sin contrato, el saldo ya usa el total de VikRentCar.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

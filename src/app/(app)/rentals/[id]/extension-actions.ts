@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
-import { computeBalance, roundMoney, type ContractPricing } from "@/lib/contract";
+import { addToContractTotal, type ContractPricing } from "@/lib/contract";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { extensionExtraDays } from "@/lib/rental-extension";
 
@@ -15,16 +15,6 @@ const extendSchema = z.object({
   amount: z.number().min(0, "El importe no puede ser negativo"),
   note: z.string().optional(),
 });
-
-/** Suma `amount` a `pricing.total` y recalcula el saldo. Compartido por las dos acciones de acá. */
-function applyExtensionCharge(pricing: ContractPricing, amount: number): ContractPricing {
-  const nextTotal = roundMoney((pricing.total ?? 0) + amount);
-  return {
-    ...pricing,
-    total: nextTotal,
-    balance: computeBalance({ total: nextTotal, sena: pricing.sena, paid: pricing.paid }) ?? undefined,
-  };
-}
 
 /**
  * Registra la extensión de un alquiler ya entregado: el cliente pide más días
@@ -55,7 +45,7 @@ export async function extendRental(rentalId: string, input: unknown): Promise<{ 
 
   const extraDays = extensionExtraDays(rental.endAt, newEndAt);
   const name = displayName(user);
-  const nextPricing = applyExtensionCharge((rental.pricing ?? {}) as ContractPricing, amount);
+  const nextPricing = addToContractTotal((rental.pricing ?? {}) as ContractPricing, amount);
 
   await prisma.$transaction(async (tx) => {
     await tx.rental.update({
@@ -107,7 +97,7 @@ export async function completeExtensionCharge(extensionId: string, input: unknow
   if (!extension) return { error: "La extensión no existe." };
   if (extension.amount != null) return { error: "Esta extensión ya tiene un cobro cargado." };
 
-  const nextPricing = applyExtensionCharge((extension.rental.pricing ?? {}) as ContractPricing, amount);
+  const nextPricing = addToContractTotal((extension.rental.pricing ?? {}) as ContractPricing, amount);
 
   await prisma.$transaction(async (tx) => {
     await tx.rental.update({ where: { id: extension.rentalId }, data: { pricing: nextPricing } });

@@ -206,6 +206,16 @@ export function computeBalance(
   return Number.isFinite(v) ? roundMoney(v) : null;
 }
 
+/** Suma `amount` (o resta, si es negativo) a `pricing.total` y recalcula el saldo. */
+export function addToContractTotal(pricing: ContractPricing, amount: number): ContractPricing {
+  const nextTotal = roundMoney((pricing.total ?? 0) + amount);
+  return {
+    ...pricing,
+    total: nextTotal,
+    balance: computeBalance({ total: nextTotal, sena: pricing.sena, paid: pricing.paid }) ?? undefined,
+  };
+}
+
 /** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
 export function roundMoney(v: number): number {
   return Math.round(v * 100) / 100;

@@ -17,6 +17,7 @@ export async function getRentalDetail(id: string) {
       verifications: { orderBy: { createdAt: "desc" } },
       // Historial de extensiones (ver `ExtendRentalSection`).
       extensions: { orderBy: { createdAt: "desc" } },
+      totalChanges: { orderBy: { createdAt: "desc" } },
       teamNotes: {
         orderBy: { createdAt: "desc" },
         include: { task: { select: { assignedToName: true, status: true } } },

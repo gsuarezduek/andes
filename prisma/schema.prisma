@@ -616,6 +616,43 @@ model RentalExtension {
   @@map("rental_extensions")
 }
 
+enum RentalTotalChangeStatus {
+  pending
+  applied
+  dismissed
+}
+
+/**
+ * El total de una orden cambió en VikRentCar con el contrato ya cargado (ej.
+ * cambiaron la devolución al aeropuerto y la web sumó el costo). El sync nunca
+ * toca `pricing`, así que la diferencia queda como aviso en la reserva hasta
+ * que alguien decide: sumarla al contrato (`applied`) o ignorarla (`dismissed`).
+ * Hay como máximo una `pending` por reserva: si el total vuelve a cambiar, se
+ * actualiza `newTotal` de esa misma fila (ver `booking-upsert.ts`).
+ */
+model RentalTotalChange {
+  id String @id @default(cuid())
+
+  rentalId String @map("rental_id")
+  rental   Rental @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+
+  previousTotal Decimal                 @map("previous_total") @db.Decimal(12, 2)
+  newTotal      Decimal                 @map("new_total") @db.Decimal(12, 2)
+  status        RentalTotalChangeStatus @default(pending)
+  // Lo que se sumó (o restó, si es negativo) al contrato: puede diferir de la
+  // diferencia de VikRentCar si el empleado lo ajustó al aplicarlo.
+  appliedAmount Decimal?                @map("applied_amount") @db.Decimal(12, 2)
+
+  resolvedAt     DateTime? @map("resolved_at")
+  // Nombre congelado (ver Inspection.userName).
+  resolvedByName String?   @map("resolved_by_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([rentalId, status])
+  @@map("rental_total_changes")
+}
+
 // ---------------------------------------------------------------------------
 // Alquileres
 // ---------------------------------------------------------------------------
@@ -731,6 +768,7 @@ model Rental {
   inspections           Inspection[]
   verifications         RentalVerification[]
   extensions            RentalExtension[]
+  totalChanges          RentalTotalChange[]
   documents             RentalDocument[]
   signatureRequests     SignatureRequest[]
   teamNotes             RentalNote[]

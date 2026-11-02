@@ -11,6 +11,7 @@ import { syncCommission } from "@/lib/commissions-sync";
 import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { extensionExtraDays } from "@/lib/rental-extension";
+import { shouldTrackTotalChange, totalDifference } from "@/lib/rental-total-change";
 import { AUTO_IMPORT_CREATOR_LABEL } from "@/lib/cash";
 
 /** ¿Cambió un importe (Decimal de Prisma | null vs. número | null)? */
@@ -95,6 +96,7 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
   // se traía la primera corrida, mientras la reserva seguía "reserved").
   if (hasInspection || existing.status !== "reserved") {
     let extensionUpdated = false;
+    let extensionDetected = false;
     if (existing.status === "active" && returnChangedInWp && !datesEdited) {
       // Flujo real más común: la extensión se carga primero en VikRentCar.
       // Traemos la fecha sola (el sync nunca toca `pricing`), pero si es una
@@ -103,6 +105,7 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       // alguien se acuerde de cargarlo a mano (ver `completeExtensionCharge`).
       // Si la fecha se acorta o corrige, no hay cargo que registrar.
       const extraDays = extensionExtraDays(existing.endAt, endAt);
+      extensionDetected = extraDays > 0;
       await prisma.$transaction(async (tx) => {
         await tx.rental.update({ where: { id: existing.id }, data: { endAt } });
         if (extraDays > 0) {
@@ -122,9 +125,36 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       extensionUpdated = true;
     }
 
+    // El lugar de devolución tampoco ocurrió todavía en una reserva ACTIVA: si
+    // lo cambiaron en la web se trae (el de retiro ya pasó, no se toca). No se
+    // pisa una corrección hecha a mano (`placesEditedAt`) ni se borra si el
+    // plugin no manda el dato (grupo "Extras de la reserva" apagado).
+    const returnPlaceChanged =
+      existing.status === "active" &&
+      existing.placesEditedAt == null &&
+      b.returnPlace != null &&
+      b.returnPlace !== existing.bookingReturnPlace;
+    if (returnPlaceChanged) {
+      await prisma.rental.update({ where: { id: existing.id }, data: { bookingReturnPlace: b.returnPlace } });
+    }
+
     const totalChanged = decimalChanged(existing.bookingTotal, b.orderTotal);
     const paidChanged = decimalChanged(existing.bookingPaid, b.paid);
     if (totalChanged || paidChanged) {
+      // Con contrato cargado, el saldo sale de `pricing` (que el sync no toca):
+      // el total nuevo solo llega al saldo si alguien acepta el aviso. Se registra
+      // antes de mover `bookingTotal`: si la corrida se corta en el medio, la
+      // siguiente vuelve a detectar el cambio y actualiza la misma fila.
+      const previousTotal = existing.bookingTotal != null ? Number(existing.bookingTotal) : null;
+      const track = shouldTrackTotalChange({
+        status: existing.status,
+        contractTotal: (existing.pricing as ContractPricing | null)?.total,
+        previousTotal,
+        nextTotal: b.orderTotal,
+        extensionDetected,
+      });
+      if (track) await recordTotalChange(existing.id, previousTotal!, b.orderTotal!);
+
       await prisma.rental.update({
         where: { id: existing.id },
         data: { bookingTotal: b.orderTotal, bookingPaid: b.paid },
@@ -140,7 +170,9 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
       b.wpBookingId,
       clientName,
     );
-    return extensionUpdated || totalChanged || paidChanged || paymentImported ? "updated" : "skipped";
+    return extensionUpdated || returnPlaceChanged || totalChanged || paidChanged || paymentImported
+      ? "updated"
+      : "skipped";
   }
 
   // Si el empleado ya editó la reserva a mano, el sync no pisa los datos del
@@ -199,6 +231,25 @@ export async function upsertBooking(b: RawBooking, optionals: RawOptional[] = []
     clientName,
   );
   return "updated";
+}
+
+/**
+ * Deja un solo aviso pendiente por reserva: si el total vuelve a cambiar antes
+ * de que alguien decida, se actualiza el mismo, comparando siempre contra el
+ * total original. Si volvió a ese valor (oficina → aeropuerto → oficina), ya no
+ * hay nada que decidir y el aviso se borra.
+ */
+async function recordTotalChange(rentalId: string, previousTotal: number, newTotal: number): Promise<void> {
+  const pending = await prisma.rentalTotalChange.findFirst({ where: { rentalId, status: "pending" } });
+  if (!pending) {
+    await prisma.rentalTotalChange.create({ data: { rentalId, previousTotal, newTotal } });
+    return;
+  }
+  if (totalDifference(Number(pending.previousTotal), newTotal) === 0) {
+    await prisma.rentalTotalChange.delete({ where: { id: pending.id } });
+    return;
+  }
+  await prisma.rentalTotalChange.update({ where: { id: pending.id }, data: { newTotal } });
 }
 
 /**

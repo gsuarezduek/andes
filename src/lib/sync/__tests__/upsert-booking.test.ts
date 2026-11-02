@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     rental: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+    rentalTotalChange: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     vehicle: { findFirst: vi.fn() },
     wpPaymentMethod: { findUnique: vi.fn(), upsert: vi.fn() },
     cashMovement: { create: vi.fn() },
@@ -88,6 +89,7 @@ beforeEach(() => {
   prismaMock.wpPaymentMethod.upsert.mockResolvedValue({});
   prismaMock.vehicle.findFirst.mockResolvedValue(null);
   prismaMock.rental.update.mockResolvedValue({});
+  prismaMock.rentalTotalChange.findFirst.mockResolvedValue(null);
 });
 
 describe("upsertBooking — reserva ya en flujo físico (active/finished o con inspección)", () => {
@@ -139,6 +141,54 @@ describe("upsertBooking — reserva ya en flujo físico (active/finished o con i
     expect(tx.cashMovement.create).not.toHaveBeenCalled();
   });
 
+  it("trae el lugar de devolución cambiado en VikRentCar en una reserva activa (el de retiro no)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(
+      existingRental({ bookingPickupPlace: "Oficina", bookingReturnPlace: "Oficina", placesEditedAt: null }),
+    );
+
+    const outcome = await upsertBooking(baseBooking({ pickupPlace: "Hotel", returnPlace: "Aeropuerto" }));
+
+    expect(outcome).toBe("updated");
+    expect(prismaMock.rental.update).toHaveBeenCalledOnce();
+    expect(prismaMock.rental.update).toHaveBeenCalledWith({
+      where: { id: "r1" },
+      data: { bookingReturnPlace: "Aeropuerto" },
+    });
+  });
+
+  it("no pisa un lugar de devolución corregido a mano en Andes (placesEditedAt)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(
+      existingRental({ bookingReturnPlace: "Hotel", placesEditedAt: new Date("2026-01-01") }),
+    );
+
+    const outcome = await upsertBooking(baseBooking({ returnPlace: "Aeropuerto" }));
+
+    expect(outcome).toBe("skipped");
+    expect(prismaMock.rental.update).not.toHaveBeenCalled();
+  });
+
+  it("no borra el lugar de devolución si el plugin no lo manda", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(
+      existingRental({ bookingReturnPlace: "Oficina", placesEditedAt: null }),
+    );
+
+    const outcome = await upsertBooking(baseBooking({ returnPlace: null }));
+
+    expect(outcome).toBe("skipped");
+    expect(prismaMock.rental.update).not.toHaveBeenCalled();
+  });
+
+  it("no cambia el lugar de devolución de una reserva finalizada", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(
+      existingRental({ status: "finished", bookingReturnPlace: "Oficina", placesEditedAt: null }),
+    );
+
+    const outcome = await upsertBooking(baseBooking({ returnPlace: "Aeropuerto" }));
+
+    expect(outcome).toBe("skipped");
+    expect(prismaMock.rental.update).not.toHaveBeenCalled();
+  });
+
   it("no toca fechas/vehículo de una reserva finalizada, pero sigue trayendo el pago", async () => {
     prismaMock.rental.findUnique.mockResolvedValue(existingRental({ status: "finished", inspections: [{ id: "insp1" }] }));
 
@@ -151,6 +201,80 @@ describe("upsertBooking — reserva ya en flujo físico (active/finished o con i
       where: { id: "r1" },
       data: { bookingTotal: 100_000, bookingPaid: 40_000 },
     });
+  });
+});
+
+describe("upsertBooking — cambio de total con el contrato ya cargado", () => {
+  const withContract = (overrides: Record<string, unknown> = {}) =>
+    existingRental({ pricing: { total: 90_000, paid: 20_000, balance: 70_000 }, ...overrides });
+
+  it("deja un aviso con la diferencia y no toca el contrato", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract());
+
+    const outcome = await upsertBooking(baseBooking({ orderTotal: 130_000 }));
+
+    expect(outcome).toBe("updated");
+    expect(prismaMock.rentalTotalChange.create).toHaveBeenCalledWith({
+      data: { rentalId: "r1", previousTotal: 100_000, newTotal: 130_000 },
+    });
+    // El sync sigue sin escribir `pricing`: solo el dato de referencia.
+    expect(prismaMock.rental.update).toHaveBeenCalledWith({
+      where: { id: "r1" },
+      data: { bookingTotal: 130_000, bookingPaid: 20_000 },
+    });
+  });
+
+  it("también avisa en una reserva finalizada (cargaron el costo en la web después de devolver)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract({ status: "finished" }));
+
+    await upsertBooking(baseBooking({ orderTotal: 130_000 }));
+
+    expect(prismaMock.rentalTotalChange.create).toHaveBeenCalledOnce();
+  });
+
+  it("si el total vuelve a cambiar, actualiza el mismo aviso en vez de crear otro", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract({ bookingTotal: { toString: () => "130000" } }));
+    prismaMock.rentalTotalChange.findFirst.mockResolvedValue({ id: "tc1", previousTotal: { toString: () => "100000" } });
+
+    await upsertBooking(baseBooking({ orderTotal: 150_000 }));
+
+    expect(prismaMock.rentalTotalChange.create).not.toHaveBeenCalled();
+    expect(prismaMock.rentalTotalChange.update).toHaveBeenCalledWith({ where: { id: "tc1" }, data: { newTotal: 150_000 } });
+  });
+
+  it("si el total vuelve al original, borra el aviso (oficina → aeropuerto → oficina)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract({ bookingTotal: { toString: () => "130000" } }));
+    prismaMock.rentalTotalChange.findFirst.mockResolvedValue({ id: "tc1", previousTotal: { toString: () => "100000" } });
+
+    await upsertBooking(baseBooking({ orderTotal: 100_000 }));
+
+    expect(prismaMock.rentalTotalChange.delete).toHaveBeenCalledWith({ where: { id: "tc1" } });
+    expect(prismaMock.rentalTotalChange.update).not.toHaveBeenCalled();
+  });
+
+  it("no avisa si en la misma corrida se detectó una extensión: la diferencia es ese cobro", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract());
+
+    await upsertBooking(baseBooking({ orderTotal: 130_000, endUnix: 1_700_400_000 }));
+
+    expect(tx.rentalExtension.create).toHaveBeenCalledOnce();
+    expect(prismaMock.rentalTotalChange.create).not.toHaveBeenCalled();
+  });
+
+  it("no avisa sin contrato: el saldo ya usa el total de VikRentCar y se actualiza solo", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(existingRental({ pricing: { paid: 20_000 } }));
+
+    await upsertBooking(baseBooking({ orderTotal: 130_000 }));
+
+    expect(prismaMock.rentalTotalChange.create).not.toHaveBeenCalled();
+  });
+
+  it("no avisa si el plugin no manda el total (grupo Económico apagado)", async () => {
+    prismaMock.rental.findUnique.mockResolvedValue(withContract());
+
+    await upsertBooking(baseBooking({ orderTotal: null, paid: 20_000 }));
+
+    expect(prismaMock.rentalTotalChange.create).not.toHaveBeenCalled();
   });
 });
 

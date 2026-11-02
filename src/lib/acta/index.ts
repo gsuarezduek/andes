@@ -17,6 +17,7 @@ import {
   type ContractPricing,
 } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
+import { formatSignedAmount } from "@/lib/rental-total-change";
 import { compressPdfImages } from "@/lib/file-compress";
 import type { Settlement } from "@/lib/settlement";
 import type { Resend } from "resend";
@@ -50,7 +51,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
   const inspection = await prisma.inspection.findUnique({
     where: { id: inspectionId },
     include: {
-      rental: { include: { extensions: true } },
+      rental: { include: { extensions: true, totalChanges: { where: { status: "applied" } } } },
       vehicle: true,
       media: true,
       damages: true,
@@ -174,6 +175,12 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
       label: `Extensión (+${totalExtraDays} día${totalExtraDays === 1 ? "" : "s"})`,
       value: formatArs(totalExtraAmount),
     });
+  }
+  // Ajustes por un cambio de total en VikRentCar (ver RentalTotalChange): igual
+  // que la extensión, explican por qué el total no es el que se pactó al firmar.
+  const totalAdjustment = (r.totalChanges ?? []).reduce((a, c) => a + Number(c.appliedAmount ?? 0), 0);
+  if (totalAdjustment !== 0) {
+    termRows.push({ label: t.totalAdjustment, value: formatSignedAmount(totalAdjustment, formatArs) });
   }
   // Medios de pago usados en la entrega (sin la referencia/alias: es interna).
   for (const pay of pricing.payments ?? []) {

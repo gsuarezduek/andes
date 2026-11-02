@@ -51,6 +51,7 @@ export type Dictionary = {
     insurance: string;
     deductible: string;
     insuranceUpgrade: string;
+    totalAdjustment: string;
     kmIncluded: string;
     unlimitedKm: string;
     extraKm: string;
@@ -179,6 +180,7 @@ const es: Dictionary = {
     insurance: "Seguro con franquicia",
     deductible: "Franquicia/Garantía",
     insuranceUpgrade: "con mejora de seguro",
+    totalAdjustment: "Ajuste del total",
     kmIncluded: "Km para uso",
     unlimitedKm: "Libre (sin cargo por excedente)",
     extraKm: "Km extra",
@@ -322,6 +324,7 @@ const en: Dictionary = {
     insurance: "Insurance with excess",
     deductible: "Deductible/Guarantee",
     insuranceUpgrade: "with insurance upgrade",
+    totalAdjustment: "Total adjustment",
     kmIncluded: "Included km",
     unlimitedKm: "Unlimited (no excess charge)",
     extraKm: "Extra km",

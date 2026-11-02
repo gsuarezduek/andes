@@ -29,6 +29,8 @@ import { AddPaymentButton } from "@/components/rentals/add-payment-button";
 import { ExtendRentalButton } from "@/components/rentals/extend-rental-button";
 import { RentalExtensionsSection } from "@/components/rentals/rental-extensions-section";
 import { PendingExtensionBanner } from "@/components/rentals/pending-extension-banner";
+import { PendingTotalChangeBanner } from "@/components/rentals/pending-total-change-banner";
+import { RentalTotalChangesSection } from "@/components/rentals/rental-total-changes-section";
 import { AddServiceButton } from "@/components/rentals/add-service-button";
 import { ScheduleEditSection } from "@/components/rentals/schedule-edit-section";
 import { DocumentsSection } from "@/components/rentals/documents-section";
@@ -115,6 +117,17 @@ export default async function RentalDetailPage({
   const resolvedExtensions = rental.extensions
     .filter((e) => e.amount != null)
     .map((e) => ({ ...e, amount: Number(e.amount) }));
+
+  // Cambios de total en VikRentCar con el contrato ya cargado (ver RentalTotalChange).
+  const totalChanges = rental.totalChanges.map((c) => ({
+    id: c.id,
+    status: c.status,
+    previousTotal: Number(c.previousTotal),
+    newTotal: Number(c.newTotal),
+    appliedAmount: c.appliedAmount != null ? Number(c.appliedAmount) : null,
+    resolvedByName: c.resolvedByName,
+    resolvedAt: c.resolvedAt,
+  }));
 
   // Link directo a la orden en el admin de VikRentCar, solo si la reserva
   // vino sincronizada (wpBookingId) y hay un sitio de WordPress configurado.
@@ -265,6 +278,18 @@ export default async function RentalDetailPage({
         <PendingExtensionBanner key={e.id} extension={e} />
       ))}
 
+      {/* El total cambió en VikRentCar con el contrato ya cargado: falta decidir
+          si se suma al contrato. La key remonta el aviso si el total vuelve a cambiar. */}
+      {totalChanges
+        .filter((c) => c.status === "pending")
+        .map((c) => (
+          <PendingTotalChangeBanner
+            key={`${c.id}-${c.newTotal}`}
+            change={c}
+            hasExtensions={rental.extensions.length > 0}
+          />
+        ))}
+
       {/* Saldo condonado / botón para aceptar la pérdida (solo admin condona). */}
       <BalanceWriteOff
         rentalId={rental.id}
@@ -319,6 +344,7 @@ export default async function RentalDetailPage({
               <SectionTitle>Datos de pago y retiro</SectionTitle>
               <DateInfoSection rental={rental} />
               <RentalExtensionsSection extensions={resolvedExtensions} />
+              <RentalTotalChangesSection changes={totalChanges.filter((c) => c.status !== "pending")} />
               {showPayments && (
                 <PaymentsSection hasContract={hasContract} hasRealPaid={hasRealPaid} totalRef={totalRef} paidSoFar={paidSoFar} balance={balance} />
               )}
