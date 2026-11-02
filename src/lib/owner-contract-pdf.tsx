@@ -8,6 +8,8 @@ import {
 
 /** Sigue el modelo de contrato que usa la empresa: encabezado, datos, estado, cláusulas y firmas. */
 export type OwnerContractPdfData = {
+  /** Logo original de MDZ en blanco y negro (public/brand), como data URI. */
+  logoDataUri: string;
   number: number;
   textTitle: string;
   textBody: string;
@@ -42,11 +44,10 @@ export type OwnerContractPdfData = {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 30, paddingHorizontal: 40, paddingBottom: 45, fontSize: 9.5, color: "#111827", fontFamily: "Helvetica", lineHeight: 1.4 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "1.5px solid #111827", paddingBottom: 8 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "1.5px solid #111827", paddingBottom: 8, marginBottom: 8 },
   contact: { fontSize: 8.5, color: "#374151" },
-  brand: { fontSize: 22, fontFamily: "Helvetica-BoldOblique", textAlign: "right", lineHeight: 1 },
-  brandSub: { fontSize: 7.5, fontFamily: "Helvetica-Bold", letterSpacing: 2.5, textAlign: "right" },
-  title: { fontSize: 12, fontFamily: "Helvetica-Bold", textTransform: "uppercase", marginTop: 12 },
+  logo: { width: 104 },
+  title: { fontSize: 12, fontFamily: "Helvetica-Bold", textTransform: "uppercase", marginTop: 4 },
   meta: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
   heading: { fontSize: 10, fontFamily: "Helvetica-Bold", textTransform: "uppercase", marginTop: 12, marginBottom: 4 },
   paragraph: { marginBottom: 5, textAlign: "justify" },
@@ -109,10 +110,8 @@ export function OwnerContractDocument(d: OwnerContractPdfData) {
             <Text style={styles.contact}>{COMPANY.address}</Text>
             <Text style={styles.contact}>{COMPANY.web}</Text>
           </View>
-          <View>
-            <Text style={styles.brand}>mdz</Text>
-            <Text style={styles.brandSub}>RENT A CAR</Text>
-          </View>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={d.logoDataUri} style={styles.logo} />
         </View>
 
         <Text style={styles.title}>{OWNER_CONTRACT_DOC_TITLE}</Text>

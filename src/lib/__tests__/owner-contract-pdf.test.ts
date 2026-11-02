@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import { OwnerContractDocument } from "@/lib/owner-contract-pdf";
@@ -6,7 +8,9 @@ import { buildConditionSnapshot, ORIGINAL_OWNER_CONTRACT_TEXT } from "@/lib/owne
 
 describe("OwnerContractDocument", () => {
   it("genera un PDF con datos mínimos, sin firmas ni datos opcionales", async () => {
+    const logo = readFileSync(path.join(process.cwd(), "public", "brand", "mdz-logo-bw.png"));
     const element = createElement(OwnerContractDocument, {
+      logoDataUri: `data:image/png;base64,${logo.toString("base64")}`,
       number: 1,
       textTitle: ORIGINAL_OWNER_CONTRACT_TEXT.title,
       textBody: ORIGINAL_OWNER_CONTRACT_TEXT.body,

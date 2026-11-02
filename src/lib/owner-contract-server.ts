@@ -1,4 +1,6 @@
 import "server-only";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +10,17 @@ import { resolveEmailConfig } from "@/lib/email/settings";
 import { formatDate, formatTime } from "@/lib/datetime";
 import { ORIGINAL_OWNER_CONTRACT_TEXT, type ConditionGroup } from "@/lib/owner-contract";
 import { OwnerContractDocument } from "@/lib/owner-contract-pdf";
+
+let logoCache: string | null = null;
+
+/** Logo de MDZ en blanco y negro (public/brand), como data URI para react-pdf. */
+async function logoDataUri(): Promise<string> {
+  if (!logoCache) {
+    const buf = await readFile(path.join(process.cwd(), "public", "brand", "mdz-logo-bw.png"));
+    logoCache = `data:image/png;base64,${buf.toString("base64")}`;
+  }
+  return logoCache;
+}
 
 export type OwnerContractText = { versionId: string | null; title: string; body: string };
 
@@ -55,6 +68,7 @@ export async function renderOwnerContractBuffer(id: string): Promise<Buffer> {
   ]);
 
   const element = createElement(OwnerContractDocument, {
+    logoDataUri: await logoDataUri(),
     number: c.number,
     textTitle: text.title,
     textBody: text.body,
