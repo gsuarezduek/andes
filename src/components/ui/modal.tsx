@@ -12,7 +12,9 @@ const FOCUSABLE_SELECTOR =
  * mientras está abierto (Tab/Shift+Tab no se escapa al resto de la página) y
  * foco inicial en el primer control. Sin `onClose` (ej. el aviso de
  * inactividad), ni el click afuera ni Escape lo cierran — la única salida es
- * la acción explícita que ofrezca el contenido.
+ * la acción explícita que ofrezca el contenido. Si el contenido no entra en
+ * la pantalla (formularios largos en el celular), el panel scrollea solo —
+ * sin esto, los botones del final quedaban fuera de alcance.
  */
 export function Modal({
   open,
@@ -82,7 +84,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
-        className={`w-full rounded-xl border border-foreground/10 bg-background p-5 shadow-xl outline-none ${className}`}
+        className={`max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain rounded-xl border border-foreground/10 bg-background p-5 shadow-xl outline-none ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title ? (

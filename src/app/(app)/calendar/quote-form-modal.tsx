@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,18 @@ import type { CalendarColumn, CalendarRow } from "@/lib/calendar";
 import { buildQuoteRange, estimateQuoteTotal, quoteDaysBreakdown, quotePricePerDay } from "@/lib/quote-estimate";
 import { formatArs } from "@/lib/contract";
 import { createQuote } from "./actions";
+import { sendQuoteWhatsApp, type SendQuoteWhatsAppResult } from "./quote-whatsapp-actions";
 import { PerDayBox } from "./quote-per-day-box";
 
 /** Horario por defecto al abrir el presupuestador: retiro y devolución a la
  *  misma hora al día siguiente ya facturan 1 día, no 2 — el caso más común.
  *  Editable; se puede borrar para volver al criterio de "días de calendario". */
 const DEFAULT_TIME = "09:00";
+/** Devolución por defecto de un presupuesto de 1 solo día (mismo día de
+ *  calendario elegido dos veces): vuelve ese mismo día a la tarde — si fuera
+ *  a la mañana siguiente pisaría el día de al lado, que en el caso típico
+ *  (día suelto entre dos reservas) está ocupado. Editable. */
+const SINGLE_DAY_RETURN_TIME = "20:00";
 
 /** "2026-07-18" → "18/07". */
 function fmtShortDate(s: string): string {
@@ -48,6 +54,7 @@ export function QuoteFormModal({
   onClose: () => void;
 }) {
   const days = endIndex - startIndex + 1;
+  const singleDay = days === 1;
   const startKey = columns[startIndex]!.key;
   const endKey = columns[endIndex]!.key;
   const rangeDays = columns.slice(startIndex, endIndex + 1);
@@ -61,7 +68,7 @@ export function QuoteFormModal({
   // editable, y se puede vaciar para volver al criterio de "días de
   // calendario" (ver `buildQuoteRange`).
   const [pickupTime, setPickupTime] = useState(DEFAULT_TIME);
-  const [returnTime, setReturnTime] = useState(DEFAULT_TIME);
+  const [returnTime, setReturnTime] = useState(singleDay ? SINGLE_DAY_RETURN_TIME : DEFAULT_TIME);
   const { startAt, endAt } = buildQuoteRange(startKey, endKey, pickupTime || null, returnTime || null);
   const timesInvalid = endAt.getTime() <= startAt.getTime();
   const breakdown = timesInvalid ? { days, extraHours: 0 } : quoteDaysBreakdown(startAt, endAt);
@@ -89,12 +96,30 @@ export function QuoteFormModal({
   const perDay = quotePricePerDay(Number(total.replace(",", ".")), breakdown.days);
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(null);
   const [pending, start] = useTransition();
+  const [retrying, startRetry] = useTransition();
   const [error, setError] = useState<string>();
+  // Presupuesto ya guardado pero cuyo envío por WhatsApp no salió: el modal
+  // queda abierto mostrando el motivo (en vez de cerrarse como si nada) y el
+  // formulario se bloquea para no guardarlo dos veces.
+  const [savedUnsent, setSavedUnsent] = useState<{ id: string; result: SendQuoteWhatsAppResult } | null>(null);
+  // "Guardar y enviar" no es un submit propio a propósito: Enter en un campo
+  // de texto dispara el primer botón submit del form, y no queremos mandarle
+  // un WhatsApp al cliente por apretar Enter. Este botón marca la intención y
+  // pide el submit a mano.
+  const sendIntent = useRef(false);
   const router = useRouter();
+
+  function closeAndRefresh() {
+    onClose();
+    router.refresh();
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (savedUnsent) return;
     setError(undefined);
+    const send = sendIntent.current && conversation != null;
+    sendIntent.current = false;
     const data = new FormData(e.currentTarget);
     data.set("vehicleId", vehicleId);
     data.set("startDate", startKey);
@@ -102,22 +127,38 @@ export function QuoteFormModal({
     if (conversation) data.set("conversationId", conversation.id);
     start(async () => {
       try {
-        await createQuote(data);
-        onClose();
-        router.refresh();
+        const { id, whatsapp } = await createQuote(data, send);
+        if (whatsapp && !whatsapp.sent) {
+          setSavedUnsent({ id, result: whatsapp });
+          return;
+        }
+        closeAndRefresh();
       } catch {
         setError("No se pudo guardar el presupuesto.");
       }
     });
   }
 
+  function retrySend() {
+    if (!savedUnsent) return;
+    const { id } = savedUnsent;
+    startRetry(async () => {
+      const result = await sendQuoteWhatsApp(id);
+      if (result.sent) closeAndRefresh();
+      else setSavedUnsent({ id, result });
+    });
+  }
+
   return (
     <Modal open onClose={onClose} title="Nuevo presupuesto" className="max-w-md">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <fieldset disabled={savedUnsent != null} className="contents">
         <div className="rounded-lg border border-foreground/10 bg-foreground/[0.03] p-3 text-sm">
           <p className="font-semibold">{row.name ?? row.plate ?? row.label}</p>
           <p className="text-foreground/60">
-            {fmtShortDate(startKey)} al {fmtShortDate(endKey)} · {days} día{days === 1 ? "" : "s"}
+            {singleDay
+              ? `${fmtShortDate(startKey)} · 1 día`
+              : `${fmtShortDate(startKey)} al ${fmtShortDate(endKey)} · ${days} días`}
           </p>
         </div>
 
@@ -158,7 +199,9 @@ export function QuoteFormModal({
           )}
         </div>
 
-        {conflicts.length > 0 ? (
+        {/* Ya guardado: el calendario se refresca con este mismo presupuesto
+            adentro y el aviso lo contaría como una superposición consigo mismo. */}
+        {conflicts.length > 0 && !savedUnsent ? (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-400">
             Ojo: se superpone con {conflicts.join(", ")}. Es solo un borrador — se puede guardar igual.
           </p>
@@ -199,17 +242,72 @@ export function QuoteFormModal({
         <div>
           <p className="mb-1.5 text-sm font-medium text-foreground/80">Conversación de WhatsApp</p>
           <ConversationPicker options={conversationOptions} selected={conversation} onPick={setConversation} />
+          {!conversation ? (
+            <p className="mt-1.5 text-xs text-foreground/50">
+              Vinculá la conversación del cliente para poder enviarle el presupuesto al guardar.
+            </p>
+          ) : null}
         </div>
+        </fieldset>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={pending}>
-            Cancelar
-          </Button>
-          <Button type="submit" className="flex-1" disabled={pending || timesInvalid}>
-            {pending ? "Guardando…" : "Guardar presupuesto"}
-          </Button>
-        </div>
+
+        {savedUnsent ? (
+          // En el celular el resultado queda abajo del formulario: se baja
+          // solo hasta acá para que no pase desapercibido.
+          <div ref={(el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" })} className="flex flex-col gap-2">
+            <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 text-sm text-emerald-700 dark:text-emerald-400">
+              Presupuesto guardado.
+            </p>
+            <p
+              className={
+                savedUnsent.result.kind === "failed"
+                  ? "text-sm text-red-600"
+                  : "rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-sm text-amber-700 dark:text-amber-400"
+              }
+            >
+              {savedUnsent.result.error ?? "No se pudo enviar por WhatsApp."}
+            </p>
+            <div className="flex gap-2">
+              {savedUnsent.result.kind === "failed" ? (
+                <Button type="button" variant="secondary" className="flex-1" onClick={retrySend} disabled={pending || retrying}>
+                  {retrying ? "Enviando…" : "Reintentar envío"}
+                </Button>
+              ) : null}
+              <Button type="button" className="flex-1" onClick={closeAndRefresh} disabled={retrying}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {conversation ? (
+              <Button
+                type="button"
+                disabled={pending || timesInvalid}
+                onClick={(e) => {
+                  sendIntent.current = true;
+                  e.currentTarget.form?.requestSubmit();
+                }}
+              >
+                {pending ? "Guardando…" : "Guardar y enviar por WhatsApp"}
+              </Button>
+            ) : null}
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={pending}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant={conversation ? "secondary" : undefined}
+                className="flex-1"
+                disabled={pending || timesInvalid}
+              >
+                {pending ? "Guardando…" : conversation ? "Guardar sin enviar" : "Guardar presupuesto"}
+              </Button>
+            </div>
+          </div>
+        )}
       </form>
     </Modal>
   );

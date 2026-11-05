@@ -118,16 +118,15 @@ export function CalendarGrid({
 
   // Selección de auto+rango para un presupuesto nuevo (dos toques): sin
   // selección activa, el primer toque la arranca; un segundo toque en la
-  // misma fila la completa (o la cancela, si es la misma celda); un toque en
-  // otra fila la reinicia ahí.
+  // misma fila la completa — en la misma celda, es un presupuesto de 1 solo
+  // día (antes cancelaba: no había forma de presupuestar un día suelto si el
+  // siguiente estaba ocupado, porque el toque cae sobre la barra de esa
+  // reserva). Un toque en otra fila la reinicia ahí; para cancelar, tocar
+  // afuera de la grilla o Escape.
   function onCellClick(vehicleId: string, dayIndex: number) {
     setHover(null);
     if (!pick || pick.vehicleId !== vehicleId) {
       setPick({ vehicleId, startIndex: dayIndex });
-      return;
-    }
-    if (pick.startIndex === dayIndex) {
-      setPick(null);
       return;
     }
     setDraftRange({
@@ -151,6 +150,15 @@ export function CalendarGrid({
   // y el header terminaría pegado a ESE contenedor en vez de a la ventana).
   // Separándolos, el header queda realmente sticky contra el scroll de la
   // página y la tabla puede crecer tan alta como haga falta sin cortar filas.
+  useEffect(() => {
+    if (!pick) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPick(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pick]);
+
   const syncHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
   };
@@ -166,7 +174,7 @@ export function CalendarGrid({
       {pick ? (
         <div className="pointer-events-none fixed inset-x-0 top-2 z-50 flex justify-center">
           <p className="rounded-full bg-orange-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
-            Presupuestando: tocá el día de fin (o el mismo día para cancelar)
+            Presupuestando: tocá el día de fin (el mismo día = 1 día) · tocá afuera para cancelar
           </p>
         </div>
       ) : null}

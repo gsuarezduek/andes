@@ -1215,6 +1215,14 @@ Faltaba la mitad de lo pedido en v77: ahí se resolvió el alquiler al cliente d
 - **Cambios al modelo del dueño:** "dos ejemplares" → firma en pantalla y copia en PDF; se agrega firma de MDZ; renovación "en un nuevo contrato"; el propietario mantiene la póliza vigente y avisa cambios (obligación nueva); campo libre "Condiciones comerciales y particulares".
 - **Segunda etapa (pedido del dueño):** calcular lo que le corresponde al dueño por cada alquiler. Sin hacer también: firma por QR, fotos al ingreso, alerta de vencimiento en el Home, estado del auto al devolverlo al dueño.
 
+## v101 — Presupuestos de 1 día + "Guardar y enviar por WhatsApp" desde el alta
+
+Dos pedidos del dueño sobre el presupuestador del Calendario. tsc/lint/964 tests en verde; **verificado con Playwright a 375px contra la base local** (auto con una reserva pasado mañana: presupuesto de 1 día mañana, Enter guarda sin enviar, "Guardar y enviar" con conversación vinculada; datos de prueba borrados). **El envío real no se probó** (sin cuenta de Chakra en local: falla y el modal lo muestra, como corresponde). Sin migración.
+
+- **1 día**: tocar el **mismo día dos veces** abre el presupuesto de ese día (antes cancelaba la selección). No había forma de presupuestar un día suelto si el siguiente estaba ocupado: el toque sobre ese día cae en la barra de la reserva, no en la celda. Para cancelar: tocar afuera de la grilla o Escape. En 1 día la devolución arranca el mismo día a las 20:00 (`SINGLE_DAY_RETURN_TIME`, `quote-form-modal.tsx`; retiro 09:00, editables) para no pisar el día siguiente; factura 1 día.
+- **"Guardar y enviar por WhatsApp"** en el alta, solo si hay conversación vinculada (sin ella, una ayuda lo indica). `createQuote(formData, send)` guarda y llama a `sendQuoteWhatsApp` (mismo mensaje y misma regla de ventana de 24hs que el botón del detalle). Si el envío falla, el presupuesto queda guardado y el modal muestra el motivo (ámbar: ventana cerrada; rojo: falla, con "Reintentar envío"). Es `type="button"` a propósito: Enter en un campo dispara el primer submit del form, y no tiene que mandarle un WhatsApp al cliente.
+- **Fix de fondo en `Modal`** (`src/components/ui/modal.tsx`): el panel no scrolleaba, y en el celular el final de un formulario largo (los botones de guardar del presupuesto) quedaba fuera de la pantalla. Ahora `max-h-[calc(100dvh-2rem)] overflow-y-auto` — afecta a todos los modales, solo cuando el contenido no entra.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
