@@ -205,6 +205,26 @@ describe("tiempo de respuesta de WhatsApp", () => {
     expect(unanswered).toBe(1);
   });
 
+  it("una espera abierta que alguien leyó después del último mensaje del cliente no cuenta", () => {
+    const { unanswered } = computeResponseWaits(
+      [
+        msg("a", "out", "2026-09-10T10:00Z"), // "Muchas gracias Juan"
+        msg("a", "in", "2026-09-10T10:05Z"), // "gracias" → leído, no hace falta contestar
+        msg("b", "in", "2026-09-10T11:00Z"),
+        msg("b", "in", "2026-09-10T11:30Z"), // leído entre los dos mensajes: el segundo sigue sin leer
+        msg("c", "in", "2026-09-10T12:00Z"), // nunca abierta
+      ],
+      pStart,
+      pEnd,
+      new Map([
+        ["a", d("2026-09-10T10:06Z")],
+        ["b", d("2026-09-10T11:10Z")],
+        ["c", null],
+      ]),
+    );
+    expect(unanswered).toBe(2);
+  });
+
   it("acepta mensajes desordenados y de varias conversaciones", () => {
     const { waits } = computeResponseWaits(
       [msg("a", "out", "2026-09-05T10:10Z"), msg("b", "in", "2026-09-05T09:00Z"), msg("a", "in", "2026-09-05T10:00Z"), msg("b", "out", "2026-09-05T11:00Z")],

@@ -286,12 +286,18 @@ export default async function ReportsPage({
             value={formatDuration(whatsapp.response.humanMedianMinutes)}
             hint={`${whatsapp.response.humanWaits} respondidas por el equipo`}
           />
-          <Kpi label="Sin respuesta" value={String(whatsapp.response.unanswered)} tone={whatsapp.response.unanswered > 0 ? "bad" : undefined} />
+          <Kpi
+            label="Sin respuesta"
+            value={String(whatsapp.response.unanswered)}
+            hint="sin leer ni responder"
+            tone={whatsapp.response.unanswered > 0 ? "bad" : undefined}
+          />
         </div>
         <p className="text-xs text-foreground/40">
           Tiempo desde que el cliente escribe hasta el siguiente mensaje nuestro (bot, equipo desde Andes o desde la app de
           WhatsApp), corrido las 24 hs — incluye noches y fines de semana. Varios mensajes seguidos del cliente cuentan como
-          una sola consulta.
+          una sola consulta. &quot;Sin respuesta&quot; no cuenta las conversaciones que alguien abrió en Andes después del último
+          mensaje del cliente (ej. cerró con un &quot;gracias&quot; y no hacía falta contestar).
         </p>
         <p className="text-xs font-medium text-foreground/60">Conversaciones y conversión por mes</p>
         <WhatsAppTrendChart data={whatsapp.conversionByMonth} />

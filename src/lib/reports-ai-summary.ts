@@ -68,7 +68,7 @@ export function buildReportFigures(reports: Reports, monthLabel: string): string
     `- Conversaciones únicas: ${whatsapp.conversationsInPeriod}`,
     `- Conversión (alquileres finalizados / conversaciones): ${formatPercent(whatsapp.conversionPercent)}`,
     `- Tiempo de respuesta (mediana): ${formatDuration(whatsapp.response.medianMinutes)} (respuesta humana: ${formatDuration(whatsapp.response.humanMedianMinutes)})`,
-    `- Consultas sin respuesta: ${whatsapp.response.unanswered}`,
+    `- Consultas sin leer ni responder: ${whatsapp.response.unanswered}`,
     "",
     "TOP 3 VEHÍCULOS POR NETO (mayor a menor):",
     ...top.map(

@@ -722,10 +722,15 @@ export const getReports = unstable_cache(
         .map((r) => leadTimeDays(r.startAt, r.bookingCreatedAt!)),
     );
 
+    const whatsappReads = await prisma.whatsAppConversation.findMany({
+      where: { id: { in: [...new Set(whatsappMessagesInRange.map((m) => m.conversationId))] } },
+      select: { id: true, lastReadAt: true },
+    });
     const responseWaits = computeResponseWaits(
       whatsappMessagesInRange,
       periodRange.start,
       periodRange.end,
+      new Map(whatsappReads.map((c) => [c.id, c.lastReadAt])),
     );
 
     // Todo el reporte de Caja va en pesos: un movimiento en USD se convierte

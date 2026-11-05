@@ -201,7 +201,8 @@ export type ResponseTimeSummary = {
   // Solo las esperas en que contestó una persona (no el bot).
   humanWaits: number;
   humanMedianMinutes: number | null;
-  // Esperas que empezaron en el período y todavía no tienen ninguna respuesta.
+  // Esperas que empezaron en el período, sin ninguna respuesta y que nadie
+  // abrió en Andes después del último mensaje del cliente.
   unanswered: number;
 };
 
@@ -214,11 +215,18 @@ export type ResponseTimeSummary = {
  * [pStart, pEnd); la respuesta puede caer después. Pura y testeable: los
  * mensajes tienen que traer suficiente historial anterior a `pStart` para
  * saber si la primera espera ya venía abierta.
+ *
+ * Una espera que quedó abierta (la conversación termina con un mensaje del
+ * cliente) cuenta como "sin respuesta" solo si nadie abrió la conversación en
+ * Andes después de su último mensaje (`lastReadAt`, mismo criterio que el
+ * "No leído" del inbox): si alguien la leyó y no contestó, lo decidió a
+ * propósito (ej. el cliente cerró con un "gracias").
  */
 export function computeResponseWaits(
   messages: ResponseMessage[],
   pStart: Date,
   pEnd: Date,
+  lastReadAtByConversation: ReadonlyMap<string, Date | null> = new Map(),
 ): { waits: ResponseWait[]; unanswered: number } {
   const byConversation = new Map<string, ResponseMessage[]>();
   for (const m of messages) {
@@ -231,12 +239,14 @@ export function computeResponseWaits(
   const waits: ResponseWait[] = [];
   let unanswered = 0;
 
-  for (const list of byConversation.values()) {
+  for (const [conversationId, list] of byConversation) {
     list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     let waitingSince: Date | null = null;
+    let lastInbound: Date | null = null;
     for (const m of list) {
       if (m.direction === "in") {
         if (!waitingSince) waitingSince = m.createdAt;
+        lastInbound = m.createdAt;
       } else if (waitingSince) {
         if (inPeriod(waitingSince)) {
           waits.push({ minutes: (m.createdAt.getTime() - waitingSince.getTime()) / MINUTE_MS, byBot: m.sentByBot });
@@ -244,7 +254,11 @@ export function computeResponseWaits(
         waitingSince = null;
       }
     }
-    if (waitingSince && inPeriod(waitingSince)) unanswered += 1;
+    if (waitingSince && lastInbound && inPeriod(waitingSince)) {
+      const readAt = lastReadAtByConversation.get(conversationId);
+      const readAfterLastInbound = readAt != null && readAt.getTime() >= lastInbound.getTime();
+      if (!readAfterLastInbound) unanswered += 1;
+    }
   }
 
   return { waits, unanswered };
