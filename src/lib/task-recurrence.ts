@@ -118,3 +118,31 @@ export function describeRecurrence(rule: RecurrenceRule): string {
     rule.dayOfMonth != null && rule.month != null ? ` el ${rule.dayOfMonth} de ${MONTH_NAMES[rule.month - 1]}` : "";
   return n === 1 ? `Se repite cada año${when}` : `Se repite cada ${n} años${when}`;
 }
+
+/**
+ * Cuántos días antes de su fecha aparece una tarea recurrente en las listas
+ * (pendientes de /tasks, Home, contador del nav). Antes de eso queda
+ * "programada": existe en la base, pero no se muestra como pendiente.
+ */
+export const RECURRING_VISIBLE_DAYS_BEFORE = 1;
+
+/**
+ * Instante (UTC) a partir del cual una tarea recurrente todavía está
+ * programada: si su `dueDate` es igual o posterior, no se muestra. Con 1 día
+ * de anticipación = medianoche (Mendoza) de pasado mañana — se ven las que
+ * vencen hoy, mañana o ya vencieron.
+ */
+export function recurringVisibilityCutoff(now: Date): Date {
+  const [y, m, d] = formatDateInput(now).split("-").map(Number);
+  const key = new Date(Date.UTC(y, m - 1, d + RECURRING_VISIBLE_DAYS_BEFORE + 1)).toISOString().slice(0, 10);
+  return mendozaWallTimeToUtc(`${key}T00:00`);
+}
+
+/** True si es una ocurrencia de una serie cuya fecha todavía no llegó a la ventana de visibilidad. */
+export function isRecurringTaskScheduled(
+  task: { recurrenceId: string | null; dueDate: Date | null },
+  now: Date,
+): boolean {
+  if (!task.recurrenceId || !task.dueDate) return false;
+  return task.dueDate >= recurringVisibilityCutoff(now);
+}

@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma, Task } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
+import { recurringVisibilityCutoff } from "@/lib/task-recurrence";
 
 const ROW_INCLUDE = {
   vehicle: { select: { id: true, name: true, brand: true, model: true, plate: true } },
@@ -25,13 +26,24 @@ function todayWindow(now: Date) {
 }
 
 /**
+ * Pendientes que se muestran: todo, salvo las ocurrencias de una tarea
+ * recurrente cuya fecha todavía no entró en la ventana de visibilidad (aparecen
+ * el día antes, ver recurringVisibilityCutoff). Esas quedan "programadas".
+ */
+function visibleWhere(now = new Date()): Prisma.TaskWhereInput {
+  return {
+    OR: [{ recurrenceId: null }, { dueDate: null }, { dueDate: { lt: recurringVisibilityCutoff(now) } }],
+  };
+}
+
+/**
  * Resumen para el home: solo tareas asignadas a mí. No entran las sin asignar
  * ni las de otros, aunque venzan hoy — la notificación es personal, no una
  * vista de coordinación (para eso está /tasks con todas las pendientes).
  */
 export async function getHomeTasks(userId: string): Promise<TaskRow[]> {
   return prisma.task.findMany({
-    where: { status: "pending", assignedToId: userId },
+    where: { status: "pending", assignedToId: userId, ...visibleWhere() },
     include: ROW_INCLUDE,
     orderBy: ORDER_BY,
   });
@@ -43,18 +55,44 @@ export type TaskFilters = {
   priority?: "normal" | "high";
 };
 
-/** Listado completo de pendientes para /tasks, con filtros opcionales. */
+function filtersWhere(filters: TaskFilters): Prisma.TaskWhereInput {
+  return {
+    status: "pending",
+    assignedToId: filters.assignedToId || undefined,
+    vehicleId: filters.vehicleId || undefined,
+    priority: filters.priority || undefined,
+  };
+}
+
+/** Listado completo de pendientes para /tasks, con filtros opcionales (sin las recurrentes programadas). */
 export async function getPendingTasks(filters: TaskFilters): Promise<TaskRow[]> {
   return prisma.task.findMany({
+    where: { ...filtersWhere(filters), ...visibleWhere() },
+    include: ROW_INCLUDE,
+    orderBy: ORDER_BY,
+  });
+}
+
+/**
+ * Próximas ocurrencias de tareas recurrentes que todavía no aparecen como
+ * pendientes — se listan aparte (plegadas) en /tasks para poder editarlas o
+ * borrarlas antes de que llegue su día.
+ */
+export async function getScheduledRecurringTasks(filters: TaskFilters): Promise<TaskRow[]> {
+  return prisma.task.findMany({
     where: {
-      status: "pending",
-      assignedToId: filters.assignedToId || undefined,
-      vehicleId: filters.vehicleId || undefined,
-      priority: filters.priority || undefined,
+      ...filtersWhere(filters),
+      recurrenceId: { not: null },
+      dueDate: { gte: recurringVisibilityCutoff(new Date()) },
     },
     include: ROW_INCLUDE,
     orderBy: ORDER_BY,
   });
+}
+
+/** Total de pendientes visibles de todo el equipo — para la pestaña "Todas". */
+export async function getVisiblePendingCount(): Promise<number> {
+  return prisma.task.count({ where: { status: "pending", ...visibleWhere() } });
 }
 
 const COMPLETED_PAGE_SIZE = 20;
@@ -83,7 +121,7 @@ export async function getCompletedTasksPage(page: number): Promise<CompletedTask
 
 /** Cuántas tareas pendientes tiene asignadas un usuario — para el contador del nav. */
 export async function getAssignedPendingCount(userId: string): Promise<number> {
-  return prisma.task.count({ where: { assignedToId: userId, status: "pending" } });
+  return prisma.task.count({ where: { assignedToId: userId, status: "pending", ...visibleWhere() } });
 }
 
 type TaskDueFields = Pick<Task, "dueDate" | "status">;

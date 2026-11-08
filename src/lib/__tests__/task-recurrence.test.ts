@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeNextDueDate, describeRecurrence, ruleFromDueDate, type RecurrenceRule } from "@/lib/task-recurrence";
+import { computeNextDueDate, describeRecurrence, isRecurringTaskScheduled, ruleFromDueDate, type RecurrenceRule } from "@/lib/task-recurrence";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 
 const d = (s: string) => mendozaWallTimeToUtc(`${s}T00:00`);
@@ -108,5 +108,35 @@ describe("describeRecurrence", () => {
     expect(describeRecurrence(rule({ freq: "yearly", interval: 1, dayOfMonth: 20, month: 3 }))).toBe(
       "Se repite cada año el 20 de marzo",
     );
+  });
+});
+
+describe("isRecurringTaskScheduled", () => {
+  // 10/09/2026 a las 15:00 en Mendoza.
+  const now = mendozaWallTimeToUtc("2026-09-10T15:00");
+  const recurring = (due: string) => ({ recurrenceId: "r1", dueDate: d(due) });
+
+  it("se ve si vence mañana (el día antes de la fecha)", () => {
+    expect(isRecurringTaskScheduled(recurring("2026-09-11"), now)).toBe(false);
+  });
+
+  it("se ve si vence hoy o ya venció", () => {
+    expect(isRecurringTaskScheduled(recurring("2026-09-10"), now)).toBe(false);
+    expect(isRecurringTaskScheduled(recurring("2026-09-01"), now)).toBe(false);
+  });
+
+  it("queda programada si vence pasado mañana o después", () => {
+    expect(isRecurringTaskScheduled(recurring("2026-09-12"), now)).toBe(true);
+    expect(isRecurringTaskScheduled(recurring("2026-10-10"), now)).toBe(true);
+  });
+
+  it("cruza fin de mes", () => {
+    const endOfMonth = mendozaWallTimeToUtc("2026-09-30T23:30");
+    expect(isRecurringTaskScheduled(recurring("2026-10-01"), endOfMonth)).toBe(false);
+    expect(isRecurringTaskScheduled(recurring("2026-10-02"), endOfMonth)).toBe(true);
+  });
+
+  it("una tarea no recurrente nunca queda programada", () => {
+    expect(isRecurringTaskScheduled({ recurrenceId: null, dueDate: d("2026-12-01") }, now)).toBe(false);
   });
 });

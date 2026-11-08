@@ -11,6 +11,8 @@ import { TeamTabs } from "@/components/tasks/team-tabs";
 import { getRentalPickerOptions } from "@/lib/cash";
 import {
   getPendingTasks,
+  getScheduledRecurringTasks,
+  getVisiblePendingCount,
   getCompletedTasksPage,
   getAssignedPendingCount,
   isTaskOverdue,
@@ -38,8 +40,9 @@ export default async function TasksPage({
   };
   const completedPage = Math.max(1, Number(sp.cp) || 1);
 
-  const [pending, completed, users, vehicles, rentalOptions, myPendingCount, totalPendingCount] = await Promise.all([
+  const [pending, scheduled, completed, users, vehicles, rentalOptions, myPendingCount, totalPendingCount] = await Promise.all([
     getPendingTasks(filters),
+    getScheduledRecurringTasks(filters),
     getCompletedTasksPage(completedPage),
     prisma.user.findMany({ where: OPERATOR_FILTER, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.vehicle.findMany({
@@ -49,7 +52,7 @@ export default async function TasksPage({
     }),
     getRentalPickerOptions(),
     getAssignedPendingCount(user.id),
-    prisma.task.count({ where: { status: "pending" } }),
+    getVisiblePendingCount(),
   ]);
 
   const hasFilters = Boolean(filters.assignedToId || filters.vehicleId || filters.priority);
@@ -188,6 +191,33 @@ export default async function TasksPage({
           />
         )}
       </section>
+
+      {scheduled.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-foreground/60">
+              Recurrentes programadas ({scheduled.length})
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              <p className="text-xs text-foreground/60">
+                Próximas repeticiones de tareas recurrentes. Aparecen en Pendientes el día antes de su fecha.
+              </p>
+              <PendingTaskList
+                key={scheduled.map((t) => t.id).join(",")}
+                tasks={scheduled.map((task) => ({
+                  task,
+                  overdue: false,
+                  dueToday: false,
+                  canEdit: isAdmin || task.createdById === user.id,
+                }))}
+                users={users}
+                vehicles={vehicles}
+                rentalOptions={rentalOptions}
+              />
+            </div>
+          </details>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <details>
