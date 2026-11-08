@@ -268,7 +268,6 @@ export async function getUnconfirmedCashMovements(canSeeFinanceOnly = true): Pro
 export type Invoicing = {
   pending: CashMovementRow[];
   completed: CashMovementRow[];
-  pendingTotal: CurrencyTotals;
 };
 
 /**
@@ -283,7 +282,7 @@ export async function getInvoicing(canSeeFinanceOnly = true): Promise<Invoicing>
     findMovements({ needsInvoice: true, invoicedAt: null }, { excludeAccountIds }),
     findMovements({ needsInvoice: true, invoicedAt: { not: null } }, { excludeAccountIds }),
   ]);
-  return { pending, completed, pendingTotal: sumByCurrency(pending) };
+  return { pending, completed };
 }
 
 /**

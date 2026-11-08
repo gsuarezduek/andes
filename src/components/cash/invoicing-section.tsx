@@ -10,6 +10,14 @@ import { formatMoney } from "@/lib/contract";
 import { formatDate } from "@/lib/datetime";
 import { sumByCurrency } from "@/lib/currency";
 import { invoiceGroup, type InvoiceGroup } from "@/lib/invoicing-rules";
+import {
+  incomeMonthKey,
+  invoiceLogMonthKey,
+  invoicingMonthOptions,
+  summarizeInvoicing,
+  type InvoicingMonth,
+} from "@/lib/invoicing-period";
+import { formatDateInput } from "@/lib/datetime";
 import { deleteInvoice } from "@/app/(app)/caja/invoicing-actions";
 import type { CashMovementRow, Invoicing } from "@/lib/cash";
 import type { InvoiceRow } from "@/lib/invoices";
@@ -38,14 +46,27 @@ const STATUS_LABELS: Record<StatusFilter, string> = { pending: "Pendientes", inv
  * entró por Mercado Pago y además el cliente pidió factura a su nombre, va a
  * "Pedidos de clientes". Abajo, el libro de facturas cargadas — un registro
  * suelto, sin vínculo formal con los ingresos (ver modelo `Invoice`).
+ *
+ * Arriba, "Total" (todo el historial) o "Por mes": el mes filtra las
+ * tarjetas, la lista y el libro de facturas. Un ingreso cuenta en el mes en
+ * que entró, esté pendiente o ya facturado (ver `invoicing-period.ts`).
  */
 export function InvoicingSection({ invoicing, invoices }: { invoicing: Invoicing; invoices: InvoiceRow[] }) {
   const [group, setGroup] = useState<InvoiceGroup>("account");
   const [status, setStatus] = useState<StatusFilter>("pending");
 
-  const all = [...invoicing.pending, ...invoicing.completed];
+  const [month, setMonth] = useState<InvoicingMonth>("all");
+
+  const everything = [...invoicing.pending, ...invoicing.completed];
+  const monthOptions = invoicingMonthOptions(
+    [...everything.map(incomeMonthKey), ...invoices.map(invoiceLogMonthKey)],
+    new Date(),
+  );
+  const all = month === "all" ? everything : everything.filter((m) => incomeMonthKey(m) === month);
+  const monthInvoices = month === "all" ? invoices : invoices.filter((inv) => invoiceLogMonthKey(inv) === month);
+  const summary = summarizeInvoicing(all);
   const inGroup = (g: InvoiceGroup) => all.filter((m) => invoiceGroup(m) === g);
-  const pendingIn = (g: InvoiceGroup) => invoicing.pending.filter((m) => invoiceGroup(m) === g);
+  const pendingIn = (g: InvoiceGroup) => all.filter((m) => !m.invoicedAt && invoiceGroup(m) === g);
 
   const groupItems = inGroup(group);
   const visible = groupItems
@@ -56,12 +77,42 @@ export function InvoicingSection({ invoicing, invoices }: { invoicing: Invoicing
 
   return (
     <div className="flex flex-col gap-5">
-      {invoicing.pending.length > 0 && (
-        <div className="rounded-lg border border-foreground/10 p-3 text-center">
-          <p className="text-xs text-foreground/50">Pendiente de facturar (todo)</p>
-          <CurrencyTotalsDisplay totals={invoicing.pendingTotal} />
+      <MonthPicker month={month} options={monthOptions} onChange={setMonth} />
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
+          <p className="text-xs text-foreground/50">Pendiente de facturar</p>
+          <CurrencyTotalsDisplay
+            totals={summary.pendingTotal}
+            toneClass={summary.pendingCount > 0 ? "text-amber-700 dark:text-amber-400" : ""}
+          />
+          <p className="text-xs text-foreground/50">{countLabel(summary.pendingCount)}</p>
         </div>
-      )}
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-center">
+          <p className="text-xs text-foreground/50">Total facturado</p>
+          <CurrencyTotalsDisplay totals={summary.invoicedTotal} toneClass="text-emerald-700 dark:text-emerald-400" />
+          <p className="text-xs text-foreground/50">{countLabel(summary.invoicedCount)}</p>
+        </div>
+        <div className="col-span-2 rounded-lg border border-foreground/10 p-3 text-center sm:col-span-1">
+          <p className="text-xs text-foreground/50">Avance de facturación</p>
+          <p className="text-lg font-semibold">
+            {summary.progressPercent == null ? "—" : `${summary.progressPercent}%`}
+          </p>
+          <div
+            className="mx-auto mt-1 h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-foreground/10"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={summary.progressPercent ?? 0}
+            aria-label="Avance de facturación"
+          >
+            <div className="h-full bg-emerald-500" style={{ width: `${summary.progressPercent ?? 0}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-foreground/50">
+            {summary.invoicedCount} de {summary.invoicedCount + summary.pendingCount} ingresos facturados
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-1.5">
         {GROUPS.map((g) => {
@@ -112,7 +163,11 @@ export function InvoicingSection({ invoicing, invoices }: { invoicing: Invoicing
         </div>
         {visible.length === 0 ? (
           <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-            {status === "pending" ? "Nada pendiente de facturar acá." : "Sin ingresos para mostrar."}
+            {status === "pending"
+              ? month === "all"
+                ? "Nada pendiente de facturar acá."
+                : "Nada pendiente de facturar acá en este mes."
+              : "Sin ingresos para mostrar."}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -132,24 +187,106 @@ export function InvoicingSection({ invoicing, invoices }: { invoicing: Invoicing
 
       <section className="flex flex-col gap-2 border-t border-foreground/10 pt-4">
         <div className="flex items-center justify-between">
-          <SectionTitle>Facturas cargadas ({invoices.length})</SectionTitle>
+          <SectionTitle>Facturas cargadas ({monthInvoices.length})</SectionTitle>
           <InvoiceLauncher />
         </div>
         <p className="text-xs text-foreground/50">
           Planilla de referencia (monto, fecha, razón social, CUIT) — no está vinculada con los ingresos de arriba.
         </p>
-        {invoices.length === 0 ? (
+        {monthInvoices.length === 0 ? (
           <p className="rounded-lg border border-foreground/10 px-3 py-2 text-sm text-foreground/50">
-            Todavía no se cargó ninguna factura.
+            {month === "all" ? "Todavía no se cargó ninguna factura." : "No hay facturas cargadas con fecha de este mes."}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {invoices.map((inv) => (
+            {monthInvoices.map((inv) => (
               <InvoiceLogRow key={inv.id} invoice={inv} />
             ))}
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+function countLabel(n: number) {
+  return n === 1 ? "1 ingreso" : `${n} ingresos`;
+}
+
+/**
+ * "Total" (todo el historial, la vista de siempre) o "Por mes", con flechas
+ * para ir al mes anterior/siguiente entre los que tienen datos.
+ */
+function MonthPicker({
+  month,
+  options,
+  onChange,
+}: {
+  month: InvoicingMonth;
+  options: { key: string; label: string }[];
+  onChange: (m: InvoicingMonth) => void;
+}) {
+  const currentKey = formatDateInput(new Date()).slice(0, 7);
+  const index = options.findIndex((o) => o.key === month);
+  const older = index >= 0 ? options[index + 1] : undefined;
+  const newer = index > 0 ? options[index - 1] : undefined;
+
+  const pill = (active: boolean) =>
+    `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+      active ? "bg-foreground text-background" : "border border-foreground/15 text-foreground/60 hover:border-foreground/30"
+    }`;
+  const arrow =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-foreground/15 text-foreground/60 disabled:opacity-30";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex gap-1.5">
+        <button type="button" className={pill(month === "all")} aria-pressed={month === "all"} onClick={() => onChange("all")}>
+          Total
+        </button>
+        <button
+          type="button"
+          className={pill(month !== "all")}
+          aria-pressed={month !== "all"}
+          onClick={() => month === "all" && onChange(currentKey)}
+        >
+          Por mes
+        </button>
+      </div>
+      {month !== "all" && (
+        <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
+          <button
+            type="button"
+            className={arrow}
+            disabled={!older}
+            onClick={() => older && onChange(older.key)}
+            aria-label="Mes anterior"
+          >
+            ‹
+          </button>
+          <select
+            value={month}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-9 min-w-0 flex-1 rounded-lg border border-foreground/15 bg-background px-2 text-sm sm:w-52 sm:flex-none"
+            aria-label="Mes"
+          >
+            {options.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={arrow}
+            disabled={!newer}
+            onClick={() => newer && onChange(newer.key)}
+            aria-label="Mes siguiente"
+          >
+            ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }
