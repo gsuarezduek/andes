@@ -10,13 +10,10 @@ import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { createAccountTransfer, type TransferResult } from "@/app/(app)/caja/transfer-actions";
 import { formatMoney } from "@/lib/contract";
 import type { Currency, CurrencyTotals } from "@/lib/currency";
+import type { TransferAccountOption } from "@/lib/account-transfers";
+import { FixedAccountField } from "@/components/cash/fixed-account-field";
 
-export type TransferAccountOption = {
-  id: string;
-  name: string;
-  /** Cuenta principal a la que suma el saldo (ella misma si no es subcuenta). */
-  principalId: string;
-};
+export type { TransferAccountOption };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -26,20 +23,28 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * "Cambio de moneda" el monto que entra se sugiere con el valor de
  * referencia del USD (editable: la cotización real de la operación es la que
  * queda). Avisa —sin bloquear— si el origen quedaría en negativo.
+ *
+ * Con `fixedAccounts` (página de una cuenta) uno de los dos lados queda fijo
+ * en esa cuenta (o una de sus subcuentas) y se elige si la plata sale de ella
+ * o entra en ella.
  */
 export function TransferLauncher({
   accounts,
   balances,
   usdRate,
+  fixedAccounts,
+  buttonClassName,
 }: {
   accounts: TransferAccountOption[];
   balances: Record<string, CurrencyTotals>;
   usdRate: number | null;
+  fixedAccounts?: TransferAccountOption[];
+  buttonClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+      <Button type="button" variant="secondary" className={buttonClassName} onClick={() => setOpen(true)}>
         Mover entre cuentas
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title="Mover entre cuentas" className="max-w-md">
@@ -48,6 +53,7 @@ export function TransferLauncher({
             accounts={accounts}
             balances={balances}
             usdRate={usdRate}
+            fixedAccounts={fixedAccounts}
             onDone={() => setOpen(false)}
           />
         )}
@@ -60,16 +66,20 @@ function TransferForm({
   accounts,
   balances,
   usdRate,
+  fixedAccounts,
   onDone,
 }: {
   accounts: TransferAccountOption[];
   balances: Record<string, CurrencyTotals>;
   usdRate: number | null;
+  fixedAccounts?: TransferAccountOption[];
   onDone: () => void;
 }) {
   const [state, formAction] = useActionState<TransferResult, FormData>(createAccountTransfer, {});
-  const [fromId, setFromId] = useState("");
+  const [fromId, setFromId] = useState(fixedAccounts?.[0]?.id ?? "");
   const [toId, setToId] = useState("");
+  // Con cuenta fija: "out" = sale de esta cuenta, "in" = entra en esta cuenta.
+  const [direction, setDirection] = useState<"out" | "in">("out");
   const [currency, setCurrency] = useState<Currency>("ars");
   const [amount, setAmount] = useState("");
   const [exchange, setExchange] = useState(false);
@@ -97,22 +107,58 @@ function TransferForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <PaymentMethodPicker
-        id="fromAccountId"
-        label="Sale de"
-        options={accounts}
-        value={fromId}
-        onChange={setFromId}
-        placeholder="Buscar cuenta de origen…"
-      />
-      <PaymentMethodPicker
-        id="toAccountId"
-        label="Entra en"
-        options={accounts}
-        value={toId}
-        onChange={setToId}
-        placeholder="Buscar cuenta de destino…"
-      />
+      {fixedAccounts && (
+        <div className="flex rounded-lg border border-foreground/15 p-0.5">
+          {(
+            [
+              ["out", "Sale de esta cuenta"],
+              ["in", "Entra a esta cuenta"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={direction === value}
+              onClick={() => {
+                if (value === direction) return;
+                // El lado fijo cambia de lugar: se intercambian origen y destino.
+                setDirection(value);
+                setFromId(toId);
+                setToId(fromId);
+              }}
+              className={`h-10 flex-1 rounded-md text-sm font-semibold transition-colors ${
+                direction === value ? "bg-foreground text-background" : "text-foreground/60"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {fixedAccounts && direction === "out" ? (
+        <FixedAccountField id="fromAccountId" label="Sale de" options={fixedAccounts} value={fromId} onChange={setFromId} />
+      ) : (
+        <PaymentMethodPicker
+          id="fromAccountId"
+          label="Sale de"
+          options={accounts}
+          value={fromId}
+          onChange={setFromId}
+          placeholder="Buscar cuenta de origen…"
+        />
+      )}
+      {fixedAccounts && direction === "in" ? (
+        <FixedAccountField id="toAccountId" label="Entra en" options={fixedAccounts} value={toId} onChange={setToId} />
+      ) : (
+        <PaymentMethodPicker
+          id="toAccountId"
+          label="Entra en"
+          options={accounts}
+          value={toId}
+          onChange={setToId}
+          placeholder="Buscar cuenta de destino…"
+        />
+      )}
 
       <div className="grid grid-cols-[7fr_3fr] gap-2">
         <TextField

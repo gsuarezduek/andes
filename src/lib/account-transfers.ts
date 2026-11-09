@@ -65,3 +65,34 @@ export function safeDeltaFromTransfers(transfers: TransferAmounts[]): CurrencyTo
   }
   return delta;
 }
+
+export type TransferAccountOption = {
+  id: string;
+  name: string;
+  /** Cuenta principal a la que suma el saldo (ella misma si no es subcuenta). */
+  principalId: string;
+};
+
+/**
+ * Cuentas elegibles como origen/destino de un traspaso (principales +
+ * subcuentas + Caja fuerte) y el saldo de cada principal (para avisar si un
+ * traspaso dejaría el origen en negativo). Lo comparten "Mover entre cuentas"
+ * del header de Caja y el de la página de cada cuenta.
+ */
+export function buildTransferOptions(
+  accounts: { id: string; name: string; balance: CurrencyTotals; subaccounts: { id: string; name: string }[] }[],
+  safeBalance: CurrencyTotals,
+): { options: TransferAccountOption[]; balances: Record<string, CurrencyTotals> } {
+  const options: TransferAccountOption[] = accounts.flatMap((a) => [
+    { id: a.id, name: a.name, principalId: a.id },
+    ...a.subaccounts.map((s) => ({ id: s.id, name: `${a.name} · ${s.name}`, principalId: a.id })),
+  ]);
+  options.push({ id: SAFE_ACCOUNT_ID, name: SAFE_ACCOUNT_NAME, principalId: SAFE_ACCOUNT_ID });
+  return {
+    options,
+    balances: {
+      ...Object.fromEntries(accounts.map((a) => [a.id, a.balance])),
+      [SAFE_ACCOUNT_ID]: safeBalance,
+    },
+  };
+}

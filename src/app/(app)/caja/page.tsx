@@ -36,11 +36,11 @@ import { GuaranteesSection } from "@/components/cash/guarantees-section";
 import { InvoicingSection } from "@/components/cash/invoicing-section";
 import { CajaTabs } from "@/components/cash/caja-tabs";
 import { UsdRateBadge } from "@/components/cash/usd-rate-badge";
-import { TransferLauncher, type TransferAccountOption } from "@/components/cash/transfer-launcher";
+import { TransferLauncher } from "@/components/cash/transfer-launcher";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
-import { SAFE_ACCOUNT_ID, SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
-import { emptyCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
+import { buildTransferOptions } from "@/lib/account-transfers";
+import { emptyCurrencyTotals } from "@/lib/currency";
 import {
   parseBalanceHistoryPeriod,
   parseBalanceHistoryGranularity,
@@ -174,15 +174,7 @@ export default async function CajaPage({
   // (principales + subcuentas + Caja fuerte) y el saldo de cada principal
   // (para avisar si un traspaso dejaría el origen en negativo) se calculan
   // acá en vez de en `AccountsSection`.
-  const transferOptions: TransferAccountOption[] = accounts.flatMap((a) => [
-    { id: a.id, name: a.name, principalId: a.id },
-    ...a.subaccounts.map((s) => ({ id: s.id, name: `${a.name} · ${s.name}`, principalId: a.id })),
-  ]);
-  if (isAdmin) transferOptions.push({ id: SAFE_ACCOUNT_ID, name: SAFE_ACCOUNT_NAME, principalId: SAFE_ACCOUNT_ID });
-  const transferBalances: Record<string, CurrencyTotals> = {
-    ...Object.fromEntries(accounts.map((a) => [a.id, a.balance])),
-    [SAFE_ACCOUNT_ID]: safeBalance,
-  };
+  const { options: transferOptions, balances: transferBalances } = buildTransferOptions(accounts, safeBalance);
 
   const saldos = isAdmin ? (
     <AccountsSection

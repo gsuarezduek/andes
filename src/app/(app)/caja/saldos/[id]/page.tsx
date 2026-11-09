@@ -5,7 +5,17 @@ import { hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getOwnAccountBalances, getOwnAccountLedger, getOwnAccountBalanceHistory } from "@/lib/cash";
+import {
+  getOwnAccountBalances,
+  getOwnAccountLedger,
+  getOwnAccountBalanceHistory,
+  getRentalPickerOptions,
+  getRoomBookingPickerOptions,
+} from "@/lib/cash";
+import { getSafeBalance } from "@/lib/safe";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { buildTransferOptions } from "@/lib/account-transfers";
+import { AccountQuickActions } from "@/components/cash/account-quick-actions";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
@@ -55,7 +65,19 @@ export default async function AccountLedgerPage({
   const period = parseBalanceHistoryPeriod(rawPeriod);
   const granularity = resolveBalanceHistoryGranularity(period, parseBalanceHistoryGranularity(rawGranularity));
 
-  const [accounts, ledger, transfers, paymentMethods, expenseCategories, pm, balanceHistory] = await Promise.all([
+  const [
+    accounts,
+    ledger,
+    transfers,
+    paymentMethods,
+    expenseCategories,
+    pm,
+    balanceHistory,
+    rentalOptions,
+    roomBookingOptions,
+    safeBalance,
+    usdRate,
+  ] = await Promise.all([
     getOwnAccountBalances(canSeeFinanceOnly),
     getOwnAccountLedger(id),
     getAccountTransfers({ accountId: id, limit: 100 }),
@@ -71,6 +93,10 @@ export default async function AccountLedgerPage({
     }),
     prisma.paymentMethod.findUnique({ where: { id }, select: { hasInvestmentFunds: true } }),
     getOwnAccountBalanceHistory(id, period, granularity),
+    getRentalPickerOptions(),
+    getRoomBookingPickerOptions(),
+    getSafeBalance(),
+    getCurrentUsdRate(),
   ]);
 
   const account = accounts.find((a) => a.id === id);
@@ -86,6 +112,7 @@ export default async function AccountLedgerPage({
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
   const perspectiveAccountIds = [account.id, ...account.subaccounts.map((s) => s.id)];
   const groups = groupProviderLedgerByMonth(ledger, new Date());
+  const transferOptions = buildTransferOptions(accounts, safeBalance);
 
   return (
     <div className="flex flex-col gap-6">
@@ -121,6 +148,17 @@ export default async function AccountLedgerPage({
           )}
         </div>
       </div>
+
+      <AccountQuickActions
+        accountIds={perspectiveAccountIds}
+        paymentMethods={paymentMethods}
+        rentalOptions={rentalOptions}
+        roomBookingOptions={roomBookingOptions}
+        expenseCategories={expenseCategories}
+        transferAccounts={transferOptions.options}
+        transferBalances={transferOptions.balances}
+        usdRate={usdRate?.rate ?? null}
+      />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

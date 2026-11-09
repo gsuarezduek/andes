@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { TextField, TextareaField, SelectField } from "@/components/ui/fields";
 import { RentalPicker } from "@/components/cash/rental-picker";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
+import { FixedAccountField } from "@/components/cash/fixed-account-field";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { MovementDetailModal } from "@/components/cash/movement-row";
 import { createCashMovement } from "@/app/(app)/caja/actions";
@@ -32,6 +33,7 @@ export function CashMovementForm({
   rentalOptions,
   roomBookingOptions,
   expenseCategories,
+  accountIds,
 }: {
   mode: "income" | "expense";
   onCancel: () => void;
@@ -39,8 +41,17 @@ export function CashMovementForm({
   rentalOptions: RentalPickerOption[];
   roomBookingOptions: RoomBookingPickerOption[];
   expenseCategories: ExpenseCategoryOption[];
+  /**
+   * Cuenta fija (página de una cuenta, `/caja/saldos/[id]`): la principal
+   * primero y después sus subcuentas. Sin esto, se elige entre todas.
+   */
+  accountIds?: string[];
 }) {
-  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const fixedAccounts = accountIds
+    ? accountIds.flatMap((id) => paymentMethods.filter((m) => m.id === id))
+    : null;
+  const defaultPaymentMethodId = fixedAccounts?.[0]?.id ?? "";
+  const [paymentMethodId, setPaymentMethodId] = useState(defaultPaymentMethodId);
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState("");
   const [currency, setCurrency] = useState<Currency>("ars");
   const [needsInvoice, setNeedsInvoice] = useState(false);
@@ -68,7 +79,7 @@ export function CashMovementForm({
   function addAnother() {
     setCreated(null);
     setDetailOpen(false);
-    setPaymentMethodId("");
+    setPaymentMethodId(defaultPaymentMethodId);
     setRecipientPaymentMethodId("");
     setCurrency("ars");
     setNeedsInvoice(false);
@@ -123,14 +134,24 @@ export function CashMovementForm({
         <TextField id="amount" label="Monto" type="number" step="0.01" min="0" prefix="$" required />
         <CurrencyToggle value={currency} onChange={setCurrency} />
       </div>
-      <PaymentMethodPicker
-        id="paymentMethodId"
-        label={mode === "expense" ? "Origen" : "Medio de pago"}
-        options={paymentMethods}
-        value={paymentMethodId}
-        onChange={setPaymentMethodId}
-        placeholder={mode === "expense" ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
-      />
+      {fixedAccounts ? (
+        <FixedAccountField
+          id="paymentMethodId"
+          label={mode === "expense" ? "Origen" : "Cuenta"}
+          options={fixedAccounts}
+          value={paymentMethodId}
+          onChange={setPaymentMethodId}
+        />
+      ) : (
+        <PaymentMethodPicker
+          id="paymentMethodId"
+          label={mode === "expense" ? "Origen" : "Medio de pago"}
+          options={paymentMethods}
+          value={paymentMethodId}
+          onChange={setPaymentMethodId}
+          placeholder={mode === "expense" ? "Elegí de dónde sale la plata" : "Buscar medio de pago…"}
+        />
+      )}
       {selectedMethod?.requiresNote && (
         <TextField
           id="paymentMethodNote"

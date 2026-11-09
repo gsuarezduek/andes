@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { ButtonLink } from "@/components/ui/button";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
 import { SafeSection } from "@/components/cash/safe-section";
 import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
-import { getWalletBalance } from "@/lib/cash";
+import { getOwnAccountBalances, getWalletBalance } from "@/lib/cash";
+import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { buildTransferOptions, SAFE_ACCOUNT_ID } from "@/lib/account-transfers";
+import { TransferLauncher } from "@/components/cash/transfer-launcher";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 
 export const metadata: Metadata = { title: "Caja fuerte — Caja — Andes" };
@@ -19,15 +23,20 @@ export const metadata: Metadata = { title: "Caja fuerte — Caja — Andes" };
  * mismo criterio que el resto de Saldos.
  */
 export default async function SafeAccountPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
 
-  const [balance, walletBalance, movements, edits, transfers] = await Promise.all([
+  const [balance, walletBalance, movements, edits, transfers, accounts, usdRate] = await Promise.all([
     getSafeBalance(),
     getWalletBalance(),
     getAllSafeMovements(),
     getSafeMovementEdits(),
     getAccountTransfers({ safe: true, limit: 50 }),
+    getOwnAccountBalances(hasFinanceAccess(user.role, user.owner)),
+    getCurrentUsdRate(),
   ]);
+  // La Caja fuerte solo se mueve con traspasos (no tiene ingresos/egresos propios).
+  const transferOptions = buildTransferOptions(accounts, balance);
+  const fixedSafe = transferOptions.options.filter((a) => a.id === SAFE_ACCOUNT_ID);
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,6 +48,14 @@ export default async function SafeAccountPage() {
           <CurrencyTotalsDisplay totals={balance} size="text-xl" />
         </div>
       </div>
+
+      <TransferLauncher
+        accounts={transferOptions.options}
+        balances={transferOptions.balances}
+        usdRate={usdRate?.rate ?? null}
+        fixedAccounts={fixedSafe}
+        buttonClassName="w-full"
+      />
 
       <SafeSection movements={movements} transfers={transfers} walletBalance={walletBalance} edits={edits} />
 

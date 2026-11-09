@@ -1231,6 +1231,16 @@ En Caja → Facturación, arriba, **Total** (todo el historial, como antes) o **
 
 Pedido del dueño: la próxima ocurrencia de una tarea recurrente (v60) quedaba visible siempre como pendiente. Ahora se oculta de **Pendientes de /tasks, el bloque Tareas del Home y el contador del nav** (también "Mis tareas"/"Todas") hasta el día anterior a su fecha (`recurringVisibilityCutoff`/`isRecurringTaskScheduled` en `src/lib/task-recurrence.ts`, testeadas; `RECURRING_VISIBLE_DAYS_BEFORE = 1`; `visibleWhere` en `src/lib/tasks.ts`). Mientras tanto queda en una sección plegada **"Recurrentes programadas (N)"** en /tasks, con los mismos filtros, para poder editarla o borrarla antes. Las tareas no recurrentes con fecha futura no cambian (siguen visibles). La Agenda del Home no se tocó: muestra cada día lo de ese día. Sin migración. tsc/lint/tests en verde; verificado con Playwright a 375px con dos tareas sembradas (mañana → visible; en 5 días → solo en "Programadas"; después borradas). **Sin desplegar todavía.**
 
+## v104 — Cargar movimientos desde la página de una cuenta (Saldos)
+
+En `/caja/saldos/[id]`, debajo del encabezado: **+ Ingreso**, **+ Egreso** y **Mover entre cuentas**, con la cuenta **fija** (decisión del dueño). Son los mismos formularios de Movimientos y del header de Caja (`AccountQuickActions`, `src/components/cash/account-quick-actions.tsx`). tsc/lint/975 tests en verde; verificado con Playwright a 375px contra la base local (ingreso, egreso desde una subcuenta, traspaso entrante, cuenta sin subcuentas y Caja fuerte; saldo 1.000 − 300 + 200 = 900 correcto; datos de prueba borrados). Sin migración. **Sin desplegar todavía.**
+
+- **Cuenta fija** (`FixedAccountField`): sin subcuentas se muestra sin poder cambiarla; con subcuentas se elige solo entre la principal y las suyas (la principal preseleccionada). `CashMovementForm` recibe `accountIds`; `TransferLauncher` recibe `fixedAccounts` y suma el selector "Sale de esta cuenta / Entra a esta cuenta" (intercambia origen y destino).
+- **Caja fuerte** (`/caja/saldos/caja-fuerte`): solo "Mover entre cuentas", con la caja fuerte fija (no tiene ingresos/egresos propios).
+- `buildTransferOptions` (`src/lib/account-transfers.ts`) arma las cuentas del traspaso; lo comparten el header de Caja, la página de la cuenta y la Caja fuerte. `TransferAccountOption` se movió ahí.
+- `createCashMovement` también revalida `/caja/saldos/[id]`. El bloque de fondos de inversión aclara que no cambia el saldo, para no confundirlo con "+ Egreso".
+- **Fecha**: sigue siendo la de carga (no se puede cargar con fecha pasada; decisión del dueño, por ahora).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

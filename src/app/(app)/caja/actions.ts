@@ -158,6 +158,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
   });
 
   revalidatePath("/caja");
+  revalidatePath("/caja/saldos/[id]", "page");
   if (roomBooking) {
     revalidatePath(`/rooms/${roomBooking.roomId}/bookings/${roomBooking.id}`);
     revalidatePath("/calendar");

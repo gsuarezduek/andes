@@ -29,6 +29,10 @@ export function FundsSection({
           <div className="mt-1">
             <CurrencyTotalsDisplay totals={balance} size="text-xl" />
           </div>
+          <p className="mt-1 text-xs text-foreground/50">
+            Solo anota cuánto está invertido: no cambia el saldo de la cuenta. Para plata que entra o sale, usá
+            + Ingreso / + Egreso.
+          </p>
         </div>
         <FundMovementLauncher paymentMethodId={paymentMethodId} />
       </div>
