@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
+import { FinanceOnlyBadge } from "./finance-only-badge";
 import { formatMoney } from "@/lib/contract";
 import { CURRENCIES, subtractCurrencyTotals, type CurrencyTotals } from "@/lib/currency";
 
@@ -44,7 +45,8 @@ function GuaranteeLine({ totals }: { totals: CurrencyTotals }) {
  * depende de `OwnAccountBalance`/`PaymentMethod`) para que la Caja fuerte
  * pueda usarla igual que el resto (ver `AccountsSection`, v44). Si la cuenta
  * es `financeOnly` (ver `PaymentMethod.financeOnly`), se destaca con un
- * borde naranja + etiqueta "Solo Finanzas" — quien la ve ya tiene acceso
+ * borde negro grueso, fondo apenas gris y la etiqueta negra con candado
+ * "Solo Finanzas" (`FinanceOnlyBadge`) — quien la ve ya tiene acceso
  * (la lista llega filtrada desde antes), esto es solo para no confundirla
  * con una cuenta sin restricción.
  */
@@ -77,7 +79,7 @@ export function AccountCard({
     <Link
       href={href}
       className={`flex h-full flex-col gap-2 rounded-xl border p-3.5 transition-colors hover:bg-foreground/5 ${
-        financeOnly ? "border-2 border-orange-500/60" : "border-foreground/10"
+        financeOnly ? "border-2 border-foreground bg-foreground/[0.04]" : "border-foreground/10"
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -85,9 +87,9 @@ export function AccountCard({
           <h3 className="truncate text-sm font-semibold">{name}</h3>
           {caption && <p className="truncate text-xs text-foreground/50">{caption}</p>}
           {financeOnly && (
-            <p className="mt-0.5 truncate text-xs font-medium text-orange-600 dark:text-orange-400">
-              Solo Finanzas
-            </p>
+            <div className="mt-1">
+              <FinanceOnlyBadge />
+            </div>
           )}
         </div>
         <ChevronRightIcon className="size-4 shrink-0 text-foreground/30" />

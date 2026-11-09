@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import {
   getReports,
   sortVehicleReports,
@@ -41,7 +42,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ period?: string; sort?: string; dir?: string }>;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const { period: rawPeriod, sort: rawSort, dir: rawDir } = await searchParams;
 
   const period = parseReportPeriod(rawPeriod);
@@ -52,7 +53,7 @@ export default async function ReportsPage({
   const dir = rawDir === "asc" ? "asc" : "desc";
 
   const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, revenue, extras, bookings } =
-    await getReports(period);
+    await getReports(period, hasFinanceAccess(user.role, user.owner));
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
   // "Mes ya cerrado": el único caso de ReportPeriod que es un mes puntual que

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth-helpers";
-import { hasAdminAccess } from "@/lib/user-permissions";
+import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import {
   getReports,
   sortVehicleReports,
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     : DEFAULT_VEHICLE_SORT;
   const dir = req.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
 
-  const reports = await getReports(period);
+  const reports = await getReports(period, hasFinanceAccess(user.role, user.owner));
 
   let rows: (string | number)[][];
   let name: string;

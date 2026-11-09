@@ -20,6 +20,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import type { ContractPricing } from "@/lib/contract";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
@@ -426,8 +427,13 @@ export function sortVehicleReports(
  * en una pantalla de admin que no se mira en tiempo real.
  */
 export const getReports = unstable_cache(
-  async (period: ReportPeriod = DEFAULT_REPORT_PERIOD): Promise<Reports> => {
+  async (period: ReportPeriod = DEFAULT_REPORT_PERIOD, canSeeFinanceOnly = true): Promise<Reports> => {
     const now = new Date();
+    // Cuentas de Finanzas que quien mira no puede ver: su plata no entra en
+    // los totales de Caja del reporte (ver `PaymentMethod.financeOnly`). El
+    // argumento forma parte de la clave del caché, así que cada nivel de
+    // acceso tiene el suyo.
+    const hiddenAccountIds = await financeOnlyAccountIds(canSeeFinanceOnly);
     const currentYm = monthOf(now);
     const periodRange = resolveReportPeriod(period, now);
 
@@ -482,6 +488,10 @@ export const getReports = unstable_cache(
             type: { in: ["income", "expense"] },
             createdAt: { gte: periodRange.start, lt: periodRange.end },
             deletedAt: null,
+            // `OR null`: un `notIn` solo descartaría también los importados sin medio de pago.
+            ...(hiddenAccountIds.length
+              ? { OR: [{ paymentMethodId: null }, { paymentMethodId: { notIn: hiddenAccountIds } }] }
+              : {}),
           },
           select: {
             type: true,

@@ -4,7 +4,6 @@ import { requireAdmin, getSessionUser } from "@/lib/auth-helpers";
 import { hasFinanceAccess } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   getOwnAccountBalances,
   getOwnAccountLedger,
@@ -15,7 +14,9 @@ import {
 import { getSafeBalance } from "@/lib/safe";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { buildTransferOptions } from "@/lib/account-transfers";
+import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { AccountQuickActions } from "@/components/cash/account-quick-actions";
+import { FinanceOnlyBadge } from "@/components/cash/finance-only-badge";
 import { formatDateInput } from "@/lib/datetime";
 import { groupProviderLedgerByMonth } from "@/lib/provider-ledger-grouping";
 import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display";
@@ -80,7 +81,9 @@ export default async function AccountLedgerPage({
   ] = await Promise.all([
     getOwnAccountBalances(canSeeFinanceOnly),
     getOwnAccountLedger(id),
-    getAccountTransfers({ accountId: id, limit: 100 }),
+    financeOnlyAccountIds(canSeeFinanceOnly).then((ids) =>
+      getAccountTransfers({ accountId: id, limit: 100, maskAccountIds: ids }),
+    ),
     prisma.paymentMethod.findMany({
       where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
@@ -122,8 +125,11 @@ export default async function AccountLedgerPage({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">{account.name}</h1>
-            {account.financeOnly && <Badge tone="orange">Solo Finanzas</Badge>}
+            {account.financeOnly && <FinanceOnlyBadge />}
           </div>
+          {account.financeOnly && (
+            <p className="text-sm text-foreground/60">Solo la ven Finanzas, Observador y el propietario.</p>
+          )}
           {account.subaccounts.length > 0 && (
             <p className="text-sm text-foreground/60">Incluye {account.subaccounts.map((s) => s.name).join(", ")}</p>
           )}

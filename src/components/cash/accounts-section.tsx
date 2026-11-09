@@ -1,4 +1,5 @@
 import { AccountCard } from "./account-card";
+import { FinanceOnlyBadge } from "./finance-only-badge";
 import { TransferList } from "./transfer-list";
 import { BalanceHistoryChart } from "./balance-history-chart";
 import { SectionTitle } from "@/components/ui/section-title";
@@ -54,6 +55,10 @@ export function AccountsSection({
   const total = emptyCurrencyTotals();
   const totalInvested = emptyCurrencyTotals();
   const totalGuarantee = emptyCurrencyTotals();
+  // Solo llegan cuentas de Finanzas si quien mira tiene acceso: el resto ve
+  // un total sin ellas, por eso se aclara cuánto aportan.
+  const totalFinanceOnly = emptyCurrencyTotals();
+  let anyFinanceOnly = false;
   let anyInvested = false;
   for (const a of accounts) {
     total.ars += a.balance.ars;
@@ -65,6 +70,11 @@ export function AccountsSection({
     }
     totalGuarantee.ars += a.guaranteeBalance.ars;
     totalGuarantee.usd += a.guaranteeBalance.usd;
+    if (a.financeOnly) {
+      anyFinanceOnly = true;
+      totalFinanceOnly.ars += a.balance.ars;
+      totalFinanceOnly.usd += a.balance.usd;
+    }
   }
   total.ars += safeBalance.ars;
   total.usd += safeBalance.usd;
@@ -90,6 +100,18 @@ export function AccountsSection({
             {CURRENCIES.filter((c) => c === "ars" || totalInvested[c] !== 0)
               .map((c) => formatMoney(totalInvested[c], c))
               .join(" · ")}
+          </p>
+        )}
+        {anyFinanceOnly && (
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-foreground/60">
+            <FinanceOnlyBadge />
+            <span>
+              Incluye{" "}
+              {CURRENCIES.filter((c) => c === "ars" || totalFinanceOnly[c] !== 0)
+                .map((c) => formatMoney(totalFinanceOnly[c], c))
+                .join(" · ")}{" "}
+              en cuentas de Finanzas — quien no tiene ese acceso ve el total sin ellas.
+            </span>
           </p>
         )}
         {anyGuarantee && (

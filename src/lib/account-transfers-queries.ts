@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Currency } from "@/lib/currency";
+import { RESTRICTED_ACCOUNT_NAME } from "@/lib/finance-only";
 
 export type AccountTransferRow = {
   id: string;
@@ -17,6 +18,8 @@ export type AccountTransferRow = {
   description: string;
   createdByName: string;
   createdAt: Date;
+  /** Uno de los lados es una cuenta de Finanzas que quien mira no puede ver: se muestra como "Cuenta reservada" y no se puede eliminar. */
+  masked: boolean;
 };
 
 /**
@@ -30,8 +33,13 @@ export async function getAccountTransfers(
     /** Solo los que tocan la Caja fuerte. */
     safe?: boolean;
     limit?: number;
-    /** Oculta traspasos donde participe alguna de estas cuentas (ver `PaymentMethod.financeOnly`). */
-    excludeAccountIds?: string[];
+    /**
+     * Cuentas de Finanzas que quien mira no puede ver (ver
+     * `PaymentMethod.financeOnly`): un traspaso entre dos de ellas no se
+     * muestra; uno con un solo lado restringido sí (la plata movida cuenta
+     * en la cuenta visible), con ese lado como "Cuenta reservada".
+     */
+    maskAccountIds?: string[];
   } = {},
 ): Promise<AccountTransferRow[]> {
   let accountIds: string[] | null = null;
@@ -48,25 +56,31 @@ export async function getAccountTransfers(
       deletedAt: null,
       ...(accountIds ? { OR: [{ fromAccountId: { in: accountIds } }, { toAccountId: { in: accountIds } }] } : {}),
       ...(options.safe ? { OR: [{ fromAccountId: null }, { toAccountId: null }] } : {}),
-      ...(options.excludeAccountIds?.length
-        ? { fromAccountId: { notIn: options.excludeAccountIds }, toAccountId: { notIn: options.excludeAccountIds } }
+      ...(options.maskAccountIds?.length
+        ? { NOT: { fromAccountId: { in: options.maskAccountIds }, toAccountId: { in: options.maskAccountIds } } }
         : {}),
     },
     orderBy: { createdAt: "desc" },
     take: options.limit ?? 50,
   });
-  return rows.map((r) => ({
-    id: r.id,
-    fromAccountId: r.fromAccountId,
-    fromAccountName: r.fromAccountName,
-    fromAmount: Number(r.fromAmount),
-    fromCurrency: r.fromCurrency,
-    toAccountId: r.toAccountId,
-    toAccountName: r.toAccountName,
-    toAmount: Number(r.toAmount),
-    toCurrency: r.toCurrency,
-    description: r.description,
-    createdByName: r.createdByName,
-    createdAt: r.createdAt,
-  }));
+  const masked = new Set(options.maskAccountIds ?? []);
+  return rows.map((r) => {
+    const fromMasked = r.fromAccountId !== null && masked.has(r.fromAccountId);
+    const toMasked = r.toAccountId !== null && masked.has(r.toAccountId);
+    return {
+      id: r.id,
+      fromAccountId: r.fromAccountId,
+      fromAccountName: fromMasked ? RESTRICTED_ACCOUNT_NAME : r.fromAccountName,
+      fromAmount: Number(r.fromAmount),
+      fromCurrency: r.fromCurrency,
+      toAccountId: r.toAccountId,
+      toAccountName: toMasked ? RESTRICTED_ACCOUNT_NAME : r.toAccountName,
+      toAmount: Number(r.toAmount),
+      toCurrency: r.toCurrency,
+      description: r.description,
+      createdByName: r.createdByName,
+      createdAt: r.createdAt,
+      masked: fromMasked || toMasked,
+    };
+  });
 }

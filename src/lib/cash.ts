@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { paymentAdjustedAmount, type RentalPayment } from "@/lib/contract";
 import type { FieldChange } from "@/lib/movement-audit";
@@ -214,11 +215,22 @@ async function findMovements(
       ...where,
       deletedAt: null,
       // Una cuenta `PaymentMethod.financeOnly` no debe asomar ni como medio
-      // ni como destino para quien no tenga acceso de Finanzas.
+      // ni como destino para quien no tenga acceso de Finanzas. Ojo: un
+      // `notIn` solo en Prisma descarta también las filas con el campo en
+      // null (NOT IN de SQL) — sin el `OR null`, se perdían todos los
+      // movimientos sin destino (todos los ingresos) y los importados sin
+      // medio de pago.
       ...(opts?.excludeAccountIds?.length
         ? {
-            paymentMethodId: { notIn: opts.excludeAccountIds },
-            recipientPaymentMethodId: { notIn: opts.excludeAccountIds },
+            AND: [
+              { OR: [{ paymentMethodId: null }, { paymentMethodId: { notIn: opts.excludeAccountIds } }] },
+              {
+                OR: [
+                  { recipientPaymentMethodId: null },
+                  { recipientPaymentMethodId: { notIn: opts.excludeAccountIds } },
+                ],
+              },
+            ],
           }
         : {}),
     },
@@ -239,19 +251,6 @@ export async function getCashMovementRow(id: string): Promise<CashMovementRow | 
   return row ? toCashMovementRow(row) : null;
 }
 
-/**
- * Ids de las cuentas propias `financeOnly` — para excluirlas de cualquier
- * listado de Movimientos cuando quien mira no tiene acceso de Finanzas (ver
- * `hasFinanceAccess`). `canSeeFinanceOnly=true` (default): sin exclusión.
- */
-async function financeOnlyAccountIds(canSeeFinanceOnly: boolean): Promise<string[]> {
-  if (canSeeFinanceOnly) return [];
-  const rows = await prisma.paymentMethod.findMany({
-    where: { ownership: "own", financeOnly: true },
-    select: { id: true },
-  });
-  return rows.map((r) => r.id);
-}
 
 /**
  * Ingresos importados automáticamente desde VikRentCar cuyo medio de pago no
@@ -656,22 +655,28 @@ export async function getDeletedCashMovements(period: CashPeriod): Promise<Delet
  * nuevo acá (sería contarlos dos veces) — ver `getLegacySafeBalance`.
  * Info sensible — solo para admin (mismo criterio que la Caja fuerte).
  */
-export async function getWalletBalance(): Promise<CurrencyTotals> {
+export async function getWalletBalance(canSeeFinanceOnly = true): Promise<CurrencyTotals> {
+  // Para quien no tiene acceso de Finanzas, una cuenta de efectivo reservada
+  // a Finanzas cuenta como si no fuera efectivo: no entra en la Billetera.
+  const hidden = await financeOnlyAccountIds(canSeeFinanceOnly);
+  const isWalletCash = (account: { id: string; isCash: boolean } | null) =>
+    !!account?.isCash && !hidden.includes(account.id);
+  const cashMethod = { isCash: true, ...(hidden.length ? { id: { notIn: hidden } } : {}) };
   const [income, expense, legacySafeBalance, transfers] = await Promise.all([
     prisma.cashMovement.groupBy({
       by: ["currency"],
-      where: { type: "income", deletedAt: null, paymentMethod: { isCash: true } },
+      where: { type: "income", deletedAt: null, paymentMethod: cashMethod },
       _sum: { amount: true },
     }),
     prisma.cashMovement.groupBy({
       by: ["currency"],
-      where: { type: "expense", deletedAt: null, paymentMethod: { isCash: true } },
+      where: { type: "expense", deletedAt: null, paymentMethod: cashMethod },
       _sum: { amount: true },
     }),
     getLegacySafeBalance(),
     prisma.accountTransfer.findMany({
       where: { deletedAt: null },
-      include: { fromAccount: { select: { isCash: true } }, toAccount: { select: { isCash: true } } },
+      include: { fromAccount: { select: { id: true, isCash: true } }, toAccount: { select: { id: true, isCash: true } } },
     }),
   ]);
   const totals = emptyCurrencyTotals();
@@ -687,8 +692,8 @@ export async function getWalletBalance(): Promise<CurrencyTotals> {
       toAccountId: t.toAccountId,
       toAmount: Number(t.toAmount),
       toCurrency: t.toCurrency,
-      fromIsCash: t.fromAccount?.isCash ?? false,
-      toIsCash: t.toAccount?.isCash ?? false,
+      fromIsCash: isWalletCash(t.fromAccount),
+      toIsCash: isWalletCash(t.toAccount),
     })),
   );
   return {

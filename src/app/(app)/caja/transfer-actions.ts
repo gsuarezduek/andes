@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { hasFinanceAccess } from "@/lib/user-permissions";
 import { displayName } from "@/lib/user-display";
 import { SAFE_ACCOUNT_ID, SAFE_ACCOUNT_NAME } from "@/lib/account-transfers";
 
@@ -93,8 +94,16 @@ export async function deleteAccountTransfer(id: string, formData: FormData) {
   const user = await requireAdmin();
   const note = z.string().trim().min(1).max(300).parse(formData.get("note"));
 
-  const existing = await prisma.accountTransfer.findUnique({ where: { id } });
+  const existing = await prisma.accountTransfer.findUnique({
+    where: { id },
+    include: { fromAccount: { select: { financeOnly: true } }, toAccount: { select: { financeOnly: true } } },
+  });
   if (!existing || existing.deletedAt) throw new Error("Traspaso no encontrado");
+  // Un traspaso que toca una cuenta de Finanzas cambia su saldo: solo lo
+  // elimina quien puede verla (en la lista ni aparece el botón).
+  if ((existing.fromAccount?.financeOnly || existing.toAccount?.financeOnly) && !hasFinanceAccess(user.role, user.owner)) {
+    throw new Error("Este traspaso involucra una cuenta reservada a Finanzas.");
+  }
 
   await prisma.accountTransfer.update({
     where: { id },

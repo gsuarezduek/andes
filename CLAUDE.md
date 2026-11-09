@@ -1249,6 +1249,18 @@ Al renombrar un método de pago en VikRentCar, Configuración → Medios de pago
 - **`WpPaymentMethod.active`** (null = sin dato, plugin viejo) y **`wpGatewayId`**. `syncWpPaymentGateways` (`src/lib/sync/payment-gateways-sync.ts`, al final de cada `runBookingSync`, best-effort) aplica el plan puro `planGatewaySync` (`payment-gateways.ts`, testeado): marca activo/inactivo cada nombre, crea los métodos activos que todavía no aparecieron en ninguna reserva, y **si un método se renombró (mismo id, otro nombre) le copia al nombre nuevo las asociaciones del viejo**, solo si el nuevo no tiene ninguna. Las filas inactivas no se borran: las órdenes viejas todavía traen ese nombre y `resolveWpPaymentMethod` las sigue resolviendo.
 - **UI**: la lista muestra los activos (y los sin dato); los inactivos quedan en un `<details>` "Ya no activos en VikRentCar (N)", editables.
 
+## v105 — Cuentas de Finanzas: sin filtraciones + destacadas en Saldos
+
+Cierre de huecos de v85 (cuentas `financeOnly`) y diseño propio en Saldos. tsc/lint/982 tests en verde; verificado con Playwright contra la base local con un admin común y un usuario Finanzas (cuenta reservada de efectivo con $5.000, cuenta visible con $1.000/−$200 y un traspaso de $300 entre ellas; datos borrados): Saldos $1.100 vs $5.800, Reportes $1.000 vs $6.000 de ingresos, Billetera $0 vs $4.700. Sin migración.
+
+- **Bug real corregido (Movimientos):** el filtro de cuentas de Finanzas usaba `notIn` sobre `paymentMethodId`/`recipientPaymentMethodId`, y en Prisma un `notIn` descarta también las filas con el campo en null (NOT IN de SQL). Apenas existiera una cuenta de Finanzas, un admin sin ese acceso dejaba de ver todos los ingresos (no tienen destino) y casi todos los egresos. Ahora `OR: [{campo: null}, {campo: {notIn}}]`. **Regla para el futuro: nunca `notIn` solo sobre un campo nullable.**
+- `src/lib/finance-only.ts` (nuevo): `financeOnlyAccountIds` (movido de `cash.ts`; ahora incluye las subcuentas de una cuenta de Finanzas aunque no tengan el tilde) y `RESTRICTED_ACCOUNT_NAME`.
+- **Reportes** (`getReports(period, canSeeFinanceOnly)`, página y CSV): excluye los movimientos de cuentas de Finanzas para quien no tiene acceso. El argumento entra en la clave de `unstable_cache`. El informe mensual por email (va a `ADMIN_EMAIL`) sigue completo.
+- **Traspasos** (`getAccountTransfers({ maskAccountIds })`, reemplaza `excludeAccountIds`): uno entre una cuenta de Finanzas y una visible ya no se oculta (la plata sí cuenta en la visible); el lado reservado se muestra como "Cuenta reservada" y sin "Eliminar" (`deleteAccountTransfer` también lo rechaza server-side). Uno entre dos cuentas de Finanzas no se muestra. Aplica a Saldos, la página de cada cuenta y la Caja fuerte.
+- **Billetera** (`getWalletBalance(canSeeFinanceOnly)`): una cuenta de efectivo de Finanzas no entra para quien no tiene acceso.
+- **Diseño:** la tarjeta de una cuenta de Finanzas tiene borde negro grueso (blanco en modo oscuro), fondo apenas gris y etiqueta negra con candado "Solo Finanzas" (`FinanceOnlyBadge`, `LockIcon`); reemplaza el borde naranja de v85. Misma etiqueta en el encabezado de la cuenta, con "Solo la ven Finanzas, Observador y el propietario". El banner "Saldo total (hoy)" aclara cuánto incluye en cuentas de Finanzas (quien no tiene acceso ve el total sin ellas).
+- Sigue fuera de alcance (v85): validar server-side cada acción de Caja contra un `paymentMethodId` restringido tipeado a mano, y los nombres ya escritos en auditorías viejas.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

@@ -93,9 +93,11 @@ function TransferItem({
       </div>
       <div className="shrink-0 text-right">
         <p className="font-semibold">{amountText}</p>
-        <button type="button" onClick={() => setConfirming(true)} className="text-xs text-foreground/40 hover:text-red-600">
-          Eliminar
-        </button>
+        {!t.masked && (
+          <button type="button" onClick={() => setConfirming(true)} className="text-xs text-foreground/40 hover:text-red-600">
+            Eliminar
+          </button>
+        )}
       </div>
     </li>
   );

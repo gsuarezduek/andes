@@ -9,6 +9,7 @@ import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib
 import { getOwnAccountBalances, getWalletBalance } from "@/lib/cash";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { buildTransferOptions, SAFE_ACCOUNT_ID } from "@/lib/account-transfers";
+import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { TransferLauncher } from "@/components/cash/transfer-launcher";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 
@@ -24,14 +25,16 @@ export const metadata: Metadata = { title: "Caja fuerte — Caja — Andes" };
  */
 export default async function SafeAccountPage() {
   const user = await requireAdmin();
+  const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
+  const financeOnlyIds = await financeOnlyAccountIds(canSeeFinanceOnly);
 
   const [balance, walletBalance, movements, edits, transfers, accounts, usdRate] = await Promise.all([
     getSafeBalance(),
-    getWalletBalance(),
+    getWalletBalance(canSeeFinanceOnly),
     getAllSafeMovements(),
     getSafeMovementEdits(),
-    getAccountTransfers({ safe: true, limit: 50 }),
-    getOwnAccountBalances(hasFinanceAccess(user.role, user.owner)),
+    getAccountTransfers({ safe: true, limit: 50, maskAccountIds: financeOnlyIds }),
+    getOwnAccountBalances(canSeeFinanceOnly),
     getCurrentUsdRate(),
   ]);
   // La Caja fuerte solo se mueve con traspasos (no tiene ingresos/egresos propios).

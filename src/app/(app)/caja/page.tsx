@@ -40,6 +40,7 @@ import { TransferLauncher } from "@/components/cash/transfer-launcher";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { buildTransferOptions } from "@/lib/account-transfers";
+import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { emptyCurrencyTotals } from "@/lib/currency";
 import {
   parseBalanceHistoryPeriod,
@@ -162,12 +163,9 @@ export default async function CajaPage({
   const totalBalanceHistory = isAdmin
     ? await getTotalOwnBalanceHistory(balPeriod, balGranularity, new Date(), canSeeFinanceOnly)
     : [];
-  // Para que el traspaso ni se filtre por nombre en "Últimos traspasos".
-  const financeOnlyAccountIds = canSeeFinanceOnly
-    ? []
-    : (await prisma.paymentMethod.findMany({ where: { ownership: "own", financeOnly: true }, select: { id: true } })).map(
-        (a) => a.id,
-      );
+  // Cuentas de Finanzas que quien mira no ve: sus traspasos con cuentas
+  // visibles aparecen como "Cuenta reservada" (ver `getAccountTransfers`).
+  const financeOnlyIds = await financeOnlyAccountIds(canSeeFinanceOnly);
 
   // "Mover entre cuentas" vive en el header (al lado del valor del USD), no
   // dentro de la pestaña Saldos — las cuentas elegibles como origen/destino
@@ -182,7 +180,7 @@ export default async function CajaPage({
       safeMonthIncome={safeMonthActivity!.income}
       safeMonthExpense={safeMonthActivity!.expense}
       accounts={accounts}
-      transfers={await getAccountTransfers({ limit: 10, excludeAccountIds: financeOnlyAccountIds })}
+      transfers={await getAccountTransfers({ limit: 10, maskAccountIds: financeOnlyIds })}
       totalBalanceHistory={totalBalanceHistory}
       balPeriod={balPeriod}
       balGranularity={balGranularity}
