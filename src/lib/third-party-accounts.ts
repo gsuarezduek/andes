@@ -87,6 +87,12 @@ export async function resolveToPrincipal(
     // Visible solo para Finanzas/Socio/propietario (solo tiene sentido
     // en `own`, ver comentario en el schema) — false en cualquier otra cuenta.
     financeOnly: boolean;
+    // Cuenta en bitcoins (solo tiene sentido en `own`, ver comentario en el
+    // schema) — false en cualquier otra cuenta.
+    isBitcoin: boolean;
+    // BTC iniciales de una cuenta Bitcoin (ver `balanceAdjustmentBtc` en el
+    // schema) — 0 en cualquier otra.
+    balanceAdjustmentBtc: number;
   }[];
   resolve: Map<string, string>;
   memberIds: string[];
@@ -105,6 +111,8 @@ export async function resolveToPrincipal(
       balanceAdjustmentUsd: true,
       hasInvestmentFunds: true,
       financeOnly: true,
+      isBitcoin: true,
+      balanceAdjustmentBtc: true,
     },
   });
   const resolve = new Map<string, string>();
@@ -122,6 +130,8 @@ export async function resolveToPrincipal(
       balanceAdjustment: { ars: Number(p.balanceAdjustmentArs), usd: Number(p.balanceAdjustmentUsd) },
       hasInvestmentFunds: p.hasInvestmentFunds,
       financeOnly: p.financeOnly,
+      isBitcoin: p.isBitcoin,
+      balanceAdjustmentBtc: Number(p.balanceAdjustmentBtc),
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
 }

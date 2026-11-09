@@ -51,7 +51,8 @@ export default async function ReturnPage({
       select: { posX: true, posY: true, description: true },
     }),
     prisma.paymentMethod.findMany({
-      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
+      // Una cuenta Bitcoin no recibe ingresos ni egresos (solo traspasos en BTC).
+      where: { active: true, isBitcoin: false, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, adjustmentPercent: true, reference: true, requiresNote: true, parentId: true },
     }),

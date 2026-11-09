@@ -9,7 +9,7 @@ import type { FieldChange } from "@/lib/movement-audit";
 import { monthRangeUtc, resolveCashPeriod, type CashPeriod } from "@/lib/cash-period";
 import { getLegacySafeBalance } from "@/lib/safe";
 import { resolveToPrincipal } from "@/lib/third-party-accounts";
-import { applyTransfersToBalances, walletDeltaFromTransfers } from "@/lib/account-transfers";
+import { applyTransfersToBalances, bitcoinBalances, walletDeltaFromTransfers, type BitcoinBalance } from "@/lib/account-transfers";
 import { emptyCurrencyTotals, sumByCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { vehicleDisplayName } from "@/lib/vehicle-ui";
 import { computeRentalPayments } from "@/lib/rental-payments";
@@ -748,7 +748,11 @@ export type OwnAccountBalance = {
  * que la Caja fuerte y la Billetera.
  */
 export async function getOwnAccountBalances(canSeeFinanceOnly = true): Promise<OwnAccountBalance[]> {
-  const { principals, resolve, memberIds } = await resolveToPrincipal("own", canSeeFinanceOnly);
+  const resolved = await resolveToPrincipal("own", canSeeFinanceOnly);
+  const { resolve, memberIds } = resolved;
+  // Las cuentas Bitcoin van aparte (`getBitcoinAccountBalances`): su saldo es
+  // en BTC y no forma parte de la plata disponible.
+  const principals = resolved.principals.filter((p) => !p.isBitcoin);
   if (principals.length === 0) return [];
 
   const fundAccountIds = principals.filter((p) => p.hasInvestmentFunds).map((p) => p.id);
@@ -878,6 +882,56 @@ export async function getOwnAccountBalances(canSeeFinanceOnly = true): Promise<O
   }));
 }
 
+export type BitcoinAccountBalance = BitcoinBalance & {
+  id: string;
+  name: string;
+  subaccounts: { id: string; name: string }[];
+  financeOnly: boolean;
+};
+
+/**
+ * Saldo en BTC de cada cuenta Bitcoin (ver `PaymentMethod.isBitcoin`), solo
+ * a partir de los traspasos (la única forma de moverla) más el ajuste
+ * inicial en BTC.
+ * Va separado de `getOwnAccountBalances` a propósito: no es plata disponible
+ * y no se suma al saldo total de Saldos. Mismo criterio de acceso (admin, y
+ * las de Finanzas solo para quien tiene ese acceso).
+ */
+export async function getBitcoinAccountBalances(canSeeFinanceOnly = true): Promise<BitcoinAccountBalance[]> {
+  const { principals, resolve } = await resolveToPrincipal("own", canSeeFinanceOnly);
+  const bitcoin = principals.filter((p) => p.isBitcoin);
+  if (bitcoin.length === 0) return [];
+  const transfers = await prisma.accountTransfer.findMany({ where: { deletedAt: null } });
+  const balances = bitcoinBalances(
+    bitcoin.map((p) => p.id),
+    resolve,
+    transfers.map((t) => ({
+      fromAccountId: t.fromAccountId,
+      fromAmount: Number(t.fromAmount),
+      fromCurrency: t.fromCurrency,
+      toAccountId: t.toAccountId,
+      toAmount: Number(t.toAmount),
+      toCurrency: t.toCurrency,
+    })),
+  );
+  return bitcoin.map((p) => {
+    const b = balances.get(p.id)!;
+    // Ajuste manual: BTC que ya había en la cuenta; los ARS/USD del ajuste
+    // cuentan como lo aportado al principio (ver comentario en el schema).
+    return {
+      id: p.id,
+      name: p.name,
+      subaccounts: p.subaccounts.map((s) => ({ id: s.id, name: s.name })),
+      financeOnly: p.financeOnly,
+      btc: b.btc + p.balanceAdjustmentBtc,
+      netContributed: {
+        ars: b.netContributed.ars + p.balanceAdjustment.ars,
+        usd: b.netContributed.usd + p.balanceAdjustment.usd,
+      },
+    };
+  });
+}
+
 /**
  * Historial completo de una cuenta propia — principal + sus subcuentas,
  * ingresos y egresos con esa cuenta como medio, más reciente primero. Mismo
@@ -910,12 +964,22 @@ export async function getOwnAccountBalanceHistory(
 ): Promise<BalancePoint[]> {
   const members = await prisma.paymentMethod.findMany({
     where: { OR: [{ id: accountId }, { parentId: accountId }] },
-    select: { id: true, balanceAdjustmentArs: true, balanceAdjustmentUsd: true },
+    select: {
+      id: true,
+      balanceAdjustmentArs: true,
+      balanceAdjustmentUsd: true,
+      balanceAdjustmentBtc: true,
+      isBitcoin: true,
+    },
   });
   if (members.length === 0) return [];
   const memberIds = members.map((m) => m.id);
   const principal = members.find((m) => m.id === accountId) ?? members[0];
-  const adjustment = { ars: Number(principal.balanceAdjustmentArs), usd: Number(principal.balanceAdjustmentUsd) };
+  // En una cuenta Bitcoin el ajuste ARS/USD es lo aportado, no saldo: solo
+  // cuenta el ajuste en BTC (ver `getBitcoinAccountBalances`).
+  const adjustment = principal.isBitcoin
+    ? { ars: 0, usd: 0, btc: Number(principal.balanceAdjustmentBtc) }
+    : { ars: Number(principal.balanceAdjustmentArs), usd: Number(principal.balanceAdjustmentUsd) };
 
   const [movements, transfersOut, transfersIn] = await Promise.all([
     prisma.cashMovement.findMany({
@@ -941,11 +1005,13 @@ export async function getOwnAccountBalanceHistory(
       date: t.createdAt,
       ars: t.fromCurrency === "ars" ? -Number(t.fromAmount) : 0,
       usd: t.fromCurrency === "usd" ? -Number(t.fromAmount) : 0,
+      btc: t.fromCurrency === "btc" ? -Number(t.fromAmount) : 0,
     })),
     ...transfersIn.map((t) => ({
       date: t.createdAt,
       ars: t.toCurrency === "ars" ? Number(t.toAmount) : 0,
       usd: t.toCurrency === "usd" ? Number(t.toAmount) : 0,
+      btc: t.toCurrency === "btc" ? Number(t.toAmount) : 0,
     })),
   ];
 
@@ -974,11 +1040,21 @@ export async function getTotalOwnBalanceHistory(
   now: Date = new Date(),
   canSeeFinanceOnly = true,
 ): Promise<BalancePoint[]> {
-  const { principals, memberIds } = await resolveToPrincipal("own", canSeeFinanceOnly);
+  const { principals, resolve, memberIds } = await resolveToPrincipal("own", canSeeFinanceOnly);
 
+  // El ajuste ARS/USD de una cuenta Bitcoin no es saldo disponible (ver
+  // `getBitcoinAccountBalances`); sus traspasos sí: comprar BTC baja el total.
+  // Su ajuste en BTC va a la serie `btc`, que solo suma las cuentas Bitcoin
+  // que quien mira puede ver (`resolveToPrincipal` ya filtra las de Finanzas).
+  const bitcoinPrincipals = new Set(principals.filter((p) => p.isBitcoin).map((p) => p.id));
+  const isVisibleBitcoin = (accountId: string | null) =>
+    accountId !== null && bitcoinPrincipals.has(resolve.get(accountId) ?? "");
   const adjustment = principals.reduce(
-    (acc, p) => ({ ars: acc.ars + p.balanceAdjustment.ars, usd: acc.usd + p.balanceAdjustment.usd }),
-    { ars: 0, usd: 0 },
+    (acc, p) =>
+      p.isBitcoin
+        ? { ...acc, btc: acc.btc + p.balanceAdjustmentBtc }
+        : { ars: acc.ars + p.balanceAdjustment.ars, usd: acc.usd + p.balanceAdjustment.usd, btc: acc.btc },
+    { ars: 0, usd: 0, btc: 0 },
   );
 
   const [movements, transfers, safeMovements] = await Promise.all([
@@ -993,7 +1069,15 @@ export async function getTotalOwnBalanceHistory(
     }),
     prisma.accountTransfer.findMany({
       where: { deletedAt: null, createdAt: { lte: now } },
-      select: { fromAmount: true, fromCurrency: true, toAmount: true, toCurrency: true, createdAt: true },
+      select: {
+        fromAccountId: true,
+        fromAmount: true,
+        fromCurrency: true,
+        toAccountId: true,
+        toAmount: true,
+        toCurrency: true,
+        createdAt: true,
+      },
     }),
     prisma.safeMovement.findMany({
       where: { deletedAt: null, createdAt: { lte: now } },
@@ -1011,11 +1095,13 @@ export async function getTotalOwnBalanceHistory(
         date: t.createdAt,
         ars: t.fromCurrency === "ars" ? -Number(t.fromAmount) : 0,
         usd: t.fromCurrency === "usd" ? -Number(t.fromAmount) : 0,
+        btc: t.fromCurrency === "btc" && isVisibleBitcoin(t.fromAccountId) ? -Number(t.fromAmount) : 0,
       },
       {
         date: t.createdAt,
         ars: t.toCurrency === "ars" ? Number(t.toAmount) : 0,
         usd: t.toCurrency === "usd" ? Number(t.toAmount) : 0,
+        btc: t.toCurrency === "btc" && isVisibleBitcoin(t.toAccountId) ? Number(t.toAmount) : 0,
       },
     ]),
     ...safeMovements.map((m) => {

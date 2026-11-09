@@ -6,7 +6,8 @@ import { CurrencyTotalsDisplay } from "@/components/cash/currency-totals-display
 import { SafeSection } from "@/components/cash/safe-section";
 import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 import { getAllSafeMovements, getSafeBalance, getSafeMovementEdits } from "@/lib/safe";
-import { getOwnAccountBalances, getWalletBalance } from "@/lib/cash";
+import { getBitcoinAccountBalances, getOwnAccountBalances, getWalletBalance } from "@/lib/cash";
+import { getBtcPrice } from "@/lib/btc-price";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { buildTransferOptions, SAFE_ACCOUNT_ID } from "@/lib/account-transfers";
 import { financeOnlyAccountIds } from "@/lib/finance-only";
@@ -28,7 +29,7 @@ export default async function SafeAccountPage() {
   const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const financeOnlyIds = await financeOnlyAccountIds(canSeeFinanceOnly);
 
-  const [balance, walletBalance, movements, edits, transfers, accounts, usdRate] = await Promise.all([
+  const [balance, walletBalance, movements, edits, transfers, accounts, usdRate, bitcoinAccounts] = await Promise.all([
     getSafeBalance(),
     getWalletBalance(canSeeFinanceOnly),
     getAllSafeMovements(),
@@ -36,9 +37,11 @@ export default async function SafeAccountPage() {
     getAccountTransfers({ safe: true, limit: 50, maskAccountIds: financeOnlyIds }),
     getOwnAccountBalances(canSeeFinanceOnly),
     getCurrentUsdRate(),
+    getBitcoinAccountBalances(canSeeFinanceOnly),
   ]);
+  const btcPrice = bitcoinAccounts.length > 0 ? await getBtcPrice() : null;
   // La Caja fuerte solo se mueve con traspasos (no tiene ingresos/egresos propios).
-  const transferOptions = buildTransferOptions(accounts, balance);
+  const transferOptions = buildTransferOptions(accounts, balance, bitcoinAccounts);
   const fixedSafe = transferOptions.options.filter((a) => a.id === SAFE_ACCOUNT_ID);
 
   return (
@@ -56,6 +59,7 @@ export default async function SafeAccountPage() {
         accounts={transferOptions.options}
         balances={transferOptions.balances}
         usdRate={usdRate?.rate ?? null}
+        btcUsdPrice={btcPrice?.usd ?? null}
         fixedAccounts={fixedSafe}
         buttonClassName="w-full"
       />

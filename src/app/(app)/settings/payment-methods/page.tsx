@@ -34,6 +34,7 @@ export default async function PaymentMethodsSettingsPage() {
     expenseCommissionFixed: it.expenseCommissionFixed ? Number(it.expenseCommissionFixed) : null,
     balanceAdjustmentArs: Number(it.balanceAdjustmentArs),
     balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd),
+    balanceAdjustmentBtc: Number(it.balanceAdjustmentBtc),
   }));
   const categories = await prisma.cashMovementCategory.findMany({
     where: { active: true },
@@ -102,6 +103,10 @@ export default async function PaymentMethodsSettingsPage() {
           <label className="flex items-center gap-2 text-sm text-foreground/80">
             <input type="checkbox" name="isCash" className="h-4 w-4" />
             Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground/80">
+            <input type="checkbox" name="isBitcoin" className="h-4 w-4" />
+            Es una cuenta Bitcoin (solo cuentas propias: saldo en BTC, aparte del disponible)
           </label>
           <div className="flex justify-end">
             <SubmitButton pendingLabel="Agregando…">Agregar</SubmitButton>

@@ -4,7 +4,7 @@
  * el seed, el wizard de entrega y el acta PDF.
  */
 
-import type { Currency } from "@/lib/currency";
+import type { Currency, TransferCurrency } from "@/lib/currency";
 
 export const COMPANY = {
   name: "MDZ Rent a Car",
@@ -309,4 +309,18 @@ const usdFormatter = new Intl.NumberFormat("es-AR", {
 export function formatMoney(n: number | null | undefined, currency: Currency): string {
   if (n == null || Number.isNaN(n)) return "—";
   return currency === "usd" ? usdFormatter.format(n) : arsFormatter.format(n);
+}
+
+// BTC con hasta 8 decimales (satoshis) y el símbolo adelante, como "$" y
+// "US$": "₿ 0,1".
+const btcFormatter = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+
+export function formatBtc(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `₿ ${btcFormatter.format(n)}`;
+}
+
+/** Monto de un lado de un traspaso: pesos, dólares o BTC (cuentas Bitcoin). */
+export function formatTransferAmount(n: number | null | undefined, currency: TransferCurrency): string {
+  return currency === "btc" ? formatBtc(n) : formatMoney(n, currency);
 }

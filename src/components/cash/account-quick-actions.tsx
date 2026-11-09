@@ -5,8 +5,7 @@ import type { PaymentMethodOwnership } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CashMovementForm } from "@/components/cash/cash-movement-form";
 import { TransferLauncher } from "@/components/cash/transfer-launcher";
-import type { TransferAccountOption } from "@/lib/account-transfers";
-import type { CurrencyTotals } from "@/lib/currency";
+import type { TransferAccountOption, TransferBalance } from "@/lib/account-transfers";
 import type { RentalPickerOption, RoomBookingPickerOption } from "@/lib/cash";
 
 type PaymentMethodOption = {
@@ -32,6 +31,7 @@ export function AccountQuickActions({
   transferAccounts,
   transferBalances,
   usdRate,
+  btcUsdPrice = null,
 }: {
   accountIds: string[];
   paymentMethods: PaymentMethodOption[];
@@ -39,8 +39,9 @@ export function AccountQuickActions({
   roomBookingOptions: RoomBookingPickerOption[];
   expenseCategories: { id: string; name: string }[];
   transferAccounts: TransferAccountOption[];
-  transferBalances: Record<string, CurrencyTotals>;
+  transferBalances: Record<string, TransferBalance>;
   usdRate: number | null;
+  btcUsdPrice?: number | null;
 }) {
   const [action, setAction] = useState<"income" | "expense" | null>(null);
   const fixedTransferAccounts = accountIds.flatMap((id) => transferAccounts.filter((a) => a.id === id));
@@ -64,6 +65,7 @@ export function AccountQuickActions({
           accounts={transferAccounts}
           balances={transferBalances}
           usdRate={usdRate}
+          btcUsdPrice={btcUsdPrice}
           fixedAccounts={fixedTransferAccounts}
           buttonClassName="w-full sm:w-auto sm:flex-1"
         />

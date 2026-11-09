@@ -6,6 +6,7 @@ import {
   currentMonth,
   getCashPeriodDetail,
   getDeletedCashMovements,
+  getBitcoinAccountBalances,
   getCashSearchIndex,
   getGuarantees,
   getInvoicing,
@@ -38,6 +39,7 @@ import { CajaTabs } from "@/components/cash/caja-tabs";
 import { UsdRateBadge } from "@/components/cash/usd-rate-badge";
 import { TransferLauncher } from "@/components/cash/transfer-launcher";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
+import { getBtcPrice } from "@/lib/btc-price";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { buildTransferOptions } from "@/lib/account-transfers";
 import { financeOnlyAccountIds } from "@/lib/finance-only";
@@ -70,7 +72,8 @@ export default async function CajaPage({
 
   const [paymentMethods, expenseCategories, rentalOptions, roomBookingOptions] = await Promise.all([
     prisma.paymentMethod.findMany({
-      where: { active: true, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
+      // Una cuenta Bitcoin no recibe ingresos ni egresos (solo traspasos en BTC).
+      where: { active: true, isBitcoin: false, ...(canSeeFinanceOnly ? {} : { financeOnly: false }) },
       orderBy: { ordering: "asc" },
       select: { id: true, name: true, requiresNote: true, ownership: true, parentId: true },
     }),
@@ -158,6 +161,10 @@ export default async function CajaPage({
   const usdRate = await getCurrentUsdRate();
   const safeMonthActivity = isAdmin ? await getSafeMonthActivity() : null;
   const accounts = isAdmin ? await getOwnAccountBalances(canSeeFinanceOnly) : [];
+  // Cuentas en bitcoins: van aparte en Saldos (no son plata disponible). El
+  // precio solo se consulta si hay alguna que mostrar.
+  const bitcoinAccounts = isAdmin ? await getBitcoinAccountBalances(canSeeFinanceOnly) : [];
+  const btcPrice = bitcoinAccounts.length > 0 ? await getBtcPrice() : null;
   const safeBalance = isAdmin ? await getSafeBalance() : emptyCurrencyTotals();
   const totalBalanceHistory = isAdmin
     ? await getTotalOwnBalanceHistory(balPeriod, balGranularity, new Date(), canSeeFinanceOnly)
@@ -171,7 +178,11 @@ export default async function CajaPage({
   // (principales + subcuentas + Caja fuerte) y el saldo de cada principal
   // (para avisar si un traspaso dejaría el origen en negativo) se calculan
   // acá en vez de en `AccountsSection`.
-  const { options: transferOptions, balances: transferBalances } = buildTransferOptions(accounts, safeBalance);
+  const { options: transferOptions, balances: transferBalances } = buildTransferOptions(
+    accounts,
+    safeBalance,
+    bitcoinAccounts,
+  );
 
   const saldos = isAdmin ? (
     <AccountsSection
@@ -179,6 +190,8 @@ export default async function CajaPage({
       safeMonthIncome={safeMonthActivity!.income}
       safeMonthExpense={safeMonthActivity!.expense}
       accounts={accounts}
+      bitcoinAccounts={bitcoinAccounts}
+      btcPrice={btcPrice}
       transfers={await getAccountTransfers({ limit: 10, maskAccountIds: financeOnlyIds })}
       totalBalanceHistory={totalBalanceHistory}
       balPeriod={balPeriod}
@@ -213,7 +226,12 @@ export default async function CajaPage({
         <div className="flex flex-wrap items-center justify-end gap-2">
           <UsdRateBadge current={usdRate} canEdit={isAdmin} />
           {isAdmin && (
-            <TransferLauncher accounts={transferOptions} balances={transferBalances} usdRate={usdRate?.rate ?? null} />
+            <TransferLauncher
+              accounts={transferOptions}
+              balances={transferBalances}
+              usdRate={usdRate?.rate ?? null}
+              btcUsdPrice={btcPrice?.usd ?? null}
+            />
           )}
         </div>
       </div>

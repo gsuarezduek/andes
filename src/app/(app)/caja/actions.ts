@@ -12,6 +12,7 @@ import { currencyLabels } from "@/lib/currency";
 import { syncCommission, syncExpenseCommission, deleteCommissionOf } from "@/lib/commissions-sync";
 import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { invoicedChangeError } from "@/lib/invoicing-rules";
+import { BITCOIN_ACCOUNT_ERROR } from "@/lib/account-transfers";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
 
@@ -89,6 +90,7 @@ export async function createCashMovement(type: "income" | "expense", formData: F
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
+  if (method.isBitcoin) throw new Error(BITCOIN_ACCOUNT_ERROR);
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
   }
@@ -224,6 +226,7 @@ export async function updateCashMovement(id: string, formData: FormData) {
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
+  if (method.isBitcoin) throw new Error(BITCOIN_ACCOUNT_ERROR);
   if (method.requiresNote && !paymentMethodNote) {
     throw new Error("Este medio de pago requiere indicar a dónde fue.");
   }
@@ -387,6 +390,7 @@ export async function confirmCashMovementPaymentMethod(id: string, formData: For
 
   const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
   if (!method) throw new Error("Medio de pago inválido");
+  if (method.isBitcoin) throw new Error(BITCOIN_ACCOUNT_ERROR);
   if (method.requiresNote && !note) throw new Error("Este medio de pago requiere indicar a dónde fue.");
   const nextNote = method.requiresNote ? (note ?? null) : null;
 

@@ -28,6 +28,12 @@ function amountOrZero(v: FormDataEntryValue | null): number {
   return parseDecimal(String(v ?? "")) ?? 0;
 }
 
+/** Cantidad de BTC (hasta 8 decimales); vacío o inválido = 0. */
+function btcOrZero(v: FormDataEntryValue | null): number {
+  const n = parseDecimal(String(v ?? "")) ?? 0;
+  return Math.round(n * 1e8) / 1e8;
+}
+
 /** Tipo de cuenta: obligatorio, sin estado "indiferente" — el select del
  *  form siempre manda uno de los cuatro; si algo raro llega, cae en "own". */
 function ownershipOrDefault(v: FormDataEntryValue | null): PaymentMethodOwnership {
@@ -39,14 +45,18 @@ export async function createPaymentMethod(formData: FormData) {
   const name = strOrNull(formData.get("name"));
   if (!name) return;
   const max = await prisma.paymentMethod.aggregate({ _max: { ordering: true } });
+  const ownership = ownershipOrDefault(formData.get("ownership"));
+  // Solo cuentas propias; una cuenta Bitcoin no es efectivo (ver schema).
+  const isBitcoin = ownership === "own" && formData.get("isBitcoin") === "on";
   await prisma.paymentMethod.create({
     data: {
       name,
       adjustmentPercent: percentOrNull(formData.get("adjustmentPercent")),
       reference: strOrNull(formData.get("reference")),
       requiresNote: formData.get("requiresNote") === "on",
-      isCash: formData.get("isCash") === "on",
-      ownership: ownershipOrDefault(formData.get("ownership")),
+      isCash: !isBitcoin && formData.get("isCash") === "on",
+      isBitcoin,
+      ownership,
       ordering: (max._max.ordering ?? 0) + 1,
     },
   });
@@ -60,6 +70,9 @@ export type PaymentMethodUpdateInput = {
   reference: string;
   requiresNote: boolean;
   isCash: boolean;
+  // Solo cuentas propias — ver `PaymentMethod.isBitcoin` en el schema. Si
+  // está activo, se apagan efectivo, fondos, facturación y comisiones.
+  isBitcoin: boolean;
   // Solo cuentas propias — ver `PaymentMethod.hasInvestmentFunds` en el
   // schema. Habilita el bloque "Fondos de inversión" en su página de Saldos.
   hasInvestmentFunds: boolean;
@@ -94,6 +107,8 @@ export type PaymentMethodUpdateInput = {
   // el schema. Vacío = sin ajuste.
   balanceAdjustmentArs: string;
   balanceAdjustmentUsd: string;
+  // Solo cuentas Bitcoin: BTC iniciales (ver `balanceAdjustmentBtc` en el schema).
+  balanceAdjustmentBtc: string;
 };
 
 /**
@@ -116,10 +131,31 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
   if (valid.length === 0) return;
 
   const all = await prisma.paymentMethod.findMany({
-    select: { id: true, parentId: true, ownership: true, financeOnly: true },
+    select: { id: true, parentId: true, ownership: true, financeOnly: true, isBitcoin: true },
   });
   const byId = new Map(all.map((a) => [a.id, a]));
   const parentIds = new Set(all.filter((a) => a.parentId).map((a) => a.parentId!));
+
+  // Una cuenta con traspasos en BTC no puede dejar de ser Bitcoin: esos BTC
+  // quedarían en una cuenta que no los muestra.
+  for (const u of valid) {
+    const isBitcoin = u.ownership === "own" && u.isBitcoin;
+    if (isBitcoin || !byId.get(u.id)?.isBitcoin) continue;
+    const btcTransfers = await prisma.accountTransfer.count({
+      where: {
+        deletedAt: null,
+        OR: [
+          { fromAccountId: u.id, fromCurrency: "btc" },
+          { toAccountId: u.id, toCurrency: "btc" },
+        ],
+      },
+    });
+    if (btcTransfers > 0) {
+      throw new Error(
+        `"${u.name.trim()}" tiene compras o ventas de BTC cargadas: no puede dejar de ser una cuenta Bitcoin.`,
+      );
+    }
+  }
 
   for (const u of valid) {
     if (!u.parentId) continue;
@@ -192,18 +228,22 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
   }
 
   await prisma.$transaction(
-    valid.map((u) =>
-      prisma.paymentMethod.update({
+    valid.map((u) => {
+      // Una cuenta Bitcoin solo se mueve con traspasos en BTC: no es efectivo,
+      // no tiene fondos, no factura ni cobra comisión.
+      const isBitcoin = u.ownership === "own" && u.isBitcoin;
+      return prisma.paymentMethod.update({
         where: { id: u.id },
         data: {
           name: u.name.trim(),
           adjustmentPercent: percentOrNull(u.adjustmentPercent),
           reference: strOrNull(u.reference),
           requiresNote: u.requiresNote,
-          isCash: u.isCash,
+          isCash: isBitcoin ? false : u.isCash,
+          isBitcoin,
           // Solo tiene sentido en cuentas propias — en las demás se guarda en false.
-          hasInvestmentFunds: u.ownership === "own" ? u.hasInvestmentFunds : false,
-          autoInvoice: u.ownership === "own" ? u.autoInvoice : false,
+          hasInvestmentFunds: u.ownership === "own" && !isBitcoin ? u.hasInvestmentFunds : false,
+          autoInvoice: u.ownership === "own" && !isBitcoin ? u.autoInvoice : false,
           // Solo cuentas propias y solo el propietario puede cambiarlo — un
           // no-propietario que mande otro valor es ignorado (se conserva el
           // que ya estaba en la base).
@@ -212,19 +252,20 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           ownership: u.ownership,
           parentId: u.parentId,
           whatsappPhone: strOrNull(u.whatsappPhone),
-          commissionPercent: commissions.get(u.id)!.percent,
-          commissionFixed: commissions.get(u.id)!.fixed,
-          commissionCategoryId: commissions.get(u.id)!.categoryId,
-          expenseCommissionMode: expenseCommissions.get(u.id)!.mode,
-          expenseCommissionPercent: expenseCommissions.get(u.id)!.percent,
-          expenseCommissionFixed: expenseCommissions.get(u.id)!.fixed,
-          expenseCommissionCategoryId: expenseCommissions.get(u.id)!.categoryId,
+          commissionPercent: isBitcoin ? null : commissions.get(u.id)!.percent,
+          commissionFixed: isBitcoin ? null : commissions.get(u.id)!.fixed,
+          commissionCategoryId: isBitcoin ? null : commissions.get(u.id)!.categoryId,
+          expenseCommissionMode: isBitcoin ? "none" : expenseCommissions.get(u.id)!.mode,
+          expenseCommissionPercent: isBitcoin ? null : expenseCommissions.get(u.id)!.percent,
+          expenseCommissionFixed: isBitcoin ? null : expenseCommissions.get(u.id)!.fixed,
+          expenseCommissionCategoryId: isBitcoin ? null : expenseCommissions.get(u.id)!.categoryId,
           // No tiene sentido en `misc` (sin cuenta corriente) — ahí se guarda en 0.
           balanceAdjustmentArs: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentArs),
           balanceAdjustmentUsd: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentUsd),
+          balanceAdjustmentBtc: isBitcoin ? btcOrZero(u.balanceAdjustmentBtc) : 0,
         },
-      }),
-    ),
+      });
+    }),
   );
   revalidatePath("/settings/payment-methods");
   revalidatePath("/caja");

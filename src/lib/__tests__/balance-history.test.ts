@@ -28,10 +28,10 @@ describe("buildBalanceHistory — diario", () => {
       "daily",
     );
     expect(points).toEqual([
-      { date: "2026-08-01", ars: 1000, usd: 0 },
-      { date: "2026-08-02", ars: 1000, usd: 0 }, // sin actividad: arrastra el saldo
-      { date: "2026-08-03", ars: 800, usd: 0 },
-      { date: "2026-08-04", ars: 800, usd: 0 },
+      { date: "2026-08-01", ars: 1000, usd: 0, btc: 0 },
+      { date: "2026-08-02", ars: 1000, usd: 0, btc: 0 }, // sin actividad: arrastra el saldo
+      { date: "2026-08-03", ars: 800, usd: 0, btc: 0 },
+      { date: "2026-08-04", ars: 800, usd: 0, btc: 0 },
     ]);
   });
 
@@ -41,7 +41,7 @@ describe("buildBalanceHistory — diario", () => {
       { date: mendozaNoon("2026-08-01"), ars: 300, usd: 0 },
     ];
     const points = buildBalanceHistory(events, { ars: 0, usd: 0 }, mendozaNoon("2026-08-01"), mendozaNoon("2026-08-01"), "daily");
-    expect(points).toEqual([{ date: "2026-08-01", ars: 800, usd: 0 }]);
+    expect(points).toEqual([{ date: "2026-08-01", ars: 800, usd: 0, btc: 0 }]);
   });
 
   it("eventos anteriores a \"from\" arrancan el primer punto ya con el saldo acumulado", () => {
@@ -51,15 +51,15 @@ describe("buildBalanceHistory — diario", () => {
     ];
     const points = buildBalanceHistory(events, { ars: 0, usd: 0 }, mendozaNoon("2026-08-01"), mendozaNoon("2026-08-02"), "daily");
     expect(points).toEqual([
-      { date: "2026-08-01", ars: 5000, usd: 0 },
-      { date: "2026-08-02", ars: 4000, usd: 0 },
+      { date: "2026-08-01", ars: 5000, usd: 0, btc: 0 },
+      { date: "2026-08-02", ars: 4000, usd: 0, btc: 0 },
     ]);
   });
 
   it("el ajuste manual se suma como piso constante en todos los puntos", () => {
     const events: BalanceEvent[] = [{ date: mendozaNoon("2026-08-01"), ars: 100, usd: 0 }];
     const points = buildBalanceHistory(events, { ars: 50, usd: -3 }, mendozaNoon("2026-08-01"), mendozaNoon("2026-08-01"), "daily");
-    expect(points).toEqual([{ date: "2026-08-01", ars: 150, usd: -3 }]);
+    expect(points).toEqual([{ date: "2026-08-01", ars: 150, usd: -3, btc: 0 }]);
   });
 
   it("maneja las dos monedas de forma independiente, sin mezclarlas", () => {
@@ -68,15 +68,15 @@ describe("buildBalanceHistory — diario", () => {
       { date: mendozaNoon("2026-08-01"), ars: 0, usd: 200 },
     ];
     const points = buildBalanceHistory(events, { ars: 0, usd: 0 }, mendozaNoon("2026-08-01"), mendozaNoon("2026-08-01"), "daily");
-    expect(points).toEqual([{ date: "2026-08-01", ars: 1000, usd: 200 }]);
+    expect(points).toEqual([{ date: "2026-08-01", ars: 1000, usd: 200, btc: 0 }]);
   });
 
   it("sin eventos, el saldo queda constante en el ajuste durante toda la ventana", () => {
     const points = buildBalanceHistory([], { ars: 10, usd: 0 }, mendozaNoon("2026-08-01"), mendozaNoon("2026-08-03"), "daily");
     expect(points).toEqual([
-      { date: "2026-08-01", ars: 10, usd: 0 },
-      { date: "2026-08-02", ars: 10, usd: 0 },
-      { date: "2026-08-03", ars: 10, usd: 0 },
+      { date: "2026-08-01", ars: 10, usd: 0, btc: 0 },
+      { date: "2026-08-02", ars: 10, usd: 0, btc: 0 },
+      { date: "2026-08-03", ars: 10, usd: 0, btc: 0 },
     ]);
   });
 });
@@ -96,8 +96,8 @@ describe("buildBalanceHistory — semanal", () => {
       "weekly",
     );
     expect(points).toEqual([
-      { date: "2026-08-10", ars: 150, usd: 0 }, // semana del 10: 100+50
-      { date: "2026-08-17", ars: 170, usd: 0 }, // semana del 17 (recortada a `to`): +20
+      { date: "2026-08-10", ars: 150, usd: 0, btc: 0 }, // semana del 10: 100+50
+      { date: "2026-08-17", ars: 170, usd: 0, btc: 0 }, // semana del 17 (recortada a `to`): +20
     ]);
   });
 
@@ -109,7 +109,7 @@ describe("buildBalanceHistory — semanal", () => {
       mendozaNoon("2026-08-13"),
       "weekly",
     );
-    expect(points).toEqual([{ date: "2026-08-10", ars: 999, usd: 0 }]);
+    expect(points).toEqual([{ date: "2026-08-10", ars: 999, usd: 0, btc: 0 }]);
   });
 });
 
@@ -159,5 +159,25 @@ describe("parseBalanceHistoryPeriod / parseBalanceHistoryGranularity", () => {
     expect(parseBalanceHistoryGranularity("weekly")).toBe("weekly");
     expect(parseBalanceHistoryGranularity(undefined)).toBe("daily");
     expect(parseBalanceHistoryGranularity("rara")).toBe("daily");
+  });
+});
+
+describe("buildBalanceHistory — BTC", () => {
+  it("arranca con el ajuste en BTC y suma compras/ventas, redondeado a satoshis", () => {
+    const events = [
+      { date: mendozaNoon("2026-08-01"), ars: 0, usd: -7400, btc: 0.1 },
+      { date: mendozaNoon("2026-08-02"), ars: 0, usd: 10000, btc: -0.1 },
+    ];
+    const points = buildBalanceHistory(
+      events,
+      { ars: 0, usd: 0, btc: 0.3 },
+      mendozaNoon("2026-08-01"),
+      mendozaNoon("2026-08-02"),
+      "daily",
+    );
+    expect(points).toEqual([
+      { date: "2026-08-01", ars: 0, usd: -7400, btc: 0.4 },
+      { date: "2026-08-02", ars: 0, usd: 2600, btc: 0.3 },
+    ]);
   });
 });

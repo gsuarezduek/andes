@@ -12,8 +12,8 @@ const createSchema = z.object({
   fromAccountId: z.string().min(1),
   toAccountId: z.string().min(1),
   fromAmount: z.coerce.number().positive(),
-  fromCurrency: z.enum(["ars", "usd"]),
-  toCurrency: z.enum(["ars", "usd"]),
+  fromCurrency: z.enum(["ars", "usd", "btc"]),
+  toCurrency: z.enum(["ars", "usd", "btc"]),
   // Solo se completa con monedas distintas; con la misma moneda entra lo mismo que sale.
   toAmount: z.coerce.number().positive().optional(),
   description: z.string().trim().max(500).default(""),
@@ -26,7 +26,8 @@ export type TransferResult = { error?: string; ok?: boolean };
  * mueve saldo. Solo admin, igual que Saldos. La Caja fuerte también puede ser
  * origen o destino (id `SAFE_ACCOUNT_ID`, se guarda como cuenta nula). Con la misma moneda entra lo
  * mismo que sale; con monedas distintas (ARS ↔ USD) el form manda los dos
- * montos. Devuelve `{error}` en vez de tirar excepción (Next redacta el
+ * montos. Una cuenta Bitcoin (`isBitcoin`) siempre va en BTC y cualquier otra
+ * nunca: comprar o vender BTC es un cambio de moneda más. Devuelve `{error}` en vez de tirar excepción (Next redacta el
  * mensaje de un `throw` en producción).
  */
 export async function createAccountTransfer(_prev: TransferResult, formData: FormData): Promise<TransferResult> {
@@ -56,7 +57,7 @@ export async function createAccountTransfer(_prev: TransferResult, formData: For
 
   const accounts = await prisma.paymentMethod.findMany({
     where: { id: { in: [d.fromAccountId, d.toAccountId] } },
-    select: { id: true, name: true, ownership: true },
+    select: { id: true, name: true, ownership: true, isBitcoin: true, parent: { select: { isBitcoin: true } } },
   });
   const from = fromIsSafe ? null : accounts.find((a) => a.id === d.fromAccountId);
   const to = toIsSafe ? null : accounts.find((a) => a.id === d.toAccountId);
@@ -64,16 +65,27 @@ export async function createAccountTransfer(_prev: TransferResult, formData: For
   if ((from && from.ownership !== "own") || (to && to.ownership !== "own")) {
     return { error: "Solo se puede mover saldo entre cuentas propias y la Caja fuerte." };
   }
+  // Una subcuenta de una cuenta Bitcoin también es Bitcoin.
+  const isBitcoin = (a: typeof from) => !!a && (a.isBitcoin || !!a.parent?.isBitcoin);
+  if (isBitcoin(from) !== (d.fromCurrency === "btc") || isBitcoin(to) !== (d.toCurrency === "btc")) {
+    return { error: "Una cuenta Bitcoin se mueve siempre en BTC, y las demás cuentas nunca en BTC." };
+  }
+  // BTC admite 8 decimales (satoshis); pesos y dólares, 2.
+  const round = (n: number, currency: string) =>
+    currency === "btc" ? Math.round(n * 1e8) / 1e8 : Math.round(n * 100) / 100;
+  const fromAmount = round(d.fromAmount, d.fromCurrency);
+  const finalToAmount = round(toAmount, d.toCurrency);
+  if (fromAmount <= 0 || finalToAmount <= 0) return { error: "El monto tiene que ser mayor a cero." };
 
   await prisma.accountTransfer.create({
     data: {
       fromAccountId: from?.id ?? null,
       fromAccountName: from?.name ?? SAFE_ACCOUNT_NAME,
-      fromAmount: d.fromAmount,
+      fromAmount,
       fromCurrency: d.fromCurrency,
       toAccountId: to?.id ?? null,
       toAccountName: to?.name ?? SAFE_ACCOUNT_NAME,
-      toAmount,
+      toAmount: finalToAmount,
       toCurrency: d.toCurrency,
       description: d.description,
       createdByName: displayName(user),

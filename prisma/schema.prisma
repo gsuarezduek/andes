@@ -1330,6 +1330,13 @@ model PaymentMethod {
   // los movimientos de Caja con este medio sale el saldo de "Billetera"
   // (ver `getWalletBalance` en cash.ts). Normalmente uno solo ("Efectivo").
   isCash            Boolean                @default(false) @map("is_cash")
+  // Cuenta en bitcoins (ej. una billetera fría): su saldo se lleva en BTC,
+  // no en pesos ni dólares, y se muestra aparte en Saldos (no suma al saldo
+  // disponible). Solo se mueve con traspasos ("Mover entre cuentas"), que la
+  // tratan como un cambio de moneda (ver `TransferCurrency`); no admite
+  // ingresos ni egresos de Caja. Solo cuentas propias; excluye `isCash`,
+  // fondos de inversión, facturación automática y comisión.
+  isBitcoin         Boolean                @default(false) @map("is_bitcoin")
   // Oculta la cuenta para cualquiera que no tenga acceso de Finanzas
   // (rol finanzas/observador o propietario) — en Configuración, en Saldos y
   // en cualquier selector de medio de pago de la app (ver `hasFinanceAccess`
@@ -1402,6 +1409,10 @@ model PaymentMethod {
   // solo "ordena" el número. No tiene sentido en `misc` (sin cuenta corriente).
   balanceAdjustmentArs Decimal @default(0) @map("balance_adjustment_ars") @db.Decimal(14, 2)
   balanceAdjustmentUsd Decimal @default(0) @map("balance_adjustment_usd") @db.Decimal(14, 2)
+  // Solo cuentas `isBitcoin`: BTC que ya había en la cuenta antes de cargar
+  // traspasos (saldo inicial). En esas cuentas los ajustes ARS/USD de arriba
+  // no son saldo disponible: cuentan como lo aportado inicialmente (costo).
+  balanceAdjustmentBtc Decimal @default(0) @map("balance_adjustment_btc") @db.Decimal(18, 8)
 
   // Esta cuenta propia tiene plata invertida en un fondo (ej. Mercado Pago
   // Fondo, FCI). Habilita el bloque "Fondos de inversión" en su página de
@@ -2561,6 +2572,17 @@ model UsdRate {
   @@map("usd_rates")
 }
 
+/// Moneda de un lado de un traspaso (`AccountTransfer`): las de Caja más
+/// `btc`, que solo existe acá — el lado de una cuenta `isBitcoin` siempre va
+/// en `btc` y el de cualquier otra nunca (se valida en `createAccountTransfer`).
+/// Separado de `Currency` a propósito: así BTC no aparece en Caja, reservas
+/// ni habitaciones.
+enum TransferCurrency {
+  ars
+  usd
+  btc
+}
+
 /// Traspaso de saldo entre dos cuentas propias (Saldos): mueve plata de una a
 /// otra sin ser ingreso ni egreso — por eso vive aparte de `CashMovement` (no
 /// entra en Movimientos, totales del período ni Reportes; solo en los saldos
@@ -2578,14 +2600,14 @@ model AccountTransfer {
   fromAccountId   String?        @map("from_account_id")
   fromAccount     PaymentMethod? @relation("AccountTransferFrom", fields: [fromAccountId], references: [id])
   fromAccountName String         @map("from_account_name")
-  fromAmount      Decimal        @map("from_amount") @db.Decimal(12, 2)
-  fromCurrency    Currency       @map("from_currency")
+  fromAmount      Decimal          @map("from_amount") @db.Decimal(18, 8)
+  fromCurrency    TransferCurrency @map("from_currency")
 
   toAccountId   String?        @map("to_account_id")
   toAccount     PaymentMethod? @relation("AccountTransferTo", fields: [toAccountId], references: [id])
   toAccountName String         @map("to_account_name")
-  toAmount      Decimal        @map("to_amount") @db.Decimal(12, 2)
-  toCurrency    Currency       @map("to_currency")
+  toAmount      Decimal          @map("to_amount") @db.Decimal(18, 8)
+  toCurrency    TransferCurrency @map("to_currency")
 
   description String @default("") @db.Text
 

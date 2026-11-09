@@ -30,3 +30,15 @@ export function sumByCurrency<T extends { currency: Currency; amount: number }>(
 export function subtractCurrencyTotals(a: CurrencyTotals, b: CurrencyTotals): CurrencyTotals {
   return { ars: a.ars - b.ars, usd: a.usd - b.usd };
 }
+
+/**
+ * Moneda de un lado de un traspaso entre cuentas: las de Caja más `btc`, que
+ * solo vive en traspasos y en el saldo de una cuenta Bitcoin (ver
+ * `PaymentMethod.isBitcoin`). Nunca se suma a un `CurrencyTotals`.
+ */
+export type TransferCurrency = Currency | "btc";
+
+/** Lado fiat de un traspaso (ARS/USD), o null si es el lado en BTC. */
+export function fiatCurrency(c: TransferCurrency): Currency | null {
+  return c === "btc" ? null : c;
+}

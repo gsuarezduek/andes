@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { FieldChange } from "@/lib/movement-audit";
-import { emptyCurrencyTotals, type Currency, type CurrencyTotals } from "@/lib/currency";
+import { emptyCurrencyTotals, fiatCurrency, type Currency, type CurrencyTotals } from "@/lib/currency";
 import { safeDeltaFromTransfers } from "@/lib/account-transfers";
 import { formatDateInput } from "@/lib/datetime";
 import { monthRangeUtc } from "@/lib/cash-period";
@@ -160,8 +160,11 @@ export async function getSafeMonthActivity(): Promise<{ income: CurrencyTotals; 
   for (const row of deposits) income[row.currency] += Number(row._sum.amount ?? 0);
   for (const row of withdrawals) expense[row.currency] += Number(row._sum.amount ?? 0);
   for (const t of transfers) {
-    if (t.toAccountId === null) income[t.toCurrency] += Number(t.toAmount);
-    if (t.fromAccountId === null) expense[t.fromCurrency] += Number(t.fromAmount);
+    // La Caja fuerte nunca tiene un lado en BTC (se valida al crear).
+    const toCurrency = fiatCurrency(t.toCurrency);
+    const fromCurrency = fiatCurrency(t.fromCurrency);
+    if (t.toAccountId === null && toCurrency) income[toCurrency] += Number(t.toAmount);
+    if (t.fromAccountId === null && fromCurrency) expense[fromCurrency] += Number(t.fromAmount);
   }
   return { income, expense };
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDeleteCard } from "@/components/ui/confirm-delete-card";
-import { formatMoney } from "@/lib/contract";
+import { formatTransferAmount } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { deleteAccountTransfer } from "@/app/(app)/caja/transfer-actions";
 import type { AccountTransferRow } from "@/lib/account-transfers-queries";
@@ -64,8 +64,8 @@ function TransferItem({
         : `Desde ${t.fromAccountName}`;
 
   const amountText = isCurrency
-    ? `${formatMoney(t.fromAmount, t.fromCurrency)} → ${formatMoney(t.toAmount, t.toCurrency)}`
-    : formatMoney(t.fromAmount, t.fromCurrency);
+    ? `${formatTransferAmount(t.fromAmount, t.fromCurrency)} → ${formatTransferAmount(t.toAmount, t.toCurrency)}`
+    : formatTransferAmount(t.fromAmount, t.fromCurrency);
 
   if (confirming) {
     return (

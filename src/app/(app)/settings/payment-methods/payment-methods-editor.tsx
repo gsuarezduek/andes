@@ -24,6 +24,7 @@ export type PlainPaymentMethod = Omit<
   | "expenseCommissionFixed"
   | "balanceAdjustmentArs"
   | "balanceAdjustmentUsd"
+  | "balanceAdjustmentBtc"
 > & {
   adjustmentPercent: number | null;
   commissionPercent: number | null;
@@ -32,6 +33,7 @@ export type PlainPaymentMethod = Omit<
   expenseCommissionFixed: number | null;
   balanceAdjustmentArs: number;
   balanceAdjustmentUsd: number;
+  balanceAdjustmentBtc: number;
 };
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,7 @@ type Draft = {
   ownership: PaymentMethodOwnership;
   requiresNote: boolean;
   isCash: boolean;
+  isBitcoin: boolean;
   hasInvestmentFunds: boolean;
   autoInvoice: boolean;
   financeOnly: boolean;
@@ -69,6 +72,7 @@ type Draft = {
   expenseCommissionCategoryId: string | null;
   balanceAdjustmentArs: string;
   balanceAdjustmentUsd: string;
+  balanceAdjustmentBtc: string;
 };
 
 type CategoryOption = { id: string; name: string };
@@ -94,6 +98,7 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     ownership: it.ownership,
     requiresNote: it.requiresNote,
     isCash: it.isCash,
+    isBitcoin: it.isBitcoin,
     hasInvestmentFunds: it.hasInvestmentFunds,
     autoInvoice: it.autoInvoice,
     financeOnly: it.financeOnly,
@@ -108,6 +113,7 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     expenseCommissionCategoryId: it.expenseCommissionCategoryId,
     balanceAdjustmentArs: Number(it.balanceAdjustmentArs) === 0 ? "" : it.balanceAdjustmentArs.toString(),
     balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd) === 0 ? "" : it.balanceAdjustmentUsd.toString(),
+    balanceAdjustmentBtc: Number(it.balanceAdjustmentBtc) === 0 ? "" : it.balanceAdjustmentBtc.toString(),
   };
 }
 
@@ -119,6 +125,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.ownership === b.ownership &&
     a.requiresNote === b.requiresNote &&
     a.isCash === b.isCash &&
+    a.isBitcoin === b.isBitcoin &&
     a.hasInvestmentFunds === b.hasInvestmentFunds &&
     a.autoInvoice === b.autoInvoice &&
     a.financeOnly === b.financeOnly &&
@@ -132,7 +139,8 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.expenseCommissionFixed === b.expenseCommissionFixed &&
     a.expenseCommissionCategoryId === b.expenseCommissionCategoryId &&
     a.balanceAdjustmentArs === b.balanceAdjustmentArs &&
-    a.balanceAdjustmentUsd === b.balanceAdjustmentUsd
+    a.balanceAdjustmentUsd === b.balanceAdjustmentUsd &&
+    a.balanceAdjustmentBtc === b.balanceAdjustmentBtc
   );
 }
 
@@ -429,6 +437,7 @@ function PaymentMethodRow({
         {draft.ownership === "associate" && <Badge tone="neutral">Asociado</Badge>}
         {draft.ownership === "misc" && <Badge tone="violet">Varios</Badge>}
         {draft.isCash && <Badge tone="emerald">Billetera</Badge>}
+        {draft.ownership === "own" && draft.isBitcoin && <Badge tone="orange">Bitcoin</Badge>}
         {draft.hasInvestmentFunds && <Badge tone="violet">Fondos</Badge>}
         {draft.ownership === "own" && draft.autoInvoice && <Badge tone="blue">Factura</Badge>}
         {draft.financeOnly && <Badge tone="orange">Solo Finanzas</Badge>}
@@ -542,7 +551,7 @@ function PaymentMethodRow({
                   placeholder="Sin cuenta principal — buscar…"
                 />
               ))}
-            {draft.ownership === "own" && (
+            {draft.ownership === "own" && !draft.isBitcoin && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
                 <p className="text-sm font-medium text-foreground/80">Comisiones</p>
                 <TabBar
@@ -662,7 +671,47 @@ function PaymentMethodRow({
                 )}
               </div>
             )}
-            {((draft.ownership === "own" && SHOW_BALANCE_ADJUSTMENT) ||
+            {draft.ownership === "own" && draft.isBitcoin && (
+              <div className="flex flex-col gap-2 rounded-lg border border-orange-500/30 p-3">
+                <p className="text-sm font-medium text-foreground/80">Saldo inicial</p>
+                <p className="text-xs text-foreground/50">
+                  Los BTC que ya había en esta cuenta antes de cargar compras o ventas en Andes, y cuánto se puso en
+                  pesos o dólares para tenerlos (es lo que se muestra como &quot;Aportado&quot;, no suma al saldo
+                  disponible). Las compras y ventas siguientes se cargan con &quot;Mover entre cuentas&quot;.
+                </p>
+                <TextField
+                  id={`balanceAdjustmentBtc-${item.id}`}
+                  label="BTC iniciales"
+                  type="text"
+                  inputMode="decimal"
+                  prefix="₿"
+                  placeholder="Ej. 0,375"
+                  value={draft.balanceAdjustmentBtc}
+                  onChange={(e) => setField(item.id, "balanceAdjustmentBtc", e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField
+                    id={`balanceAdjustmentArs-${item.id}`}
+                    label="Aportado ARS"
+                    type="text"
+                    inputMode="decimal"
+                    prefix="$"
+                    value={draft.balanceAdjustmentArs}
+                    onChange={(e) => setField(item.id, "balanceAdjustmentArs", e.target.value)}
+                  />
+                  <TextField
+                    id={`balanceAdjustmentUsd-${item.id}`}
+                    label="Aportado USD"
+                    type="text"
+                    inputMode="decimal"
+                    prefix="US$"
+                    value={draft.balanceAdjustmentUsd}
+                    onChange={(e) => setField(item.id, "balanceAdjustmentUsd", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            {((draft.ownership === "own" && !draft.isBitcoin && SHOW_BALANCE_ADJUSTMENT) ||
               draft.ownership === "associate" ||
               draft.ownership === "provider") && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">
@@ -707,16 +756,35 @@ function PaymentMethodRow({
               />
               Requiere aclaración (a dónde fue el pago)
             </label>
-            <label className="flex items-center gap-2 text-sm text-foreground/80">
-              <input
-                type="checkbox"
-                checked={draft.isCash}
-                onChange={(e) => setField(item.id, "isCash", e.target.checked)}
-                className="h-4 w-4"
-              />
-              Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
-            </label>
+            {!draft.isBitcoin && (
+              <label className="flex items-center gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={draft.isCash}
+                  onChange={(e) => setField(item.id, "isCash", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Es efectivo físico (cuenta para el saldo de Billetera, en Caja)
+              </label>
+            )}
             {draft.ownership === "own" && (
+              <label className="flex items-start gap-2 text-sm text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={draft.isBitcoin}
+                  onChange={(e) => setField(item.id, "isBitcoin", e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  Es una cuenta Bitcoin
+                  <span className="block text-xs text-foreground/60">
+                    El saldo se lleva en BTC y se muestra aparte en Saldos (no suma a la plata disponible). Solo se
+                    mueve con &quot;Mover entre cuentas&quot; (comprar o vender BTC); no admite ingresos ni egresos.
+                  </span>
+                </span>
+              </label>
+            )}
+            {draft.ownership === "own" && !draft.isBitcoin && (
               <label className="flex items-center gap-2 text-sm text-foreground/80">
                 <input
                   type="checkbox"
@@ -727,7 +795,7 @@ function PaymentMethodRow({
                 Tiene fondos de inversión
               </label>
             )}
-            {draft.ownership === "own" && (
+            {draft.ownership === "own" && !draft.isBitcoin && (
               <label className="flex items-start gap-2 text-sm text-foreground/80">
                 <input
                   type="checkbox"

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyTransfersToBalances, safeDeltaFromTransfers, walletDeltaFromTransfers } from "@/lib/account-transfers";
+import {
+  applyTransfersToBalances,
+  bitcoinBalances,
+  safeDeltaFromTransfers,
+  walletDeltaFromTransfers,
+} from "@/lib/account-transfers";
 import { emptyCurrencyTotals } from "@/lib/currency";
 
 const base = { fromAmount: 0, fromCurrency: "ars", toAmount: 0, toCurrency: "ars" } as const;
@@ -68,5 +73,53 @@ describe("caja fuerte como extremo de un traspaso", () => {
       { ...base, fromAccountId: "e", fromAmount: 400, toAccountId: null, toAmount: 400 },
     ]);
     expect(balances.get("e")).toEqual({ ars: 600, usd: 0 });
+  });
+});
+
+describe("cuentas Bitcoin", () => {
+  const resolve = new Map([["usd", "usd"], ["btc", "btc"]]);
+  const buy = {
+    fromAccountId: "usd",
+    fromAmount: 7400,
+    fromCurrency: "usd",
+    toAccountId: "btc",
+    toAmount: 0.1,
+    toCurrency: "btc",
+  } as const;
+  const sell = {
+    fromAccountId: "btc",
+    fromAmount: 0.1,
+    fromCurrency: "btc",
+    toAccountId: "usd",
+    toAmount: 10000,
+    toCurrency: "usd",
+  } as const;
+
+  it("el lado en BTC no toca los saldos en pesos/dólares", () => {
+    const balances = new Map([["usd", { ars: 0, usd: 10000 }]]);
+    applyTransfersToBalances(balances, resolve, [buy]);
+    expect(balances.get("usd")).toEqual({ ars: 0, usd: 2600 });
+  });
+
+  it("comprar suma BTC y lo aportado; vender resta BTC y descuenta lo recibido", () => {
+    const afterBuy = bitcoinBalances(["btc"], resolve, [buy]).get("btc");
+    expect(afterBuy).toEqual({ btc: 0.1, netContributed: { ars: 0, usd: 7400 } });
+
+    // Vendido todo con ganancia: 0 BTC y aportado negativo (se sacó más de lo que se puso).
+    const afterSell = bitcoinBalances(["btc"], resolve, [buy, sell]).get("btc");
+    expect(afterSell?.btc).toBeCloseTo(0, 8);
+    expect(afterSell?.netContributed).toEqual({ ars: 0, usd: -2600 });
+  });
+
+  it("ignora traspasos que no tocan la cuenta Bitcoin", () => {
+    const result = bitcoinBalances(["btc"], resolve, [
+      { fromAccountId: "usd", fromAmount: 5, fromCurrency: "usd", toAccountId: null, toAmount: 5, toCurrency: "usd" },
+    ]);
+    expect(result.get("btc")).toEqual({ btc: 0, netContributed: { ars: 0, usd: 0 } });
+  });
+
+  it("la Billetera y la Caja fuerte ignoran el lado en BTC", () => {
+    expect(walletDeltaFromTransfers([{ ...buy, fromIsCash: true, toIsCash: false }])).toEqual({ ars: 0, usd: -7400 });
+    expect(safeDeltaFromTransfers([{ ...buy, fromAccountId: null }])).toEqual({ ars: 0, usd: -7400 });
   });
 });

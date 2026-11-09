@@ -3,6 +3,8 @@ import {
   extraHourAmount,
   formatArs,
   formatMoney,
+  formatBtc,
+  formatTransferAmount,
   computeBalance,
   guaranteeTotal,
   kmPackKm,
@@ -208,5 +210,18 @@ describe("usdPaymentDetail", () => {
 
   it("null en una línea en pesos", () => {
     expect(usdPaymentDetail({})).toBeNull();
+  });
+});
+
+describe("formatBtc / formatTransferAmount", () => {
+  it("muestra hasta 8 decimales con coma y el símbolo ₿", () => {
+    expect(formatBtc(0.1)).toBe("₿ 0,1");
+    expect(formatBtc(0.00012345)).toBe("₿ 0,00012345");
+    expect(formatBtc(null)).toBe("—");
+  });
+
+  it("delega pesos/dólares en formatMoney", () => {
+    expect(formatTransferAmount(0.5, "btc")).toBe("₿ 0,5");
+    expect(formatTransferAmount(100, "usd")).toBe(formatMoney(100, "usd"));
   });
 });

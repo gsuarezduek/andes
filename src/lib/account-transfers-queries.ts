@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { Currency } from "@/lib/currency";
+import type { TransferCurrency } from "@/lib/currency";
 import { RESTRICTED_ACCOUNT_NAME } from "@/lib/finance-only";
 
 export type AccountTransferRow = {
@@ -9,12 +9,12 @@ export type AccountTransferRow = {
   fromAccountId: string | null;
   fromAccountName: string;
   fromAmount: number;
-  fromCurrency: Currency;
+  fromCurrency: TransferCurrency;
   /** `null` = Caja fuerte. */
   toAccountId: string | null;
   toAccountName: string;
   toAmount: number;
-  toCurrency: Currency;
+  toCurrency: TransferCurrency;
   description: string;
   createdByName: string;
   createdAt: Date;

@@ -46,11 +46,15 @@ export function resolveBalanceHistoryGranularity(
   return period === "12m" ? "weekly" : requested;
 }
 
-/** Un evento con delta firmado por moneda que ese movimiento/traspaso aporta al saldo de la cuenta. */
-export type BalanceEvent = { date: Date; ars: number; usd: number };
+/**
+ * Un evento con delta firmado por moneda que ese movimiento/traspaso aporta
+ * al saldo de la cuenta. `btc` solo lo traen los traspasos de una cuenta
+ * Bitcoin (ver `PaymentMethod.isBitcoin`); omitido = 0.
+ */
+export type BalanceEvent = { date: Date; ars: number; usd: number; btc?: number };
 
 /** Saldo al cierre de ese día ("YYYY-MM-DD", diario) o de esa semana (lunes, semanal). */
-export type BalancePoint = { date: string; ars: number; usd: number };
+export type BalancePoint = { date: string; ars: number; usd: number; btc: number };
 
 function addDaysUtc(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
@@ -65,19 +69,20 @@ function addDaysUtc(date: Date, days: number): Date {
  */
 export function buildBalanceHistory(
   events: BalanceEvent[],
-  adjustment: CurrencyTotals,
+  adjustment: CurrencyTotals & { btc?: number },
   from: Date,
   to: Date,
   granularity: BalanceHistoryGranularity,
 ): BalancePoint[] {
   // Delta por día calendario (Mendoza), sin importar la granularidad de
   // salida — la agregación semanal se hace al recorrer los buckets, no acá.
-  const deltaByDay = new Map<string, { ars: number; usd: number }>();
+  const deltaByDay = new Map<string, { ars: number; usd: number; btc: number }>();
   for (const e of events) {
     const key = formatDateInput(e.date);
-    const acc = deltaByDay.get(key) ?? { ars: 0, usd: 0 };
+    const acc = deltaByDay.get(key) ?? { ars: 0, usd: 0, btc: 0 };
     acc.ars += e.ars;
     acc.usd += e.usd;
+    acc.btc += e.btc ?? 0;
     deltaByDay.set(key, acc);
   }
   const eventDays = [...deltaByDay.keys()].sort();
@@ -101,16 +106,17 @@ export function buildBalanceHistory(
 
   // Merge-walk: saldo corriente, consumiendo eventos (ordenados) hasta el
   // final de cada bucket — incluye de arranque todo lo anterior a `from`.
-  let running = { ars: adjustment.ars, usd: adjustment.usd };
+  let running = { ars: adjustment.ars, usd: adjustment.usd, btc: adjustment.btc ?? 0 };
   let ptr = 0;
   const points: BalancePoint[] = [];
   for (const bucket of buckets) {
     while (ptr < eventDays.length && eventDays[ptr] <= bucket.endYmd) {
       const d = deltaByDay.get(eventDays[ptr])!;
-      running = { ars: running.ars + d.ars, usd: running.usd + d.usd };
+      running = { ars: running.ars + d.ars, usd: running.usd + d.usd, btc: running.btc + d.btc };
       ptr++;
     }
-    points.push({ date: bucket.label, ars: running.ars, usd: running.usd });
+    // BTC redondeado a satoshis: la suma de decimales deja restos tipo 1e-17.
+    points.push({ date: bucket.label, ars: running.ars, usd: running.usd, btc: Math.round(running.btc * 1e8) / 1e8 });
   }
   return points;
 }
