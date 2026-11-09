@@ -1275,6 +1275,10 @@ Cierre de huecos de v85 (cuentas `financeOnly`) y diseño propio en Saldos. tsc/
 
 Solo cambia el nombre en pantalla (pedido del dueño: refleja mejor quiénes son). En el código y en la base el rol sigue siendo `observador` (`UserRole`, `ROLE_RANK`, `OPERATOR_FILTER`), así que no hay migración. El nombre visible sale de `userRoleLabels` (`src/lib/labels.ts`) y de "Roles y accesos" (`src/lib/role-access.ts`); además se cambiaron las ayudas y avisos que lo nombraban (alta/edición de usuarios, "Solo Finanzas" en Medios de pago y Saldos, mensaje de error de `userManagementError`). En las secciones anteriores de este archivo, "Observador" es el mismo rol.
 
+## v109 — Caja: un empleado ya no ve el total de Ingresos
+
+Pedido del dueño: en la vista de empleado de Caja (Movimientos), la lista de Ingresos del período se sigue viendo completa, pero sin la tarjeta "Total" (`IncomesBoard` perdió el prop `totalIncome`; la vista admin, `CashPeriodDetail`, no cambia). Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

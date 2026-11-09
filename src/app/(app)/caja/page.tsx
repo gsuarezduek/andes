@@ -122,7 +122,6 @@ export default async function CajaPage({
               editables/eliminables igual que la vista admin. */}
           <IncomesBoard
             incomes={periodDetail.incomes}
-            totalIncome={periodDetail.totalIncome}
             period={period}
             paymentMethods={paymentMethods}
             expenseCategories={expenseCategories}
