@@ -44,6 +44,14 @@ export default async function PaymentMethodsSettingsPage() {
     orderBy: { name: "asc" },
     include: { paymentMethods: { select: { id: true } } },
   });
+  // `active` null = sin dato de VikRentCar (plugin andes-sync < v1.8.0): se muestra.
+  const activeWp = wpItems.filter((wp) => wp.active !== false);
+  const inactiveWp = wpItems.filter((wp) => wp.active === false);
+  const toWpRow = (wp: (typeof wpItems)[number]) => ({
+    id: wp.id,
+    name: wp.name,
+    linkedIds: wp.paymentMethods.map((m) => m.id),
+  });
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-8">
@@ -107,13 +115,29 @@ export default async function PaymentMethodsSettingsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeading description={'Nombres de método de pago que aparecieron en reservas sincronizadas (ej. "Stripe", "Transferencia de Banco") — se van agregando solos, no hay que cargarlos a mano. Asociá cada uno a uno o más medios de pago de Andes: cuando la asociación es a un único medio, la seña de esa reserva se importa a Caja ya confirmada; si no, queda pendiente de elegir el medio real.'}>
+        <SectionHeading description={'Métodos de pago activos en VikRentCar (ej. "Stripe", "Transferencia de Banco") — se van agregando solos con cada sincronización, no hay que cargarlos a mano. Asociá cada uno a uno o más medios de pago de Andes: cuando la asociación es a un único medio, la seña de esa reserva se importa a Caja ya confirmada; si no, queda pendiente de elegir el medio real.'}>
           Métodos de pago de VikRentCar
         </SectionHeading>
         <WpPaymentMethodsEditor
-          items={wpItems.map((wp) => ({ id: wp.id, name: wp.name, linkedIds: wp.paymentMethods.map((m) => m.id) }))}
+          items={activeWp.map(toWpRow)}
           paymentMethods={items.map((m) => ({ id: m.id, name: m.name }))}
         />
+        {inactiveWp.length > 0 && (
+          <details className="rounded-lg border border-foreground/10 p-3">
+            <summary className="cursor-pointer text-sm text-foreground/60">
+              Ya no activos en VikRentCar ({inactiveWp.length})
+            </summary>
+            <p className="mt-2 mb-3 text-xs text-foreground/50">
+              Nombres viejos (renombrados o desactivados en VikRentCar). Se conservan porque las
+              reservas anteriores todavía los traen. Si un método se renombró, sus asociaciones
+              pasan solas al nombre nuevo.
+            </p>
+            <WpPaymentMethodsEditor
+              items={inactiveWp.map(toWpRow)}
+              paymentMethods={items.map((m) => ({ id: m.id, name: m.name }))}
+            />
+          </details>
+        )}
       </section>
     </div>
   );

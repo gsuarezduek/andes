@@ -58,6 +58,24 @@ export type RawOptional = {
   hasMany: boolean; // admite cantidad (hmany=1)
 };
 
+/** Un método de pago de `wp_vikrentcar_gpayments`. */
+export type RawPaymentGateway = {
+  id: number;
+  name: string;
+  published: boolean; // activo en VikRentCar
+};
+
+/**
+ * Métodos de pago de VikRentCar (`/payments` del plugin, v1.8.0+): los que
+ * existen hoy (`gateways`) y cada par id/nombre que aparece en las órdenes
+ * (`seenNames`, de `orders.idpayment` "8=Stripe"). Con los dos se detecta un
+ * renombre: mismo id, nombre distinto.
+ */
+export type RawPaymentGatewayCatalog = {
+  gateways: RawPaymentGateway[];
+  seenNames: { id: number; name: string }[];
+};
+
 /** Un modelo de `wp_vikrentcar_cars`, para el seed inicial de la flota. */
 export type RawCar = {
   id: number; // → vehicles.wp_car_id
@@ -99,6 +117,8 @@ export interface BookingSource {
   fetchSeasons(): Promise<RawSeason[]>;
   /** Catálogo de opcionales (packs de km, mejora de seguro, …). */
   fetchOptionals(): Promise<RawOptional[]>;
+  /** Métodos de pago de VikRentCar. Null = sin dato (plugin viejo o grupo apagado). */
+  fetchPaymentGateways(): Promise<RawPaymentGatewayCatalog | null>;
   /** Cierra conexiones abiertas (no-op en REST). */
   close?(): Promise<void>;
 }

@@ -4,6 +4,7 @@ import type { BookingSource, RawBooking, RawOptional } from "./types";
 import { createBookingSource } from "./source";
 import { upsertBooking } from "./booking-upsert";
 import { syncCarRates } from "./car-rates";
+import { syncWpPaymentGateways } from "./payment-gateways-sync";
 import { recordLog, buildMessage, errMsg, type SyncSummary } from "./log";
 
 export type { SyncSummary };
@@ -73,6 +74,12 @@ export async function runBookingSync(source?: BookingSource): Promise<SyncSummar
       await syncCarRates(src);
     } catch (e) {
       problems.push(`tarifas: ${errMsg(e)}`);
+    }
+    // Métodos de pago activos en VikRentCar (best-effort, igual que las tarifas).
+    try {
+      await syncWpPaymentGateways(src);
+    } catch (e) {
+      problems.push(`métodos de pago: ${errMsg(e)}`);
     }
   } finally {
     await src.close?.();

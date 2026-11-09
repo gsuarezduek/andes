@@ -61,6 +61,7 @@ compartidos, v1.2.0). Como **mu-plugin** no se puede desactivar por accidente.
 | GET | `/wp-json/andes/v1/cars` | `{ cars: RawCar[] }` (incluye `baseDailyRate`, v1.1.0) |
 | GET | `/wp-json/andes/v1/seasons` | `{ seasons: RawSeason[] }` (v1.1.0, ajustes de tarifa por temporada) |
 | GET | `/wp-json/andes/v1/optionals` | `{ optionals: RawOptional[] }` (v1.4.0, catálogo de opcionales: packs de km, mejora de seguro) |
+| GET | `/wp-json/andes/v1/payments` | `{ gateways, seenNames }` (v1.8.0, métodos de pago de `gpayments` con su estado publicado + cada `"id=Nombre"` visto en las órdenes; Andes muestra solo los activos y detecta renombres) |
 
 Todos requieren el header `X-Andes-Token` (o `?token=`). `from`/`to` son la
 ventana en Unix segundos; Andes la calcula sola (hoy−2d … hoy+60d por defecto).
@@ -84,7 +85,7 @@ Grupos apagables (todos ON por defecto):
 | Grupo | Campos |
 |---|---|
 | Cliente (datos personales) | `clientName, clientEmail, clientPhone, clientDocNumber, clientCountry` |
-| Económico | `orderTotal, totpaid (pagado), carCost, optionals` + catálogo `/optionals`, `paymentMethod` |
+| Económico | `orderTotal, totpaid (pagado), carCost, optionals` + catálogo `/optionals`, `paymentMethod` + métodos de pago `/payments` |
 | Texto libre de la reserva | `custData` |
 | Extras de la reserva | `createdUnix, days, lang, carName, pickupPlace, returnPlace` |
 | Tarifa y temporadas | `baseDailyRate` en `/cars` y el endpoint `/seasons` |

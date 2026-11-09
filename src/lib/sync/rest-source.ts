@@ -1,7 +1,15 @@
 import "server-only";
 import dns from "node:dns";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason, SyncWindow } from "./types";
+import type {
+  BookingSource,
+  RawBooking,
+  RawCar,
+  RawOptional,
+  RawPaymentGatewayCatalog,
+  RawSeason,
+  SyncWindow,
+} from "./types";
 
 // El sitio de WordPress (Hostinger) resuelve a IPv4 y a IPv6 (A + AAAA). En
 // Railway el egreso IPv6 hacia ese host no completa y `fetch` termina en
@@ -83,6 +91,18 @@ export class RestBookingSource implements BookingSource {
       return data.optionals ?? [];
     } catch {
       return [];
+    }
+  }
+
+  async fetchPaymentGateways(): Promise<RawPaymentGatewayCatalog | null> {
+    // Compat: plugin < v1.8.0 (sin /payments, 404) o grupo "Económico" apagado
+    // (`gateways: null`) → sin dato: no se marca nada como inactivo.
+    try {
+      const data = await this.get<{ gateways: RawPaymentGatewayCatalog["gateways"] | null; seenNames?: RawPaymentGatewayCatalog["seenNames"] }>("payments");
+      if (!data.gateways) return null;
+      return { gateways: data.gateways, seenNames: data.seenNames ?? [] };
+    } catch {
+      return null;
     }
   }
 }

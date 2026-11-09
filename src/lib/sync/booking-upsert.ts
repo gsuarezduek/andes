@@ -254,8 +254,9 @@ async function recordTotalChange(rentalId: string, previousTotal: number, newTot
 
 /**
  * Registra en el catálogo (`WpPaymentMethod`) un nombre de método de pago
- * visto en una reserva — no hay una tabla fija de gateways en VikRentCar, así
- * que se completa solo a medida que aparecen nombres reales. Idempotente.
+ * visto en una reserva. Idempotente. Si el nombre es viejo (el método se
+ * renombró en VikRentCar), `syncWpPaymentGateways` lo marca inactivo al final
+ * de la misma corrida.
  */
 async function upsertWpPaymentMethodCatalog(name: string | null): Promise<void> {
   if (!name) return;

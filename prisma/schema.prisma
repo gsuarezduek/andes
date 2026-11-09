@@ -1429,14 +1429,23 @@ model PaymentMethod {
 }
 
 /// Catálogo de nombres de método de pago vistos en VikRentCar (`orders.idpayment`,
-/// ej. "Stripe", "Transferencia de Banco"). No hay una tabla fija de gateways en
-/// WordPress: se completa solo, a medida que el sync ve nombres reales en las
-/// reservas. El admin asocia cada nombre a uno o más medios de pago de Andes
+/// ej. "Stripe", "Transferencia de Banco"). Se completa solo, a medida que el sync
+/// ve nombres reales en las reservas, y desde el plugin v1.8.0 también con la
+/// lista de `wp_vikrentcar_gpayments` (que marca cuáles siguen activos). El admin asocia cada nombre a uno o más medios de pago de Andes
 /// (Configuración → Medios de pago); cuando la asociación es a un único medio,
 /// el sync lo usa para confirmar solo el ingreso importado (ver `booking-upsert.ts`).
 model WpPaymentMethod {
   id   String @id @default(cuid())
   name String @unique
+
+  // Id del método en `wp_vikrentcar_gpayments` (el "8" de "8=Stripe" en
+  // `orders.idpayment`). Un mismo id con dos nombres = el método se renombró
+  // en VikRentCar. Null si el plugin todavía no lo informó.
+  wpGatewayId Int? @map("wp_gateway_id")
+  // Si el nombre sigue siendo un método activo (publicado) en VikRentCar.
+  // Null = sin dato (plugin andes-sync < v1.8.0): se muestra igual.
+  // Lo actualiza `syncWpPaymentGateways` en cada sync.
+  active Boolean? @map("active")
 
   paymentMethods PaymentMethod[] @relation("WpPaymentMethodMapping")
 

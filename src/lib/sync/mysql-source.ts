@@ -1,8 +1,17 @@
 import "server-only";
 import mysql from "mysql2/promise";
 import { env } from "@/lib/env";
-import type { BookingSource, RawBooking, RawCar, RawOptional, RawSeason, SyncWindow } from "./types";
+import type {
+  BookingSource,
+  RawBooking,
+  RawCar,
+  RawOptional,
+  RawPaymentGatewayCatalog,
+  RawSeason,
+  SyncWindow,
+} from "./types";
 import { parseIdCars } from "./rates";
+import { parseIdPayment } from "./payment-gateways";
 
 /**
  * Adaptador de solo lectura contra el MySQL de VikRentCar (Hostinger).
@@ -199,6 +208,36 @@ export class MysqlBookingSource implements BookingSource {
       perDay: Number(r.perday) === 1,
       hasMany: Number(r.hmany) === 1,
     }));
+  }
+
+  async fetchPaymentGateways(): Promise<RawPaymentGatewayCatalog | null> {
+    // Espeja /payments del plugin. Si `gpayments` no tuviera la columna
+    // `published`, se toma todo lo que existe en la tabla como activo.
+    const pool = this.getPool();
+    let rows: { id: number; name: string | null; published?: number | null }[];
+    try {
+      [rows] = (await pool.query<mysql.RowDataPacket[]>(
+        `SELECT id, name, published FROM \`${PREFIX}gpayments\` ORDER BY id`,
+      )) as unknown as [typeof rows];
+    } catch {
+      [rows] = (await pool.query<mysql.RowDataPacket[]>(
+        `SELECT id, name FROM \`${PREFIX}gpayments\` ORDER BY id`,
+      )) as unknown as [typeof rows];
+    }
+    const [seen] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT DISTINCT idpayment FROM \`${PREFIX}orders\` WHERE idpayment IS NOT NULL AND idpayment <> ''`,
+    );
+    return {
+      gateways: rows.flatMap((r) => {
+        const name = clean(r.name);
+        if (!name) return [];
+        return [{ id: Number(r.id), name, published: r.published === undefined ? true : Number(r.published) === 1 }];
+      }),
+      seenNames: (seen as { idpayment: string | null }[]).flatMap((r) => {
+        const p = parseIdPayment(r.idpayment);
+        return p ? [p] : [];
+      }),
+    };
   }
 
   async close(): Promise<void> {

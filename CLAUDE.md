@@ -1241,6 +1241,14 @@ En `/caja/saldos/[id]`, debajo del encabezado: **+ Ingreso**, **+ Egreso** y **M
 - `createCashMovement` también revalida `/caja/saldos/[id]`. El bloque de fondos de inversión aclara que no cambia el saldo, para no confundirlo con "+ Egreso".
 - **Fecha**: sigue siendo la de carga (no se puede cargar con fecha pasada; decisión del dueño, por ahora).
 
+## v106 — Métodos de pago de VikRentCar: solo los activos
+
+Al renombrar un método de pago en VikRentCar, Configuración → Medios de pago mostraba el nombre viejo y el nuevo: el catálogo `WpPaymentMethod` se armaba solo con los nombres que traen las reservas, y `orders.idpayment` guarda `"id=Nombre"` como snapshot (las órdenes viejas siguen diciendo "Stripe"). tsc/lint/982 tests en verde (+7 en `payment-gateways.test.ts`); round-trip del sync verificado contra la base local con una fuente simulada (renombre + método nuevo, idempotente) y la pantalla con Playwright a 375px. Migración `add_wp_payment_method_active` **aplicada solo en local, sin desplegar todavía**. **Requiere actualizar el plugin `andes-sync` a v1.8.0 en WordPress**; sin eso no cambia nada (se siguen viendo todos).
+
+- **Plugin v1.8.0**: endpoint `/payments` (grupo Económico): `gateways` de `wp_vikrentcar_gpayments` (`id, name, published`) + `seenNames` (cada `"id=Nombre"` distinto de `orders.idpayment`). **Columnas de `gpayments` sin verificar contra la base real**: si no hubiera `published`, toma todo lo que existe en la tabla como activo (igual resuelve los renombres). Con el grupo apagado devuelve `gateways: null` = sin dato. El adaptador MySQL espeja lo mismo.
+- **`WpPaymentMethod.active`** (null = sin dato, plugin viejo) y **`wpGatewayId`**. `syncWpPaymentGateways` (`src/lib/sync/payment-gateways-sync.ts`, al final de cada `runBookingSync`, best-effort) aplica el plan puro `planGatewaySync` (`payment-gateways.ts`, testeado): marca activo/inactivo cada nombre, crea los métodos activos que todavía no aparecieron en ninguna reserva, y **si un método se renombró (mismo id, otro nombre) le copia al nombre nuevo las asociaciones del viejo**, solo si el nuevo no tiene ninguna. Las filas inactivas no se borran: las órdenes viejas todavía traen ese nombre y `resolveWpPaymentMethod` las sigue resolviendo.
+- **UI**: la lista muestra los activos (y los sin dato); los inactivos quedan en un `<details>` "Ya no activos en VikRentCar (N)", editables.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

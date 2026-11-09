@@ -2,9 +2,13 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.7.1
+ * Version: 1.8.0
  * Author: MDZ Rent a Car
  *
+ * v1.8.0: nuevo endpoint /payments: métodos de pago de VikRentCar
+ *         (gpayments: id, nombre, publicado) + cada "id=Nombre" visto en las
+ *         órdenes. Andes muestra solo los activos y detecta renombres por el id.
+ *         Grupo Económico.
  * v1.7.1: fix de `couponCode` — `orders.coupon` real viene como
  *         "%desc;montoDesc;CODIGO" (ej. "10;23000;MDZLOVER"), no solo el
  *         código. Ahora se extrae únicamente el código (último segmento).
@@ -134,7 +138,7 @@ function andes_sync_groups()
 {
     return [
         'share_client'        => ['Cliente (datos personales)', 'clientName, clientEmail, clientPhone, clientDocNumber, clientCountry'],
-        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost, optionals (+ catálogo /optionals), paymentMethod, couponCode'],
+        'share_financial'     => ['Económico', 'orderTotal, totpaid (pagado), carCost, optionals (+ catálogo /optionals), paymentMethod (+ métodos de pago /payments), couponCode'],
         'share_custdata'      => ['Texto libre de la reserva', 'custData (la "Info de la reserva")'],
         'share_booking_extra' => ['Extras de la reserva', 'createdUnix, days, lang, carName, pickupPlace, returnPlace'],
         'share_rates'         => ['Tarifa y temporadas', 'baseDailyRate en /cars y el endpoint /seasons'],
@@ -226,6 +230,12 @@ add_action('rest_api_init', function () {
     register_rest_route('andes/v1', '/optionals', [
         'methods'             => 'GET',
         'callback'            => 'andes_sync_optionals',
+        'permission_callback' => 'andes_sync_authorized',
+    ]);
+
+    register_rest_route('andes/v1', '/payments', [
+        'methods'             => 'GET',
+        'callback'            => 'andes_sync_payments',
         'permission_callback' => 'andes_sync_authorized',
     ]);
 });
@@ -408,6 +418,68 @@ function andes_sync_optionals(WP_REST_Request $request)
     }, $rows);
 
     return new WP_REST_Response(['optionals' => $optionals], 200);
+}
+
+/**
+ * Métodos de pago de VikRentCar (gpayments) y cada "id=Nombre" que aparece en
+ * las órdenes. Con el grupo Económico apagado devuelve `gateways: null` (sin
+ * dato), para que Andes no los marque a todos como inactivos.
+ */
+function andes_sync_payments(WP_REST_Request $request)
+{
+    if (!andes_sync_share('share_financial')) {
+        return new WP_REST_Response(['gateways' => null, 'seenNames' => []], 200);
+    }
+
+    global $wpdb;
+    $p = $wpdb->prefix . 'vikrentcar_';
+
+    // Si la tabla no tuviera `published`, se toma todo lo que existe como activo.
+    $prev = $wpdb->suppress_errors(true);
+    $has_published = true;
+    $rows = $wpdb->get_results("SELECT id, name, published FROM {$p}gpayments ORDER BY id", ARRAY_A);
+    if ($wpdb->last_error) {
+        $has_published = false;
+        $rows = $wpdb->get_results("SELECT id, name FROM {$p}gpayments ORDER BY id", ARRAY_A);
+    }
+    $failed = $wpdb->last_error || $rows === null;
+    $seen = $failed ? [] : $wpdb->get_col(
+        "SELECT DISTINCT idpayment FROM {$p}orders WHERE idpayment IS NOT NULL AND idpayment <> ''"
+    );
+    $failed = $failed || $wpdb->last_error;
+    $wpdb->suppress_errors($prev);
+    if ($failed) {
+        return new WP_Error('andes_db', 'Error de base de datos', ['status' => 500]);
+    }
+
+    $gateways = [];
+    foreach ($rows as $r) {
+        $name = andes_sync_clean($r['name']);
+        if ($name === null) {
+            continue;
+        }
+        $gateways[] = [
+            'id'        => (int) $r['id'],
+            'name'      => $name,
+            'published' => $has_published ? ((int) $r['published'] === 1) : true,
+        ];
+    }
+
+    $seen_names = [];
+    foreach ($seen as $v) {
+        $t  = andes_sync_clean($v);
+        $eq = $t === null ? false : strpos($t, '=');
+        if ($eq === false || $eq === 0) {
+            continue;
+        }
+        $id   = (int) trim(substr($t, 0, $eq));
+        $name = trim(substr($t, $eq + 1));
+        if ($id > 0 && $name !== '') {
+            $seen_names[] = ['id' => $id, 'name' => $name];
+        }
+    }
+
+    return new WP_REST_Response(['gateways' => $gateways, 'seenNames' => $seen_names], 200);
 }
 
 /**
