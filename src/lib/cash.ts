@@ -727,7 +727,7 @@ export type OwnAccountBalance = {
    * propósito, ver `findMovements`). Nunca null — 0/0 si no hay ninguna activa.
    */
   guaranteeBalance: CurrencyTotals;
-  /** Visible solo para Finanzas/Observador/propietario — ver `PaymentMethod.financeOnly`. */
+  /** Visible solo para Finanzas/Socio/propietario — ver `PaymentMethod.financeOnly`. */
   financeOnly: boolean;
 };
 

@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
-import { hasAdminAccess } from "@/lib/user-permissions";
+import { hasAdminAccess, viewableRoles } from "@/lib/user-permissions";
+import { userRoleLabels } from "@/lib/labels";
 import { getAssignedPendingCount } from "@/lib/tasks";
 import { countNeedsReply } from "@/lib/whatsapp/conversations";
 import { touchPresence, getOnlineUsers } from "@/lib/presence";
@@ -10,7 +11,7 @@ import { AppNav } from "@/components/app-nav";
 import { InactivityLogout } from "@/components/inactivity-logout";
 import { EvidenceSync } from "@/components/evidence-sync";
 import { WhatsappSoundNotifier } from "@/components/whatsapp-sound-notifier";
-import { logout, enableEmployeeView, disableEmployeeView } from "./actions";
+import { logout, setViewAs, clearViewAs } from "./actions";
 import { triggerSync } from "./sync/actions";
 
 export default async function AppLayout({
@@ -20,8 +21,10 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   const isAdmin = hasAdminAccess(user.role);
-  const isRealAdmin = hasAdminAccess(user.realRole);
-  const viewingAsEmployee = isRealAdmin && !isAdmin;
+  const viewOptions = viewableRoles(user.realRole, user.realOwner).map((role) => ({
+    role,
+    label: userRoleLabels[role],
+  }));
   const [taskCount, whatsappUnread, onlineUsers] = await Promise.all([
     getAssignedPendingCount(user.id),
     countNeedsReply(),
@@ -52,10 +55,17 @@ export default async function AppLayout({
             taskCount={taskCount}
             whatsappUnread={whatsappUnread}
             onlineUsers={onlineUsers}
-            isRealAdmin={isRealAdmin}
-            viewingAsEmployee={viewingAsEmployee}
-            enableEmployeeView={enableEmployeeView}
-            disableEmployeeView={disableEmployeeView}
+            view={
+              viewOptions.length > 0
+                ? {
+                    current: user.viewAs ? userRoleLabels[user.viewAs] : null,
+                    currentRole: user.viewAs,
+                    options: viewOptions,
+                    set: setViewAs,
+                    clear: clearViewAs,
+                  }
+                : undefined
+            }
           />
         </div>
       </header>

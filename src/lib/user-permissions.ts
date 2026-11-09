@@ -5,7 +5,7 @@ export type UserPerm = { id: string; role: Role; owner: boolean };
 /**
  * Orden jerárquico de los roles: cada uno tiene además todo lo del anterior
  * (empleado < admin < finanzas < observador). Ver CLAUDE.md — Finanzas suma
- * la visibilidad de las cuentas `PaymentMethod.financeOnly`; Observador suma
+ * la visibilidad de las cuentas `PaymentMethod.financeOnly`; Socio suma
  * además quedar afuera de las listas operativas (`OPERATOR_FILTER`).
  * Propietario (`User.owner`) es un flag aparte, no un rango más: por
  * definición ve todo y nadie puede tocar sus permisos.
@@ -17,12 +17,12 @@ export const ROLE_RANK: Record<Role, number> = {
   observador: 3,
 };
 
-/** Admin, Finanzas y Observador tienen acceso de "nivel admin" (jerárquico). */
+/** Admin, Finanzas y Socio tienen acceso de "nivel admin" (jerárquico). */
 export function hasAdminAccess(role: Role): boolean {
   return ROLE_RANK[role] >= ROLE_RANK.admin;
 }
 
-/** Finanzas, Observador y el propietario ven las cuentas `financeOnly`. */
+/** Finanzas, Socio y el propietario ven las cuentas `financeOnly`. */
 export function hasFinanceAccess(role: Role, owner = false): boolean {
   return owner || ROLE_RANK[role] >= ROLE_RANK.finanzas;
 }
@@ -60,7 +60,27 @@ export function userManagementError(
     return "Solo el propietario puede otorgar ese rol.";
   }
   if (target && ROLE_RANK[target.role] >= ROLE_RANK.admin && target.id !== actor.id) {
-    return "Solo el propietario puede modificar a otro administrador, usuario de Finanzas u Observador.";
+    return "Solo el propietario puede modificar a otro administrador, usuario de Finanzas o Socio.";
   }
   return null;
+}
+
+const ROLES_DESC: Role[] = ["observador", "finanzas", "admin", "empleado"];
+
+/**
+ * Roles que alguien puede usar en "Ver como…" (menú de cuenta), del más alto
+ * al más bajo. Cada uno ve como los roles de rango menor al suyo; el
+ * propietario ve como cualquiera, incluido su propio rol (sin los poderes de
+ * propietario, que es justamente lo que esa vista simula).
+ */
+export function viewableRoles(realRole: Role, owner = false): Role[] {
+  return ROLES_DESC.filter((r) =>
+    owner ? ROLE_RANK[r] <= ROLE_RANK[realRole] : ROLE_RANK[r] < ROLE_RANK[realRole],
+  );
+}
+
+/** Valida el valor de la cookie de vista: el rol elegido, o null si no aplica. */
+export function resolveViewAs(value: string | undefined, realRole: Role, owner = false): Role | null {
+  if (!value) return null;
+  return viewableRoles(realRole, owner).find((r) => r === value) ?? null;
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { getUserPerm } from "@/lib/user-access";
+import { getActorPerm } from "@/lib/user-access";
 import { userManagementError } from "@/lib/user-permissions";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -22,7 +22,7 @@ export default async function UsersPage({
   searchParams: Promise<{ loginUser?: string }>;
 }) {
   const admin = await requireAdmin();
-  const actor = await getUserPerm(admin.id);
+  const actor = await getActorPerm(admin);
   const { loginUser } = await searchParams;
 
   const [users, loginEvents] = await Promise.all([

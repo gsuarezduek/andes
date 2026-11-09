@@ -4,7 +4,8 @@ import { useState } from "react";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import { ConnectedUsers } from "@/components/nav/connected-users";
 import { CommandPaletteButton } from "@/components/nav/command-palette";
-import type { Item } from "@/components/nav/types";
+import type { Item, ViewAsMenu } from "@/components/nav/types";
+import { ViewAsBadge, ViewAsMenuItems } from "@/components/nav/view-as-menu";
 import type { OnlineUser } from "@/lib/presence";
 
 /** Botón hamburguesa + panel colapsable, visibles solo en mobile. */
@@ -16,7 +17,7 @@ export function MobileNav({
   logout,
   sync,
   onlineUsers,
-  viewToggle,
+  view,
   onOpenPalette,
 }: {
   mainItems: Item[];
@@ -26,7 +27,7 @@ export function MobileNav({
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
   onlineUsers?: OnlineUser[];
-  viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
+  view?: ViewAsMenu;
   onOpenPalette: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -96,11 +97,7 @@ export function MobileNav({
             {userName ? (
               <span className="flex items-center gap-2 px-3 pb-1 text-xs uppercase tracking-wide text-foreground/40">
                 {userName}
-                {viewToggle?.active ? (
-                  <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-400">
-                    Vista empleado
-                  </span>
-                ) : null}
+                <ViewAsBadge view={view} />
               </span>
             ) : null}
             {menuItems.map((it) => (
@@ -119,18 +116,11 @@ export function MobileNav({
               </a>
             ))}
 
-            {viewToggle ? (
-              <>
-                <div className="my-1 border-t border-foreground/10" />
-                <form action={viewToggle.action}>
-                  <button
-                    type="submit"
-                    className="w-full rounded-lg px-3 py-3 text-left text-base font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
-                  >
-                    {viewToggle.label}
-                  </button>
-                </form>
-              </>
+            {view ? (
+              <ViewAsMenuItems
+                view={view}
+                itemClassName="w-full rounded-lg px-3 py-3 text-left text-base font-medium transition-colors"
+              />
             ) : null}
 
             <div className="my-1 border-t border-foreground/10" />

@@ -755,7 +755,7 @@ function PaymentMethodRow({
                 <span>
                   Visible solo para Finanzas
                   <span className="block text-xs text-foreground/60">
-                    Se oculta para cualquiera que no sea Finanzas, Observador o el propietario — en
+                    Se oculta para cualquiera que no sea Finanzas, Socio o el propietario — en
                     Configuración, en Saldos y en cualquier selector de medio de pago de la app.
                   </span>
                 </span>

@@ -48,7 +48,7 @@ export const userRoleLabels: Record<UserRole, string> = {
   admin: "Administrador",
   empleado: "Empleado",
   finanzas: "Finanzas",
-  observador: "Observador",
+  observador: "Socio", // el valor del enum sigue siendo `observador`; en pantalla es "Socio"
 };
 
 /** Tono del `Badge` de rol en /users — mismo criterio de color que usaba el

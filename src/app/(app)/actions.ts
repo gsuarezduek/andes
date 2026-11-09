@@ -3,8 +3,8 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
-import { requireUser, EMPLOYEE_VIEW_COOKIE } from "@/lib/auth-helpers";
-import { hasAdminAccess } from "@/lib/user-permissions";
+import { requireUser, VIEW_AS_COOKIE, LEGACY_EMPLOYEE_VIEW_COOKIE } from "@/lib/auth-helpers";
+import { viewableRoles } from "@/lib/user-permissions";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -25,13 +25,15 @@ export async function logout() {
   await signOut({ redirectTo: "/login" });
 }
 
-/** Activa "Ver como empleado" (menú de cuenta). Solo un admin real puede prenderla. */
-export async function enableEmployeeView() {
+/** Activa "Ver como…" un rol (menú de cuenta). Solo roles menores al real (o cualquiera, el propietario). */
+export async function setViewAs(formData: FormData) {
   const user = await requireUser();
-  if (!hasAdminAccess(user.realRole)) return;
+  const role = viewableRoles(user.realRole, user.realOwner).find((r) => r === formData.get("role"));
+  if (!role) return;
 
   const cookieStore = await cookies();
-  cookieStore.set(EMPLOYEE_VIEW_COOKIE, "1", {
+  cookieStore.delete(LEGACY_EMPLOYEE_VIEW_COOKIE);
+  cookieStore.set(VIEW_AS_COOKIE, role, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
@@ -40,9 +42,11 @@ export async function enableEmployeeView() {
   revalidatePath("/", "layout");
 }
 
-export async function disableEmployeeView() {
+/** Vuelve a la vista propia. */
+export async function clearViewAs() {
   await requireUser();
   const cookieStore = await cookies();
-  cookieStore.delete(EMPLOYEE_VIEW_COOKIE);
+  cookieStore.delete(VIEW_AS_COOKIE);
+  cookieStore.delete(LEGACY_EMPLOYEE_VIEW_COOKIE);
   revalidatePath("/", "layout");
 }

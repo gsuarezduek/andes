@@ -32,7 +32,7 @@ export const ROLE_ACCESS: RoleAccessInfo[] = [
     access: [
       "Todo lo de Empleado, más:",
       "Configuración completa (Checklist, Condiciones, Medios de pago, Calendario, Correos, WhatsApp, Nube), Usuarios (gestiona empleados), Reportes, Saldos/Caja fuerte, Asociados, exportar CSV, credenciales \"solo admin\".",
-      "No puede crear ni modificar a otro admin/Finanzas/Observador (eso es solo del propietario).",
+      "No puede crear ni modificar a otro admin/Finanzas/Socio (eso es solo del propietario).",
       'No ve las cuentas de Medios de pago marcadas "Solo Finanzas".',
     ],
   },
@@ -42,15 +42,15 @@ export const ROLE_ACCESS: RoleAccessInfo[] = [
     access: [
       "Todo lo de Administrador, más:",
       'Ve y puede usar las cuentas de Medios de pago marcadas "Solo Finanzas" — en Configuración, Saldos y cualquier selector de medio de pago de la app.',
-      "No puede marcar/desmarcar esa opción en una cuenta, ni crear o tocar a otro admin/Finanzas/Observador (eso es solo del propietario).",
+      "No puede marcar/desmarcar esa opción en una cuenta, ni crear o tocar a otro admin/Finanzas/Socio (eso es solo del propietario).",
     ],
   },
   {
     role: "observador",
-    label: "Observador",
+    label: "Socio",
     access: [
       "Todo lo de Finanzas, más:",
-      'No aparece en las listas operativas del equipo (asignar tareas, "usuarios en línea") — pensado para supervisar sin participar del día a día operativo.',
+      'No aparece en las listas operativas del equipo (asignar tareas, "usuarios en línea") — pensado para los socios, que supervisan sin participar del día a día operativo.',
     ],
   },
   {
@@ -58,7 +58,7 @@ export const ROLE_ACCESS: RoleAccessInfo[] = [
     label: "Propietario",
     access: [
       "Ve y puede todo, sin ninguna restricción.",
-      'Es el único que puede crear o modificar a otro admin/Finanzas/Observador, y el único que puede marcar/desmarcar "Solo Finanzas" en una cuenta de Medios de pago.',
+      'Es el único que puede crear o modificar a otro admin/Finanzas/Socio, y el único que puede marcar/desmarcar "Solo Finanzas" en una cuenta de Medios de pago.',
       "Su propia cuenta no la puede tocar (editar, desactivar, borrar) nadie más que él mismo.",
       "Se asigna por base de datos — no hay botón para otorgarlo desde la app.",
     ],

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { getUserPerm } from "@/lib/user-access";
+import { getActorPerm } from "@/lib/user-access";
 import { userManagementError } from "@/lib/user-permissions";
 import { UserForm } from "../../user-form";
 import { UserDeleteButton } from "../../user-delete-button";
@@ -20,7 +20,7 @@ export default async function EditUserPage({
 
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) notFound();
-  const actor = await getUserPerm(admin.id);
+  const actor = await getActorPerm(admin);
   if (!actor || userManagementError(actor, user)) redirect("/users");
 
   return (

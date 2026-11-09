@@ -72,7 +72,7 @@ export function AccountCard({
   guaranteeBalance?: CurrencyTotals | null;
   monthIncome: CurrencyTotals;
   monthExpense: CurrencyTotals;
-  /** Visible solo para Finanzas/Observador/propietario — ver `OwnAccountBalance.financeOnly`. Resalta la tarjeta con un borde distinto para no confundirla con una cuenta cualquiera. */
+  /** Visible solo para Finanzas/Socio/propietario — ver `OwnAccountBalance.financeOnly`. Resalta la tarjeta con un borde distinto para no confundirla con una cuenta cualquiera. */
   financeOnly?: boolean;
 }) {
   return (

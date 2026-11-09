@@ -17,7 +17,7 @@ export default async function PaymentMethodsSettingsPage() {
   const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
 
   const rawAllItems = await prisma.paymentMethod.findMany({ orderBy: { ordering: "asc" } });
-  // Una cuenta `financeOnly` no existe para quien no sea Finanzas/Observador
+  // Una cuenta `financeOnly` no existe para quien no sea Finanzas/Socio
   // o el propietario — en esta pantalla, en Saldos, ni en ningún selector de
   // medio de pago de la app (ver `hasFinanceAccess`).
   const rawItems = canSeeFinanceOnly ? rawAllItems : rawAllItems.filter((it) => !it.financeOnly);

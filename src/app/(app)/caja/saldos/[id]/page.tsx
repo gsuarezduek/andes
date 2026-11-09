@@ -128,7 +128,7 @@ export default async function AccountLedgerPage({
             {account.financeOnly && <FinanceOnlyBadge />}
           </div>
           {account.financeOnly && (
-            <p className="text-sm text-foreground/60">Solo la ven Finanzas, Observador y el propietario.</p>
+            <p className="text-sm text-foreground/60">Solo la ven Finanzas, Socio y el propietario.</p>
           )}
           {account.subaccounts.length > 0 && (
             <p className="text-sm text-foreground/60">Incluye {account.subaccounts.map((s) => s.name).join(", ")}</p>

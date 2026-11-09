@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { hasAdminAccess, hasFinanceAccess, userManagementError, type UserPerm } from "../user-permissions";
+import {
+  hasAdminAccess,
+  hasFinanceAccess,
+  resolveViewAs,
+  userManagementError,
+  viewableRoles,
+  type UserPerm,
+} from "../user-permissions";
 
 const owner: UserPerm = { id: "o", role: "admin", owner: true };
 const admin: UserPerm = { id: "a", role: "admin", owner: false };
@@ -77,5 +84,29 @@ describe("hasFinanceAccess", () => {
     expect(hasFinanceAccess("admin")).toBe(false);
     expect(hasFinanceAccess("empleado")).toBe(false);
     expect(hasFinanceAccess("admin", true)).toBe(true);
+  });
+});
+
+describe("viewableRoles / resolveViewAs", () => {
+  it("cada rol ve como los de rango menor", () => {
+    expect(viewableRoles("empleado")).toEqual([]);
+    expect(viewableRoles("admin")).toEqual(["empleado"]);
+    expect(viewableRoles("finanzas")).toEqual(["admin", "empleado"]);
+    expect(viewableRoles("observador")).toEqual(["finanzas", "admin", "empleado"]);
+  });
+
+  it("el propietario ve como cualquiera, incluido su propio rol", () => {
+    expect(viewableRoles("observador", true)).toEqual(["observador", "finanzas", "admin", "empleado"]);
+    expect(viewableRoles("admin", true)).toEqual(["admin", "empleado"]);
+  });
+
+  it("solo acepta un rol permitido", () => {
+    expect(resolveViewAs("empleado", "admin")).toBe("empleado");
+    expect(resolveViewAs("finanzas", "admin")).toBeNull();
+    expect(resolveViewAs("admin", "admin")).toBeNull();
+    expect(resolveViewAs("observador", "observador", true)).toBe("observador");
+    expect(resolveViewAs("1", "observador", true)).toBeNull();
+    expect(resolveViewAs(undefined, "observador", true)).toBeNull();
+    expect(resolveViewAs("empleado", "empleado")).toBeNull();
   });
 });

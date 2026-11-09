@@ -17,7 +17,7 @@ export function UserForm({
 }: {
   action: Action;
   user?: User;
-  /** Solo el propietario puede dejar a alguien como admin, finanzas u observador. */
+  /** Solo el propietario puede dejar a alguien como admin, finanzas o socio. */
   canGrantElevated: boolean;
 }) {
   const [state, formAction] = useActionState(action, {});
@@ -31,7 +31,7 @@ export function UserForm({
         id="role"
         label="Rol"
         defaultValue={user?.role ?? "empleado"}
-        hint='Finanzas: igual que Admin, además ve las cuentas de Medios de pago marcadas "solo Finanzas". Observador: igual que Finanzas, además no aparece en las listas operativas (asignar tareas, usuarios en línea).'
+        hint='Finanzas: igual que Admin, además ve las cuentas de Medios de pago marcadas "solo Finanzas". Socio: igual que Finanzas, además no aparece en las listas operativas (asignar tareas, usuarios en línea).'
       >
         {Object.entries(userRoleLabels)
           .filter(([value]) => canGrantElevated || value === "empleado" || user?.role === value)

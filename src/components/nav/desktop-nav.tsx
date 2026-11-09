@@ -5,7 +5,8 @@ import { NavLink } from "@/components/nav-link";
 import { SyncButton, type SyncOutcome } from "@/components/nav/sync-button";
 import { ConnectedUsers } from "@/components/nav/connected-users";
 import { CommandPaletteButton } from "@/components/nav/command-palette";
-import type { Item } from "@/components/nav/types";
+import type { Item, ViewAsMenu } from "@/components/nav/types";
+import { ViewAsBadge, ViewAsMenuItems } from "@/components/nav/view-as-menu";
 import type { OnlineUser } from "@/lib/presence";
 
 /** Menú principal inline + submenú de cuenta desplegable, visibles solo en desktop. */
@@ -17,7 +18,7 @@ export function DesktopNav({
   logout,
   sync,
   onlineUsers,
-  viewToggle,
+  view,
   onOpenPalette,
 }: {
   mainItems: Item[];
@@ -27,7 +28,7 @@ export function DesktopNav({
   logout: () => void;
   sync?: () => Promise<SyncOutcome>;
   onlineUsers?: OnlineUser[];
-  viewToggle?: { label: string; action: () => Promise<void>; active: boolean };
+  view?: ViewAsMenu;
   onOpenPalette: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -56,11 +57,7 @@ export function DesktopNav({
           className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
         >
           <span>{userName || "Cuenta"}</span>
-          {viewToggle?.active ? (
-            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-              Vista empleado
-            </span>
-          ) : null}
+          <ViewAsBadge view={view} className="text-[10px] font-semibold uppercase tracking-wide" />
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`transition-transform ${menuOpen ? "rotate-180" : ""}`}>
             <polyline points="6 9 12 15 18 9" />
           </svg>
@@ -96,19 +93,12 @@ export function DesktopNav({
                   {it.label}
                 </a>
               ))}
-              {viewToggle ? (
-                <>
-                  <div className="my-1 border-t border-foreground/10" />
-                  <form action={viewToggle.action}>
-                    <button
-                      type="submit"
-                      role="menuitem"
-                      className="block w-full px-4 py-2.5 text-left text-sm text-foreground/70 transition-colors hover:bg-foreground/5"
-                    >
-                      {viewToggle.label}
-                    </button>
-                  </form>
-                </>
+              {view ? (
+                <ViewAsMenuItems
+                  view={view}
+                  inMenu
+                  itemClassName="block w-full px-4 py-2.5 text-left text-sm transition-colors"
+                />
               ) : null}
               <div className="my-1 border-t border-foreground/10" />
               <form action={logout}>

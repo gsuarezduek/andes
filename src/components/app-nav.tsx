@@ -6,7 +6,7 @@ import { DesktopNav } from "@/components/nav/desktop-nav";
 import { MobileNav } from "@/components/nav/mobile-nav";
 import { CommandPalette } from "@/components/nav/command-palette";
 import type { SyncOutcome } from "@/components/nav/sync-button";
-import type { Item } from "@/components/nav/types";
+import type { Item, ViewAsMenu } from "@/components/nav/types";
 import type { OnlineUser } from "@/lib/presence";
 
 /**
@@ -21,9 +21,9 @@ import type { OnlineUser } from "@/lib/presence";
  *   pestañas dentro de la página (`FleetTabs`), mismo ítem de la barra. **Tareas** agrupa del
  *   mismo modo Horarios y Accesos (`TeamTabs`).
  * - Submenú de cuenta (desplegable a la derecha, donde estaba "Salir"):
- *   Perfil, Sincronización, Configuración (solo admin), "Ver como empleado"
- *   (solo si `isRealAdmin` — deja probar la vista de un usuario normal sin salir
- *   de la sesión de admin) y Salir — ajustes/administración menos frecuentes que
+ *   Perfil, Sincronización, Configuración (solo admin), "Ver como…"
+ *   (un ítem por cada rol de rango menor al real — todos, para el propietario —
+ *   para probar la vista de otro rol sin salir de la sesión) y Salir — ajustes/administración menos frecuentes que
  *   la navegación operativa de la barra principal. "Competencia" se saca del todo del menú
  *   (sin ocultar la ruta/feature) mientras se sigue puliendo — ver `/competitor-prices`.
  * - En mobile todo colapsa en un menú hamburguesa.
@@ -37,10 +37,7 @@ export function AppNav({
   taskCount,
   whatsappUnread,
   onlineUsers,
-  isRealAdmin,
-  viewingAsEmployee,
-  enableEmployeeView,
-  disableEmployeeView,
+  view,
 }: {
   isAdmin: boolean;
   userName?: string | null;
@@ -51,11 +48,8 @@ export function AppNav({
   whatsappUnread?: number;
   /** Usuarios activos ahora mismo (incluido quien mira, últimos ~15 min) — quién está conectado, sin preguntar. */
   onlineUsers?: OnlineUser[];
-  /** Rol real de la sesión (no el efectivo tras "Ver como empleado"). */
-  isRealAdmin?: boolean;
-  viewingAsEmployee?: boolean;
-  enableEmployeeView?: () => Promise<void>;
-  disableEmployeeView?: () => Promise<void>;
+  /** "Ver como…": roles de rango menor al real (todos, para el propietario). */
+  view?: ViewAsMenu;
 }) {
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -70,13 +64,6 @@ export function AppNav({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  const viewToggle =
-    isRealAdmin && enableEmployeeView && disableEmployeeView
-      ? viewingAsEmployee
-        ? { label: "Volver a vista admin", action: disableEmployeeView, active: true }
-        : { label: "Ver como empleado", action: enableEmployeeView, active: false }
-      : undefined;
 
   const mainItems: Item[] = [
     { href: "/rentals", label: "Alquileres" },
@@ -124,7 +111,7 @@ export function AppNav({
         logout={logout}
         sync={sync}
         onlineUsers={onlineUsers}
-        viewToggle={viewToggle}
+        view={view}
         onOpenPalette={() => setPaletteOpen(true)}
       />
       <MobileNav
@@ -135,7 +122,7 @@ export function AppNav({
         logout={logout}
         sync={sync}
         onlineUsers={onlineUsers}
-        viewToggle={viewToggle}
+        view={view}
         onOpenPalette={() => setPaletteOpen(true)}
       />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} isAdmin={isAdmin} />

@@ -1261,6 +1261,20 @@ Cierre de huecos de v85 (cuentas `financeOnly`) y diseño propio en Saldos. tsc/
 - **Diseño:** la tarjeta de una cuenta de Finanzas tiene borde negro grueso (blanco en modo oscuro), fondo apenas gris y etiqueta negra con candado "Solo Finanzas" (`FinanceOnlyBadge`, `LockIcon`); reemplaza el borde naranja de v85. Misma etiqueta en el encabezado de la cuenta, con "Solo la ven Finanzas, Observador y el propietario". El banner "Saldo total (hoy)" aclara cuánto incluye en cuentas de Finanzas (quien no tiene acceso ve el total sin ellas).
 - Sigue fuera de alcance (v85): validar server-side cada acción de Caja contra un `paymentMethodId` restringido tipeado a mano, y los nombres ya escritos en auditorías viejas.
 
+## v107 — "Ver como…" cualquier rol de rango menor
+
+"Ver como empleado" (menú de cuenta) pasa a ser **"Ver como…"**, con un ítem por cada rol de rango menor al real: Admin → Empleado; Finanzas → Admin/Empleado; Observador → Finanzas/Admin/Empleado; **el propietario → todos, incluido su propio rol** (Observador sin los poderes de propietario). tsc/lint/985 tests y build en verde (+3 tests en `user-permissions.test.ts`); verificado con Playwright contra la base local, en desktop y a 375px, con un propietario y un usuario de Finanzas temporales (borrados después). Sin migración.
+
+- **Reglas puras** en `src/lib/user-permissions.ts`: `viewableRoles(realRole, owner)` y `resolveViewAs(cookie, realRole, owner)`, que ignora cualquier valor que no sea un rol permitido (nadie se sube de rango tocando la cookie).
+- **Cookie `andes_view_as`** con el rol elegido (`VIEW_AS_COOKIE`, `src/lib/auth-helpers.ts`), reemplaza a `andes_view_as_employee`, que se sigue leyendo como "empleado" hasta que venza. `getSessionUser()` devuelve `role` = rol simulado, `owner` = false, y además `realRole`/`realOwner`/`viewAs`. La sesión del propietario sigue sin vencer por inactividad en cualquier vista (`realOwner`).
+- **Gestión de usuarios con la vista aplicada**: `getActorPerm(user)` (`src/lib/user-access.ts`) lee el rol real de la base y, si hay vista activa, lo pisa con el rol simulado y sin propietario. Lo usan `/users`, alta, edición y sus acciones. Así, viendo como Admin, el propietario no ve "Roles y accesos" ni puede tocar a otros admins, como un admin real.
+- **UI**: acciones `setViewAs` (FormData con `role`) y `clearViewAs` (`src/app/(app)/actions.ts`). Componente compartido `ViewAsMenuItems`/`ViewAsBadge` (`src/components/nav/view-as-menu.tsx`) en el menú de desktop y mobile: el rol activo con ✓, "Volver a mi vista" en ámbar, y etiqueta "Vista X" junto al nombre.
+- Lo que se carga en una vista simulada queda a nombre propio, con los permisos de esa vista.
+
+## v108 — El rol "Observador" pasa a llamarse "Socio"
+
+Solo cambia el nombre en pantalla (pedido del dueño: refleja mejor quiénes son). En el código y en la base el rol sigue siendo `observador` (`UserRole`, `ROLE_RANK`, `OPERATOR_FILTER`), así que no hay migración. El nombre visible sale de `userRoleLabels` (`src/lib/labels.ts`) y de "Roles y accesos" (`src/lib/role-access.ts`); además se cambiaron las ayudas y avisos que lo nombraban (alta/edición de usuarios, "Solo Finanzas" en Medios de pago y Saldos, mensaje de error de `userManagementError`). En las secciones anteriores de este archivo, "Observador" es el mismo rol.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

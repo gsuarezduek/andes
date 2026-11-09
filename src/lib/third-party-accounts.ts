@@ -84,7 +84,7 @@ export async function resolveToPrincipal(
     // Fondos de inversión (solo tiene sentido en `own`, ver comentario en el
     // schema) — false en cualquier otra cuenta.
     hasInvestmentFunds: boolean;
-    // Visible solo para Finanzas/Observador/propietario (solo tiene sentido
+    // Visible solo para Finanzas/Socio/propietario (solo tiene sentido
     // en `own`, ver comentario en el schema) — false en cualquier otra cuenta.
     financeOnly: boolean;
   }[];
