@@ -9,8 +9,8 @@ import type { AccountTransferRow } from "@/lib/account-transfers-queries";
 
 /**
  * Lista de traspasos entre cuentas (solo admin). Con perspectiva (página de
- * una cuenta, o la Caja fuerte) cada fila se lee desde ahí: "Hacia X" /
- * "Desde X"; sin ella (pestaña Saldos) muestra "Origen → Destino". Eliminar pide un motivo y deja el traspaso fuera de
+ * una cuenta, o la Caja fuerte) cada fila se lee desde ahí: "Traspaso a X" /
+ * "Traspaso desde X"; sin ella (pestaña Saldos) muestra "Origen → Destino". Eliminar pide un motivo y deja el traspaso fuera de
  * los saldos (no se edita: se elimina y se vuelve a cargar).
  */
 export function TransferList({
@@ -38,14 +38,20 @@ export function TransferList({
   );
 }
 
-function TransferItem({
+/**
+ * Un traspaso, leído desde la cuenta de la página si hay perspectiva
+ * ("Traspaso a X" / "Traspaso desde X"). Lo usa la lista de traspasos y el
+ * historial mensual de una cuenta (`AccountLedgerMonths`), donde va mezclado
+ * con los ingresos y egresos del mes.
+ */
+export function TransferItem({
   transfer: t,
   perspectiveAccountIds,
   perspectiveSafe,
 }: {
   transfer: AccountTransferRow;
   perspectiveAccountIds?: string[];
-  perspectiveSafe: boolean;
+  perspectiveSafe?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const isCurrency = t.fromCurrency !== t.toCurrency;
@@ -60,8 +66,8 @@ function TransferItem({
     : neutral
       ? `${t.fromAccountName} → ${t.toAccountName}`
       : outgoing
-        ? `Hacia ${t.toAccountName}`
-        : `Desde ${t.fromAccountName}`;
+        ? `Traspaso a ${t.toAccountName}`
+        : `Traspaso desde ${t.fromAccountName}`;
 
   const amountText = isCurrency
     ? `${formatTransferAmount(t.fromAmount, t.fromCurrency)} → ${formatTransferAmount(t.toAmount, t.toCurrency)}`

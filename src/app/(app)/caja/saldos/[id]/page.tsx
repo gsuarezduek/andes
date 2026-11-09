@@ -30,6 +30,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { TransferList } from "@/components/cash/transfer-list";
 import { getAccountTransfers } from "@/lib/account-transfers-queries";
 import { AccountLedgerMonths } from "@/components/cash/account-ledger-months";
+import { buildAccountLedgerEntries } from "@/lib/account-ledger";
 import { CajaSectionNav } from "@/components/cash/caja-section-nav";
 import { FundsSection } from "@/components/cash/funds-section";
 import { getFundMovements } from "@/lib/investment-funds-queries";
@@ -99,7 +100,8 @@ export default async function AccountLedgerPage({
     getOwnAccountBalances(canSeeFinanceOnly),
     getOwnAccountLedger(id),
     financeOnlyAccountIds(canSeeFinanceOnly).then((ids) =>
-      getAccountTransfers({ accountId: id, limit: 100, maskAccountIds: ids }),
+      // Todos: van mezclados en el historial mensual, que no tiene tope.
+      getAccountTransfers({ accountId: id, limit: null, maskAccountIds: ids }),
     ),
     prisma.paymentMethod.findMany({
       // Una cuenta Bitcoin no recibe ingresos ni egresos (solo traspasos en BTC).
@@ -133,7 +135,11 @@ export default async function AccountLedgerPage({
   // `getOwnAccountLedger` ya viene ordenado por `createdAt` desc (ver
   // `findMovements`) — el agrupador solo junta consecutivos del mismo mes.
   const perspectiveAccountIds = [account.id, ...account.subaccounts.map((s) => s.id)];
-  const groups = groupProviderLedgerByMonth(ledger, new Date());
+  // Ingresos/egresos y traspasos juntos, por fecha (ver `AccountLedgerMonths`).
+  const groups = groupProviderLedgerByMonth(
+    buildAccountLedgerEntries(ledger, transfers, perspectiveAccountIds),
+    new Date(),
+  );
   const transferOptions = buildTransferOptions(accounts, safeBalance, bitcoinAccounts);
   const btcPrice = bitcoinAccounts.length > 0 ? await getBtcPrice() : null;
 
@@ -195,20 +201,12 @@ export default async function AccountLedgerPage({
 
       <AccountLedgerMonths
         groups={groups}
+        perspectiveAccountIds={perspectiveAccountIds}
         currentMonthKey={formatDateInput(new Date()).slice(0, 7)}
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
         fundMovements={fundMovements}
       />
-
-      <div className="flex flex-col gap-2">
-        <SectionTitle>Traspasos</SectionTitle>
-        <TransferList
-          transfers={transfers}
-          perspectiveAccountIds={perspectiveAccountIds}
-          emptyText="Esta cuenta no tiene traspasos."
-        />
-      </div>
 
       <ButtonLink href="/caja" variant="secondary">
         Volver a Caja

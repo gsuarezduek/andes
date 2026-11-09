@@ -4,10 +4,11 @@ import { useState } from "react";
 import type { PaymentMethodOwnership } from "@prisma/client";
 import { SectionTitle } from "@/components/ui/section-title";
 import { MovementRow } from "./movement-row";
+import { TransferItem } from "./transfer-list";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
-import { sumByCurrency, type CurrencyTotals } from "@/lib/currency";
+import type { CurrencyTotals } from "@/lib/currency";
 import { fundBalanceAtMonthEnd } from "@/lib/investment-funds";
-import type { CashMovementRow } from "@/lib/cash";
+import { accountLedgerTotals, type AccountLedgerEntry } from "@/lib/account-ledger";
 import type { ProviderLedgerMonthGroup } from "@/lib/provider-ledger-grouping";
 import type { FundMovementRow } from "@/lib/investment-funds-queries";
 
@@ -34,19 +35,25 @@ function MiniStat({ label, totals }: { label: string; totals: CurrencyTotals }) 
  * muestra abierto, así no hay nada que "aparezca" al expandir salvo el
  * detalle. Adentro, sus movimientos en dos columnas — ingresos a la
  * izquierda, egresos a la derecha, mismo criterio visual que Movimientos
- * (ver `CashMovementsBoard`). Los meses más viejos quedan detrás de "Ver
+ * (ver `CashMovementsBoard`). Los traspasos ("Mover entre cuentas") van
+ * mezclados ahí por fecha: el que entra con los ingresos, el que sale con
+ * los egresos, y cuentan en el balance del mes (así los meses suman el
+ * saldo de la cuenta), aunque no sean ingresos ni egresos de Caja. Los meses más viejos quedan detrás de "Ver
  * meses anteriores" (igual patrón que "Cargar más" en
  * `ProviderCard`/`AccountCard`, a nivel mes en vez de fila) — igual siguen
  * colapsados por default al revelarse.
  */
 export function AccountLedgerMonths({
   groups,
+  perspectiveAccountIds,
   currentMonthKey,
   paymentMethods,
   expenseCategories,
   fundMovements = null,
 }: {
-  groups: ProviderLedgerMonthGroup<CashMovementRow>[];
+  groups: ProviderLedgerMonthGroup<AccountLedgerEntry>[];
+  /** La cuenta y sus subcuentas: desde dónde se leen los traspasos ("Traspaso a X"). */
+  perspectiveAccountIds: string[];
   currentMonthKey: string;
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
@@ -70,10 +77,11 @@ export function AccountLedgerMonths({
   return (
     <div className="flex flex-col gap-6">
       {visible.map((g) => {
-        const incomes = g.rows.filter((r) => r.type === "income");
-        const expenses = g.rows.filter((r) => r.type === "expense");
-        const incomeTotals = sumByCurrency(incomes);
-        const expenseTotals = sumByCurrency(expenses);
+        const isIn = (e: AccountLedgerEntry) =>
+          e.kind === "movement" ? e.movement.type === "income" : e.direction === "in";
+        const incomes = g.rows.filter(isIn);
+        const expenses = g.rows.filter((e) => !isIn(e));
+        const { income: incomeTotals, expense: expenseTotals } = accountLedgerTotals(g.rows);
         const net = { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
         const fundEnd = fundMovements ? fundBalanceAtMonthEnd(fundMovements, g.key) : null;
         return (
@@ -106,15 +114,23 @@ export function AccountLedgerMonths({
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-2">
-                    {incomes.map((r) => (
-                      <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}`}
-                        movement={r}
-                        tone="emerald"
-                        paymentMethods={paymentMethods}
-                        expenseCategories={expenseCategories}
-                      />
-                    ))}
+                    {incomes.map((e) =>
+                      e.kind === "transfer" ? (
+                        <TransferItem
+                          key={`transfer:${e.transfer.id}:in`}
+                          transfer={e.transfer}
+                          perspectiveAccountIds={perspectiveAccountIds}
+                        />
+                      ) : (
+                        <MovementRow
+                          key={`${e.movement.id}:${e.movement.description}:${e.movement.amount}:${e.movement.currency}:${e.movement.paymentMethodName}:${e.movement.paymentMethodNote ?? ""}`}
+                          movement={e.movement}
+                          tone="emerald"
+                          paymentMethods={paymentMethods}
+                          expenseCategories={expenseCategories}
+                        />
+                      ),
+                    )}
                   </ul>
                 )}
               </div>
@@ -126,15 +142,23 @@ export function AccountLedgerMonths({
                   </p>
                 ) : (
                   <ul className="flex flex-col gap-2">
-                    {expenses.map((r) => (
-                      <MovementRow
-                        key={`${r.id}:${r.description}:${r.amount}:${r.currency}:${r.paymentMethodName}:${r.paymentMethodNote ?? ""}:${r.recipientPaymentMethodName ?? ""}:${r.recipientPaymentMethodNote ?? ""}:${r.categoryName ?? ""}`}
-                        movement={r}
-                        tone="red"
-                        paymentMethods={paymentMethods}
-                        expenseCategories={expenseCategories}
-                      />
-                    ))}
+                    {expenses.map((e) =>
+                      e.kind === "transfer" ? (
+                        <TransferItem
+                          key={`transfer:${e.transfer.id}:out`}
+                          transfer={e.transfer}
+                          perspectiveAccountIds={perspectiveAccountIds}
+                        />
+                      ) : (
+                        <MovementRow
+                          key={`${e.movement.id}:${e.movement.description}:${e.movement.amount}:${e.movement.currency}:${e.movement.paymentMethodName}:${e.movement.paymentMethodNote ?? ""}:${e.movement.recipientPaymentMethodName ?? ""}:${e.movement.recipientPaymentMethodNote ?? ""}:${e.movement.categoryName ?? ""}`}
+                          movement={e.movement}
+                          tone="red"
+                          paymentMethods={paymentMethods}
+                          expenseCategories={expenseCategories}
+                        />
+                      ),
+                    )}
                   </ul>
                 )}
               </div>

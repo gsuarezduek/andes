@@ -1,6 +1,5 @@
 import { AccountCard } from "./account-card";
 import { BitcoinAccountCard } from "./bitcoin-account-card";
-import { FinanceOnlyBadge } from "./finance-only-badge";
 import { TransferList } from "./transfer-list";
 import { BalanceHistoryChart } from "./balance-history-chart";
 import { SectionTitle } from "@/components/ui/section-title";
@@ -30,8 +29,9 @@ import {
  * `OwnAccountBalance.guaranteeBalance`). Debajo, la evolución de ese saldo
  * total (`getTotalOwnBalanceHistory`). Las cuentas Bitcoin van en su propia
  * sección al final y NO suman a pesos ni dólares (no es plata disponible): el
- * total muestra el BTC como una moneda más ("₿ 0,3") con su aclaración, y el
- * gráfico suma una serie en BTC — todo eso solo si quien mira tiene alguna
+ * total muestra el BTC como una moneda más ("₿ 0,3") —su valor en dólares
+ * va en la tarjeta y en la página de la cuenta, no acá— y el gráfico suma
+ * una serie en BTC — todo eso solo si quien mira tiene alguna
  * cuenta Bitcoin visible (las de Finanzas ni llegan para el resto). "Mover entre cuentas" ya no vive acá,
  * subió al header de `/caja`, junto al valor del USD. Solo admin (ver
  * `caja/page.tsx`): a diferencia de Proveedores/Asociados, esto es la
@@ -67,10 +67,6 @@ export function AccountsSection({
   const total = emptyCurrencyTotals();
   const totalInvested = emptyCurrencyTotals();
   const totalGuarantee = emptyCurrencyTotals();
-  // Solo llegan cuentas de Finanzas si quien mira tiene acceso: el resto ve
-  // un total sin ellas, por eso se aclara cuánto aportan.
-  const totalFinanceOnly = emptyCurrencyTotals();
-  let anyFinanceOnly = false;
   let anyInvested = false;
   for (const a of accounts) {
     total.ars += a.balance.ars;
@@ -82,11 +78,6 @@ export function AccountsSection({
     }
     totalGuarantee.ars += a.guaranteeBalance.ars;
     totalGuarantee.usd += a.guaranteeBalance.usd;
-    if (a.financeOnly) {
-      anyFinanceOnly = true;
-      totalFinanceOnly.ars += a.balance.ars;
-      totalFinanceOnly.usd += a.balance.usd;
-    }
   }
   total.ars += safeBalance.ars;
   total.usd += safeBalance.usd;
@@ -105,12 +96,6 @@ export function AccountsSection({
             ...(bitcoinAccounts.length > 0 ? [formatBtc(totalBtc)] : []),
           ].join(" · ")}
         </p>
-        {bitcoinAccounts.length > 0 && (
-          <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
-            ₿ no es plata disponible
-            {btcPrice ? ` · ≈ ${formatMoney(totalBtc * btcPrice.usd, "usd")} hoy` : ""}
-          </p>
-        )}
         {anyInvested && (
           <p className="mt-1 text-xs text-foreground/50">
             En cuenta:{" "}
@@ -121,18 +106,6 @@ export function AccountsSection({
             {CURRENCIES.filter((c) => c === "ars" || totalInvested[c] !== 0)
               .map((c) => formatMoney(totalInvested[c], c))
               .join(" · ")}
-          </p>
-        )}
-        {anyFinanceOnly && (
-          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-foreground/60">
-            <FinanceOnlyBadge />
-            <span>
-              Incluye{" "}
-              {CURRENCIES.filter((c) => c === "ars" || totalFinanceOnly[c] !== 0)
-                .map((c) => formatMoney(totalFinanceOnly[c], c))
-                .join(" · ")}{" "}
-              en cuentas de Finanzas — quien no tiene ese acceso ve el total sin ellas.
-            </span>
           </p>
         )}
         {anyGuarantee && (

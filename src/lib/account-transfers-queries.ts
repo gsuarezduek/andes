@@ -32,7 +32,7 @@ export async function getAccountTransfers(
     accountId?: string;
     /** Solo los que tocan la Caja fuerte. */
     safe?: boolean;
-    limit?: number;
+    limit?: number | null;
     /**
      * Cuentas de Finanzas que quien mira no puede ver (ver
      * `PaymentMethod.financeOnly`): un traspaso entre dos de ellas no se
@@ -61,7 +61,8 @@ export async function getAccountTransfers(
         : {}),
     },
     orderBy: { createdAt: "desc" },
-    take: options.limit ?? 50,
+    // `limit: null` = todos (historial mensual de una cuenta).
+    ...(options.limit === null ? {} : { take: options.limit ?? 50 }),
   });
   const masked = new Set(options.maskAccountIds ?? []);
   return rows.map((r) => {
