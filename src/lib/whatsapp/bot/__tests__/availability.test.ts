@@ -129,6 +129,28 @@ describe("estimateBotQuote (mismo cálculo que el presupuestador del Calendario)
     expect(q).toEqual({ total: 272000, days: 3, pricePerDay: 90667 });
   });
 
+  it("con descuento por medio de pago, da el precio con descuento y el de lista para el resto", () => {
+    const q = estimateBotQuote({
+      ...base,
+      seasonRows: [],
+      startDate: "2026-11-10",
+      endDate: "2026-11-13",
+      priceAdjustments: [
+        { name: "Transferencia Argentina", value: -5, unit: "percent" },
+        { name: "Cripto", value: -5, unit: "percent" },
+      ],
+    });
+    expect(q).toEqual({
+      total: 240000,
+      days: 3,
+      pricePerDay: 80000,
+      byPaymentMethod: [
+        { paymentMethods: "con Transferencia Argentina o Cripto (−5 %)", total: 228000, pricePerDay: 76000 },
+        { paymentMethods: "con otros medios de pago", total: 240000, pricePerDay: 80000 },
+      ],
+    });
+  });
+
   it("no aplica una temporada de otro modelo", () => {
     const q = estimateBotQuote({ ...base, wpCarId: 8, seasonRows: [LONG_WEEKEND], startDate: "2026-11-13", endDate: "2026-11-16" });
     expect(q?.total).toBe(240000);

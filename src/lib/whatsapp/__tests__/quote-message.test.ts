@@ -6,6 +6,7 @@ const vars: QuoteMessageVars = {
   dias: "3",
   precioDia: "$50.000",
   total: "$150.000",
+  precios: "💰 Precio por día: $50.000\n💵 Total: $150.000",
   condiciones: "Km incluidos por día: 200 km.",
   cliente: " Juan",
 };

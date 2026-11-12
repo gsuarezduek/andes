@@ -2,9 +2,13 @@
 /**
  * Plugin Name: Andes Sync (VikRentCar → Andes)
  * Description: Expone las reservas de VikRentCar por REST, de solo lectura y con token, para que la app Andes las sincronice sin abrir el MySQL a internet.
- * Version: 1.8.0
+ * Version: 1.9.0
  * Author: MDZ Rent a Car
  *
+ * v1.9.0: /payments agrega `priceAdjustment` por método: el descuento o
+ *         recargo que VikRentCar aplica al total al pagar con ese método
+ *         (gpayments.charge + ch_disc + val_pcent). Andes lo usa en sus
+ *         cotizadores para mostrar el precio según la forma de pago.
  * v1.8.0: nuevo endpoint /payments: métodos de pago de VikRentCar
  *         (gpayments: id, nombre, publicado) + cada "id=Nombre" visto en las
  *         órdenes. Andes muestra solo los activos y detecta renombres por el id.
@@ -434,10 +438,20 @@ function andes_sync_payments(WP_REST_Request $request)
     global $wpdb;
     $p = $wpdb->prefix . 'vikrentcar_';
 
-    // Si la tabla no tuviera `published`, se toma todo lo que existe como activo.
+    // Se prueba de la consulta más completa a la mínima: si la tabla no tuviera
+    // las columnas de descuento/recargo, no se informa `priceAdjustment` (Andes
+    // no toca lo que tenía); sin `published`, todo lo que existe cuenta como activo.
     $prev = $wpdb->suppress_errors(true);
     $has_published = true;
-    $rows = $wpdb->get_results("SELECT id, name, published FROM {$p}gpayments ORDER BY id", ARRAY_A);
+    $has_charge = true;
+    $rows = $wpdb->get_results(
+        "SELECT id, name, published, charge, val_pcent, ch_disc FROM {$p}gpayments ORDER BY id",
+        ARRAY_A
+    );
+    if ($wpdb->last_error) {
+        $has_charge = false;
+        $rows = $wpdb->get_results("SELECT id, name, published FROM {$p}gpayments ORDER BY id", ARRAY_A);
+    }
     if ($wpdb->last_error) {
         $has_published = false;
         $rows = $wpdb->get_results("SELECT id, name FROM {$p}gpayments ORDER BY id", ARRAY_A);
@@ -458,11 +472,15 @@ function andes_sync_payments(WP_REST_Request $request)
         if ($name === null) {
             continue;
         }
-        $gateways[] = [
+        $gateway = [
             'id'        => (int) $r['id'],
             'name'      => $name,
             'published' => $has_published ? ((int) $r['published'] === 1) : true,
         ];
+        if ($has_charge) {
+            $gateway['priceAdjustment'] = andes_sync_price_adjustment($r);
+        }
+        $gateways[] = $gateway;
     }
 
     $seen_names = [];
@@ -480,6 +498,24 @@ function andes_sync_payments(WP_REST_Request $request)
     }
 
     return new WP_REST_Response(['gateways' => $gateways, 'seenNames' => $seen_names], 200);
+}
+
+/**
+ * Descuento o recargo de un método de pago, como lo aplica VikRentCar al total
+ * (site/controller.php, notifypayment): `charge` = valor, `ch_disc` 1 = recargo
+ * / 2 = descuento, `val_pcent` 1 = monto fijo / 2 = porcentaje. Devuelve el
+ * valor con signo (negativo = descuento) o null si no hay ajuste.
+ */
+function andes_sync_price_adjustment($r)
+{
+    $charge = (float) ($r['charge'] ?? 0);
+    if ($charge <= 0) {
+        return null;
+    }
+    return [
+        'value' => (int) $r['ch_disc'] === 1 ? $charge : -$charge,
+        'unit'  => (int) $r['val_pcent'] === 1 ? 'fixed' : 'percent',
+    ];
 }
 
 /**

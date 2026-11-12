@@ -11,7 +11,7 @@ import type {
   SyncWindow,
 } from "./types";
 import { parseIdCars } from "./rates";
-import { parseIdPayment } from "./payment-gateways";
+import { parseIdPayment, priceAdjustmentFromRow } from "./payment-gateways";
 
 /**
  * Adaptador de solo lectura contra el MySQL de VikRentCar (Hostinger).
@@ -214,15 +214,28 @@ export class MysqlBookingSource implements BookingSource {
     // Espeja /payments del plugin. Si `gpayments` no tuviera la columna
     // `published`, se toma todo lo que existe en la tabla como activo.
     const pool = this.getPool();
-    let rows: { id: number; name: string | null; published?: number | null }[];
-    try {
-      [rows] = (await pool.query<mysql.RowDataPacket[]>(
-        `SELECT id, name, published FROM \`${PREFIX}gpayments\` ORDER BY id`,
-      )) as unknown as [typeof rows];
-    } catch {
-      [rows] = (await pool.query<mysql.RowDataPacket[]>(
-        `SELECT id, name FROM \`${PREFIX}gpayments\` ORDER BY id`,
-      )) as unknown as [typeof rows];
+    type GatewayRow = {
+      id: number;
+      name: string | null;
+      published?: number | null;
+      charge?: number | string | null;
+      ch_disc?: number | null;
+      val_pcent?: number | null;
+    };
+    // De la consulta más completa a la mínima, igual que el plugin.
+    const queries = [
+      `SELECT id, name, published, charge, val_pcent, ch_disc FROM \`${PREFIX}gpayments\` ORDER BY id`,
+      `SELECT id, name, published FROM \`${PREFIX}gpayments\` ORDER BY id`,
+      `SELECT id, name FROM \`${PREFIX}gpayments\` ORDER BY id`,
+    ];
+    let rows: GatewayRow[] = [];
+    for (const [i, sql] of queries.entries()) {
+      try {
+        [rows] = (await pool.query<mysql.RowDataPacket[]>(sql)) as unknown as [GatewayRow[]];
+        break;
+      } catch (e) {
+        if (i === queries.length - 1) throw e;
+      }
     }
     const [seen] = await pool.query<mysql.RowDataPacket[]>(
       `SELECT DISTINCT idpayment FROM \`${PREFIX}orders\` WHERE idpayment IS NOT NULL AND idpayment <> ''`,
@@ -231,7 +244,16 @@ export class MysqlBookingSource implements BookingSource {
       gateways: rows.flatMap((r) => {
         const name = clean(r.name);
         if (!name) return [];
-        return [{ id: Number(r.id), name, published: r.published === undefined ? true : Number(r.published) === 1 }];
+        return [
+          {
+            id: Number(r.id),
+            name,
+            published: r.published === undefined ? true : Number(r.published) === 1,
+            ...(r.charge !== undefined
+              ? { priceAdjustment: priceAdjustmentFromRow({ charge: r.charge, ch_disc: r.ch_disc ?? null, val_pcent: r.val_pcent ?? null }) }
+              : {}),
+          },
+        ];
       }),
       seenNames: (seen as { idpayment: string | null }[]).flatMap((r) => {
         const p = parseIdPayment(r.idpayment);

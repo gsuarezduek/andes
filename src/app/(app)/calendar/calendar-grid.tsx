@@ -14,6 +14,7 @@ import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calen
 import { Row } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
+import type { PaymentPriceAdjustment } from "@/lib/quote-price-options";
 import { QuoteFormModal } from "./quote-form-modal";
 import { QuoteDetailModal } from "./quote-detail-modal";
 import type { ConversationPickerOption } from "@/lib/rental-quotes";
@@ -31,6 +32,7 @@ export function CalendarGrid({
   unassigned,
   conversationOptions,
   extraHourPercent,
+  priceAdjustments,
   userId,
   isAdmin,
 }: {
@@ -41,6 +43,7 @@ export function CalendarGrid({
   unassigned: CalendarRow[];
   conversationOptions: ConversationPickerOption[];
   extraHourPercent: number | null;
+  priceAdjustments: PaymentPriceAdjustment[];
   userId: string;
   isAdmin: boolean;
 }) {
@@ -385,6 +388,7 @@ export function CalendarGrid({
           columns={columns}
           conversationOptions={conversationOptions}
           extraHourPercent={extraHourPercent}
+          priceAdjustments={priceAdjustments}
           onClose={() => setDraftRange(null)}
         />
       ) : null}
@@ -394,6 +398,7 @@ export function CalendarGrid({
           quote={quoteDetail}
           canEdit={canEditQuoteDetail}
           conversationOptions={conversationOptions}
+          priceAdjustments={priceAdjustments}
           onClose={() => setQuoteDetail(null)}
         />
       ) : null}

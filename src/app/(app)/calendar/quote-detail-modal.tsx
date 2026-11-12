@@ -13,7 +13,8 @@ import { formatArs } from "@/lib/contract";
 import { buildQuoteRange, quoteBillableDays, quotePricePerDay, splitQuoteRange } from "@/lib/quote-estimate";
 import { updateQuote, deleteQuote } from "./actions";
 import { sendQuoteWhatsApp } from "./quote-whatsapp-actions";
-import { PerDayBox } from "./quote-per-day-box";
+import type { PaymentPriceAdjustment } from "@/lib/quote-price-options";
+import { QuotePriceBox } from "./quote-per-day-box";
 
 /** Botón "Enviar por WhatsApp" del presupuesto — se muestra en la vista de
  *  solo lectura y en la editable por igual (mandar el mensaje no modifica el
@@ -60,11 +61,14 @@ export function QuoteDetailModal({
   quote,
   canEdit,
   conversationOptions,
+  priceAdjustments,
   onClose,
 }: {
   quote: CalendarQuoteBar;
   canEdit: boolean;
   conversationOptions: ConversationPickerOption[];
+  /** Descuentos/recargos por medio de pago de VikRentCar (ver `quotePriceOptions`). */
+  priceAdjustments: PaymentPriceAdjustment[];
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -133,8 +137,14 @@ export function QuoteDetailModal({
       <Modal open onClose={onClose} title="Presupuesto" className="max-w-sm">
         <div className="flex flex-col gap-2 text-sm">
           <p className="font-semibold">{quote.clientName ?? "Sin nombre de cliente"}</p>
-          {quote.estimatedTotal != null ? <p>Total estimado: {formatArs(quote.estimatedTotal)}</p> : null}
-          {savedPerDay != null ? <PerDayBox perDay={savedPerDay} days={savedDays} /> : null}
+          {quote.estimatedTotal != null ? (
+            <p>
+              Total estimado{priceAdjustments.length > 0 ? " (precio de lista)" : ""}: {formatArs(quote.estimatedTotal)}
+            </p>
+          ) : null}
+          {savedPerDay != null && quote.estimatedTotal != null ? (
+            <QuotePriceBox total={quote.estimatedTotal} days={savedDays} adjustments={priceAdjustments} />
+          ) : null}
           {saved.pickupTime || saved.returnTime ? (
             <p className="text-foreground/60">
               Retiro {saved.pickupTime || "—"} · Devolución {saved.returnTime || "—"}
@@ -220,14 +230,16 @@ export function QuoteDetailModal({
           </details>
           <TextField
             id="estimatedTotal"
-            label="Total estimado"
+            label={priceAdjustments.length > 0 ? "Total estimado (precio de lista)" : "Total estimado"}
             type="text"
             inputMode="decimal"
             prefix="$"
             value={totalValue}
             onChange={(e) => setTotalValue(e.target.value)}
           />
-          {perDay != null ? <PerDayBox perDay={perDay} days={liveDays} /> : null}
+          {perDay != null ? (
+            <QuotePriceBox total={Number(totalValue.replace(",", "."))} days={liveDays} adjustments={priceAdjustments} />
+          ) : null}
           <TextField id="clientName" label="Cliente" hint="Opcional" type="text" defaultValue={quote.clientName ?? ""} />
           <TextareaField id="note" label="Nota" hint="Opcional" defaultValue={quote.note ?? ""} />
           {editing ? (

@@ -58,11 +58,23 @@ export type RawOptional = {
   hasMany: boolean; // admite cantidad (hmany=1)
 };
 
+/**
+ * Descuento o recargo que VikRentCar aplica al total de la orden cuando se
+ * paga con ese método (`gpayments.charge` + `ch_disc` + `val_pcent`).
+ * `value` con signo: negativo = descuento (ej. −5), positivo = recargo.
+ */
+export type RawPriceAdjustment = { value: number; unit: "percent" | "fixed" };
+
 /** Un método de pago de `wp_vikrentcar_gpayments`. */
 export type RawPaymentGateway = {
   id: number;
   name: string;
   published: boolean; // activo en VikRentCar
+  /**
+   * null = sin descuento ni recargo. `undefined` = sin dato (plugin < v1.9.0
+   * o tabla sin esas columnas): Andes no toca lo que ya tenía guardado.
+   */
+  priceAdjustment?: RawPriceAdjustment | null;
 };
 
 /**

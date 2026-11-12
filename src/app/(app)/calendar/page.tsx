@@ -4,6 +4,7 @@ import { hasAdminAccess } from "@/lib/user-permissions";
 import { getCalendarData, WIDE_DAYS } from "@/lib/calendar";
 import { listConversationPickerOptions } from "@/lib/rental-quotes";
 import { prisma } from "@/lib/prisma";
+import { getPaymentPriceAdjustments } from "@/lib/payment-price-adjustments";
 import Link from "next/link";
 import { CalendarGrid } from "./calendar-grid";
 import { CalendarLegend } from "./calendar-legend";
@@ -22,10 +23,11 @@ export default async function CalendarPage({
   // retiro/devolución en cada barra — ver `calendar-row.tsx`): se sacaron
   // los presets de "22 días"/"Mes" a pedido del dueño, para no duplicar la
   // misma información en distintas densidades de columna.
-  const [data, conversationOptions, conditions] = await Promise.all([
+  const [data, conversationOptions, conditions, priceAdjustments] = await Promise.all([
     getCalendarData({ from, days: WIDE_DAYS, month }),
     listConversationPickerOptions(),
     prisma.conditionSettings.findUnique({ where: { id: 1 }, select: { extraHourPercent: true } }),
+    getPaymentPriceAdjustments(),
   ]);
 
   const rangeStart = data.columns[0]?.key;
@@ -75,6 +77,7 @@ export default async function CalendarPage({
         unassigned={data.unassigned}
         conversationOptions={conversationOptions}
         extraHourPercent={conditions?.extraHourPercent ?? null}
+        priceAdjustments={priceAdjustments}
         userId={user.id}
         isAdmin={hasAdminAccess(user.role)}
       />

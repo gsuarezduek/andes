@@ -8,8 +8,13 @@
 export type QuoteMessageVars = {
   auto: string;
   dias: string;
+  /** Con descuentos por medio de pago, todas las opciones en una línea
+   *  ("$ X con Transferencia (−5 %) · $ Y con otros medios de pago"). */
   precioDia: string;
   total: string;
+  /** Bloque con precio por día y total, una línea por forma de pago (ver
+   *  `formatPriceOptionsBlock`); sin descuentos, las dos líneas de siempre. */
+  precios: string;
   condiciones: string;
   cliente: string;
 };
@@ -17,8 +22,7 @@ export type QuoteMessageVars = {
 export const DEFAULT_QUOTE_MESSAGE_TEMPLATE = `¡Hola{cliente}! Te paso la propuesta para *{auto}*:
 
 📅 {dias} día(s)
-💰 Precio por día: {precioDia}
-💵 Total: {total}
+{precios}
 
 {condiciones}
 
@@ -28,6 +32,7 @@ Cualquier duda, quedo atento. ¡Saludos!`;
 export const QUOTE_MESSAGE_PLACEHOLDERS: ReadonlyArray<keyof QuoteMessageVars> = [
   "auto",
   "dias",
+  "precios",
   "precioDia",
   "total",
   "condiciones",

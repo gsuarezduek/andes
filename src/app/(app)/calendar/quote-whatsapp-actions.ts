@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { prisma } from "@/lib/prisma";
-import { formatArs } from "@/lib/contract";
 import { vehicleBrandModel } from "@/lib/vehicle-ui";
 import { quoteBillableDays, quotePricePerDay } from "@/lib/quote-estimate";
 import { buildConditionLines } from "@/lib/condition-lines";
 import { renderQuoteMessage } from "@/lib/whatsapp/quote-message";
+import { getPaymentPriceAdjustments } from "@/lib/payment-price-adjustments";
+import { formatPriceOptionsBlock, formatPriceOptionsInline, quotePriceOptions } from "@/lib/quote-price-options";
 import { isSessionWindowOpen } from "@/lib/whatsapp/conversations";
 import { sendTextMessage } from "@/lib/whatsapp/send";
 
@@ -51,14 +52,19 @@ export async function sendQuoteWhatsApp(quoteId: string): Promise<SendQuoteWhats
     return { error: WINDOW_CLOSED_MESSAGE, kind: "window_closed" };
   }
 
-  const [conditions, settings] = await Promise.all([
+  const [conditions, settings, priceAdjustments] = await Promise.all([
     prisma.conditionSettings.findUnique({ where: { id: 1 } }),
     prisma.whatsAppSettings.findUnique({ where: { id: 1 } }),
+    getPaymentPriceAdjustments(),
   ]);
 
   const days = quoteBillableDays(quote.startAt, quote.endAt);
   const total = quote.estimatedTotal != null ? Number(quote.estimatedTotal) : null;
   const perDay = quotePricePerDay(total, days);
+  // El total del presupuesto es el de lista: con descuentos por medio de pago
+  // (VikRentCar), el mensaje da primero el precio con descuento aclarando con
+  // qué medios, y el de lista para el resto.
+  const priceOptions = total != null ? quotePriceOptions(total, days, priceAdjustments) : [];
   const conditionLines = buildConditionLines(
     conditions
       ? {
@@ -73,8 +79,9 @@ export async function sendQuoteWhatsApp(quoteId: string): Promise<SendQuoteWhats
   const message = renderQuoteMessage(settings?.budgetMessageTemplate ?? null, {
     auto: vehicleBrandModel(quote.vehicle),
     dias: String(days),
-    precioDia: perDay != null ? formatArs(perDay) : "a confirmar",
-    total: total != null ? formatArs(total) : "a confirmar",
+    precioDia: (perDay != null ? formatPriceOptionsInline(priceOptions, "perDay") : null) ?? "a confirmar",
+    total: formatPriceOptionsInline(priceOptions, "total") ?? "a confirmar",
+    precios: priceOptions.length > 0 ? formatPriceOptionsBlock(priceOptions) : "💵 Total: a confirmar",
     condiciones: conditionLines.length > 0 ? `Condiciones:\n${conditionLines.join("\n")}` : "",
     cliente: quote.clientName ? ` ${quote.clientName}` : "",
   });

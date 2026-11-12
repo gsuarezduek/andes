@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseIdPayment, planGatewaySync, type CatalogRow } from "../payment-gateways";
+import { parseIdPayment, planGatewaySync, priceAdjustmentFromRow, type CatalogRow } from "../payment-gateways";
 
 const row = (over: Partial<CatalogRow> & { name: string }): CatalogRow => ({
   id: `id-${over.name}`,
   wpGatewayId: null,
   active: null,
+  priceAdjustment: null,
   linkedIds: [],
   ...over,
 });
@@ -36,8 +37,8 @@ describe("planGatewaySync", () => {
       },
     );
     expect(plan.update).toEqual([
-      { id: "id-Stripe", wpGatewayId: 8, active: false },
-      { id: "id-Tarjeta (Stripe)", wpGatewayId: 8, active: true },
+      { id: "id-Stripe", wpGatewayId: 8, active: false, priceAdjustment: null },
+      { id: "id-Tarjeta (Stripe)", wpGatewayId: 8, active: true, priceAdjustment: null },
     ]);
     expect(plan.create).toEqual([]);
     expect(plan.carryLinks).toEqual([{ toName: "Tarjeta (Stripe)", paymentMethodIds: ["pm-stripe"] }]);
@@ -59,7 +60,7 @@ describe("planGatewaySync", () => {
       ],
       seenNames: [],
     });
-    expect(plan.create).toEqual([{ name: "Transferencia", wpGatewayId: 1, active: true }]);
+    expect(plan.create).toEqual([{ name: "Transferencia", wpGatewayId: 1, active: true, priceAdjustment: null }]);
   });
 
   it("marca inactivo un método despublicado y no genera cambios si ya está al día", () => {
@@ -73,7 +74,7 @@ describe("planGatewaySync", () => {
         seenNames: [],
       },
     );
-    expect(plan.update).toEqual([{ id: "id-PayPal", wpGatewayId: 2, active: false }]);
+    expect(plan.update).toEqual([{ id: "id-PayPal", wpGatewayId: 2, active: false, priceAdjustment: null }]);
   });
 
   it("no hereda asociaciones de otro método distinto", () => {
@@ -82,5 +83,57 @@ describe("planGatewaySync", () => {
       seenNames: [{ id: 5, name: "Viejo" }],
     });
     expect(plan.carryLinks).toEqual([]);
+  });
+
+  it("guarda el descuento de un método y no genera cambios si ya está al día", () => {
+    const disc = { value: -5, unit: "percent" as const };
+    const plan = planGatewaySync(
+      [
+        row({ name: "Transferencia Argentina", wpGatewayId: 1, active: true }),
+        row({ name: "USDT", wpGatewayId: 4, active: true, priceAdjustment: disc }),
+      ],
+      {
+        gateways: [
+          { id: 1, name: "Transferencia Argentina", published: true, priceAdjustment: disc },
+          { id: 4, name: "USDT", published: true, priceAdjustment: { value: -5, unit: "percent" } },
+          { id: 5, name: "Bitcoin", published: true, priceAdjustment: disc },
+        ],
+        seenNames: [],
+      },
+    );
+    expect(plan.update).toEqual([
+      { id: "id-Transferencia Argentina", wpGatewayId: 1, active: true, priceAdjustment: disc },
+    ]);
+    expect(plan.create).toEqual([{ name: "Bitcoin", wpGatewayId: 5, active: true, priceAdjustment: disc }]);
+  });
+
+  it("borra el descuento si en VikRentCar se sacó, y lo conserva si el plugin no informa nada", () => {
+    const disc = { value: -5, unit: "percent" as const };
+    const plan = planGatewaySync(
+      [
+        row({ name: "Transferencia", wpGatewayId: 1, active: true, priceAdjustment: disc }),
+        row({ name: "Cripto", wpGatewayId: 2, active: true, priceAdjustment: disc }),
+      ],
+      {
+        gateways: [
+          { id: 1, name: "Transferencia", published: true, priceAdjustment: null },
+          { id: 2, name: "Cripto", published: true }, // plugin < v1.9.0
+        ],
+        seenNames: [],
+      },
+    );
+    expect(plan.update).toEqual([{ id: "id-Transferencia", wpGatewayId: 1, active: true, priceAdjustment: null }]);
+  });
+});
+
+describe("priceAdjustmentFromRow", () => {
+  it("descuento y recargo, en porcentaje o monto fijo, con la regla de VikRentCar", () => {
+    expect(priceAdjustmentFromRow({ charge: "5.00", ch_disc: 2, val_pcent: 2 })).toEqual({ value: -5, unit: "percent" });
+    expect(priceAdjustmentFromRow({ charge: 3, ch_disc: 1, val_pcent: 2 })).toEqual({ value: 3, unit: "percent" });
+    expect(priceAdjustmentFromRow({ charge: "1000", ch_disc: "2", val_pcent: "1" })).toEqual({ value: -1000, unit: "fixed" });
+  });
+  it("sin valor no hay ajuste", () => {
+    expect(priceAdjustmentFromRow({ charge: "0.00", ch_disc: 2, val_pcent: 2 })).toBeNull();
+    expect(priceAdjustmentFromRow({ charge: null, ch_disc: 1, val_pcent: 1 })).toBeNull();
   });
 });

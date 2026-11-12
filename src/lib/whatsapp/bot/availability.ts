@@ -10,6 +10,8 @@ import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
 import { vehicleBrandModel } from "@/lib/vehicle-ui";
 import { seasonsForDayAndCar, type SeasonRateRow } from "@/lib/calendar";
 import { buildQuoteRange, estimateQuoteTotal, quoteDaysBreakdown, quotePricePerDay } from "@/lib/quote-estimate";
+import { getPaymentPriceAdjustments } from "@/lib/payment-price-adjustments";
+import { priceOptionLabel, quotePriceOptions, type PaymentPriceAdjustment } from "@/lib/quote-price-options";
 
 /** Como máximo, cuántos días de rango puede pedir una consulta. */
 export const MAX_AVAILABILITY_RANGE_DAYS = 60;
@@ -88,12 +90,18 @@ export type AvailabilityVehicle = {
 const BOT_QUOTE_TIME = "09:00";
 
 export type BotQuote = {
-  /** Total del rango, con la temporada de cada día aplicada. */
+  /** Total del rango (precio de lista), con la temporada de cada día aplicada. */
   total: number;
   /** Días que se cobran. */
   days: number;
   /** Promedio por día (total ÷ días). */
   pricePerDay: number | null;
+  /**
+   * Solo si hay descuentos/recargos por medio de pago en VikRentCar: el
+   * precio con cada uno (primero los descuentos) y el de lista para el resto
+   * ("con otros medios de pago"). Ver `quotePriceOptions`.
+   */
+  byPaymentMethod?: { paymentMethods: string; total: number; pricePerDay: number | null }[];
 };
 
 /**
@@ -111,6 +119,7 @@ export function estimateBotQuote(input: {
   startDate: string;
   endDate: string;
   now: Date;
+  priceAdjustments?: PaymentPriceAdjustment[];
 }): BotQuote | null {
   const { startAt, endAt } = buildQuoteRange(input.startDate, input.endDate, BOT_QUOTE_TIME, BOT_QUOTE_TIME);
   const breakdown = quoteDaysBreakdown(startAt, endAt);
@@ -122,11 +131,20 @@ export function estimateBotQuote(input: {
   const todaySeasons = seasonsForDayAndCar(input.seasonRows, input.now, input.wpCarId ?? null);
   const estimate = estimateQuoteTotal(input.dailyRate, todaySeasons, daySeasons, breakdown, null);
   if (!estimate) return null;
-  return {
+  const quote: BotQuote = {
     total: estimate.total,
     days: breakdown.days,
     pricePerDay: quotePricePerDay(estimate.total, breakdown.days),
   };
+  const options = quotePriceOptions(estimate.total, breakdown.days, input.priceAdjustments ?? []);
+  if (options.length > 1) {
+    quote.byPaymentMethod = options.map((o) => ({
+      paymentMethods: priceOptionLabel(o),
+      total: o.total,
+      pricePerDay: o.perDay,
+    }));
+  }
+  return quote;
 }
 
 export type BlockingRental = { vehicleId: string | null; startAt: Date; endAt: Date };
@@ -206,7 +224,7 @@ export async function checkAvailability(input: {
   });
   if (vehicles.length === 0) return { ok: true, available: [], truncated: false, priceConfirmed };
 
-  const [rentals, seasonRates] = await Promise.all([
+  const [rentals, seasonRates, priceAdjustments] = await Promise.all([
     prisma.rental.findMany({
       where: { vehicleId: { in: vehicles.map((v) => v.id) }, status: { in: [...BLOCKING_STATUSES] } },
       select: { vehicleId: true, startAt: true, endAt: true },
@@ -214,6 +232,7 @@ export async function checkAvailability(input: {
     prisma.seasonRate.findMany({
       select: { fromSeconds: true, toSeconds: true, year: true, diffPercent: true, carIds: true },
     }),
+    getPaymentPriceAdjustments(),
   ]);
   const seasonRows: SeasonRateRow[] = seasonRates.map((s) => ({ ...s, diffPercent: Number(s.diffPercent) }));
 
@@ -232,6 +251,7 @@ export async function checkAvailability(input: {
             startDate: input.startDate,
             endDate: input.endDate,
             now,
+            priceAdjustments,
           })
         : null,
     }))

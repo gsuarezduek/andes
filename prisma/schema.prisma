@@ -388,14 +388,14 @@ model Vehicle {
   // Alquileres, acta y firma). `ownerName`/`ownerPhone` solo se usan cuando
   // `ownership = third_party` (sin migración de enum a tabla aparte: no hay
   // otro dato que distinga a un auto de tercero de uno propio).
-  ownership  VehicleOwnership @default(own)
-  ownerName  String?          @map("owner_name")
-  ownerPhone String?          @map("owner_phone")
+  ownership      VehicleOwnership @default(own)
+  ownerName      String?          @map("owner_name")
+  ownerPhone     String?          @map("owner_phone")
   // Datos del titular para el contrato de cesión (OwnerContract): se precargan
   // al armar uno y se actualizan con lo último que se firmó.
-  ownerDocNumber String? @map("owner_doc_number")
-  ownerAddress   String? @map("owner_address")
-  ownerEmail     String? @map("owner_email")
+  ownerDocNumber String?          @map("owner_doc_number")
+  ownerAddress   String?          @map("owner_address")
+  ownerEmail     String?          @map("owner_email")
 
   // Identificación y seguro (opcionales, se cargan a mano en la ficha).
   engineNumber          String? @map("engine_number") // número de motor
@@ -1439,6 +1439,12 @@ model PaymentMethod {
   @@map("payment_methods")
 }
 
+// Unidad del descuento/recargo de un método de pago de VikRentCar.
+enum PriceAdjustmentUnit {
+  percent
+  fixed
+}
+
 /// Catálogo de nombres de método de pago vistos en VikRentCar (`orders.idpayment`,
 /// ej. "Stripe", "Transferencia de Banco"). Se completa solo, a medida que el sync
 /// ve nombres reales en las reservas, y desde el plugin v1.8.0 también con la
@@ -1452,11 +1458,19 @@ model WpPaymentMethod {
   // Id del método en `wp_vikrentcar_gpayments` (el "8" de "8=Stripe" en
   // `orders.idpayment`). Un mismo id con dos nombres = el método se renombró
   // en VikRentCar. Null si el plugin todavía no lo informó.
-  wpGatewayId Int? @map("wp_gateway_id")
+  wpGatewayId          Int?                 @map("wp_gateway_id")
   // Si el nombre sigue siendo un método activo (publicado) en VikRentCar.
   // Null = sin dato (plugin andes-sync < v1.8.0): se muestra igual.
   // Lo actualiza `syncWpPaymentGateways` en cada sync.
-  active Boolean? @map("active")
+  active               Boolean?             @map("active")
+  // Descuento/recargo que VikRentCar aplica al total al pagar con este método
+  // (`gpayments.charge`/`ch_disc`/`val_pcent`, plugin andes-sync v1.9.0+).
+  // Valor con signo: negativo = descuento (ej. −5 % por transferencia),
+  // positivo = recargo. Null = sin ajuste (o sin dato todavía). Lo usan los
+  // cotizadores (presupuesto del Calendario y bot de WhatsApp) para mostrar
+  // el precio según la forma de pago; no se aplica a cobros reales.
+  priceAdjustmentValue Decimal?             @map("price_adjustment_value") @db.Decimal(12, 2)
+  priceAdjustmentUnit  PriceAdjustmentUnit? @map("price_adjustment_unit")
 
   paymentMethods PaymentMethod[] @relation("WpPaymentMethodMapping")
 
@@ -2597,15 +2611,15 @@ model AccountTransfer {
   // Cuenta origen/destino nula = la Caja fuerte (efectivo físico, ver
   // `src/lib/safe.ts`) — no es un `PaymentMethod`. Nunca ambas nulas (se valida
   // en `createAccountTransfer`).
-  fromAccountId   String?        @map("from_account_id")
-  fromAccount     PaymentMethod? @relation("AccountTransferFrom", fields: [fromAccountId], references: [id])
-  fromAccountName String         @map("from_account_name")
+  fromAccountId   String?          @map("from_account_id")
+  fromAccount     PaymentMethod?   @relation("AccountTransferFrom", fields: [fromAccountId], references: [id])
+  fromAccountName String           @map("from_account_name")
   fromAmount      Decimal          @map("from_amount") @db.Decimal(18, 8)
   fromCurrency    TransferCurrency @map("from_currency")
 
-  toAccountId   String?        @map("to_account_id")
-  toAccount     PaymentMethod? @relation("AccountTransferTo", fields: [toAccountId], references: [id])
-  toAccountName String         @map("to_account_name")
+  toAccountId   String?          @map("to_account_id")
+  toAccount     PaymentMethod?   @relation("AccountTransferTo", fields: [toAccountId], references: [id])
+  toAccountName String           @map("to_account_name")
   toAmount      Decimal          @map("to_amount") @db.Decimal(18, 8)
   toCurrency    TransferCurrency @map("to_currency")
 

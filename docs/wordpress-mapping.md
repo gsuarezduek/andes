@@ -36,7 +36,7 @@ Existen 35 tablas `wp_vikrentcar_*`. Relevantes para Andes:
 | `wp_vikrentcar_places` | 7 | Lugares de retiro/devolución |
 | `wp_vikrentcar_busy` | 2062 | Ocupación; `realback` = devolución real |
 | `wp_vikrentcar_orderhistory` | 3223 | Eventos de la orden → sync incremental |
-| `wp_vikrentcar_gpayments` | ? | Métodos de pago (`id, name, published`) → `wp_payment_methods.active` (plugin v1.8.0, `/payments`). **Columnas sin verificar contra la base real**: si no existe `published`, el plugin toma como activo todo lo que está en la tabla. `orders.idpayment` guarda `"id=Nombre"` como snapshot, por eso un renombre deja el nombre viejo en las órdenes anteriores. |
+| `wp_vikrentcar_gpayments` | ? | Métodos de pago (`id, name, published`) → `wp_payment_methods.active` (plugin v1.8.0, `/payments`). **Columnas sin verificar contra la base real**: si no existe `published`, el plugin toma como activo todo lo que está en la tabla. `orders.idpayment` guarda `"id=Nombre"` como snapshot, por eso un renombre deja el nombre viejo en las órdenes anteriores. **v1.9.0:** también `charge` (valor), `ch_disc` (1 = recargo, 2 = descuento) y `val_pcent` (1 = monto fijo, 2 = porcentaje) → `wp_payment_methods.price_adjustment_value/unit` (con signo: negativo = descuento). VikRentCar lo aplica al total de la orden al pagar con ese método (`site/controller.php`, `notifypayment`). Columnas tomadas del código fuente de VikRentCar (`sql/install.mysql.utf8.sql`), no de la base real: si no existieran, el plugin no informa el ajuste y Andes conserva lo que tenía. |
 
 ## `wp_vikrentcar_orders` (esquema real)
 

@@ -12,7 +12,8 @@ import { buildQuoteRange, estimateQuoteTotal, quoteDaysBreakdown, quotePricePerD
 import { formatArs } from "@/lib/contract";
 import { createQuote } from "./actions";
 import { sendQuoteWhatsApp, type SendQuoteWhatsAppResult } from "./quote-whatsapp-actions";
-import { PerDayBox } from "./quote-per-day-box";
+import type { PaymentPriceAdjustment } from "@/lib/quote-price-options";
+import { QuotePriceBox } from "./quote-per-day-box";
 
 /** Horario por defecto al abrir el presupuestador: retiro y devolución a la
  *  misma hora al día siguiente ya facturan 1 día, no 2 — el caso más común.
@@ -42,6 +43,7 @@ export function QuoteFormModal({
   columns,
   conversationOptions,
   extraHourPercent,
+  priceAdjustments,
   onClose,
 }: {
   vehicleId: string;
@@ -51,6 +53,8 @@ export function QuoteFormModal({
   columns: CalendarColumn[];
   conversationOptions: ConversationPickerOption[];
   extraHourPercent: number | null;
+  /** Descuentos/recargos por medio de pago de VikRentCar (ver `quotePriceOptions`). */
+  priceAdjustments: PaymentPriceAdjustment[];
   onClose: () => void;
 }) {
   const days = endIndex - startIndex + 1;
@@ -93,7 +97,9 @@ export function QuoteFormModal({
   // día" se recalculaba sobre ese total viejo (subía en vez de quedar igual).
   const [totalOverride, setTotalOverride] = useState<string | null>(null);
   const total = totalOverride ?? (suggested != null ? String(suggested.total) : "");
-  const perDay = quotePricePerDay(Number(total.replace(",", ".")), breakdown.days);
+  const totalNumber = Number(total.replace(",", "."));
+  const perDay = quotePricePerDay(totalNumber, breakdown.days);
+  const hasPriceAdjustments = priceAdjustments.length > 0;
   const [conversation, setConversation] = useState<ConversationPickerOption | null>(null);
   const [pending, start] = useTransition();
   const [retrying, startRetry] = useTransition();
@@ -217,7 +223,7 @@ export function QuoteFormModal({
 
         <TextField
           id="estimatedTotal"
-          label="Total estimado"
+          label={hasPriceAdjustments ? "Total estimado (precio de lista)" : "Total estimado"}
           hint={
             suggested != null
               ? `Sugerido: ${formatArs(suggested.total)} (tarifa × días${seasonDaysInRange.length > 0 ? ", con temporada" : ""})`
@@ -230,9 +236,10 @@ export function QuoteFormModal({
           onChange={(e) => setTotalOverride(e.target.value)}
         />
         {perDay != null ? (
-          <PerDayBox
-            perDay={perDay}
+          <QuotePriceBox
+            total={totalNumber}
             days={breakdown.days}
+            adjustments={priceAdjustments}
             extra={suggested && suggested.extraAmount > 0 ? { hours: breakdown.extraHours, amount: suggested.extraAmount } : null}
           />
         ) : null}

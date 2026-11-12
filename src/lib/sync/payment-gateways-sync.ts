@@ -2,13 +2,20 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { BookingSource } from "./types";
 import { planGatewaySync } from "./payment-gateways";
+import type { RawPriceAdjustment } from "./types";
+
+/** Descuento/recargo → columnas de `WpPaymentMethod`. */
+function adjustmentColumns(a: RawPriceAdjustment | null) {
+  return { priceAdjustmentValue: a?.value ?? null, priceAdjustmentUnit: a?.unit ?? null };
+}
 
 /**
  * Actualiza el catálogo `WpPaymentMethod` con los métodos de pago reales de
  * VikRentCar: marca cuáles siguen activos (Configuración → Medios de pago
  * muestra solo esos), suma los activos que todavía no aparecieron en ninguna
  * reserva y, si un método se renombró, le pasa al nombre nuevo las
- * asociaciones del viejo. Sin dato del plugin (versión vieja o grupo
+ * asociaciones del viejo. También guarda el descuento/recargo de cada método
+ * (lo usan los cotizadores). Sin dato del plugin (versión vieja o grupo
  * "Económico" apagado) no toca nada. Las filas inactivas no se borran: las
  * órdenes viejas siguen trayendo ese nombre y lo resuelven igual.
  */
@@ -25,6 +32,10 @@ export async function syncWpPaymentGateways(src: BookingSource): Promise<void> {
       name: r.name,
       wpGatewayId: r.wpGatewayId,
       active: r.active,
+      priceAdjustment:
+        r.priceAdjustmentValue != null && r.priceAdjustmentUnit != null
+          ? { value: Number(r.priceAdjustmentValue), unit: r.priceAdjustmentUnit }
+          : null,
       linkedIds: r.paymentMethods.map((m) => m.id),
     })),
     data,
@@ -32,16 +43,13 @@ export async function syncWpPaymentGateways(src: BookingSource): Promise<void> {
 
   await prisma.$transaction(async (tx) => {
     for (const c of plan.create) {
-      await tx.wpPaymentMethod.upsert({
-        where: { name: c.name },
-        create: c,
-        update: { wpGatewayId: c.wpGatewayId, active: c.active },
-      });
+      const data = { wpGatewayId: c.wpGatewayId, active: c.active, ...adjustmentColumns(c.priceAdjustment) };
+      await tx.wpPaymentMethod.upsert({ where: { name: c.name }, create: { name: c.name, ...data }, update: data });
     }
     for (const u of plan.update) {
       await tx.wpPaymentMethod.update({
         where: { id: u.id },
-        data: { wpGatewayId: u.wpGatewayId, active: u.active },
+        data: { wpGatewayId: u.wpGatewayId, active: u.active, ...adjustmentColumns(u.priceAdjustment) },
       });
     }
     for (const c of plan.carryLinks) {

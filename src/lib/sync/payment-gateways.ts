@@ -1,4 +1,4 @@
-import type { RawPaymentGatewayCatalog } from "./types";
+import type { RawPaymentGatewayCatalog, RawPriceAdjustment } from "./types";
 
 /**
  * Métodos de pago de VikRentCar → catálogo `WpPaymentMethod` de Andes (lógica
@@ -23,19 +23,39 @@ export function parseIdPayment(v: string | null): { id: number; name: string } |
   return { id, name };
 }
 
+/**
+ * Descuento/recargo de una fila de `gpayments`, con la misma regla que aplica
+ * VikRentCar al total (site/controller.php): `charge` = valor, `ch_disc`
+ * 1 = recargo / 2 = descuento, `val_pcent` 1 = monto fijo / 2 = porcentaje.
+ * Espeja `andes_sync_price_adjustment` del plugin. null = sin ajuste.
+ */
+export function priceAdjustmentFromRow(r: {
+  charge: number | string | null;
+  ch_disc: number | string | null;
+  val_pcent: number | string | null;
+}): RawPriceAdjustment | null {
+  const charge = Number(r.charge ?? 0);
+  if (!Number.isFinite(charge) || charge <= 0) return null;
+  return {
+    value: Number(r.ch_disc) === 1 ? charge : -charge,
+    unit: Number(r.val_pcent) === 1 ? "fixed" : "percent",
+  };
+}
+
 export type CatalogRow = {
   id: string;
   name: string;
   wpGatewayId: number | null;
   active: boolean | null;
+  priceAdjustment: RawPriceAdjustment | null;
   linkedIds: string[];
 };
 
 export type GatewayPlan = {
   /** Nombres de métodos activos que todavía no están en el catálogo. */
-  create: { name: string; wpGatewayId: number; active: boolean }[];
-  /** Filas existentes cuyo id de VikRentCar o estado cambió. */
-  update: { id: string; wpGatewayId: number | null; active: boolean }[];
+  create: { name: string; wpGatewayId: number; active: boolean; priceAdjustment: RawPriceAdjustment | null }[];
+  /** Filas existentes cuyo id de VikRentCar, estado o descuento/recargo cambió. */
+  update: { id: string; wpGatewayId: number | null; active: boolean; priceAdjustment: RawPriceAdjustment | null }[];
   /**
    * Asociaciones a copiar al nombre nuevo de un método renombrado (por nombre,
    * porque la fila puede ser una de las que se crean en este mismo plan).
@@ -58,15 +78,23 @@ export function planGatewaySync(catalog: CatalogRow[], data: RawPaymentGatewayCa
     const gw = gatewayByName.get(row.name);
     const active = gw ? gw.published : false;
     const wpGatewayId = idByName.get(row.name) ?? row.wpGatewayId;
-    if (active !== row.active || wpGatewayId !== row.wpGatewayId) {
-      plan.update.push({ id: row.id, wpGatewayId, active });
+    // Sin dato del plugin (< v1.9.0, `undefined`) se conserva lo guardado.
+    const priceAdjustment = gw && gw.priceAdjustment !== undefined ? gw.priceAdjustment : row.priceAdjustment;
+    if (
+      active !== row.active ||
+      wpGatewayId !== row.wpGatewayId ||
+      !sameAdjustment(priceAdjustment, row.priceAdjustment)
+    ) {
+      plan.update.push({ id: row.id, wpGatewayId, active, priceAdjustment });
     }
   }
 
   for (const gw of data.gateways) {
     if (!gw.published) continue;
     const existing = byName.get(gw.name);
-    if (!existing) plan.create.push({ name: gw.name, wpGatewayId: gw.id, active: true });
+    if (!existing) {
+      plan.create.push({ name: gw.name, wpGatewayId: gw.id, active: true, priceAdjustment: gw.priceAdjustment ?? null });
+    }
     if (existing && existing.linkedIds.length > 0) continue;
     // Nombres viejos del mismo método (mismo id, otro nombre) que tenían asociaciones.
     const inherited = new Set<string>();
@@ -79,4 +107,9 @@ export function planGatewaySync(catalog: CatalogRow[], data: RawPaymentGatewayCa
   }
 
   return plan;
+}
+
+function sameAdjustment(a: RawPriceAdjustment | null, b: RawPriceAdjustment | null): boolean {
+  if (a == null || b == null) return a == b;
+  return a.unit === b.unit && a.value === b.value;
 }

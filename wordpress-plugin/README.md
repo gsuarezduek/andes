@@ -61,7 +61,7 @@ compartidos, v1.2.0). Como **mu-plugin** no se puede desactivar por accidente.
 | GET | `/wp-json/andes/v1/cars` | `{ cars: RawCar[] }` (incluye `baseDailyRate`, v1.1.0) |
 | GET | `/wp-json/andes/v1/seasons` | `{ seasons: RawSeason[] }` (v1.1.0, ajustes de tarifa por temporada) |
 | GET | `/wp-json/andes/v1/optionals` | `{ optionals: RawOptional[] }` (v1.4.0, catálogo de opcionales: packs de km, mejora de seguro) |
-| GET | `/wp-json/andes/v1/payments` | `{ gateways, seenNames }` (v1.8.0, métodos de pago de `gpayments` con su estado publicado + cada `"id=Nombre"` visto en las órdenes; Andes muestra solo los activos y detecta renombres) |
+| GET | `/wp-json/andes/v1/payments` | `{ gateways, seenNames }` (v1.8.0, métodos de pago de `gpayments` con su estado publicado + cada `"id=Nombre"` visto en las órdenes; Andes muestra solo los activos y detecta renombres). v1.9.0: cada método trae `priceAdjustment` `{ value, unit }` (descuento/recargo que VikRentCar aplica al total; `value` negativo = descuento) o `null` |
 
 Todos requieren el header `X-Andes-Token` (o `?token=`). `from`/`to` son la
 ventana en Unix segundos; Andes la calcula sola (hoy−2d … hoy+60d por defecto).
