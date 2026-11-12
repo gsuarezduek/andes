@@ -55,6 +55,17 @@ export function CalendarGrid({
     null,
   );
   const [quoteDetail, setQuoteDetail] = useState<CalendarQuoteBar | null>(null);
+  // Auto resaltado con un click en su etiqueta: el resto queda con sombra
+  // (misma `RowShade` que al presupuestar). Otro click, Escape o un click
+  // fuera de las filas lo suelta. Mientras se presupuesta, manda la
+  // selección del presupuesto.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const shadeOthers = pick != null || focusId != null;
+  const dimmedFor = (id: string) => (pick ? pick.vehicleId !== id : focusId != null && focusId !== id);
+  const onLabelClick = (id: string) => {
+    setHover(null);
+    setFocusId((cur) => (cur === id ? null : id));
+  };
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   const colW = COL_W_MONTH;
@@ -154,13 +165,16 @@ export function CalendarGrid({
   // Separándolos, el header queda realmente sticky contra el scroll de la
   // página y la tabla puede crecer tan alta como haga falta sin cortar filas.
   useEffect(() => {
-    if (!pick) return;
+    if (!pick && !focusId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPick(null);
+      if (e.key !== "Escape") return;
+      // Primero cancela el presupuesto en curso; un segundo Escape suelta el auto.
+      if (pick) setPick(null);
+      else setFocusId(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pick]);
+  }, [pick, focusId]);
 
   const syncHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
@@ -172,6 +186,7 @@ export function CalendarGrid({
       onClick={() => {
         hide();
         setPick(null);
+        setFocusId(null);
       }}
     >
       {pick ? (
@@ -263,7 +278,9 @@ export function CalendarGrid({
               onMove={move}
               onLeave={hide}
               quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
-              dimmed={pick != null && pick.vehicleId !== row.id}
+              dimmed={dimmedFor(row.id)}
+              focused={focusId === row.id}
+              onLabelClick={onLabelClick}
               onCellClick={onCellClick}
               onQuoteEnter={showQuote}
               onQuoteClick={setQuoteDetail}
@@ -280,7 +297,7 @@ export function CalendarGrid({
           {thirdPartyRows.length > 0 ? (
             <>
               <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
-                <RowShade active={pick != null} />
+                <RowShade active={shadeOthers} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -302,7 +319,9 @@ export function CalendarGrid({
                   onMove={move}
                   onLeave={hide}
                   quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
-                  dimmed={pick != null && pick.vehicleId !== row.id}
+                  dimmed={dimmedFor(row.id)}
+              focused={focusId === row.id}
+              onLabelClick={onLabelClick}
                   onCellClick={onCellClick}
                   onQuoteEnter={showQuote}
                   onQuoteClick={setQuoteDetail}
@@ -315,7 +334,7 @@ export function CalendarGrid({
           {roomRows.length > 0 ? (
             <>
               <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
-                <RowShade active={pick != null} />
+                <RowShade active={shadeOthers} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -335,7 +354,7 @@ export function CalendarGrid({
                   onEnter={showRoom}
                   onMove={move}
                   onLeave={hide}
-                  dimmed={pick != null}
+                  dimmed={shadeOthers}
                 />
               ))}
             </>
@@ -345,7 +364,7 @@ export function CalendarGrid({
           {unassigned.length > 0 ? (
             <>
               <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
-                <RowShade active={pick != null} />
+                <RowShade active={shadeOthers} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -368,7 +387,8 @@ export function CalendarGrid({
                   onMove={move}
                   onLeave={hide}
                   quotePick={null}
-                  dimmed={pick != null}
+                  dimmed={shadeOthers}
+                  onLabelClick={onLabelClick}
                   onCellClick={noCellClick}
                   onQuoteEnter={showQuote}
                   onQuoteClick={setQuoteDetail}

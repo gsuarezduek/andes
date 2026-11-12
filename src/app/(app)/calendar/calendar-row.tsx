@@ -109,6 +109,8 @@ export function Row({
   onLeave,
   quotePick,
   dimmed = false,
+  focused = false,
+  onLabelClick,
   onCellClick,
   onQuoteEnter,
   onQuoteClick,
@@ -128,6 +130,9 @@ export function Row({
   quotePick: number | null;
   /** Sombra encima de la fila: hay otro auto elegido para presupuestar. */
   dimmed?: boolean;
+  /** Auto resaltado con un click en su etiqueta (el resto, con sombra). */
+  focused?: boolean;
+  onLabelClick: (vehicleId: string) => void;
   onCellClick: (vehicleId: string, dayIndex: number) => void;
   onQuoteEnter: (quote: CalendarQuoteBar, e: React.MouseEvent) => void;
   onQuoteClick: (quote: CalendarQuoteBar) => void;
@@ -149,16 +154,36 @@ export function Row({
   return (
     <div className="relative flex border-b border-foreground/20 last:border-0">
       <RowShade active={dimmed} />
-      {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
+      {/* Etiqueta del auto (fija a la izquierda). Un click resalta solo este
+          auto (las demás filas quedan con sombra, ver `focused`); otro click
+          lo suelta. El link a la ficha aparece mientras está resaltado.
           Si el auto tiene un apodo cargado, es lo principal y alcanza (sin
           patente/modelo de secundario, para no duplicar la referencia en un
           espacio chico) — el precio va debajo. Sin apodo, la patente es lo
           principal y el modelo el secundario, como antes. Las filas sin
           unidad (plate null) no tienen perfil. */}
       {row.plate ? (
-        <Link
-          href={`/vehicles/${row.id}`}
-          className={`sticky left-0 z-10 relative flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-2 transition-colors hover:bg-foreground/5 sm:px-3 ${LABEL_W_CLASS}`}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-pressed={focused}
+          title={focused ? "Mostrar todos los autos" : "Resaltar solo este auto"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onLabelClick(row.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onLabelClick(row.id);
+            }
+          }}
+          // Fondo siempre opaco (también en hover): la etiqueta es sticky y
+          // las barras pasan por debajo al scrollear — un `bg-foreground/5`
+          // (semitransparente) las dejaba ver a través.
+          className={`sticky left-0 z-10 relative flex shrink-0 cursor-pointer flex-col justify-center border-r border-foreground/10 px-2 transition-colors hover:bg-[color-mix(in_srgb,var(--foreground)_5%,var(--background))] sm:px-3 ${
+            focused ? "bg-[color-mix(in_srgb,var(--foreground)_8%,var(--background))]" : "bg-background"
+          } ${LABEL_W_CLASS}`}
           style={{ height: totalH }}
         >
           {hasNotes && (
@@ -202,7 +227,16 @@ export function Row({
               {formatArs(row.dailyRate)}/día
             </span>
           ) : null}
-        </Link>
+          {focused && (
+            <Link
+              href={`/vehicles/${row.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 truncate text-[10px] font-medium text-blue-600 hover:underline sm:text-[11px] dark:text-blue-400"
+            >
+              Ver ficha →
+            </Link>
+          )}
+        </div>
       ) : (
         <div
           className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 ${LABEL_W_CLASS}`}

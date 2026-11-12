@@ -1322,6 +1322,13 @@ Las condiciones del mensaje de WhatsApp de un presupuesto salen de Configuració
 
 Un auto con dos alquileres el mismo día y uno de ellos de 1 solo día medía **4×** una fila normal: v82 duplicaba el alto de cada carril por el alquiler de 1 día y además la fila tenía 2 carriles (2 × 2). Ahora `rowLayout` (`calendar-row.tsx`, pura y testeada) da `rowH × max(carriles, 2 si hay un alquiler de 1 día)`: esa fila mide el doble, igual que una de un solo carril con un alquiler de 1 día. Cuando el alquiler de 1 día queda en un carril de alto normal (`roomy: false`), sus dos horarios con lugar van en una línea apretada cada uno (8,5px). Verificado con Playwright contra la base local (datos de prueba borrados). Sin migración.
 
+## v114 — Calendario: click en el auto lo resalta + fondo opaco de la etiqueta
+
+- **Click en la etiqueta de un auto** (columna fija de la izquierda) ya no lleva a la ficha: resalta solo ese auto y deja al resto con la misma sombra que al presupuestar (`focusId` en `CalendarGrid`, `focused`/`onLabelClick` en `Row`; también aplica a Terceros, Habitaciones y "Sin unidad"). Se suelta con otro click en la etiqueta, Escape (si hay un presupuesto en curso, el primer Escape cancela el presupuesto) o un click fuera de las filas. Mientras está resaltado, la etiqueta muestra un link "Ver ficha →". Si se arranca un presupuesto en otra fila, manda la sombra del presupuesto.
+- **Fix:** al pasar el mouse por la etiqueta se veían las barras de atrás. El hover era `bg-foreground/5`, semitransparente, sobre una columna sticky por la que pasan las barras al scrollear. Ahora el fondo es opaco (`color-mix` de foreground sobre background).
+
+Verificado con Playwright contra la base local (hover, resaltar, Escape, "Ver ficha"; datos de prueba borrados). Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.
