@@ -59,6 +59,24 @@ export function rowHasCompactBar(bars: { span: number }[], colW: number): boolea
   return bars.some((b) => barContentTier(b.span * colW - 4) === "compact");
 }
 
+/**
+ * Sombra encima de una fila del Calendario mientras se presupuesta otro auto
+ * (primer toque hecho, falta el día de fin): deja a la vista solo la fila
+ * elegida para no confundirse de auto. No intercepta clicks: tocar otra fila
+ * sigue reiniciando la selección ahí. Siempre montada para que la sombra
+ * aparezca con una transición corta. La fila tiene que ser `relative`.
+ */
+export function RowShade({ active }: { active: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 z-20 bg-black/35 transition-opacity duration-150 dark:bg-black/60 ${
+        active ? "opacity-100" : "opacity-0"
+      }`}
+    />
+  );
+}
+
 export function Row({
   row,
   columns,
@@ -71,6 +89,7 @@ export function Row({
   onMove,
   onLeave,
   quotePick,
+  dimmed = false,
   onCellClick,
   onQuoteEnter,
   onQuoteClick,
@@ -88,6 +107,8 @@ export function Row({
   /** Día de inicio elegido para un presupuesto en esta fila, mientras se
    *  espera el segundo toque (día de fin) — `null` si no hay selección acá. */
   quotePick: number | null;
+  /** Sombra encima de la fila: hay otro auto elegido para presupuestar. */
+  dimmed?: boolean;
   onCellClick: (vehicleId: string, dayIndex: number) => void;
   onQuoteEnter: (quote: CalendarQuoteBar, e: React.MouseEvent) => void;
   onQuoteClick: (quote: CalendarQuoteBar) => void;
@@ -108,7 +129,8 @@ export function Row({
   const quotesH = row.quotes.length > 0 ? QUOTE_TRACK_H * row.quoteLaneCount : 0;
   const totalH = barsH + quotesH;
   return (
-    <div className="flex border-b border-foreground/20 last:border-0">
+    <div className="relative flex border-b border-foreground/20 last:border-0">
+      <RowShade active={dimmed} />
       {/* Etiqueta del auto (fija a la izquierda), linkea al perfil del auto.
           Si el auto tiene un apodo cargado, es lo principal y alcanza (sin
           patente/modelo de secundario, para no duplicar la referencia en un

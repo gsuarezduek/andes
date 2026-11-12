@@ -1306,6 +1306,10 @@ La web empezó a mostrar el precio con el descuento de algunos medios de pago ("
 - **Bot de WhatsApp**: `check_availability` suma `quote.byPaymentMethod` cuando hay descuentos y el prompt le indica cotizar primero con el descuento, aclarando los medios, y después el precio para el resto. Sin probar con una respuesta real del bot (mismo criterio que v24/v92).
 - **Fuera de alcance:** el cobro real en la entrega no cambia (sigue usando el % de ajuste de cada medio de pago de Andes, Configuración → Medios de pago). La tarifa del auto en la ficha y Reportes siguen en precio de lista.
 
+## v111 — Calendario: sombra sobre las otras filas al presupuestar
+
+Pedido del dueño: con varias reservas a la vista era fácil presupuestar en el auto equivocado. Tras el primer toque de un presupuesto (celda naranja), todas las filas menos la del auto elegido quedan bajo una sombra (`RowShade`, `calendar-row.tsx`; `dimmed` en `Row`/`RoomRow` y en los títulos de sección de `calendar-grid.tsx`). No intercepta clicks: tocar otra fila sigue reiniciando la selección ahí. Se va con el segundo toque, Escape o tocando afuera. La sombra va dentro de cada fila (no en un wrapper) para no romper el `last:border-0` de las filas. Verificado con Playwright a 1280px y 375px. Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

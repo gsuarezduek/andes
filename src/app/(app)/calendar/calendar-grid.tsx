@@ -11,7 +11,7 @@ import type {
   RoomCalendarRow,
 } from "@/lib/calendar";
 import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calendar-constants";
-import { Row } from "./calendar-row";
+import { Row, RowShade } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 import type { PaymentPriceAdjustment } from "@/lib/quote-price-options";
@@ -263,6 +263,7 @@ export function CalendarGrid({
               onMove={move}
               onLeave={hide}
               quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
+              dimmed={pick != null && pick.vehicleId !== row.id}
               onCellClick={onCellClick}
               onQuoteEnter={showQuote}
               onQuoteClick={setQuoteDetail}
@@ -278,7 +279,8 @@ export function CalendarGrid({
           {/* Vehículos de terceros */}
           {thirdPartyRows.length > 0 ? (
             <>
-              <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
+              <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
+                <RowShade active={pick != null} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -300,6 +302,7 @@ export function CalendarGrid({
                   onMove={move}
                   onLeave={hide}
                   quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
+                  dimmed={pick != null && pick.vehicleId !== row.id}
                   onCellClick={onCellClick}
                   onQuoteEnter={showQuote}
                   onQuoteClick={setQuoteDetail}
@@ -311,7 +314,8 @@ export function CalendarGrid({
           {/* Habitaciones (alquiler temporario) */}
           {roomRows.length > 0 ? (
             <>
-              <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
+              <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
+                <RowShade active={pick != null} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -331,6 +335,7 @@ export function CalendarGrid({
                   onEnter={showRoom}
                   onMove={move}
                   onLeave={hide}
+                  dimmed={pick != null}
                 />
               ))}
             </>
@@ -339,7 +344,8 @@ export function CalendarGrid({
           {/* Reservas sin unidad asignada */}
           {unassigned.length > 0 ? (
             <>
-              <div className="flex border-t border-foreground/10 bg-foreground/[0.03]">
+              <div className="relative flex border-t border-foreground/10 bg-foreground/[0.03]">
+                <RowShade active={pick != null} />
                 <div
                   className={`sticky left-0 z-10 shrink-0 truncate bg-foreground/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50 ${LABEL_W_CLASS}`}
                 >
@@ -362,6 +368,7 @@ export function CalendarGrid({
                   onMove={move}
                   onLeave={hide}
                   quotePick={null}
+                  dimmed={pick != null}
                   onCellClick={noCellClick}
                   onQuoteEnter={showQuote}
                   onQuoteClick={setQuoteDetail}

@@ -3,6 +3,7 @@ import type { CalendarColumn, RoomCalendarBar, RoomCalendarRow } from "@/lib/cal
 import { formatArs } from "@/lib/contract";
 import { roomBarClasses } from "./bar-style";
 import { LABEL_W_CLASS } from "./calendar-constants";
+import { RowShade } from "./calendar-row";
 
 /**
  * Fila de una habitación. Igual que la de un auto (mismas columnas de día),
@@ -19,6 +20,7 @@ export function RoomRow({
   onEnter,
   onMove,
   onLeave,
+  dimmed = false,
 }: {
   row: RoomCalendarRow;
   columns: CalendarColumn[];
@@ -29,11 +31,14 @@ export function RoomRow({
   onEnter: (bar: RoomCalendarBar, e: React.MouseEvent) => void;
   onMove: (e: React.MouseEvent) => void;
   onLeave: () => void;
+  /** Sombra encima de la fila: hay un auto elegido para presupuestar. */
+  dimmed?: boolean;
 }) {
   const totalH = rowH * row.laneCount;
   const half = colW / 2;
   return (
-    <div className="flex border-b border-foreground/20 last:border-0">
+    <div className="relative flex border-b border-foreground/20 last:border-0">
+      <RowShade active={dimmed} />
       <Link
         href={`/rooms/${row.id}`}
         className={`sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-foreground/10 bg-background px-3 transition-colors hover:bg-foreground/5 ${LABEL_W_CLASS}`}
