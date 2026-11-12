@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { barContentTier, rowHasCompactBar } from "../calendar-row";
+import { barContentTier, rowHasCompactBar, rowLayout } from "../calendar-row";
 
 describe("barContentTier", () => {
   it("barra ancha (varios días): horario + nombre + horario", () => {
@@ -35,5 +35,25 @@ describe("rowHasCompactBar", () => {
 
   it("fila sin barras: no hace falta agrandarla", () => {
     expect(rowHasCompactBar([], colW)).toBe(false);
+  });
+});
+
+describe("rowLayout", () => {
+  const rowH = 40;
+
+  it("un carril, sin alquiler de 1 día: alto normal", () => {
+    expect(rowLayout(1, false, rowH)).toEqual({ barsH: 40, laneH: 40, roomy: false });
+  });
+
+  it("un carril con alquiler de 1 día: doble de alto, carril holgado", () => {
+    expect(rowLayout(1, true, rowH)).toEqual({ barsH: 80, laneH: 80, roomy: true });
+  });
+
+  it("2 carriles con alquiler de 1 día: doble de alto, no 4×", () => {
+    expect(rowLayout(2, true, rowH)).toEqual({ barsH: 80, laneH: 40, roomy: false });
+  });
+
+  it("2 carriles sin alquiler de 1 día: doble de alto", () => {
+    expect(rowLayout(2, false, rowH)).toEqual({ barsH: 80, laneH: 40, roomy: false });
   });
 });

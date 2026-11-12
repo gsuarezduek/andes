@@ -1318,6 +1318,10 @@ Las condiciones del mensaje de WhatsApp de un presupuesto salen de Configuració
 - **Usado en:** mensaje de WhatsApp del presupuesto (franquicia del auto presupuestado), precarga de la entrega y el botón "Mejora de seguro" del wizard, cambio de unidad dentro de la entrega (el auto nuevo trae su franquicia, igual que el pack de KM), y el bot de WhatsApp: `getBotGeneralConditions` (`src/lib/whatsapp/bot/general-conditions.ts`) da las dos cifras y nombra los modelos marcados camioneta ("$600000 en autos; $900000 en camionetas (Chevrolet Spin, Volkswagen Amarok)"), vía `GeneralConditions.truck` en `buildConditionLines`.
 - El acta y la liquidación no cambian: usan la franquicia que quedó en el contrato de cada alquiler.
 
+## v113 — Calendario: alto de fila normalizado (máx. el doble)
+
+Un auto con dos alquileres el mismo día y uno de ellos de 1 solo día medía **4×** una fila normal: v82 duplicaba el alto de cada carril por el alquiler de 1 día y además la fila tenía 2 carriles (2 × 2). Ahora `rowLayout` (`calendar-row.tsx`, pura y testeada) da `rowH × max(carriles, 2 si hay un alquiler de 1 día)`: esa fila mide el doble, igual que una de un solo carril con un alquiler de 1 día. Cuando el alquiler de 1 día queda en un carril de alto normal (`roomy: false`), sus dos horarios con lugar van en una línea apretada cada uno (8,5px). Verificado con Playwright contra la base local (datos de prueba borrados). Sin migración.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

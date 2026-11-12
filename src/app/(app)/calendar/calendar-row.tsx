@@ -60,6 +60,25 @@ export function rowHasCompactBar(bars: { span: number }[], colW: number): boolea
 }
 
 /**
+ * Alto de la franja de barras de una fila y de cada carril. La fila mide
+ * `rowH` por carril, con un mínimo de 2 carriles de alto si hay una barra
+ * "compact" — nunca las dos cosas multiplicadas (antes, 2 carriles con un
+ * alquiler de 1 día daban 4× el alto normal). Si la barra "compact" queda en
+ * un carril de alto normal (fila con 2+ carriles), se dibuja con la variante
+ * apretada (`roomy: false`): una línea por punta, fuente más chica.
+ */
+export function rowLayout(
+  laneCount: number,
+  hasCompact: boolean,
+  rowH: number,
+): { barsH: number; laneH: number; roomy: boolean } {
+  const lanes = Math.max(laneCount, 1);
+  const barsH = rowH * Math.max(lanes, hasCompact ? 2 : 1);
+  const laneH = barsH / lanes;
+  return { barsH, laneH, roomy: laneH >= rowH * 2 };
+}
+
+/**
  * Sombra encima de una fila del Calendario mientras se presupuesta otro auto
  * (primer toque hecho, falta el día de fin): deja a la vista solo la fila
  * elegida para no confundirse de auto. No intercepta clicks: tocar otra fila
@@ -114,16 +133,15 @@ export function Row({
   onQuoteClick: (quote: CalendarQuoteBar) => void;
 }) {
   const hasNotes = row.activeNotes.length > 0;
-  // Con un alquiler de 1 solo día (tier "compact" de barContentTier), la fila
-  // se dibuja el doble de alta para que entren cómodas las 2 líneas de hora+
-  // lugar por punta — ver `rowHasCompactBar`. Afecta a toda la fila (incluidas
-  // sus barras más anchas, que simplemente quedan con más aire), nunca al
-  // ancho de columna, que es compartido por las 90 columnas del Calendario.
-  const barRowH = rowHasCompactBar(row.bars, colW) ? rowH * 2 : rowH;
-  // Cuando hay alquileres solapados para este auto, la fila se hace
-  // `laneCount` veces más alta (un carril por cada barra que se superpone en
-  // fechas) para que ninguna tape a otra — ver assignLanes en src/lib/calendar.ts.
-  const barsH = barRowH * row.laneCount;
+  // Un carril por cada barra que se superpone en fechas (assignLanes en
+  // src/lib/calendar.ts), y como mínimo el doble de alto si hay un alquiler
+  // de 1 solo día (tier "compact") — sin multiplicar las dos cosas, ver
+  // `rowLayout`. Nunca toca el ancho de columna (compartido por las 90).
+  const { barsH, laneH: barRowH, roomy } = rowLayout(
+    row.laneCount,
+    rowHasCompactBar(row.bars, colW),
+    rowH,
+  );
   // Franja aparte para los presupuestos (borradores) — solo ocupa espacio si
   // hay alguno para este auto en la ventana visible.
   const quotesH = row.quotes.length > 0 ? QUOTE_TRACK_H * row.quoteLaneCount : 0;
@@ -257,8 +275,8 @@ export function Row({
               e.stopPropagation();
               onEnter(bar, e);
             }}
-            className={`absolute overflow-hidden rounded-md px-1.5 text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${
-              tier === "compact" ? "flex flex-col items-center justify-center gap-0" : "flex items-center gap-1"
+            className={`absolute overflow-hidden rounded-md text-left text-[11px] font-medium shadow-sm transition-shadow hover:ring-2 ${
+              tier === "compact" ? "flex flex-col items-center justify-center gap-0 px-0.5" : "flex items-center gap-1 px-1.5"
             } ${barClasses(bar)} ${paymentBorderClasses(bar)}`}
             style={{
               left: bar.startIndex * colW + 2,
@@ -319,10 +337,14 @@ export function Row({
                 </span>
               </span>
             ) : (
-              // "compact" solo ocurre cuando `rowHasCompactBar` ya duplicó el
-              // alto de la fila (ver más arriba), así que siempre hay lugar
-              // de sobra para una fuente más legible que en los otros tiers.
-              <span className="flex w-full flex-col items-center gap-0.5 tabular-nums text-[11px] font-normal opacity-90">
+              // Carril doble (`roomy`): fuente más legible, cada punta puede
+              // partirse en 2 líneas. Carril normal (fila con 2+ alquileres
+              // solapados): una línea apretada por punta.
+              <span
+                className={`flex w-full flex-col items-center tabular-nums font-normal opacity-90 ${
+                  roomy ? "gap-0.5 text-[11px]" : "gap-0.5 whitespace-nowrap text-[8.5px] leading-none tracking-tighter"
+                }`}
+              >
                 <span>
                   {formatTime(bar.startAt)}
                   {bar.pickupPlaceCode && <> {bar.pickupPlaceCode}</>}
