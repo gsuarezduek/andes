@@ -18,7 +18,7 @@ import { isClientNameMissing } from "@/lib/remote-signature";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
-import { kmPackPriceFor } from "@/lib/contract";
+import { deductibleConditions, deductiblesFor, kmPackPriceFor } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 import { resolveSignedContractVersionId } from "@/lib/contract-version";
 
@@ -307,7 +307,15 @@ export async function saveHandover(input: InspectionInput): Promise<SaveResult> 
 export type FetchHandoverVehicleResult =
   | {
       ok: true;
-      vehicle: { id: string; label: string; currentKm: number; maxFuel?: number; kmPackPrice: number | null };
+      vehicle: {
+        id: string;
+        label: string;
+        currentKm: number;
+        maxFuel?: number;
+        kmPackPrice: number | null;
+        deductible: number | null;
+        deductibleReduced: number | null;
+      };
       existingDamages: { posX: number; posY: number; description: string | null }[];
     }
   | { ok: false; error: string };
@@ -362,7 +370,14 @@ export async function fetchHandoverVehicle(
     }),
     prisma.conditionSettings.findUnique({
       where: { id: 1 },
-      select: { kmPackPrice: true, kmPackPriceTruck: true },
+      select: {
+        kmPackPrice: true,
+        kmPackPriceTruck: true,
+        deductible: true,
+        deductibleReduced: true,
+        deductibleTruck: true,
+        deductibleReducedTruck: true,
+      },
     }),
   ]);
 
@@ -377,6 +392,8 @@ export async function fetchHandoverVehicle(
         kmPackPrice: conditions?.kmPackPrice ? Number(conditions.kmPackPrice) : null,
         kmPackPriceTruck: conditions?.kmPackPriceTruck ? Number(conditions.kmPackPriceTruck) : null,
       }),
+      // Franquicia: camionetas y autos tienen valores distintos (deductiblesFor).
+      ...deductiblesFor(vehicle.isTruck, deductibleConditions(conditions)),
     },
     existingDamages,
   };

@@ -1310,6 +1310,14 @@ La web empezó a mostrar el precio con el descuento de algunos medios de pago ("
 
 Pedido del dueño: con varias reservas a la vista era fácil presupuestar en el auto equivocado. Tras el primer toque de un presupuesto (celda naranja), todas las filas menos la del auto elegido quedan bajo una sombra (`RowShade`, `calendar-row.tsx`; `dimmed` en `Row`/`RoomRow` y en los títulos de sección de `calendar-grid.tsx`). No intercepta clicks: tocar otra fila sigue reiniciando la selección ahí. Se va con el segundo toque, Escape o tocando afuera. La sombra va dentro de cada fila (no en un wrapper) para no romper el `last:border-0` de las filas. Verificado con Playwright a 1280px y 375px. Sin migración.
 
+## v112 — Franquicia distinta para camionetas
+
+Las condiciones del mensaje de WhatsApp de un presupuesto salen de Configuración → Condiciones, que tenía una sola franquicia para toda la flota; la de las camionetas (Amarok, Spin) es más alta y la web las separa. tsc/lint/1012 tests en verde; verificado con Playwright a 375px y 1280px contra la base local (guardado + historial, precarga de la entrega de un auto marcado camioneta y de uno común; datos restaurados). Migración `add_truck_deductible` **aplicada solo en local, sin desplegar todavía**.
+
+- **`ConditionSettings.deductibleTruck` / `deductibleReducedTruck`** (estándar y con mejora de seguro), editables en Configuración → Condiciones, en pares autos | camionetas (con el pack de KM, que ya estaba separado). Entran en el historial de cambios. **Vacío = usa la de autos** (`deductiblesFor`, `src/lib/contract.ts`, testeada), así nada cambia hasta cargarlas. Qué auto es camioneta lo decide la casilla "Es camioneta" de la ficha (`Vehicle.isTruck`, v31).
+- **Usado en:** mensaje de WhatsApp del presupuesto (franquicia del auto presupuestado), precarga de la entrega y el botón "Mejora de seguro" del wizard, cambio de unidad dentro de la entrega (el auto nuevo trae su franquicia, igual que el pack de KM), y el bot de WhatsApp: `getBotGeneralConditions` (`src/lib/whatsapp/bot/general-conditions.ts`) da las dos cifras y nombra los modelos marcados camioneta ("$600000 en autos; $900000 en camionetas (Chevrolet Spin, Volkswagen Amarok)"), vía `GeneralConditions.truck` en `buildConditionLines`.
+- El acta y la liquidación no cambian: usan la franquicia que quedó en el contrato de cada alquiler.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { vehicleBrandModel } from "@/lib/vehicle-ui";
 import { quoteBillableDays, quotePricePerDay } from "@/lib/quote-estimate";
 import { buildConditionLines } from "@/lib/condition-lines";
+import { deductibleConditions, deductiblesFor } from "@/lib/contract";
 import { renderQuoteMessage } from "@/lib/whatsapp/quote-message";
 import { getPaymentPriceAdjustments } from "@/lib/payment-price-adjustments";
 import { formatPriceOptionsBlock, formatPriceOptionsInline, quotePriceOptions } from "@/lib/quote-price-options";
@@ -37,7 +38,7 @@ export async function sendQuoteWhatsApp(quoteId: string): Promise<SendQuoteWhats
 
   const quote = await prisma.rentalQuote.findUniqueOrThrow({
     where: { id: quoteId },
-    include: { vehicle: { select: { brand: true, model: true } } },
+    include: { vehicle: { select: { brand: true, model: true, isTruck: true } } },
   });
 
   if (!quote.conversationId) {
@@ -70,8 +71,8 @@ export async function sendQuoteWhatsApp(quoteId: string): Promise<SendQuoteWhats
       ? {
           kmPerDay: conditions.kmPerDay,
           extraKmRate: conditions.extraKmRate != null ? Number(conditions.extraKmRate) : null,
-          deductible: conditions.deductible != null ? Number(conditions.deductible) : null,
-          deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
+          // Franquicia del auto presupuestado: las camionetas tienen la suya.
+          ...deductiblesFor(quote.vehicle.isTruck, deductibleConditions(conditions)),
         }
       : null,
   );

@@ -1,5 +1,6 @@
 "use server";
 
+import { getBotGeneralConditions } from "@/lib/whatsapp/bot/general-conditions";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
@@ -187,7 +188,7 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
   const [config, knowledgeBlock, conditions] = await Promise.all([
     getOrCreateConfig(),
     buildKnowledgeBlock(),
-    prisma.conditionSettings.findUnique({ where: { id: 1 } }),
+    getBotGeneralConditions(),
   ]);
 
   // `check_availability` es dato de negocio real, no sensible — se ejercita
@@ -208,14 +209,7 @@ export async function testBotPlayground(transcript: TranscriptTurn[]): Promise<P
         examples: config.examples as { question: string; answer: string }[],
       },
       knowledgeBlock,
-      conditions: conditions
-        ? {
-            kmPerDay: conditions.kmPerDay,
-            extraKmRate: conditions.extraKmRate != null ? Number(conditions.extraKmRate) : null,
-            deductible: conditions.deductible != null ? Number(conditions.deductible) : null,
-            deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
-          }
-        : null,
+      conditions,
       policies: config.policies as { topic: string; text: string }[],
       contextLine: `Este es un mensaje de prueba desde el panel de Configuración — no es un cliente real. ${todayContextLine()}`,
       transcript,

@@ -1812,6 +1812,11 @@ model ConditionSettings {
   // alquiler lleva "Mejora de Seguro" (ej. 600.000 → 400.000).
   deductible               Decimal? @map("deductible") @db.Decimal(12, 2) // franquicia estándar
   deductibleReduced        Decimal? @map("deductible_reduced") @db.Decimal(12, 2) // franquicia con mejora de seguro
+  // Franquicia de las camionetas (Vehicle.isTruck), más alta que la de los
+  // autos — mismo criterio que `kmPackPriceTruck`. Null = usa la de autos
+  // (ver `deductiblesFor` en src/lib/contract.ts).
+  deductibleTruck          Decimal? @map("deductible_truck") @db.Decimal(12, 2)
+  deductibleReducedTruck   Decimal? @map("deductible_reduced_truck") @db.Decimal(12, 2)
   // Pack de KM adicional (200 km c/u, de 1 a 20 packs por alquiler): precio de
   // referencia por pack, precargado en el paso "Condiciones" de la entrega.
   // Autos vs camionetas tienen precios distintos en VikRentCar (Opciones del

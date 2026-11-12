@@ -162,6 +162,48 @@ export function kmPackPriceFor(
 }
 
 /**
+ * Franquicia (estándar y con mejora de seguro) para un vehículo puntual: la de
+ * camionetas si `isTruck`, si no la de autos — la web de VikRentCar también
+ * las separa. Una de camionetas sin cargar cae a la de autos (hasta que se
+ * configure, se sigue mostrando la de siempre). Única fuente de la regla:
+ * precarga de la entrega, cambio de unidad en el wizard, mensaje del
+ * presupuesto y bot.
+ */
+export function deductiblesFor(
+  isTruck: boolean,
+  conditions: {
+    deductible: number | null;
+    deductibleReduced: number | null;
+    deductibleTruck: number | null;
+    deductibleReducedTruck: number | null;
+  },
+): { deductible: number | null; deductibleReduced: number | null } {
+  if (!isTruck) return { deductible: conditions.deductible, deductibleReduced: conditions.deductibleReduced };
+  return {
+    deductible: conditions.deductibleTruck ?? conditions.deductible,
+    deductibleReduced: conditions.deductibleReducedTruck ?? conditions.deductibleReduced,
+  };
+}
+
+/** Columnas Decimal de franquicia de `ConditionSettings` → números para `deductiblesFor`. */
+export function deductibleConditions(
+  c: {
+    deductible: { toString(): string } | null;
+    deductibleReduced: { toString(): string } | null;
+    deductibleTruck: { toString(): string } | null;
+    deductibleReducedTruck: { toString(): string } | null;
+  } | null,
+): Parameters<typeof deductiblesFor>[1] {
+  const n = (v: { toString(): string } | null | undefined) => (v != null ? Number(v) : null);
+  return {
+    deductible: n(c?.deductible),
+    deductibleReduced: n(c?.deductibleReduced),
+    deductibleTruck: n(c?.deductibleTruck),
+    deductibleReducedTruck: n(c?.deductibleReducedTruck),
+  };
+}
+
+/**
  * Importe final de una línea de pago tras aplicar el % del medio (+ recargo,
  * − descuento). Sin condición (`percent` null/undefined/0) devuelve el mismo
  * importe.

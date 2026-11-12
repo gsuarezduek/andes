@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { hasFinanceAccess } from "@/lib/user-permissions";
 import { formatDateTime, formatDateInput } from "@/lib/datetime";
-import { kmPackPriceFor, type RentalPayment } from "@/lib/contract";
+import { deductibleConditions, deductiblesFor, kmPackPriceFor, type RentalPayment } from "@/lib/contract";
 import { InspectionWizard } from "@/components/inspection/inspection-wizard";
 import { getCurrentContract } from "@/lib/contract-version";
 import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
@@ -73,6 +73,7 @@ export default async function HandoverPage({
   // de la reserva): se precargan en "Paga" — ver InspectionWizardProps.
   const initialPayments = (saved.payments as RentalPayment[] | undefined) ?? [];
   const initialPricing: Record<string, string> = {};
+  const deductibles = deductiblesFor(rental.vehicle?.isTruck ?? false, deductibleConditions(conditions));
   const preset = (key: string, value: number | null | undefined) => {
     if (saved[key] !== undefined && saved[key] !== null) initialPricing[key] = String(saved[key]);
     else if (value !== undefined && value !== null) initialPricing[key] = String(value);
@@ -101,16 +102,11 @@ export default async function HandoverPage({
   );
   // Accesorios (packs de km de VikRentCar) → importe.
   preset("accessoriesAmount", rental.bookingAccessoriesAmount ? Number(rental.bookingAccessoriesAmount) : null);
-  // Franquicia: la reducida si la reserva trae mejora de seguro; si no, la estándar.
+  // Franquicia: la reducida si la reserva trae mejora de seguro; si no, la
+  // estándar — la de camionetas si el auto es camioneta (ver deductiblesFor).
   preset(
     "deductible",
-    rental.bookingInsuranceUpgrade
-      ? conditions?.deductibleReduced
-        ? Number(conditions.deductibleReduced)
-        : null
-      : conditions?.deductible
-        ? Number(conditions.deductible)
-        : null,
+    (rental.bookingInsuranceUpgrade ? deductibles.deductibleReduced : deductibles.deductible) || null,
   );
   // Precargas de texto/flag (no numéricas): descripción de accesorios y mejora de
   // seguro. Solo si el empleado todavía no las cargó (saved gana).
@@ -162,8 +158,8 @@ export default async function HandoverPage({
         licenseExpiry={rental.licenseExpiry ? formatDateInput(rental.licenseExpiry) : undefined}
         pricing={initialPricing}
         initialPayments={initialPayments}
-        deductibleBase={conditions?.deductible ? Number(conditions.deductible) : undefined}
-        deductibleReduced={conditions?.deductibleReduced ? Number(conditions.deductibleReduced) : undefined}
+        deductibleBase={deductibles.deductible || undefined}
+        deductibleReduced={deductibles.deductibleReduced || undefined}
         usdRate={(await getCurrentUsdRate())?.rate ?? null}
         paymentMethods={paymentMethods.map((m) => ({
           id: m.id,

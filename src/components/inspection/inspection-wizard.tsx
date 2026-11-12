@@ -74,7 +74,15 @@ export function InspectionWizard(props: InspectionWizardProps) {
   // falla): reemplaza `props.vehicle`/`props.existingDamages` una vez
   // confirmado por el servidor (disponibilidad + datos del auto nuevo).
   const [vehicleOverride, setVehicleOverride] = useState<{
-    vehicle: { id: string; label: string; currentKm: number; maxFuel?: number; kmPackPrice?: number | null };
+    vehicle: {
+      id: string;
+      label: string;
+      currentKm: number;
+      maxFuel?: number;
+      kmPackPrice?: number | null;
+      deductible?: number | null;
+      deductibleReduced?: number | null;
+    };
     existingDamages: { posX: number; posY: number; description: string | null }[];
   } | null>(null);
   const [vehicleSwapBusy, setVehicleSwapBusy] = useState(false);
@@ -125,6 +133,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
     ...props,
     vehicle: effectiveVehicle,
     existingDamages: effectiveExistingDamages,
+    // Franquicia del auto nuevo si se cambió de unidad (autos vs camionetas).
+    ...(vehicleOverride
+      ? {
+          deductibleBase: vehicleOverride.vehicle.deductible ?? undefined,
+          deductibleReduced: vehicleOverride.vehicle.deductibleReduced ?? undefined,
+        }
+      : {}),
   };
 
   useEffect(() => {
@@ -510,9 +525,14 @@ export function InspectionWizard(props: InspectionWizardProps) {
         damages: [],
         // Precio del pack de KM: autos vs camionetas tienen tarifas distintas
         // (ver kmPackPriceFor) — el precargado del auto anterior ya no aplica.
+        // Lo mismo con la franquicia (deductiblesFor), según la mejora de seguro.
         pricing: {
           ...draft.pricing,
           kmPackPrice: res.vehicle.kmPackPrice != null ? String(res.vehicle.kmPackPrice) : "",
+          deductible: (() => {
+            const ded = draft.insuranceUpgrade ? res.vehicle.deductibleReduced : res.vehicle.deductible;
+            return ded != null ? String(ded) : draft.pricing.deductible;
+          })(),
         },
       });
     } catch {

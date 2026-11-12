@@ -4,6 +4,7 @@
  * espera Chakra/Meta) apenas se persiste el mensaje del cliente.
  */
 import "server-only";
+import { getBotGeneralConditions } from "@/lib/whatsapp/bot/general-conditions";
 import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/whatsapp/phone";
 import { sendBotTextMessage } from "@/lib/whatsapp/send";
@@ -72,7 +73,7 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
     buildKnowledgeBlock(),
     findRentalContext(conversation.phoneE164),
     conversation.customerId ? prisma.customer.findUnique({ where: { id: conversation.customerId } }) : null,
-    prisma.conditionSettings.findUnique({ where: { id: 1 } }),
+    getBotGeneralConditions(),
   ]);
   const contextLine = [
     customer?.name ? `El cliente se llama ${customer.name}.` : "Todavía no se sabe el nombre del cliente.",
@@ -97,14 +98,7 @@ export async function maybeRespondWithBot(conversationId: string): Promise<void>
         examples: config.examples as { question: string; answer: string }[],
       },
       knowledgeBlock,
-      conditions: conditions
-        ? {
-            kmPerDay: conditions.kmPerDay,
-            extraKmRate: conditions.extraKmRate != null ? Number(conditions.extraKmRate) : null,
-            deductible: conditions.deductible != null ? Number(conditions.deductible) : null,
-            deductibleReduced: conditions.deductibleReduced != null ? Number(conditions.deductibleReduced) : null,
-          }
-        : null,
+      conditions,
       policies: config.policies as { topic: string; text: string }[],
       contextLine,
       transcript,

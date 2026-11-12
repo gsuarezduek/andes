@@ -6,6 +6,7 @@ import {
   formatBtc,
   formatTransferAmount,
   computeBalance,
+  deductiblesFor,
   guaranteeTotal,
   kmPackKm,
   kmPackAmount,
@@ -89,6 +90,24 @@ describe("kmPackPriceFor", () => {
   it("null si el precio correspondiente no está configurado", () => {
     expect(kmPackPriceFor(true, { kmPackPrice: 20_000, kmPackPriceTruck: null })).toBeNull();
     expect(kmPackPriceFor(false, { kmPackPrice: null, kmPackPriceTruck: 30_000 })).toBeNull();
+  });
+});
+
+describe("deductiblesFor", () => {
+  const conditions = { deductible: 600_000, deductibleReduced: 400_000, deductibleTruck: 900_000, deductibleReducedTruck: 600_000 };
+
+  it("autos usan la franquicia de autos", () => {
+    expect(deductiblesFor(false, conditions)).toEqual({ deductible: 600_000, deductibleReduced: 400_000 });
+  });
+
+  it("camionetas usan la suya", () => {
+    expect(deductiblesFor(true, conditions)).toEqual({ deductible: 900_000, deductibleReduced: 600_000 });
+  });
+
+  it("una de camionetas sin cargar cae a la de autos", () => {
+    expect(
+      deductiblesFor(true, { ...conditions, deductibleTruck: null, deductibleReducedTruck: null }),
+    ).toEqual({ deductible: 600_000, deductibleReduced: 400_000 });
   });
 });
 

@@ -84,9 +84,11 @@ export default async function GeneralSettingsPage({
                 placeholder="—"
                 defaultValue={conditions?.extraHourPercent?.toString()}
               />
+              {/* Celda vacía: así las franquicias y los packs quedan en pares autos | camionetas. */}
+              <div aria-hidden />
               <TextField
                 id="deductible"
-                label="Franquicia/Garantía estándar"
+                label="Franquicia/Garantía estándar (autos)"
                 prefix="$"
                 hint="deducible del seguro y garantía tomada"
                 type="text"
@@ -95,14 +97,34 @@ export default async function GeneralSettingsPage({
                 defaultValue={conditions?.deductible?.toString()}
               />
               <TextField
+                id="deductibleTruck"
+                label="Franquicia/Garantía estándar (camionetas)"
+                prefix="$"
+                hint="Para autos marcados «Es camioneta». Vacío = la de autos"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.deductibleTruck?.toString()}
+              />
+              <TextField
                 id="deductibleReduced"
-                label="Franquicia/Garantía con mejora de seguro"
+                label="Franquicia/Garantía con mejora de seguro (autos)"
                 prefix="$"
                 hint="reducida"
                 type="text"
                 inputMode="decimal"
                 placeholder="—"
                 defaultValue={conditions?.deductibleReduced?.toString()}
+              />
+              <TextField
+                id="deductibleReducedTruck"
+                label="Franquicia/Garantía con mejora de seguro (camionetas)"
+                prefix="$"
+                hint="reducida, camionetas. Vacío = la de autos"
+                type="text"
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={conditions?.deductibleReducedTruck?.toString()}
               />
               <TextField
                 id="kmPackPrice"

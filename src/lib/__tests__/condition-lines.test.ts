@@ -25,4 +25,29 @@ describe("buildConditionLines", () => {
       "Km incluidos por día: 200 km.",
     ]);
   });
+
+  it("con franquicia de camionetas distinta, da los dos valores y nombra los modelos", () => {
+    const lines = buildConditionLines({
+      kmPerDay: null,
+      extraKmRate: null,
+      deductible: 600000,
+      deductibleReduced: 400000,
+      truck: { deductible: 900000, deductibleReduced: 600000, models: ["Chevrolet Spin", "Volkswagen Amarok"] },
+    });
+    expect(lines).toEqual([
+      "Franquicia del seguro: $600000 en autos; $900000 en camionetas (Chevrolet Spin, Volkswagen Amarok).",
+      'Franquicia reducida con "mejora de seguro": $400000 en autos; $600000 en camionetas.',
+    ]);
+  });
+
+  it("si la de camionetas es igual, una sola cifra", () => {
+    const lines = buildConditionLines({
+      kmPerDay: null,
+      extraKmRate: null,
+      deductible: 600000,
+      deductibleReduced: null,
+      truck: { deductible: 600000, deductibleReduced: null, models: ["Chevrolet Spin"] },
+    });
+    expect(lines).toEqual(["Franquicia del seguro: $600000."]);
+  });
 });
