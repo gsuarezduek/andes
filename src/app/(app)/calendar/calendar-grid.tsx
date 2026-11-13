@@ -11,7 +11,7 @@ import type {
   RoomCalendarRow,
 } from "@/lib/calendar";
 import { COL_W_MONTH, ROW_H_MONTH, LABEL_W_MOBILE, LABEL_W_CLASS } from "./calendar-constants";
-import { Row, RowShade } from "./calendar-row";
+import { ColumnShade, Row, RowShade } from "./calendar-row";
 import { RoomRow } from "./room-calendar-row";
 import { Tooltip, type Hover } from "./calendar-tooltip";
 import type { PaymentPriceAdjustment } from "@/lib/quote-price-options";
@@ -65,6 +65,19 @@ export function CalendarGrid({
   const onLabelClick = (id: string) => {
     setHover(null);
     setFocusId((cur) => (cur === id ? null : id));
+  };
+  // Día resaltado con un click en su encabezado: el resto de las columnas
+  // queda con sombra (mismo criterio que el auto resaltado; los dos pueden
+  // convivir y se cruzan). Se guarda por fecha (`key`), no por índice, para
+  // que el auto-refresco no lo corra de día; si se navega a otra ventana que
+  // no incluye ese día, simplemente no se ve. Mientras se presupuesta, manda
+  // la selección del presupuesto.
+  const [focusDayKey, setFocusDayKey] = useState<string | null>(null);
+  const focusDayIndex = focusDayKey ? columns.findIndex((c) => c.key === focusDayKey) : -1;
+  const focusedDay = !pick && focusDayIndex >= 0 ? focusDayIndex : null;
+  const onDayClick = (key: string) => {
+    setHover(null);
+    setFocusDayKey((cur) => (cur === key ? null : key));
   };
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
@@ -165,16 +178,20 @@ export function CalendarGrid({
   // Separándolos, el header queda realmente sticky contra el scroll de la
   // página y la tabla puede crecer tan alta como haga falta sin cortar filas.
   useEffect(() => {
-    if (!pick && !focusId) return;
+    if (!pick && !focusId && !focusDayKey) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      // Primero cancela el presupuesto en curso; un segundo Escape suelta el auto.
+      // Primero cancela el presupuesto en curso; un segundo Escape suelta el
+      // auto y el día resaltados.
       if (pick) setPick(null);
-      else setFocusId(null);
+      else {
+        setFocusId(null);
+        setFocusDayKey(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pick, focusId]);
+  }, [pick, focusId, focusDayKey]);
 
   const syncHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (headerScrollRef.current) headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
@@ -187,6 +204,7 @@ export function CalendarGrid({
         hide();
         setPick(null);
         setFocusId(null);
+        setFocusDayKey(null);
       }}
     >
       {pick ? (
@@ -211,15 +229,34 @@ export function CalendarGrid({
             <span className="sm:hidden">Vehículo</span>
             <span className="hidden sm:inline">Vehículo/Precio</span>
           </div>
-          {columns.map((c) => {
+          <div className="relative flex" style={{ width: trackW }}>
+          <ColumnShade index={focusedDay} colW={colW} trackW={trackW} zClass="z-10" />
+          {columns.map((c, i) => {
             const hasSeason = c.seasons.length > 0;
+            const dayFocused = focusedDay === i;
             return (
               <div
                 key={c.key}
-                title={c.special ? c.special.label : undefined}
-                className={`relative shrink-0 py-1 text-center ${
+                role="button"
+                tabIndex={0}
+                aria-pressed={dayFocused}
+                title={
+                  (c.special ? `${c.special.label} · ` : "") +
+                  (dayFocused ? "Mostrar todos los días" : "Resaltar solo este día")
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDayClick(c.key);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onDayClick(c.key);
+                  }
+                }}
+                className={`relative shrink-0 cursor-pointer py-1 text-center transition-colors hover:bg-foreground/[0.06] ${
                   c.isToday ? "bg-blue-500/25" : c.special ? "bg-yellow-400/25" : c.isWeekend ? "bg-foreground/[0.04]" : ""
-                }`}
+                } ${dayFocused ? "ring-2 ring-inset ring-blue-500" : ""}`}
                 style={{ width: colW }}
               >
                 {c.monthLabel ? (
@@ -256,6 +293,7 @@ export function CalendarGrid({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
@@ -280,6 +318,7 @@ export function CalendarGrid({
               quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
               dimmed={dimmedFor(row.id)}
               focused={focusId === row.id}
+              focusedDay={focusedDay}
               onLabelClick={onLabelClick}
               onCellClick={onCellClick}
               onQuoteEnter={showQuote}
@@ -303,7 +342,9 @@ export function CalendarGrid({
                 >
                   Terceros
                 </div>
-                <div style={{ width: trackW }} />
+                <div className="relative" style={{ width: trackW }}>
+                  <ColumnShade index={focusedDay} colW={colW} trackW={trackW} />
+                </div>
               </div>
               {thirdPartyRows.map((row) => (
                 <Row
@@ -321,6 +362,7 @@ export function CalendarGrid({
                   quotePick={pick?.vehicleId === row.id ? pick.startIndex : null}
                   dimmed={dimmedFor(row.id)}
               focused={focusId === row.id}
+              focusedDay={focusedDay}
               onLabelClick={onLabelClick}
                   onCellClick={onCellClick}
                   onQuoteEnter={showQuote}
@@ -340,7 +382,9 @@ export function CalendarGrid({
                 >
                   Habitaciones
                 </div>
-                <div style={{ width: trackW }} />
+                <div className="relative" style={{ width: trackW }}>
+                  <ColumnShade index={focusedDay} colW={colW} trackW={trackW} />
+                </div>
               </div>
               {roomRows.map((room) => (
                 <RoomRow
@@ -355,6 +399,7 @@ export function CalendarGrid({
                   onMove={move}
                   onLeave={hide}
                   dimmed={shadeOthers}
+                  focusedDay={focusedDay}
                 />
               ))}
             </>
@@ -371,7 +416,9 @@ export function CalendarGrid({
                   <span className="sm:hidden">Sin unidad</span>
                   <span className="hidden sm:inline">Sin unidad asignada</span>
                 </div>
-                <div style={{ width: trackW }} />
+                <div className="relative" style={{ width: trackW }}>
+                  <ColumnShade index={focusedDay} colW={colW} trackW={trackW} />
+                </div>
               </div>
               {unassigned.map((row) => (
                 <Row
@@ -388,6 +435,7 @@ export function CalendarGrid({
                   onLeave={hide}
                   quotePick={null}
                   dimmed={shadeOthers}
+                  focusedDay={focusedDay}
                   onLabelClick={onLabelClick}
                   onCellClick={noCellClick}
                   onQuoteEnter={showQuote}

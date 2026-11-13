@@ -96,6 +96,34 @@ export function RowShade({ active }: { active: boolean }) {
   );
 }
 
+/**
+ * Sombra sobre todas las columnas de día menos una (día resaltado con un
+ * click en su encabezado). Va dentro del track (contenedor `relative` de
+ * ancho `trackW`), con z-index por debajo de la etiqueta sticky del auto
+ * (z-10): al scrollear, la etiqueta queda siempre legible encima.
+ */
+export function ColumnShade({
+  index,
+  colW,
+  trackW,
+  zClass = "z-[5]",
+}: {
+  index: number | null;
+  colW: number;
+  trackW: number;
+  zClass?: string;
+}) {
+  if (index == null || index < 0) return null;
+  const cls = `pointer-events-none absolute inset-y-0 ${zClass} bg-black/35 dark:bg-black/60`;
+  const rightStart = (index + 1) * colW;
+  return (
+    <>
+      {index > 0 ? <div aria-hidden className={cls} style={{ left: 0, width: index * colW }} /> : null}
+      {rightStart < trackW ? <div aria-hidden className={cls} style={{ left: rightStart, width: trackW - rightStart }} /> : null}
+    </>
+  );
+}
+
 export function Row({
   row,
   columns,
@@ -110,6 +138,7 @@ export function Row({
   quotePick,
   dimmed = false,
   focused = false,
+  focusedDay = null,
   onLabelClick,
   onCellClick,
   onQuoteEnter,
@@ -132,6 +161,8 @@ export function Row({
   dimmed?: boolean;
   /** Auto resaltado con un click en su etiqueta (el resto, con sombra). */
   focused?: boolean;
+  /** Día resaltado con un click en su encabezado (el resto de las columnas, con sombra). */
+  focusedDay?: number | null;
   onLabelClick: (vehicleId: string) => void;
   onCellClick: (vehicleId: string, dayIndex: number) => void;
   onQuoteEnter: (quote: CalendarQuoteBar, e: React.MouseEvent) => void;
@@ -427,6 +458,7 @@ export function Row({
             </button>
           );
         })}
+        <ColumnShade index={focusedDay} colW={colW} trackW={trackW} />
       </div>
     </div>
   );

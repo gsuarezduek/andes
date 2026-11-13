@@ -3,7 +3,7 @@ import type { CalendarColumn, RoomCalendarBar, RoomCalendarRow } from "@/lib/cal
 import { formatArs } from "@/lib/contract";
 import { roomBarClasses } from "./bar-style";
 import { LABEL_W_CLASS } from "./calendar-constants";
-import { RowShade } from "./calendar-row";
+import { ColumnShade, RowShade } from "./calendar-row";
 
 /**
  * Fila de una habitación. Igual que la de un auto (mismas columnas de día),
@@ -21,6 +21,7 @@ export function RoomRow({
   onMove,
   onLeave,
   dimmed = false,
+  focusedDay = null,
 }: {
   row: RoomCalendarRow;
   columns: CalendarColumn[];
@@ -33,6 +34,8 @@ export function RoomRow({
   onLeave: () => void;
   /** Sombra encima de la fila: hay un auto elegido para presupuestar. */
   dimmed?: boolean;
+  /** Día resaltado con un click en su encabezado (el resto de las columnas, con sombra). */
+  focusedDay?: number | null;
 }) {
   const totalH = rowH * row.laneCount;
   const half = colW / 2;
@@ -95,6 +98,7 @@ export function RoomRow({
             </Link>
           );
         })}
+        <ColumnShade index={focusedDay} colW={colW} trackW={trackW} />
       </div>
     </div>
   );
