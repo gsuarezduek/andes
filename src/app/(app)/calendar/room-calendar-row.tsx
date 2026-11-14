@@ -6,9 +6,10 @@ import { LABEL_W_CLASS } from "./calendar-constants";
 import { ColumnShade, RowShade } from "./calendar-row";
 
 /**
- * Fila de una habitación. Igual que la de un auto (mismas columnas de día),
- * pero las barras van de mediodía a mediodía: la salida de una estadía y la
- * entrada de la siguiente el mismo día quedan lado a lado, sin pisarse.
+ * Fila de una habitación. Igual que la de un auto (mismas columnas de día):
+ * cada barra ocupa una columna por noche, sin dibujar el día de salida, así la
+ * salida de una estadía y la entrada de la siguiente el mismo día quedan lado
+ * a lado, sin pisarse.
  */
 export function RoomRow({
   row,

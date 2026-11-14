@@ -20,9 +20,27 @@ describe("countsAsOccupancy", () => {
 });
 
 describe("bookingGuestLabel", () => {
-  it("usa el nombre del huésped si está cargado", () => {
+  it("con nombre, la plataforma va adelante", () => {
+    expect(bookingGuestLabel({ guestName: "Sofía Müller", externalLabel: "CLOSED - Not available", isBlock: false, source: "booking" })).toBe(
+      "Booking: Sofía Müller",
+    );
     expect(bookingGuestLabel({ guestName: "Juan Pérez", externalLabel: null, isBlock: false, source: "airbnb" })).toBe(
-      "Juan Pérez",
+      "Airbnb: Juan Pérez",
+    );
+  });
+
+  it("sin nombre y con un rótulo genérico del iCal → '{canal}: sin nombre'", () => {
+    expect(bookingGuestLabel({ guestName: null, externalLabel: "Reserved", isBlock: false, source: "airbnb" })).toBe(
+      "Airbnb: sin nombre",
+    );
+    expect(bookingGuestLabel({ guestName: "  ", externalLabel: "CLOSED - Not available", isBlock: false, source: "booking" })).toBe(
+      "Booking: sin nombre",
+    );
+  });
+
+  it("un rótulo no genérico del iCal se usa como nombre", () => {
+    expect(bookingGuestLabel({ guestName: null, externalLabel: "Juan - 2 huéspedes", isBlock: false, source: "booking" })).toBe(
+      "Booking: Juan - 2 huéspedes",
     );
   });
 
@@ -32,19 +50,8 @@ describe("bookingGuestLabel", () => {
     );
   });
 
-  it("sin nombre, una reserva manual se llama 'Reserva directa'", () => {
+  it("una reserva directa va solo con el nombre", () => {
+    expect(bookingGuestLabel({ guestName: "Ana", externalLabel: null, isBlock: false, source: "manual" })).toBe("Ana");
     expect(bookingGuestLabel({ guestName: null, externalLabel: null, isBlock: false, source: "manual" })).toBe("Reserva directa");
-  });
-
-  it("un rótulo genérico del iCal se reemplaza por 'Reserva de {canal}'", () => {
-    expect(bookingGuestLabel({ guestName: null, externalLabel: "Reserved", isBlock: false, source: "airbnb" })).toBe(
-      "Reserva de Airbnb",
-    );
-  });
-
-  it("un rótulo no genérico del iCal se muestra tal cual", () => {
-    expect(bookingGuestLabel({ guestName: null, externalLabel: "Juan - 2 huéspedes", isBlock: false, source: "booking" })).toBe(
-      "Juan - 2 huéspedes",
-    );
   });
 });

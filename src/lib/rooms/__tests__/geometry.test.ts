@@ -3,14 +3,19 @@ import { roomBarGeometry } from "../geometry";
 import { assignLanes } from "@/lib/calendar";
 
 describe("roomBarGeometry", () => {
-  it("entrada y salida a mediodía", () => {
-    // ventana desde el 1/10, estadía 3→5: entra a mediodía del día 3 (col 2) y sale a mediodía del 5 (col 4)
+  it("una columna por noche (la salida no se dibuja)", () => {
+    // ventana desde el 1/10, estadía 3→5 (2 noches): columnas del 3 y del 4
     expect(roomBarGeometry("2026-10-03", "2026-10-05", "2026-10-01", 30)).toEqual({
-      startHalf: 5,
-      endHalf: 9,
+      startHalf: 4,
+      endHalf: 8,
       clippedStart: false,
       clippedEnd: false,
     });
+  });
+  it("una estadía de 1 noche ocupa una sola columna", () => {
+    const g = roomBarGeometry("2026-10-03", "2026-10-04", "2026-10-01", 30)!;
+    expect(g.endHalf - g.startHalf).toBe(2);
+    expect(g.startHalf).toBe(4);
   });
   it("recorta a la ventana", () => {
     const g = roomBarGeometry("2026-09-25", "2026-10-03", "2026-10-01", 5);

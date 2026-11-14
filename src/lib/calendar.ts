@@ -185,7 +185,7 @@ export type CalendarColumn = {
 };
 
 /** Estadía de una habitación en la grilla. `startIndex`/`span` van en MEDIAS
- *  columnas (la entrada y la salida caen a mediodía — ver `roomBarGeometry`). */
+ *  columnas (siempre pares: una columna entera por noche — ver `roomBarGeometry`). */
 export type RoomCalendarBar = {
   bookingId: string;
   roomId: string;

@@ -1330,6 +1330,11 @@ Un auto con dos alquileres el mismo día y uno de ellos de 1 solo día medía **
 
 Verificado con Playwright contra la base local (hover, resaltar, Escape, "Ver ficha"; datos de prueba borrados). Sin migración.
 
+## v115 — Habitaciones: una columna por noche + nombre con la plataforma
+
+- **Barras por noche** (`roomBarGeometry`): una estadía ocupa una columna entera por noche, del día de entrada al anterior a la salida (exclusiva). Antes iban de mediodía a mediodía (v58) y una estadía de 1 noche tocaba dos columnas, como si fueran 2 días. Una salida y una entrada el mismo día siguen lado a lado, sin pisarse. Las unidades siguen en medias columnas.
+- **Nombre con la plataforma** (`bookingGuestLabel`): "Booking: Sofía Müller" / "Airbnb: Juan Pérez"; sin nombre, "Booking: sin nombre" (antes "Reserva de Booking"). El iCal de Booking/Airbnb no trae el nombre del huésped: se carga a mano en la reserva (campo "Huésped"). Las directas van solo con el nombre. Se ve en el Calendario, la Agenda, las fichas y las descripciones de Caja de los cobros nuevos.
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

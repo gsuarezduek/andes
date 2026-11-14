@@ -81,17 +81,19 @@ export type RoomListItem = {
 const GENERIC_LABEL = /^(reserved|reservad[ao]|closed\b.*|.*not available.*)$/i;
 
 /**
- * Cómo se nombra una estadía: el huésped si está cargado; si no, algo legible
- * ("Reserva de Airbnb") en vez del rótulo crudo del iCal, que casi nunca trae
- * un nombre.
+ * Cómo se nombra una estadía. Las que llegan de Airbnb/Booking llevan la
+ * plataforma adelante ("Booking: Sofía Müller"); sin nombre cargado,
+ * "Booking: sin nombre" (el iCal casi nunca trae el nombre del huésped: se
+ * completa a mano en la reserva). Si el iCal sí trae un rótulo propio, se usa
+ * ese. Una reserva directa va solo con el nombre.
  */
 export function bookingGuestLabel(b: Pick<RoomBookingView, "guestName" | "externalLabel" | "isBlock" | "source">): string {
-  if (b.guestName?.trim()) return b.guestName.trim();
-  if (b.isBlock) return "Bloqueado";
-  if (b.source === "manual") return "Reserva directa";
+  const name = b.guestName?.trim();
+  if (b.source === "manual") return name || (b.isBlock ? "Bloqueado" : "Reserva directa");
+  if (!name && b.isBlock) return "Bloqueado";
   const label = b.externalLabel?.trim();
-  if (label && !GENERIC_LABEL.test(label)) return label;
-  return `Reserva de ${roomSourceLabels[b.source]}`;
+  const who = name || (label && !GENERIC_LABEL.test(label) ? label : "sin nombre");
+  return b.source === "other" ? (name || label || "Reserva sin nombre") : `${roomSourceLabels[b.source]}: ${who}`;
 }
 
 /**
