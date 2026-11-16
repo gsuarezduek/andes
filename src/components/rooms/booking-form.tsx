@@ -22,6 +22,8 @@ export type BookingFormValues = {
 /**
  * Alta / edición de una reserva. En una importada (`datesLocked`) las fechas
  * las manda el calendario de origen: solo se editan huésped, notas y total.
+ * Que las fechas se pisen con otra estadía no impide guardar (ver el
+ * encabezado de "Reservas manuales" en `rooms/actions.ts`).
  */
 export function BookingForm({
   action,
@@ -84,16 +86,10 @@ export function BookingForm({
       ) : null}
       <TextareaField id="notes" label="Notas" rows={2} defaultValue={booking?.notes ?? ""} />
       {datesLocked ? null : (
-        <>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="isBlock" defaultChecked={booking?.isBlock} className="size-4" />
-            Es un bloqueo (mantenimiento, uso propio…), no un huésped
-          </label>
-          <label className="flex items-center gap-2 text-sm text-foreground/70">
-            <input type="checkbox" name="allowOverlap" className="size-4" />
-            Guardar igual aunque se superponga con otra reserva
-          </label>
-        </>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="isBlock" defaultChecked={booking?.isBlock} className="size-4" />
+          Es un bloqueo (mantenimiento, uso propio…), no un huésped
+        </label>
       )}
       <FormError>{state.error}</FormError>
       {state.ok ? <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">{state.ok}</p> : null}

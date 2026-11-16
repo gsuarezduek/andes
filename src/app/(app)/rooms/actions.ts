@@ -10,8 +10,8 @@ import { syncCommission } from "@/lib/commissions-sync";
 import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { validateFeedUrl, FEED_SOURCES, roomSourceLabels } from "@/lib/rooms/feed-url";
 import { syncRoomFeed } from "@/lib/rooms/sync";
-import { isDateKey, keyToDate, nightsBetween, rangesOverlap } from "@/lib/rooms/dates";
-import { toBookingViews, bookingGuestLabel } from "@/lib/rooms/queries";
+import { isDateKey, keyToDate, nightsBetween } from "@/lib/rooms/dates";
+import { bookingGuestLabel } from "@/lib/rooms/queries";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
 import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
@@ -140,6 +140,13 @@ export async function syncRoomNow(roomId: string): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // Reservas manuales (directas, o para anotar a mano lo que no viene por iCal)
+//
+// Que dos estadías de la misma habitación se pisen NO se valida ni se impide:
+// el huésped se fue más temprano y se vendió la noche de nuevo, alguien cambia
+// de habitación a mitad de la estadía, o se anota la directa mientras la
+// plataforma todavía tiene la vieja. El Calendario dibuja las dos en carriles
+// distintos (igual que dos alquileres del mismo auto) y la ficha de la reserva
+// avisa con cuál se pisa (`overlappingBookings`).
 // ---------------------------------------------------------------------------
 
 const bookingSchema = z.object({
@@ -151,22 +158,6 @@ const bookingSchema = z.object({
   currency: z.enum(["ars", "usd"]).default("ars"),
   isBlock: z.boolean().default(false),
 });
-
-/** Primera reserva activa (no espejo) de la habitación que se pisa con el rango, si hay. */
-async function findConflict(roomId: string, start: string, end: string, excludeId?: string) {
-  const rows = await prisma.roomBooking.findMany({
-    where: {
-      roomId,
-      status: "confirmed",
-      startDate: { lt: keyToDate(end) },
-      endDate: { gt: keyToDate(start) },
-      ...(excludeId ? { id: { not: excludeId } } : {}),
-    },
-  });
-  const all = await prisma.roomBooking.findMany({ where: { roomId, status: "confirmed" } });
-  const mirrored = new Set(toBookingViews(all).filter((v) => v.mirrored).map((v) => v.id));
-  return rows.find((r) => !mirrored.has(r.id) && rangesOverlap(start, end, r.startDate.toISOString().slice(0, 10), r.endDate.toISOString().slice(0, 10))) ?? null;
-}
 
 function parseBooking(formData: FormData) {
   return bookingSchema.safeParse({
@@ -193,15 +184,6 @@ export async function createManualBooking(roomId: string, _prev: FormState, form
   const d = parsed.data;
   const rangeError = checkRange(d.startDate, d.endDate);
   if (rangeError) return { error: rangeError };
-
-  if (formData.get("allowOverlap") !== "on") {
-    const clash = await findConflict(roomId, d.startDate, d.endDate);
-    if (clash) {
-      return {
-        error: `Se superpone con otra reserva (${clash.startDate.toISOString().slice(0, 10)} → ${clash.endDate.toISOString().slice(0, 10)}). Marcá «Guardar igual» si es a propósito.`,
-      };
-    }
-  }
 
   const booking = await prisma.roomBooking.create({
     data: {
@@ -245,12 +227,6 @@ export async function updateBooking(bookingId: string, _prev: FormState, formDat
   if (existing.source === "manual") {
     const rangeError = checkRange(d.startDate, d.endDate);
     if (rangeError) return { error: rangeError };
-    if (formData.get("allowOverlap") !== "on") {
-      const clash = await findConflict(existing.roomId, d.startDate, d.endDate, existing.id);
-      if (clash) {
-        return { error: "Se superpone con otra reserva. Marcá «Guardar igual» si es a propósito." };
-      }
-    }
     data.startDate = keyToDate(d.startDate);
     data.endDate = keyToDate(d.endDate);
     data.isBlock = d.isBlock;

@@ -83,18 +83,22 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
             {room.description ? <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/70">{room.description}</p> : null}
             {room.notes ? <p className="mt-1 whitespace-pre-wrap text-xs text-foreground/50">{room.notes}</p> : null}
           </div>
-          {isAdmin ? (
-            <div className="flex gap-2">
-              <ButtonLink href={`/rooms/${id}/edit`} variant="secondary">
-                Editar
-              </ButtonLink>
-              <form action={setRoomArchived.bind(null, id, !room.archived)}>
-                <Button type="submit" variant="secondary">
-                  {room.archived ? "Reactivar" : "Archivar"}
-                </Button>
-              </form>
-            </div>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {/* Cargar una reserva no es tarea de admin: el botón lo ve cualquier rol. */}
+            {room.archived ? null : <ButtonLink href="#nueva-reserva">Nueva reserva</ButtonLink>}
+            {isAdmin ? (
+              <>
+                <ButtonLink href={`/rooms/${id}/edit`} variant="secondary">
+                  Editar
+                </ButtonLink>
+                <form action={setRoomArchived.bind(null, id, !room.archived)}>
+                  <Button type="submit" variant="secondary">
+                    {room.archived ? "Reactivar" : "Archivar"}
+                  </Button>
+                </form>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -135,9 +139,13 @@ export default async function RoomDetailPage({ params }: { params: Promise<{ id:
         ) : null}
       </section>
 
-      {room.archived ? null : (
-        <section className="flex flex-col gap-3">
-          <SectionHeading description="Para una reserva directa, o algo que no llega por iCal. Las de Airbnb/Booking entran solas.">
+      {room.archived ? (
+        <p className="rounded-xl border border-foreground/10 p-4 text-sm text-foreground/60">
+          La habitación está archivada: no se pueden cargar reservas nuevas. Reactivala para volver a usarla.
+        </p>
+      ) : (
+        <section id="nueva-reserva" className="flex scroll-mt-24 flex-col gap-3">
+          <SectionHeading description="Para una reserva directa, o algo que no llega por iCal. Las de Airbnb/Booking entran solas. Si se pisa con otra estadía se guarda igual: las dos quedan a la vista en el Calendario.">
             Nueva reserva manual
           </SectionHeading>
           <div className="rounded-xl border border-foreground/10 p-4">

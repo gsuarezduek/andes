@@ -31,7 +31,7 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
   const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const detail = await getBookingDetail(id, bookingId);
   if (!detail) notFound();
-  const { booking: b, room, payments, mirrored, verifiedAt, verifiedByName, verifications } = detail;
+  const { booking: b, room, payments, mirrored, overlaps, verifiedAt, verifiedByName, verifications } = detail;
 
   const [rawPaymentMethods, usdRateInfo, usdHistory] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -75,6 +75,23 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
           <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             Otro canal tiene una reserva con las mismas fechas: se asume que es la misma estadía y en el Calendario se muestra una sola.
           </p>
+        ) : null}
+        {overlaps.length > 0 ? (
+          <div className="rounded-lg bg-blue-500/10 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
+            <p>
+              Se pisa con {overlaps.length === 1 ? "otra estadía" : `otras ${overlaps.length} estadías`} de esta habitación (puede ser a
+              propósito: una salida temprana, un cambio de habitación). En el Calendario se ven las dos, una debajo de la otra.
+            </p>
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {overlaps.map((o) => (
+                <li key={o.id}>
+                  <Link href={`/rooms/${id}/bookings/${o.id}`} className="underline">
+                    {o.label} · {fmt(o.startDate)} → {fmt(o.endDate)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
         {imported ? (
           <p className="text-xs text-foreground/50">

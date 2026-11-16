@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatDateInput } from "@/lib/datetime";
-import { dateToKey } from "./dates";
+import { dateToKey, rangesOverlap } from "./dates";
 import { findMirroredIds } from "./mirrors";
 import { roomSourceLabels } from "./feed-url";
 
@@ -108,6 +108,33 @@ export function countsAsOccupancy(b: Pick<RoomBookingView, "isBlock" | "source">
   return !b.isBlock || b.source === "manual";
 }
 
+/**
+ * Otras estadías de la misma habitación que se pisan con este rango. Que dos
+ * se solapen **no es un error y no se impide**: el huésped se fue más temprano
+ * y se vendió la noche de nuevo, alguien cambia de habitación a mitad de la
+ * estadía, o se anota a mano una directa mientras la plataforma todavía tiene
+ * la vieja. Solo se avisa, y en el Calendario las dos barras van en carriles
+ * distintos (igual que dos alquileres del mismo auto).
+ *
+ * No cuentan los espejos de otro canal (`mirrored`: otra fila ya representa esa
+ * misma estadía) ni los bloqueos que llegan por sync (`countsAsOccupancy`): el
+ * de "hoy" de Airbnb se pisa con cualquier reserva que empiece hoy y no
+ * representa a nadie.
+ */
+export function overlappingBookings<T extends RoomBookingView>(
+  bookings: T[],
+  range: { startDate: string; endDate: string; id?: string },
+): T[] {
+  return bookings.filter(
+    (b) =>
+      b.id !== range.id &&
+      b.status === "confirmed" &&
+      !b.mirrored &&
+      countsAsOccupancy(b) &&
+      rangesOverlap(range.startDate, range.endDate, b.startDate, b.endDate),
+  );
+}
+
 export async function listRooms(opts: { archived: boolean }): Promise<RoomListItem[]> {
   const todayKey = formatDateInput(new Date());
   const rooms = await prisma.room.findMany({
@@ -191,12 +218,25 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
     },
   });
   if (!booking) return null;
-  // ¿Otra reserva con las mismas fechas la representa? (para avisarlo en el detalle)
+  // ¿Otra reserva con las mismas fechas la representa? (para avisarlo en el
+  // detalle). La misma lista sirve para las que se pisan sin ser la misma.
   const siblings = await prisma.roomBooking.findMany({ where: { roomId, status: "confirmed" } });
-  const view = toBookingViews(siblings).find((v) => v.id === booking.id);
+  const views = toBookingViews(siblings);
+  const view = views.find((v) => v.id === booking.id);
+  const overlaps = overlappingBookings(views, {
+    id: booking.id,
+    startDate: dateToKey(booking.startDate),
+    endDate: dateToKey(booking.endDate),
+  });
   return {
     booking: toBookingViews([booking])[0]!,
     mirrored: view?.mirrored ?? false,
+    overlaps: overlaps.map((o) => ({
+      id: o.id,
+      label: bookingGuestLabel(o),
+      startDate: o.startDate,
+      endDate: o.endDate,
+    })),
     verifiedAt: booking.verifiedAt,
     verifiedByName: booking.verifiedByName,
     verifications: booking.verifications,
