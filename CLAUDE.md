@@ -1335,6 +1335,10 @@ Verificado con Playwright contra la base local (hover, resaltar, Escape, "Ver fi
 - **Barras por noche** (`roomBarGeometry`): una estadía ocupa una columna entera por noche, del día de entrada al anterior a la salida (exclusiva). Antes iban de mediodía a mediodía (v58) y una estadía de 1 noche tocaba dos columnas, como si fueran 2 días. Una salida y una entrada el mismo día siguen lado a lado, sin pisarse. Las unidades siguen en medias columnas.
 - **Nombre con la plataforma** (`bookingGuestLabel`): "Booking: Sofía Müller" / "Airbnb: Juan Pérez"; sin nombre, "Booking: sin nombre" (antes "Reserva de Booking"). El iCal de Booking/Airbnb no trae el nombre del huésped: se carga a mano en la reserva (campo "Huésped"). Las directas van solo con el nombre. Se ve en el Calendario, la Agenda, las fichas y las descripciones de Caja de los cobros nuevos.
 
+## v116 — Aviso de sonido de WhatsApp: ruta en vez de Server Action
+
+El log de producción mostraba "Failed to find Server Action … older or newer deployment" repetido. Causa: `WhatsappSoundNotifier` (montado en el layout) llamaba al Server Action `getInboundMessageCount` cada 10 s, y el ID de un Server Action cambia en cada deploy. Una pestaña abierta antes del deploy quedaba llamando a un ID inexistente para siempre (el `.catch` lo silenciaba y no sonaba más). Ahora consulta `GET /api/whatsapp/inbound-count` (con sesión, mismo patrón que `/api/presence`), cuya URL no cambia entre builds, y se pausa con la pestaña en segundo plano. Se borró el action. **Regla para el futuro: nada que se pollee en segundo plano debe ser un Server Action; usar una ruta.** tsc/lint en verde; ruta verificada contra el servidor local (307 sin sesión, 200 con sesión).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

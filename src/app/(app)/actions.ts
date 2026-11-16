@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { requireUser, VIEW_AS_COOKIE, LEGACY_EMPLOYEE_VIEW_COOKIE } from "@/lib/auth-helpers";
 import { viewableRoles } from "@/lib/user-permissions";
-import { prisma } from "@/lib/prisma";
 
 /**
  * Polleado por `WhatsappSoundNotifier` (montado en el layout) para el sonido
@@ -16,11 +15,6 @@ import { prisma } from "@/lib/prisma";
  * puede crecer, así que cualquier suba entre dos lecturas es, sin ambigüedad,
  * "llegó al menos un mensaje nuevo".
  */
-export async function getInboundMessageCount() {
-  await requireUser();
-  return prisma.whatsAppMessage.count({ where: { direction: "in" } });
-}
-
 export async function logout() {
   await signOut({ redirectTo: "/login" });
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getInboundMessageCount } from "@/app/(app)/actions";
 
 const POLL_MS = 10000;
 
@@ -28,6 +27,18 @@ function beep() {
   }
 }
 
+/** Conteo vía ruta (no Server Action): sigue andando en pestañas abiertas antes de un deploy. */
+async function fetchInboundCount(): Promise<number | null> {
+  try {
+    const res = await fetch("/api/whatsapp/inbound-count", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data: { count?: unknown } = await res.json();
+    return typeof data.count === "number" ? data.count : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Sonido corto cada vez que llega un mensaje nuevo de WhatsApp — cuenta TODOS
  * los mensajes entrantes recibidos alguna vez (no "no leídos": ese es un
@@ -43,7 +54,10 @@ export function WhatsappSoundNotifier() {
     let cancelled = false;
 
     const poll = async () => {
-      const count = await getInboundMessageCount().catch(() => null);
+      // Pausado con la pestaña en segundo plano (mismo criterio que
+      // `AutoRefresh`); al volver, la primera lectura suena si llegó algo.
+      if (document.visibilityState !== "visible") return;
+      const count = await fetchInboundCount();
       if (cancelled || count === null) return;
       if (lastCountRef.current !== null && count > lastCountRef.current) {
         beep();
