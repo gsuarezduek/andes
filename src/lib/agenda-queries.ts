@@ -6,7 +6,7 @@ import { vehicleLabelWithPlate } from "@/lib/vehicle-ui";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { keyToDate } from "@/lib/rooms/dates";
-import { bookingGuestLabel, countsAsOccupancy, toBookingViews } from "@/lib/rooms/queries";
+import { BOOKING_PAYMENTS_COUNT, bookingGuestLabel, countsAsOccupancy, toBookingViews } from "@/lib/rooms/queries";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import {
   agendaState,
@@ -66,7 +66,10 @@ export async function getAgenda(dayKey: string, now = new Date()): Promise<Agend
         startDate: { lte: keyToDate(addDaysToKey(dayKey, MIRROR_WINDOW_DAYS)) },
         endDate: { gte: keyToDate(addDaysToKey(dayKey, -MIRROR_WINDOW_DAYS)) },
       },
-      include: { room: { select: { id: true, name: true, checkInTime: true, checkOutTime: true } } },
+      include: {
+        room: { select: { id: true, name: true, checkInTime: true, checkOutTime: true } },
+        ...BOOKING_PAYMENTS_COUNT,
+      },
     }),
   ]);
 

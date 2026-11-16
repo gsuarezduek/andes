@@ -1347,6 +1347,14 @@ Reporte del equipo: "no se pueden cargar reservas manuales". Se podía —cualqu
 - **Dos estadías solapadas se cargan sin preguntar**: el huésped se fue más temprano y se revendió la noche, alguien cambia de habitación a mitad de la estadía, o se anota la directa mientras la plataforma todavía tiene la vieja. Se fue `findConflict` de `rooms/actions.ts` (del alta y de la edición) junto con el checkbox "Guardar igual aunque se superponga". El Calendario ya las dibuja en carriles distintos: la fila de la habitación usa `assignLanes`, el mismo helper que dos alquileres del mismo auto, y crece al doble igual que la de un auto.
 - **`overlappingBookings` (`src/lib/rooms/queries.ts`, pura, testeada)** reemplaza la validación por un **aviso** en la ficha de la reserva, con link a la estadía con la que se pisa. Filtra con el mismo criterio que el resto del módulo desde v68/v69 — ni espejos de otro canal (`mirrored`) ni bloqueos sincronizados (`countsAsOccupancy`): era el **cuarto lugar** que leía "ocupada" y que v69 no había actualizado. `getBookingDetail` lo calcula sobre la lista de hermanas que ya traía para `mirrored`, sin query nueva.
 
+## v116 — Habitaciones: una estadía con datos cargados nunca se oculta como espejo
+
+Bug real: una estadía de Booking con huésped y cobro (Sofía Müller, 13→15/11) desapareció del Calendario al cargarse a mano otra estadía que se pisaba (Lucas Bernachea, 14→15). La regla de espejos (v68) mostraba solo la más "real" del grupo solapado, y una manual le ganaba a una de Booking con rótulo "CLOSED - Not available". En producción había 6 estadías con nombre ocultas así (incluida la de Gil Camila Sol, que en Caja ya decía "desapareció reserva del calendario").
+
+- **Regla nueva** (`findMirroredIds`, `MirrorCandidate.claimed`): una estadía **con datos cargados por el equipo** (manual, o importada con huésped, notas, total o cobros — `isClaimedBooking`, `src/lib/rooms/queries.ts`) nunca se oculta. Si dos se pisan se ven las dos, en carriles distintos (posible doble reserva a revisar). El resto del grupo se oculta como reflejo. Sin ninguna con datos, sigue como antes (solo la más real).
+- **Cobros**: toda consulta de estadías que pase por `toBookingViews` lleva `include: BOOKING_PAYMENTS_COUNT` (Calendario, Agenda, listado y ficha de habitaciones, detalle de la estadía). Una consulta nueva sin ese include no ve los cobros y puede ocultar una estadía que solo tiene un cobro cargado.
+- **Pendiente:** las fechas de una estadía importada no se pueden corregir (las manda el iCal). El de Booking no es exacto: Sofía figura 13→15 aunque se cobró 1 noche (Booking une días cerrados contiguos).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

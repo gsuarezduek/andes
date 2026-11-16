@@ -110,4 +110,20 @@ describe("findMirroredIds", () => {
     expect(hidden.has("c")).toBe(true);
     expect(hidden.has("a")).toBe(false);
   });
+
+  it("una estadía con datos cargados nunca se oculta, aunque se pise con una manual (caso real)", () => {
+    // Sofía (Booking, con nombre y cobro) 13→15; Lucas (manual) 14→15; el
+    // reflejo "CLOSED" de Booking y los bloqueos diarios de Airbnb alrededor.
+    const sofia = make({ id: "sofia", source: "booking", startDate: "2026-11-13", endDate: "2026-11-15", externalLabel: "CLOSED - Not available", claimed: true });
+    const lucas = make({ id: "lucas", source: "manual", startDate: "2026-11-14", endDate: "2026-11-15", claimed: true });
+    const closed = make({ id: "closed", source: "booking", startDate: "2026-11-14", endDate: "2026-11-15", externalLabel: "CLOSED - Not available" });
+    const block = make({ id: "block", source: "airbnb", isBlock: true, externalLabel: "Airbnb (Not available)", startDate: "2026-11-13", endDate: "2026-11-14" });
+    expect(findMirroredIds([sofia, lucas, closed, block])).toEqual(new Set(["closed", "block"]));
+  });
+
+  it("sin datos cargados en el grupo, sigue mostrando solo la más real", () => {
+    const closed = make({ id: "closed", source: "booking", externalLabel: "CLOSED - Not available" });
+    const block = make({ id: "block", source: "airbnb", isBlock: true, externalLabel: "Airbnb (Not available)" });
+    expect(findMirroredIds([closed, block])).toEqual(new Set(["block"]));
+  });
 });

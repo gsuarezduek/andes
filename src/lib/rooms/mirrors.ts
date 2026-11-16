@@ -13,6 +13,12 @@
  * resto queda oculto. Si ninguna fila del grupo parece un artefacto —dos
  * reservas de canales distintos que simplemente se solapan— no se oculta
  * nada: podría ser un overbooking real entre canales, y eso hay que verlo.
+ *
+ * Una estadía **con datos cargados por alguien del equipo** (`claimed`: una
+ * reserva manual, o una importada con huésped, notas, total o cobros) nunca se
+ * oculta: es una estadía real que el equipo está gestionando. Si dos de ellas
+ * se pisan, se ven las dos (en carriles distintos). Las demás filas del grupo
+ * sí se ocultan, como reflejo de alguna de ellas.
  */
 
 export type MirrorCandidate = {
@@ -25,6 +31,8 @@ export type MirrorCandidate = {
   status: "confirmed" | "cancelled";
   externalLabel: string | null;
   createdAt: Date;
+  /** Tiene datos cargados por el equipo (ver arriba): nunca se oculta. */
+  claimed?: boolean;
 };
 
 /** Cuánto "parece real" una reserva: más alto = más probable que sea la original. */
@@ -80,6 +88,13 @@ export function findMirroredIds(bookings: MirrorCandidate[]): Set<string> {
       // Sin ningún artefacto de disponibilidad en el grupo, podría ser un
       // overbooking real entre canales — no se oculta nada.
       if (!cluster.some(looksLikeAvailabilityArtifact)) continue;
+      // Con alguna estadía con datos cargados, se ven todas esas y se oculta
+      // el resto; si no hay ninguna, se ve solo la más "real".
+      const claimed = cluster.filter((b) => b.claimed);
+      if (claimed.length > 0) {
+        for (const b of cluster) if (!b.claimed) hidden.add(b.id);
+        continue;
+      }
       const sorted = [...cluster].sort(
         (a, b) => realness(b) - realness(a) || a.createdAt.getTime() - b.createdAt.getTime(),
       );

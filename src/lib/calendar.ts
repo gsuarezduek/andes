@@ -8,7 +8,7 @@ import { computeRentalPayments, paymentAccent, type PaymentAccent } from "@/lib/
 import { seasonDateRange, seasonFromYear } from "@/lib/sync/rates";
 import { keyToDate, nightsBetween } from "@/lib/rooms/dates";
 import { roomBarGeometry } from "@/lib/rooms/geometry";
-import { toBookingViews, bookingGuestLabel, countsAsOccupancy } from "@/lib/rooms/queries";
+import { toBookingViews, bookingGuestLabel, countsAsOccupancy, BOOKING_PAYMENTS_COUNT } from "@/lib/rooms/queries";
 import { addDaysToKey } from "@/lib/rooms/ical";
 import { roomPaidTotal, type RoomPaymentForBalance } from "@/lib/rooms/payments";
 import { getUsdRateHistory } from "@/lib/usd-rate-queries";
@@ -626,6 +626,7 @@ export async function getCalendarData(opts?: {
             endDate: { gt: keyToDate(windowStartKey) },
           },
           orderBy: { startDate: "asc" },
+          include: BOOKING_PAYMENTS_COUNT,
         },
       },
     }),

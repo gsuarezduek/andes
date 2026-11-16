@@ -39,7 +39,29 @@ type RawBooking = {
   totalAmount: unknown;
   currency: "ars" | "usd";
   createdAt: Date;
+  /** Cobros (no borrados) vinculados: sumar `include: BOOKING_PAYMENTS_COUNT` a la consulta. */
+  _count?: { cashMovements: number };
 };
+
+/**
+ * Cuenta de cobros de una estadía, para saber si tiene datos cargados por el
+ * equipo (ver `claimed` en `findMirroredIds`). Va en el `include` de toda
+ * consulta de estadías que pase por `toBookingViews`.
+ */
+export const BOOKING_PAYMENTS_COUNT = {
+  _count: { select: { cashMovements: { where: { deletedAt: null } } } },
+} as const;
+
+/** ¿Alguien del equipo cargó algo en esta estadía? Entonces nunca se oculta como espejo. */
+export function isClaimedBooking(b: RawBooking): boolean {
+  return (
+    b.source === "manual" ||
+    !!b.guestName?.trim() ||
+    !!b.notes?.trim() ||
+    Number(b.totalAmount) > 0 ||
+    (b._count?.cashMovements ?? 0) > 0
+  );
+}
 
 /** Pasa las filas de Prisma a la vista, marcando las que son espejo de otra. */
 export function toBookingViews(rows: RawBooking[]): RoomBookingView[] {
@@ -60,7 +82,8 @@ export function toBookingViews(rows: RawBooking[]): RoomBookingView[] {
     createdAt: b.createdAt,
     mirrored: false,
   }));
-  const hidden = findMirroredIds(views);
+  const claimedIds = new Set(rows.filter(isClaimedBooking).map((b) => b.id));
+  const hidden = findMirroredIds(views.map((v) => ({ ...v, claimed: claimedIds.has(v.id) })));
   return views.map((v) => ({ ...v, mirrored: hidden.has(v.id) }));
 }
 
@@ -145,6 +168,7 @@ export async function listRooms(opts: { archived: boolean }): Promise<RoomListIt
       bookings: {
         where: { status: "confirmed", endDate: { gte: new Date(`${todayKey}T00:00:00.000Z`) } },
         orderBy: { startDate: "asc" },
+        include: BOOKING_PAYMENTS_COUNT,
       },
     },
   });
@@ -178,7 +202,7 @@ export async function getRoomDetail(id: string) {
     where: { id },
     include: {
       feeds: { orderBy: { createdAt: "asc" } },
-      bookings: { orderBy: { startDate: "desc" } },
+      bookings: { orderBy: { startDate: "desc" }, include: BOOKING_PAYMENTS_COUNT },
     },
   });
   if (!room) return null;
@@ -220,7 +244,10 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
   if (!booking) return null;
   // ¿Otra reserva con las mismas fechas la representa? (para avisarlo en el
   // detalle). La misma lista sirve para las que se pisan sin ser la misma.
-  const siblings = await prisma.roomBooking.findMany({ where: { roomId, status: "confirmed" } });
+  const siblings = await prisma.roomBooking.findMany({
+    where: { roomId, status: "confirmed" },
+    include: BOOKING_PAYMENTS_COUNT,
+  });
   const views = toBookingViews(siblings);
   const view = views.find((v) => v.id === booking.id);
   const overlaps = overlappingBookings(views, {
