@@ -26,6 +26,12 @@ export function ComparisonSection({ data }: { data: ActaData }) {
             {c.handoverFuel}/{data.fuelLevels} → {c.returnFuel}/{data.fuelLevels}
           </Text>
         </View>
+        {data.returnedAtStr ? (
+          <View style={styles.cell}>
+            <Text style={styles.label}>{t.returnedAt}</Text>
+            <Text style={styles.value}>{data.returnedAtStr}</Text>
+          </View>
+        ) : null}
         <View style={styles.cell}>
           <Text style={styles.label}>{t.newDamages}</Text>
           <Text style={c.newDamages > 0 ? styles.fail : styles.value}>

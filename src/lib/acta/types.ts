@@ -18,6 +18,10 @@ export type ActaData = {
     web: string;
   };
   dateStr: string;
+  /** Hora real en que volvió el auto (solo devolución, y solo si se registró):
+   *  es el respaldo del cargo por devolución tardía, que la fecha del acta no
+   *  da — la recepción puede haberse hecho horas después. */
+  returnedAtStr?: string;
   registeredBy?: string | null;
   vehicleLabel: string;
   plate: string;

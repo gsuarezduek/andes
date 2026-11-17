@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSettlement, rollupSettlement } from "@/lib/settlement";
+import { computeSettlement, hasLateReturnLine, rollupSettlement } from "@/lib/settlement";
 
 describe("computeSettlement", () => {
   it("cobra el excedente de km sobre lo incluido en el contrato", () => {
@@ -191,5 +191,93 @@ describe("rollupSettlement", () => {
     expect(s.depositApplied).toBe(5_000);
     expect(s.depositReturn).toBe(15_000);
     expect(s.balanceDue).toBe(20_000); // el km extra, ajeno al depósito
+  });
+});
+
+describe("computeSettlement — devolución tardía", () => {
+  const END = new Date("2026-03-10T10:00:00.000Z");
+  const base = {
+    handoverKm: 0,
+    returnKm: 0,
+    handoverFuel: 8,
+    returnFuel: 8,
+    pricing: { dailyRate: 50_000, extraHourPercent: 20, deposit: 0 },
+    endAt: END,
+  };
+
+  it("cobra las horas de atraso al % de hora extra del contrato", () => {
+    const s = computeSettlement({ ...base, returnedAt: new Date(END.getTime() + 2 * 3_600_000) });
+    expect(s.lateDays).toBe(0);
+    expect(s.lateHours).toBe(2);
+    expect(s.lateCharge).toBe(20_000); // 2 h × 20% de 50.000
+    expect(s.subtotal).toBe(20_000);
+    expect(s.balanceDue).toBe(20_000);
+  });
+
+  it("devuelto en hora: sin atraso ni cargo", () => {
+    const s = computeSettlement({ ...base, returnedAt: END });
+    expect(s.lateDays).toBe(0);
+    expect(s.lateHours).toBe(0);
+    expect(s.lateCharge).toBe(0);
+    expect(s.subtotal).toBe(0);
+  });
+
+  it("sin la hora real de devolución no inventa atraso", () => {
+    // Es el caso de las devoluciones firmadas antes de que esto existiera.
+    const s = computeSettlement({ ...base, returnedAt: null });
+    expect(s.lateDays).toBe(0);
+    expect(s.lateCharge).toBe(0);
+  });
+
+  it("el atraso se cobra aparte: la garantía solo cubre daños", () => {
+    const s = rollupSettlement({
+      ...computeSettlement({
+        ...base,
+        pricing: { ...base.pricing, deposit: 100_000 },
+        returnedAt: new Date(END.getTime() + 26 * 3_600_000), // 1 día + 2 h
+        newDamages: [{ description: "Rayón" }],
+      }),
+      damageCharges: [{ description: "Rayón", amount: 30_000 }],
+    });
+    expect(s.lateCharge).toBe(70_000); // 1 día + 2 h
+    expect(s.subtotal).toBe(100_000);
+    expect(s.depositApplied).toBe(30_000); // solo el daño
+    expect(s.balanceDue).toBe(70_000); // el atraso, íntegro
+    expect(s.depositReturn).toBe(70_000);
+  });
+
+  it("el empleado puede ajustar el importe del atraso sin tocar los días/horas", () => {
+    const b = computeSettlement({ ...base, returnedAt: new Date(END.getTime() + 3 * 3_600_000) });
+    const s = rollupSettlement({ ...b, lateCharge: 10_000 }); // se le cobra menos
+    expect(s.lateHours).toBe(3); // el hecho no cambia
+    expect(s.lateCharge).toBe(10_000);
+    expect(s.balanceDue).toBe(10_000);
+  });
+
+  it("una liquidación vieja sin campos de atraso sigue cerrando igual", () => {
+    const b = computeSettlement({ handoverKm: 0, returnKm: 0, handoverFuel: 8, returnFuel: 8, pricing: null });
+    const { lateDays: _d, lateHours: _h, lateCharge: _c, ...legacy } = b;
+    const s = rollupSettlement({ ...legacy, fuelCharge: 5_000 });
+    expect(s.lateCharge).toBe(0);
+    expect(s.subtotal).toBe(5_000);
+    expect(s.balanceDue).toBe(5_000);
+  });
+});
+
+describe("hasLateReturnLine", () => {
+  const empty = { lateDays: 0, lateHours: 0, lateCharge: 0 };
+
+  it("no muestra la línea en una devolución en hora", () => {
+    expect(hasLateReturnLine(empty)).toBe(false);
+    expect(hasLateReturnLine({})).toBe(false); // liquidación vieja
+  });
+
+  it("muestra el atraso aunque se decida no cobrarlo", () => {
+    expect(hasLateReturnLine({ ...empty, lateHours: 2 })).toBe(true);
+    expect(hasLateReturnLine({ ...empty, lateDays: 1 })).toBe(true);
+  });
+
+  it("muestra un cargo cargado a mano sin atraso calculado", () => {
+    expect(hasLateReturnLine({ ...empty, lateCharge: 5_000 })).toBe(true);
   });
 });

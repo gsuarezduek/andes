@@ -70,6 +70,7 @@ export type Dictionary = {
     signature: string;
     kmDriven: string;
     fuelDifference: string;
+    returnedAt: string;
     newDamages: string;
     comparisonTitle: string;
     photosTitle: string;
@@ -79,6 +80,7 @@ export type Dictionary = {
       title: string;
       extraKm: string;
       fuel: string;
+      late: string;
       damage: string;
       subtotal: string;
       depositApplied: string;
@@ -199,6 +201,7 @@ const es: Dictionary = {
     signature: "Firma",
     kmDriven: "Kilómetros recorridos",
     fuelDifference: "Diferencia de nafta",
+    returnedAt: "Volvió el auto",
     newDamages: "Daños nuevos",
     comparisonTitle: "Comparación con la entrega",
     photosTitle: "Fotos",
@@ -209,6 +212,7 @@ const es: Dictionary = {
       title: "Liquidación",
       extraKm: "Km extra",
       fuel: "Nafta faltante",
+      late: "Devolución tardía",
       damage: "Daño",
       subtotal: "Subtotal",
       depositApplied: "Cubierto por depósito",
@@ -343,6 +347,7 @@ const en: Dictionary = {
     signature: "Signature",
     kmDriven: "Kilometers driven",
     fuelDifference: "Fuel difference",
+    returnedAt: "Vehicle returned",
     newDamages: "New damages",
     comparisonTitle: "Comparison with handover",
     photosTitle: "Photos",
@@ -353,6 +358,7 @@ const en: Dictionary = {
       title: "Settlement",
       extraKm: "Extra km",
       fuel: "Missing fuel",
+      late: "Late return",
       damage: "Damage",
       subtotal: "Subtotal",
       depositApplied: "Covered by deposit",

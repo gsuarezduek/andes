@@ -83,8 +83,12 @@ export type InspectionInput = {
   documents?: InspectionDocumentInput[];
   // Conductores adicionales autorizados (solo en la entrega).
   additionalDrivers?: AdditionalDriverInput[];
-  // Liquidación (solo en la devolución): excedente de km, nafta y daños.
+  // Liquidación (solo en la devolución): excedente de km, nafta, atraso y daños.
   settlement?: Settlement;
+  // Hora real en que volvió el auto (solo en la devolución), "YYYY-MM-DDTHH:mm"
+  // en hora de Mendoza — no la de la recepción, que puede ser horas después.
+  // De acá sale el cargo por devolución tardía. Ausente = no se declaró.
+  returnedAt?: string;
   latitude?: number;
   longitude?: number;
   // "Avanzar sin señal": fotos/firma/documentos capturados localmente que

@@ -1,10 +1,27 @@
-import { computeSettlement, rollupSettlement, type Settlement } from "@/lib/settlement";
+import { computeSettlement, hasLateReturnLine, rollupSettlement, settlementLate, type Settlement } from "@/lib/settlement";
+import { lateReturnDetail } from "@/lib/late-return";
 import { parseDecimal } from "@/lib/number-input";
+import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { checkHandoverKm, checkReturnKm } from "@/lib/km-check";
 import { PRICING_FIELDS, extraHourAmount, kmPackAmount, formatArs, paidTotal, usdPaymentDetail, type ContractPricing } from "@/lib/contract";
 import type { Dictionary } from "@/lib/i18n";
 import type { InspectionInput, PendingEvidenceInput } from "@/lib/inspection-input";
 import type { Draft, InspectionWizardProps } from "./types";
+
+/**
+ * Hora real de devolución declarada en el draft, como instante. `null` si está
+ * vacía o a medio tipear — sin ella no se calcula atraso (mejor no cobrar nada
+ * que cobrar sobre una fecha inventada).
+ */
+export function draftReturnedAt(draft: Draft): Date | null {
+  if (!draft.returnedAt) return null;
+  try {
+    const d = mendozaWallTimeToUtc(draft.returnedAt);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Liquidación en vivo (solo devolución): auto-calculada desde la comparación
@@ -15,7 +32,7 @@ import type { Draft, InspectionWizardProps } from "./types";
  */
 export function buildSettlement(
   draft: Draft,
-  returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing },
+  returnContext?: { handoverKm: number; handoverFuel: number; endAt?: Date; pricing?: ContractPricing },
 ): Settlement | null {
   if (!returnContext) return null;
   const base = computeSettlement({
@@ -24,6 +41,8 @@ export function buildSettlement(
     handoverFuel: returnContext.handoverFuel,
     returnFuel: draft.fuelLevel,
     pricing: returnContext.pricing,
+    endAt: returnContext.endAt,
+    returnedAt: draftReturnedAt(draft),
     newDamages: draft.damages.map((d) => ({ description: d.description })),
   });
   const numOr = (s: string, fallback: number) => (s.trim() === "" ? fallback : parseDecimal(s) ?? 0);
@@ -31,6 +50,7 @@ export function buildSettlement(
     ...base,
     extraKmCharge: numOr(draft.settlementExtraKmCharge, base.extraKmCharge),
     fuelCharge: numOr(draft.settlementFuelCharge, 0),
+    lateCharge: numOr(draft.settlementLateCharge, base.lateCharge ?? 0),
     deposit: numOr(draft.settlementDeposit, base.deposit),
     damageCharges: draft.damages.map((d, i) => ({
       description: d.description.trim() || `Daño #${i + 1}`,
@@ -122,6 +142,16 @@ export function summaryConditions(
         value: formatArs(settlement.extraKmCharge),
       },
       { label: st.fuel, value: formatArs(settlement.fuelCharge) },
+      // Solo si hubo atraso (o un cargo cargado a mano): en una devolución en
+      // hora, una línea en $0 es ruido en lo que el cliente firma.
+      ...(hasLateReturnLine(settlement)
+        ? [
+            {
+              label: `${st.late} (${lateReturnDetail(settlementLate(settlement))})`.replace(" ()", ""),
+              value: formatArs(settlement.lateCharge ?? 0),
+            },
+          ]
+        : []),
       ...settlement.damageCharges.map((d) => ({
         label: `${st.damage}: ${d.description}`,
         value: formatArs(d.amount),
@@ -191,6 +221,16 @@ export function validateStep(
     const pending = checklistItems.filter((it) => draft.checklist[it.id] == null);
     if (pending.length > 0) {
       return `Decidí funcional o falla en todos los ítems del checklist (faltan ${pending.length}).`;
+    }
+  }
+  // La hora en que volvió el auto no puede quedar vacía: sin ella no se calcula
+  // el atraso, y una devolución tardía pasaría sin cargo en silencio.
+  if (current === "Comparación") {
+    if (!draft.returnedAt.trim()) return "Indicá a qué hora volvió el auto.";
+    const returned = draftReturnedAt(draft);
+    if (!returned) return "La hora en que volvió el auto no es válida.";
+    if (returned.getTime() > Date.now() + 10 * 60_000) {
+      return "La hora en que volvió el auto no puede ser futura.";
     }
   }
   // Evidencia mínima: sin esto, un acta puede terminar siendo puramente
@@ -323,7 +363,10 @@ export function buildInspectionPayload(
             return drivers.length ? drivers : undefined;
           })(),
         }
-      : { settlement: buildSettlement(draft, props.returnContext) ?? undefined }),
+      : {
+          settlement: buildSettlement(draft, props.returnContext) ?? undefined,
+          returnedAt: draft.returnedAt || undefined,
+        }),
     latitude: geo.lat,
     longitude: geo.lng,
   };

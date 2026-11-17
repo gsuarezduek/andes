@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { formatArs, type RentalPayment } from "@/lib/contract";
+import { formatDateTime } from "@/lib/datetime";
+import { isLateReturn, lateReturnDetail } from "@/lib/late-return";
+import { settlementLate } from "@/lib/settlement";
 import { Row } from "@/components/ui/row";
+import { TextField } from "@/components/ui/fields";
 import { PaymentsEditor } from "../payments-editor";
 import { TabBar, NextSectionLink } from "@/components/ui/tabs";
 import type { StepContext } from "../context";
@@ -12,6 +16,11 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
   const { draft, patch, props, maxFuel, kmDriven, fuelDiff, settlement } = ctx;
   const returnContext = props.returnContext!;
   const [section, setSection] = useState(0);
+  // El atraso sale de la hora real de devolución declarada, no de cuándo se
+  // hace la recepción: el auto puede haber vuelto 2 horas tarde y recibirse 4
+  // horas tarde (ver `Draft.returnedAt`).
+  const late = settlement ? settlementLate(settlement) : { days: 0, hours: 0 };
+  const isLate = isLateReturn(late);
   return (
     <div className="flex flex-col gap-3">
       <TabBar sections={SECTIONS} active={section} onChange={setSection} />
@@ -27,7 +36,34 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
             />
             <Row label="Kilometraje" value={`${returnContext.handoverKm.toLocaleString("es-AR")} → ${Number(draft.km || 0).toLocaleString("es-AR")}`} />
             <Row label="Nafta" value={`${returnContext.handoverFuel}/${maxFuel} → ${draft.fuelLevel}/${maxFuel}`} tone={fuelDiff < 0 ? "warn" : undefined} />
+            <Row label="Devolución pactada" value={formatDateTime(returnContext.endAt)} tone={isLate ? "warn" : undefined} />
           </div>
+
+          <TextField
+            id="returnedAt"
+            label="Volvió el auto"
+            type="datetime-local"
+            hint="Cuándo llegó el auto, no cuándo se hace esta recepción. De acá sale el cargo por devolución tardía."
+            value={draft.returnedAt}
+            onChange={(e) => patch({ returnedAt: e.target.value })}
+          />
+
+          {isLate && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                ⚠ Devolución tardía: {lateReturnDetail(late)}
+              </p>
+              <p className="text-sm text-amber-700/80 dark:text-amber-400/80">
+                {late.hours > 0
+                  ? `Se cobra ${late.days > 0 ? `${late.days} día${late.days === 1 ? "" : "s"} y ` : ""}${late.hours} hora${late.hours === 1 ? "" : "s"} extra`
+                  : `Se cobra ${late.days} día${late.days === 1 ? "" : "s"} extra`}
+                {settlement && (settlement.lateCharge ?? 0) > 0 && (
+                  <> · cargo estimado <span className="font-semibold">{formatArs(settlement.lateCharge ?? 0)}</span></>
+                )}
+                . Ajustalo en Liquidación.
+              </p>
+            </div>
+          )}
           <div className={`rounded-xl border p-3 ${draft.damages.length > 0 ? "border-red-500/40 bg-red-500/5" : "border-foreground/10"}`}>
             <p className="text-sm font-semibold">
               Daños nuevos: {draft.damages.length}
@@ -121,6 +157,26 @@ export function StepComparacion({ ctx }: { ctx: StepContext }) {
                 onChange={(e) => patch({ settlementFuelCharge: e.target.value })}
               />
             </div>
+
+            {(isLate || draft.settlementLateCharge.trim() !== "") && (
+              <div className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1 ${isLate ? "bg-amber-500/10" : ""}`}>
+                <span className={`text-sm ${isLate ? "font-medium text-amber-700 dark:text-amber-400" : ""}`}>
+                  Devolución tardía
+                  <span className={isLate ? "text-amber-700/70 dark:text-amber-400/70" : "text-foreground/50"}>
+                    {" "}
+                    ({lateReturnDetail(late) || "en hora"})
+                  </span>
+                </span>
+                <input
+                  className="h-9 w-28 rounded-lg border border-foreground/15 bg-transparent px-2 text-right text-sm outline-none focus:border-foreground/40"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={String(settlement.lateCharge ?? 0)}
+                  value={draft.settlementLateCharge}
+                  onChange={(e) => patch({ settlementLateCharge: e.target.value })}
+                />
+              </div>
+            )}
 
             {draft.damages.map((dm, i) => (
               <div key={dm.id} className="flex items-center justify-between gap-3">

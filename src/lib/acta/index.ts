@@ -236,6 +236,7 @@ export async function renderActaBuffer(inspectionId: string): Promise<Buffer> {
     comparison,
     settlement,
     dateStr: formatDateTime(inspection.createdAt, locale),
+    returnedAtStr: inspection.returnedAt ? formatDateTime(inspection.returnedAt, locale) : undefined,
     registeredBy: inspection.userName,
     vehicleLabel: `${inspection.vehicle.brand} ${inspection.vehicle.model}`,
     plate: inspection.vehicle.plate,

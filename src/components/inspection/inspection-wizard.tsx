@@ -20,6 +20,7 @@ import { registerPendingInspection } from "@/lib/client/pending-inspections";
 import { getDictionary } from "@/lib/i18n";
 import { computeBalance } from "@/lib/contract";
 import { computeComparison } from "@/lib/comparison";
+import { formatDateTimeInput } from "@/lib/datetime";
 import { parseDecimal } from "@/lib/number-input";
 import type { DocumentKindInput } from "@/lib/inspection-input";
 import { cancelRemoteSignature, updateRemoteSignatureProgress } from "@/app/(app)/rentals/[id]/remote-sign-actions";
@@ -114,8 +115,13 @@ export function InspectionWizard(props: InspectionWizardProps) {
     photos: [],
     documents: [],
     additionalDrivers: [],
+    // "Ahora": el caso normal es recibir el auto cuando llega. Si se recibe
+    // más tarde, el empleado corrige la hora en el paso Comparación — de ahí
+    // sale el cargo por devolución tardía, no de la hora del acta.
+    returnedAt: formatDateTimeInput(new Date()),
     settlementFuelCharge: "",
     settlementExtraKmCharge: "",
+    settlementLateCharge: "",
     settlementDeposit: "",
     damageAmounts: {},
     observations: "",

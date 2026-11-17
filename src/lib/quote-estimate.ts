@@ -29,7 +29,7 @@ function seasonMultiplier(seasons: SeasonDiff[]): number {
 /** A partir de este resto de horas sobre los días completos, conviene cobrar
  *  directamente el día entero en vez de seguir sumando por hora extra — con
  *  el 20% por hora que se usa hoy, 5 horas ya igualan el 100% de un día. */
-const EXTRA_HOUR_DAY_THRESHOLD = 5;
+export const EXTRA_HOUR_DAY_THRESHOLD = 5;
 
 export type QuoteDaysBreakdown = {
   /** Días completos de 24hs (nunca menos de 1). */

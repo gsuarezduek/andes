@@ -15,6 +15,7 @@ import { paymentsToCashMovements } from "@/lib/cash";
 import { paymentSchema } from "@/lib/payment-schema";
 import { pendingEvidenceSchema } from "@/lib/pending-evidence-schema";
 import { computeSettlement, rollupSettlement } from "@/lib/settlement";
+import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
 import type { InspectionInput, SaveResult } from "@/lib/inspection-input";
 import { resolveSignedContractVersionId } from "@/lib/contract-version";
@@ -37,6 +38,12 @@ const settlementSchema = z
     extraKmCharge: z.number(),
     fuelMissingEighths: z.number(),
     fuelCharge: z.number(),
+    // El atraso (días/horas) se recalcula en el servidor desde `Rental.endAt`
+    // y la hora declarada; del cliente solo se toma el importe, que es
+    // legítimamente ajustable igual que el de km extra o nafta.
+    lateDays: z.number().optional(),
+    lateHours: z.number().optional(),
+    lateCharge: z.number().min(0).optional(),
     damageCharges: z.array(z.object({ description: z.string(), amount: z.number() })),
     damagesTotal: z.number(),
     subtotal: z.number(),
@@ -68,6 +75,8 @@ const saveSchema = z.object({
   signerName: z.string().min(1, "Falta la aclaración de la firma"),
   contractVersionId: z.string().min(1).nullable().optional(),
   settlement: settlementSchema,
+  // Hora real en que volvió el auto ("YYYY-MM-DDTHH:mm", hora de Mendoza).
+  returnedAt: z.string().min(1).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   pendingEvidence: pendingEvidenceSchema,
@@ -107,6 +116,26 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
     return { ok: false, error: `El kilometraje no puede ser menor al de entrega (${handover.km.toLocaleString("es-AR")} km).` };
   }
 
+  // Hora real en que volvió el auto. Es un dato declarado por el empleado (no
+  // verificable, igual que el km), pero sí se acota a lo posible: no puede ser
+  // anterior al retiro ni futura — un error de tipeo ahí se traduce en un
+  // cargo por atraso inventado, o en perder el que correspondía.
+  let returnedAt: Date | null = null;
+  if (data.returnedAt) {
+    const parsedDate = mendozaWallTimeToUtc(data.returnedAt);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return { ok: false, error: "La hora de devolución no es válida." };
+    }
+    if (parsedDate < rental.startAt) {
+      return { ok: false, error: "La hora de devolución no puede ser anterior al retiro." };
+    }
+    // Margen por el reloj del dispositivo, que puede estar unos minutos adelantado.
+    if (parsedDate.getTime() > Date.now() + 10 * 60_000) {
+      return { ok: false, error: "La hora de devolución no puede ser futura." };
+    }
+    returnedAt = parsedDate;
+  }
+
   // La liquidación que firma el cliente no se persiste tal cual la manda el
   // cliente: kmDriven/includedKm/extraKm/fuelMissingEighths y sobre todo los
   // totales (subtotal, saldo a cobrar, depósito a devolver) se recalculan acá
@@ -123,10 +152,15 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           handoverFuel: handover.fuelLevel,
           returnFuel: data.fuelLevel,
           pricing: rental.pricing as ContractPricing | null,
+          // El atraso se mide contra la devolución pactada que hay en la base,
+          // no contra una fecha que venga del cliente.
+          endAt: rental.endAt,
+          returnedAt,
           newDamages: data.newDamages,
         }),
         extraKmCharge: data.settlement.extraKmCharge,
         fuelCharge: data.settlement.fuelCharge,
+        lateCharge: data.settlement.lateCharge ?? 0,
         deposit: data.settlement.deposit,
         damageCharges: data.settlement.damageCharges,
         payments: data.settlement.payments,
@@ -158,6 +192,7 @@ export async function saveReturn(input: InspectionInput): Promise<SaveResult> {
           signerName: data.signerName,
           contractVersionId,
           settlement: settlementForPersist ?? undefined,
+          returnedAt,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
           pendingEvidence: data.pendingEvidence?.length ? data.pendingEvidence : undefined,

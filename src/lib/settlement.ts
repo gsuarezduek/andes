@@ -4,8 +4,9 @@
  *
  * Cierra el círculo económico: a partir de la comparación entrega↔devolución y
  * de las condiciones del contrato (`Rental.pricing`), calcula el excedente de
- * km, la nafta faltante y los cargos por daño nuevo. El excedente de km y la
- * nafta se cobran siempre aparte (el cliente los abona directamente); la
+ * km, la nafta faltante, el atraso de la devolución (ver src/lib/late-return)
+ * y los cargos por daño nuevo. El excedente de km, la nafta y el atraso se
+ * cobran siempre aparte (el cliente los abona directamente); la
  * garantía (depósito) **solo cubre daños nuevos** y se devuelve por el resto
  * — nunca se descuenta por km/nafta. **No procesa cobros** (pagos fuera de
  * alcance): sólo calcula y registra cómo se saldó.
@@ -14,6 +15,7 @@
  * octavos (0–8).
  */
 import { kmPackKm, type ContractPricing, type RentalPayment } from "@/lib/contract";
+import { isLateReturn, lateReturnBreakdown, lateReturnCharge, type LateReturnBreakdown } from "@/lib/late-return";
 
 export type SettlementMethod =
   | "efectivo"
@@ -31,13 +33,20 @@ export type Settlement = {
   extraKmCharge: number;
   fuelMissingEighths: number; // octavos de nafta faltantes (contexto; no se cobra solo)
   fuelCharge: number; // importe manual por nafta (default 0)
+  // Devolución tardía (ver src/lib/late-return). Opcionales: las devoluciones
+  // firmadas antes de que esto existiera no los tienen y se siguen
+  // renderizando igual — mismo criterio que `method`/`note`.
+  lateDays?: number; // días completos de atraso
+  lateHours?: number; // horas del resto, al % de hora extra (0–4)
+  lateCharge?: number; // importe por el atraso (editable por el empleado)
   damageCharges: SettlementDamageCharge[];
   damagesTotal: number;
-  subtotal: number; // extraKmCharge + fuelCharge + damagesTotal
+  subtotal: number; // extraKmCharge + fuelCharge + lateCharge + damagesTotal
   deposit: number; // garantía tomada en la entrega
   depositApplied: number; // parte del depósito que cubre los daños
-  // Lo que el cliente debe abonar aparte: km extra + nafta + daños que
-  // exceden el depósito. Puede coexistir con depositReturn > 0.
+  // Lo que el cliente debe abonar aparte: km extra + nafta + devolución
+  // tardía + daños que exceden el depósito. Puede coexistir con
+  // depositReturn > 0.
   balanceDue: number;
   depositReturn: number; // depósito a devolver (lo no consumido por daños)
   // Pagos anotados para saldar (medio de pago real, igual sistema que la
@@ -55,10 +64,38 @@ export type SettlementInput = {
   returnFuel: number;
   pricing?: Pick<
     ContractPricing,
-    "kmPerDay" | "days" | "extraKmRate" | "deposit" | "unlimitedKm" | "kmPacks"
+    | "kmPerDay"
+    | "days"
+    | "extraKmRate"
+    | "deposit"
+    | "unlimitedKm"
+    | "kmPacks"
+    | "dailyRate"
+    | "extraHourPercent"
   > | null;
+  /** Devolución pactada (`Rental.endAt`) y hora real en que volvió el auto
+   *  — que no es cuándo se hace la recepción: el auto puede haber vuelto 2
+   *  horas tarde y recibirse 4 horas tarde. Sin las dos no se cobra atraso. */
+  endAt?: Date | null;
+  returnedAt?: Date | null;
   newDamages?: { description?: string }[];
 };
+
+/** Atraso guardado en una liquidación. Ceros en las devoluciones firmadas
+ *  antes de que el cargo por devolución tardía existiera. */
+export function settlementLate(s: Pick<Settlement, "lateDays" | "lateHours">): LateReturnBreakdown {
+  return { days: s.lateDays ?? 0, hours: s.lateHours ?? 0 };
+}
+
+/** True si hay línea de devolución tardía que mostrar. Un atraso sin importe
+ *  igual se muestra (el empleado puede decidir no cobrarlo, y que figure es
+ *  parte de lo que el cliente firma); un importe sin atraso también, para no
+ *  esconder un cargo cargado a mano. */
+export function hasLateReturnLine(
+  s: Pick<Settlement, "lateDays" | "lateHours" | "lateCharge">,
+): boolean {
+  return isLateReturn(settlementLate(s)) || (s.lateCharge ?? 0) > 0;
+}
 
 /** Redondea a centavos (2 decimales), evitando el ruido de punto flotante. */
 function round(n: number): number {
@@ -71,14 +108,16 @@ function round(n: number): number {
  */
 export function rollupSettlement(s: Settlement): Settlement {
   const damagesTotal = round(s.damageCharges.reduce((a, d) => a + (d.amount || 0), 0));
-  const subtotal = round((s.extraKmCharge || 0) + (s.fuelCharge || 0) + damagesTotal);
+  const lateCharge = round(s.lateCharge || 0);
+  const charges = (s.extraKmCharge || 0) + (s.fuelCharge || 0) + lateCharge;
+  const subtotal = round(charges + damagesTotal);
   const deposit = s.deposit || 0;
-  // La garantía solo cubre daños nuevos: km extra y nafta se cobran aparte y
-  // nunca se descuentan del depósito.
+  // La garantía solo cubre daños nuevos: km extra, nafta y el atraso se cobran
+  // aparte y nunca se descuentan del depósito.
   const depositApplied = Math.min(damagesTotal, deposit);
-  const balanceDue = round((s.extraKmCharge || 0) + (s.fuelCharge || 0) + Math.max(0, damagesTotal - deposit));
+  const balanceDue = round(charges + Math.max(0, damagesTotal - deposit));
   const depositReturn = Math.max(0, deposit - damagesTotal);
-  return { ...s, damagesTotal, subtotal, depositApplied, balanceDue, depositReturn };
+  return { ...s, lateCharge, damagesTotal, subtotal, depositApplied, balanceDue, depositReturn };
 }
 
 /** Liquidación inicial autocalculada desde las condiciones de la entrega. */
@@ -98,6 +137,15 @@ export function computeSettlement(input: SettlementInput): Settlement {
 
   const fuelMissingEighths = Math.max(0, input.handoverFuel - input.returnFuel);
 
+  // Atraso: solo si se sabe cuándo volvió el auto. El importe sugerido sale de
+  // la tarifa diaria y del % de hora extra del contrato; sin tarifa queda en 0
+  // para que lo cargue el empleado (igual que la nafta).
+  const late =
+    input.endAt && input.returnedAt
+      ? lateReturnBreakdown(input.endAt, input.returnedAt)
+      : { days: 0, hours: 0 };
+  const lateCharge = lateReturnCharge(input.pricing, late) ?? 0;
+
   const damageCharges: SettlementDamageCharge[] = (input.newDamages ?? []).map((d, i) => ({
     description: d.description?.trim() || `Daño #${i + 1}`,
     amount: 0,
@@ -111,6 +159,9 @@ export function computeSettlement(input: SettlementInput): Settlement {
     extraKmCharge,
     fuelMissingEighths,
     fuelCharge: 0,
+    lateDays: late.days,
+    lateHours: late.hours,
+    lateCharge,
     damageCharges,
     damagesTotal: 0,
     subtotal: 0,

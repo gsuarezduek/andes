@@ -1,6 +1,8 @@
 import { View, Text } from "@react-pdf/renderer";
 import { styles } from "../styles";
 import { formatArs, usdPaymentDetail } from "@/lib/contract";
+import { lateReturnDetail } from "@/lib/late-return";
+import { hasLateReturnLine, settlementLate } from "@/lib/settlement";
 import type { ActaData } from "../types";
 
 export function SettlementSection({ data }: { data: ActaData }) {
@@ -23,6 +25,15 @@ export function SettlementSection({ data }: { data: ActaData }) {
         </Text>
         <Text style={styles.value}>{formatArs(s.fuelCharge)}</Text>
       </View>
+      {hasLateReturnLine(s) ? (
+        <View style={styles.row}>
+          <Text style={styles.label}>
+            {t.settlement.late}
+            {lateReturnDetail(settlementLate(s)) ? ` (${lateReturnDetail(settlementLate(s))})` : ""}
+          </Text>
+          <Text style={styles.value}>{formatArs(s.lateCharge ?? 0)}</Text>
+        </View>
+      ) : null}
       {s.damageCharges.map((d, i) => (
         <View style={styles.row} key={i}>
           <Text style={styles.label}>

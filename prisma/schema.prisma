@@ -1038,9 +1038,15 @@ model Inspection {
   contractVersion   ContractVersion? @relation(fields: [contractVersionId], references: [id], onDelete: Restrict)
 
   // Liquidación de la devolución (solo en return_): excedente de km, nafta
-  // faltante y cargos por daño nuevo contra el depósito. Ver src/lib/settlement.
-  // Inmutable: es parte de lo que el cliente firma. Sin cobro.
+  // faltante, atraso y cargos por daño nuevo contra el depósito. Ver
+  // src/lib/settlement. Inmutable: es parte de lo que el cliente firma. Sin cobro.
   settlement Json? @map("settlement")
+
+  // Hora real en que volvió el auto (solo en return_). NO es `createdAt`: la
+  // recepción puede hacerse horas después de que el auto llegó, y el cargo por
+  // devolución tardía se calcula contra esta hora, no contra la del acta.
+  // Null = devoluciones firmadas antes de que esto existiera.
+  returnedAt DateTime? @map("returned_at")
 
   // Geolocalización opcional (si el dispositivo dio permiso).
   latitude  Float?

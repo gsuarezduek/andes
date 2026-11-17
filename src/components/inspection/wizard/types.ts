@@ -66,11 +66,18 @@ export type Draft = {
   // Se agotaron los reintentos automáticos de subida de la firma: hay que
   // volver a firmar (no se va a resolver solo). Se limpia al recapturar.
   signatureUploadFailed?: boolean;
+  // Hora real en que volvió el auto (solo devolución), "YYYY-MM-DDTHH:mm" en
+  // hora de Mendoza. **No es la hora de la recepción**: el auto puede haber
+  // vuelto 2 horas tarde y recibirse 4 horas tarde, y el cargo por devolución
+  // tardía se cobra contra esta hora. Arranca en "ahora" (el caso normal, se
+  // recibe al llegar) y el empleado la corrige si el auto llegó antes.
+  returnedAt: string;
   // Liquidación (solo devolución). Guardamos los overrides editables; el total
   // se recalcula en vivo desde la comparación + condiciones de la entrega.
   // Los pagos para saldarla van en `payments` (mismo campo que la entrega).
   settlementFuelCharge: string;
   settlementExtraKmCharge: string; // vacío = usar el auto-calculado
+  settlementLateCharge: string; // vacío = usar el auto-calculado
   settlementDeposit: string; // vacío = usar el depósito del contrato
   damageAmounts: Record<string, string>; // por id de daño
 };
@@ -109,7 +116,10 @@ export type InspectionWizardProps = {
    *  Condiciones si el total cargado a mano se aleja mucho del de la reserva
    *  original — no bloquea, es solo una alerta contra errores de tipeo. */
   bookingTotal?: number;
-  returnContext?: { handoverKm: number; handoverFuel: number; pricing?: ContractPricing };
+  /** Datos de la entrega y del contrato que la devolución necesita para
+   *  comparar y liquidar. `endAt` es la devolución pactada (`Rental.endAt`),
+   *  contra la que se mide el atraso. */
+  returnContext?: { handoverKm: number; handoverFuel: number; endAt: Date; pricing?: ContractPricing };
   /** Condiciones generales vigentes al abrir el wizard (Configuración →
    *  Contrato). Es lo que lee el cliente — acá y por QR — y la versión que
    *  queda guardada en la inspección como firmada. */

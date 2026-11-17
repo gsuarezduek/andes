@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { after } from "next/server";
 import type { InspectionInput } from "@/lib/inspection-input";
 
@@ -508,6 +508,85 @@ describe("saveReturn", () => {
       subtotal: 10_000,
       balanceDue: 10_000,
       depositReturn: 50_000,
+    });
+  });
+
+  describe("devolución tardía", () => {
+    // Pactada 10:00 (hora de Mendoza, UTC-3) del 10/03/2026.
+    const END = new Date("2026-03-10T13:00:00.000Z");
+    const START = new Date("2026-03-08T13:00:00.000Z");
+    const lateRental = {
+      id: "r1",
+      status: "active",
+      clientName: "Juan Pérez",
+      startAt: START,
+      endAt: END,
+      pricing: { dailyRate: 50_000, extraHourPercent: 20, deposit: 0 },
+      inspections: [{ id: "h1", type: "handover", km: 10_500, fuelLevel: 8 }],
+    };
+    const settlementBase = {
+      kmDriven: 400, includedKm: 0, extraKm: 0, extraKmRate: 0, extraKmCharge: 0,
+      fuelMissingEighths: 0, fuelCharge: 0, damageCharges: [], damagesTotal: 0,
+      subtotal: 0, deposit: 0, depositApplied: 0, balanceDue: 0, depositReturn: 0,
+    };
+
+    beforeEach(() => {
+      // El wizard manda la hora real de devolución; "hoy" para el guard de
+      // "no puede ser futura" se fija al día siguiente de la devolución.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-03-11T13:00:00.000Z"));
+      prismaMock.rental.findUnique.mockResolvedValue(lateRental);
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("guarda la hora real de devolución y recalcula el atraso desde endAt", async () => {
+      await saveReturn({
+        ...returnInput,
+        returnedAt: "2026-03-10T12:00", // volvió 2 h tarde
+        // Cliente manipulado: dice que no hubo atraso. Los días/horas no se
+        // toman del payload, solo el importe.
+        settlement: { ...settlementBase, lateDays: 0, lateHours: 0, lateCharge: 20_000 },
+      });
+      const inspArg = tx.inspection.create.mock.calls[0][0].data;
+      expect(inspArg.returnedAt).toEqual(new Date("2026-03-10T15:00:00.000Z"));
+      expect(inspArg.settlement).toMatchObject({
+        lateDays: 0,
+        lateHours: 2,
+        lateCharge: 20_000,
+        balanceDue: 20_000,
+      });
+    });
+
+    it("la recepción tardía no infla el cargo: cuenta la hora declarada", async () => {
+      // El caso que motivó la feature: el auto volvió 2 h tarde (12:00) pero
+      // la recepción se hace 4 h tarde (14:00). Se cobran 2 h, no 4 — el cargo
+      // sale de la hora declarada, no de cuándo se firma el acta.
+      vi.setSystemTime(new Date("2026-03-10T17:00:00.000Z")); // 14:00 en Mendoza
+      await saveReturn({
+        ...returnInput,
+        returnedAt: "2026-03-10T12:00",
+        settlement: { ...settlementBase, lateCharge: 20_000 },
+      });
+      expect(tx.inspection.create.mock.calls[0][0].data.settlement).toMatchObject({ lateHours: 2 });
+    });
+
+    it("rechaza una hora de devolución futura", async () => {
+      const res = await saveReturn({ ...returnInput, returnedAt: "2026-03-12T10:00" });
+      expect(res.ok).toBe(false);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("rechaza una hora de devolución anterior al retiro", async () => {
+      const res = await saveReturn({ ...returnInput, returnedAt: "2026-03-07T10:00" });
+      expect(res.ok).toBe(false);
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("sin hora declarada no inventa atraso (compat con borradores viejos)", async () => {
+      await saveReturn({ ...returnInput, settlement: settlementBase });
+      const inspArg = tx.inspection.create.mock.calls[0][0].data;
+      expect(inspArg.returnedAt).toBeNull();
+      expect(inspArg.settlement).toMatchObject({ lateDays: 0, lateHours: 0, lateCharge: 0 });
     });
   });
 

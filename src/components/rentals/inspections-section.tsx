@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { formatDateTime } from "@/lib/datetime";
+import { isLateReturn, lateReturnDetail } from "@/lib/late-return";
+import { hasLateReturnLine, settlementLate, type Settlement } from "@/lib/settlement";
 import { Badge } from "@/components/ui/badge";
 import { resendActaEmail } from "@/app/(app)/rentals/[id]/acta-actions";
 import type { RentalDetail } from "@/lib/rental-detail-queries";
@@ -28,6 +30,34 @@ function ClientEmailBadge({ inspection }: { inspection: Inspection }) {
     return <Badge tone="amber">No se envió al cliente{error ? ` — ${error}` : ""}</Badge>;
   }
   return <Badge tone="neutral">Sin información de envío</Badge>;
+}
+
+/** Hora en que volvió el auto y, si llegó tarde, cuánto. Solo en la
+ *  devolución: es el dato del que sale el cargo por devolución tardía, y la
+ *  hora del acta (`createdAt`) no lo cuenta — la recepción puede haberse hecho
+ *  horas después. Se omite cuando coinciden (el caso normal) y en las
+ *  devoluciones firmadas antes de que esto se registrara. */
+function ReturnedAtLine({ inspection }: { inspection: Inspection }) {
+  if (inspection.type !== "return_" || !inspection.returnedAt) return null;
+  const settlement = (inspection.settlement as Settlement | null) ?? null;
+  const late = settlement ? settlementLate(settlement) : { days: 0, hours: 0 };
+  const sameAsActa =
+    Math.abs(inspection.returnedAt.getTime() - inspection.createdAt.getTime()) < 5 * 60_000;
+  if (sameAsActa && !isLateReturn(late)) return null;
+  return (
+    <p className="text-xs text-foreground/50">
+      El auto volvió: {formatDateTime(inspection.returnedAt)}
+      {isLateReturn(late) && (
+        <span className="font-medium text-amber-700 dark:text-amber-400">
+          {" "}
+          · tarde {lateReturnDetail(late)}
+          {settlement && hasLateReturnLine(settlement) && (settlement.lateCharge ?? 0) === 0
+            ? " (sin cargo)"
+            : ""}
+        </span>
+      )}
+    </p>
+  );
 }
 
 function ResendButton({ rentalId, inspectionId }: { rentalId: string; inspectionId: string }) {
@@ -80,6 +110,7 @@ export function InspectionsSection({
                 {formatDateTime(insp.createdAt)} · Responsable:{" "}
                 {insp.userName}
               </p>
+              <ReturnedAtLine inspection={insp} />
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <ClientEmailBadge inspection={insp} />
                 {insp.actaAdminEmailStatus === "failed" && (

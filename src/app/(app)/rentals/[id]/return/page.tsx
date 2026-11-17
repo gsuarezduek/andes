@@ -97,6 +97,10 @@ export default async function ReturnPage({
         returnContext={{
           handoverKm: handover.km,
           handoverFuel: handover.fuelLevel,
+          // Devolución pactada: contra esto se mide el atraso. Si el cliente
+          // avisó y se extendió antes (`extendRental`), `endAt` ya se movió y
+          // no hay atraso que cobrar.
+          endAt: rental.endAt,
           pricing: (rental.pricing as ContractPricing | null) ?? undefined,
         }}
       />
