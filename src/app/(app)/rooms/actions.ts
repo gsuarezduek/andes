@@ -10,7 +10,8 @@ import { syncCommission } from "@/lib/commissions-sync";
 import { syncAutoInvoice } from "@/lib/auto-invoice";
 import { validateFeedUrl, FEED_SOURCES, roomSourceLabels } from "@/lib/rooms/feed-url";
 import { syncRoomFeed } from "@/lib/rooms/sync";
-import { isDateKey, keyToDate, nightsBetween } from "@/lib/rooms/dates";
+import { canCorrectImportedDates, dateToKey, isDateKey, keyToDate, nightsBetween } from "@/lib/rooms/dates";
+import { formatDateInput } from "@/lib/datetime";
 import { bookingGuestLabel } from "@/lib/rooms/queries";
 import { paymentSchema } from "@/lib/payment-schema";
 import { paymentsToCashMovements } from "@/lib/cash";
@@ -206,12 +207,13 @@ export async function createManualBooking(roomId: string, _prev: FormState, form
 }
 
 /**
- * Edita una reserva. Las importadas por iCal solo aceptan huésped, notas y
- * total (fechas y estado los manda el calendario de origen, y el próximo sync
- * los pisaría).
+ * Edita una reserva. En las importadas por iCal, el estado lo manda el
+ * calendario de origen, y las fechas también hasta el día de entrada: desde
+ * ahí se pueden corregir (el iCal de Booking a veces suma noches de más) y el
+ * sync ya no las toca.
  */
 export async function updateBooking(bookingId: string, _prev: FormState, formData: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const existing = await prisma.roomBooking.findUnique({ where: { id: bookingId } });
   if (!existing) return { error: "La reserva no existe." };
   const parsed = parseBooking(formData);
@@ -230,6 +232,30 @@ export async function updateBooking(bookingId: string, _prev: FormState, formDat
     data.startDate = keyToDate(d.startDate);
     data.endDate = keyToDate(d.endDate);
     data.isBlock = d.isBlock;
+  } else {
+    // Importada: fechas corregibles solo desde el día de entrada (ver
+    // `canCorrectImportedDates`). Corregidas una vez, el sync no las vuelve a tocar.
+    const startKey = dateToKey(existing.startDate);
+    const endKey = dateToKey(existing.endDate);
+    if (d.startDate !== startKey || d.endDate !== endKey) {
+      const todayKey = formatDateInput(new Date());
+      if (!canCorrectImportedDates(startKey, todayKey)) {
+        return { error: "Las fechas de una estadía de Airbnb/Booking se corrigen recién desde el día de entrada." };
+      }
+      if (!canCorrectImportedDates(d.startDate, todayKey)) {
+        return { error: "La entrada corregida no puede quedar en el futuro." };
+      }
+      const rangeError = checkRange(d.startDate, d.endDate);
+      if (rangeError) return { error: rangeError };
+      data.startDate = keyToDate(d.startDate);
+      data.endDate = keyToDate(d.endDate);
+      data.datesEditedAt = new Date();
+      data.datesEditedByName = displayName(user);
+      if (!existing.originalStartDate) {
+        data.originalStartDate = existing.startDate;
+        data.originalEndDate = existing.endDate;
+      }
+    }
   }
   const amountChanged = Number(existing.totalAmount) !== (d.totalAmount ?? 0) || existing.currency !== d.currency;
   await prisma.$transaction(async (tx) => {

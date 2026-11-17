@@ -99,9 +99,12 @@ export async function syncRoomFeed(feedId: string): Promise<FeedSyncResult> {
       imported++;
       continue;
     }
+    // Fechas corregidas a mano (ver `canCorrectImportedDates`): el sync ya no las toca.
+    const keepDates = current.datesEditedAt != null;
+    const datesChanged =
+      !keepDates && (dateToKey(current.startDate) !== ev.startDate || dateToKey(current.endDate) !== ev.endDate);
     const changed =
-      dateToKey(current.startDate) !== ev.startDate ||
-      dateToKey(current.endDate) !== ev.endDate ||
+      datesChanged ||
       current.externalLabel !== ev.summary ||
       current.externalDescription !== ev.description ||
       current.isBlock !== isBlock ||
@@ -110,8 +113,7 @@ export async function syncRoomFeed(feedId: string): Promise<FeedSyncResult> {
     await prisma.roomBooking.update({
       where: { id: current.id },
       data: {
-        startDate: keyToDate(ev.startDate),
-        endDate: keyToDate(ev.endDate),
+        ...(keepDates ? {} : { startDate: keyToDate(ev.startDate), endDate: keyToDate(ev.endDate) }),
         externalLabel: ev.summary,
         externalDescription: ev.description,
         isBlock,

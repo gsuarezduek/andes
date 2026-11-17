@@ -20,8 +20,9 @@ export type BookingFormValues = {
 };
 
 /**
- * Alta / edición de una reserva. En una importada (`datesLocked`) las fechas
- * las manda el calendario de origen: solo se editan huésped, notas y total.
+ * Alta / edición de una reserva. En una importada, hasta el día de entrada
+ * (`datesLocked`) las fechas las manda el calendario de origen: solo se editan
+ * huésped, notas y total. Desde la entrada se pueden corregir (`datesHint`).
  * Que las fechas se pisen con otra estadía no impide guardar (ver el
  * encabezado de "Reservas manuales" en `rooms/actions.ts`).
  */
@@ -29,12 +30,15 @@ export function BookingForm({
   action,
   booking,
   datesLocked = false,
+  datesHint,
   submitLabel,
   suggestedRate,
 }: {
   action: Action;
   booking?: BookingFormValues;
   datesLocked?: boolean;
+  /** Aclaración debajo de las fechas (ej. en una importada que ya se puede corregir). */
+  datesHint?: string;
   submitLabel: string;
   /** Tarifa por noche de la habitación, para sugerir el total. */
   suggestedRate?: number | null;
@@ -60,7 +64,7 @@ export function BookingForm({
           value={start}
           onChange={(e) => setStart(e.target.value)}
           readOnly={datesLocked}
-          hint={datesLocked ? "Viene del calendario de origen." : undefined}
+          hint={datesLocked ? "Viene del calendario de origen. Se puede corregir desde el día de entrada." : datesHint}
         />
         <TextField id="endDate" label="Salida" type="date" required value={end} onChange={(e) => setEnd(e.target.value)} readOnly={datesLocked} />
       </div>

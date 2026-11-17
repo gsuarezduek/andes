@@ -267,6 +267,14 @@ export async function getBookingDetail(roomId: string, bookingId: string) {
     verifiedAt: booking.verifiedAt,
     verifiedByName: booking.verifiedByName,
     verifications: booking.verifications,
+    datesEdited: booking.datesEditedAt
+      ? {
+          at: booking.datesEditedAt,
+          byName: booking.datesEditedByName,
+          originalStartDate: booking.originalStartDate ? dateToKey(booking.originalStartDate) : null,
+          originalEndDate: booking.originalEndDate ? dateToKey(booking.originalEndDate) : null,
+        }
+      : null,
     room: {
       id: booking.room.id,
       name: booking.room.name,

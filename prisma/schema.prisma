@@ -2847,6 +2847,16 @@ model RoomBooking {
   startDate DateTime @map("start_date") @db.Date
   endDate   DateTime @map("end_date") @db.Date
 
+  // Fechas corregidas a mano en una importada (el iCal de Booking a veces une
+  // días cerrados contiguos y la estadía figura con noches de más). Solo se
+  // permite desde el día de entrada (ver `canCorrectImportedDates`). Con esto
+  // seteado, el sync ya no le toca las fechas. `original*` guarda lo que decía
+  // el calendario la primera vez que se corrigió.
+  datesEditedAt     DateTime? @map("dates_edited_at")
+  datesEditedByName String?   @map("dates_edited_by_name")
+  originalStartDate DateTime? @map("original_start_date") @db.Date
+  originalEndDate   DateTime? @map("original_end_date") @db.Date
+
   guestName String? @map("guest_name")
 
   // Textos crudos del evento iCal (el iCal casi nunca trae el nombre del huésped).

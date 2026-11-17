@@ -40,3 +40,15 @@ export function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd
 export function shouldCancelMissingBooking(startKey: string, todayKey: string): boolean {
   return startKey > todayKey;
 }
+
+/**
+ * ¿Se pueden corregir a mano las fechas de una estadía importada (Airbnb/
+ * Booking)? Solo desde el día de entrada: a partir de ahí la plataforma ya la
+ * sacó del iCal (o deja de cambiarla), así que el sync no la va a volver a
+ * pisar. Antes de la entrada, las fechas las sigue mandando la plataforma (si
+ * el huésped cambia la reserva, tiene que verse). La nueva entrada tampoco
+ * puede quedar en el futuro, por la misma razón.
+ */
+export function canCorrectImportedDates(startKey: string, todayKey: string): boolean {
+  return startKey <= todayKey;
+}

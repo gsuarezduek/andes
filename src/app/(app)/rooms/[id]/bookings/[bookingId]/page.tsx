@@ -5,10 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { getBookingDetail, bookingGuestLabel } from "@/lib/rooms/queries";
-import { nightsBetween } from "@/lib/rooms/dates";
+import { canCorrectImportedDates, nightsBetween } from "@/lib/rooms/dates";
 import { roomSourceLabels } from "@/lib/rooms/feed-url";
 import { formatMoney } from "@/lib/contract";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateInput, formatDateTime } from "@/lib/datetime";
 import { getCurrentUsdRate, getUsdRateHistory } from "@/lib/usd-rate-queries";
 import { paymentInCurrency, roomPaidTotal } from "@/lib/rooms/payments";
 import { canVerifyRoomBooking, isRoomBookingVerified } from "@/lib/room-booking-verification";
@@ -31,7 +31,7 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
   const canSeeFinanceOnly = hasFinanceAccess(user.role, user.owner);
   const detail = await getBookingDetail(id, bookingId);
   if (!detail) notFound();
-  const { booking: b, room, payments, mirrored, overlaps, verifiedAt, verifiedByName, verifications } = detail;
+  const { booking: b, room, payments, mirrored, overlaps, verifiedAt, verifiedByName, verifications, datesEdited } = detail;
 
   const [rawPaymentMethods, usdRateInfo, usdHistory] = await Promise.all([
     prisma.paymentMethod.findMany({
@@ -51,6 +51,8 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
 
   const nights = nightsBetween(b.startDate, b.endDate);
   const imported = b.source !== "manual";
+  // Una importada corrige sus fechas recién desde el día de entrada (ver `canCorrectImportedDates`).
+  const importedDatesEditable = imported && canCorrectImportedDates(b.startDate, formatDateInput(new Date()));
   // Cobrado en la moneda del total: un cobro en la otra moneda se convierte con
   // la cotización del cobro (o la de referencia a su fecha).
   const { paid, unconverted } = roomPaidTotal(payments, b.currency, usdHistory);
@@ -95,7 +97,16 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
         ) : null}
         {imported ? (
           <p className="text-xs text-foreground/50">
-            Viene del calendario de {roomSourceLabels[b.source]}. Las fechas y la cancelación se manejan desde ahí; acá podés anotar huésped, notas y cobros.
+            Viene del calendario de {roomSourceLabels[b.source]}. La cancelación se maneja desde ahí; acá podés anotar huésped, notas y
+            cobros. Las fechas las manda {roomSourceLabels[b.source]} hasta el día de entrada; desde ahí, si están mal, se corrigen abajo.
+          </p>
+        ) : null}
+        {datesEdited ? (
+          <p className="text-xs text-foreground/50">
+            Fechas corregidas{datesEdited.byName ? ` por ${datesEdited.byName}` : ""} · {formatDateTime(datesEdited.at)}
+            {datesEdited.originalStartDate && datesEdited.originalEndDate
+              ? ` (el calendario decía ${fmt(datesEdited.originalStartDate)} → ${fmt(datesEdited.originalEndDate)})`
+              : ""}
           </p>
         ) : null}
         {imported && (b.externalLabel || b.externalDescription) ? (
@@ -132,7 +143,12 @@ export default async function RoomBookingPage({ params }: { params: Promise<{ id
               currency: b.currency,
               isBlock: b.isBlock,
             }}
-            datesLocked={imported}
+            datesLocked={imported && !importedDatesEditable}
+            datesHint={
+              importedDatesEditable
+                ? `Corregilas solo si ${roomSourceLabels[b.source]} las trae mal (a veces suma noches de más). Una vez corregidas, el sync ya no las cambia.`
+                : undefined
+            }
             submitLabel="Guardar cambios"
             suggestedRate={room.nightlyRate}
           />
