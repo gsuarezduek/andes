@@ -1355,6 +1355,10 @@ Bug real: una estadía de Booking con huésped y cobro (Sofía Müller, 13→15/
 - **Cobros**: toda consulta de estadías que pase por `toBookingViews` lleva `include: BOOKING_PAYMENTS_COUNT` (Calendario, Agenda, listado y ficha de habitaciones, detalle de la estadía). Una consulta nueva sin ese include no ve los cobros y puede ocultar una estadía que solo tiene un cobro cargado.
 - **Pendiente:** las fechas de una estadía importada no se pueden corregir (las manda el iCal). El de Booking no es exacto: Sofía figura 13→15 aunque se cobró 1 noche (Booking une días cerrados contiguos).
 
+## v119 — Caja: exportar CSV con filtros (cuentas, tipo, categoría)
+
+Antes, "Exportar CSV" de Caja → Movimientos (admin) bajaba siempre todo el período, aunque en pantalla hubiera un filtro de cuenta o categoría. Ahora abre un modal (`CashExportButton`) con: tipo (ingresos y egresos / solo ingresos / solo egresos), **una o varias cuentas** (ej. débito + crédito = "solo tarjetas"; una principal incluye sus subcuentas; un egreso entra por origen o destino) y categoría de egreso. Arranca con los filtros que ya hay en pantalla, usa el período elegido arriba y muestra cuántos movimientos va a exportar. El filtro es puro y compartido entre la pantalla y el servidor (`src/lib/cash-movement-filter.ts`, testeado), así el archivo baja lo mismo que se ve. `/api/caja/export` acepta `&account=` (repetible), `&type=income|expense` y `&category=`; sin filtros se comporta como antes. Sin migración. tsc/lint/1027 tests y build en verde; verificado con Playwright a 375px contra la base local (débito+crédito y efectivo solo egresos; datos de prueba borrados). **Sin desplegar todavía.**
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

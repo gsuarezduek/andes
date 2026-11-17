@@ -1,6 +1,5 @@
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { cashPeriodSearch } from "@/lib/cash";
 import { SectionTitle } from "@/components/ui/section-title";
 import { CashMovementsBoard, type PaymentMethodOption, type ExpenseCategoryOption } from "./cash-movements-board";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
@@ -21,12 +20,7 @@ export function CashPeriodDetail({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{data.periodLabel}</h2>
-        <a className="text-xs font-medium underline" href={`/api/caja/export?${cashPeriodSearch(period)}`}>
-          Exportar CSV
-        </a>
-      </div>
+      <h2 className="text-lg font-semibold">{data.periodLabel}</h2>
 
       <div className="grid grid-cols-3 gap-3 text-center">
         <div className="rounded-lg border border-foreground/10 p-3">
@@ -49,6 +43,7 @@ export function CashPeriodDetail({
         paymentMethods={paymentMethods}
         expenseCategories={expenseCategories}
         period={period}
+        periodLabel={data.periodLabel}
       />
 
       <DeletedSection deleted={deleted} />

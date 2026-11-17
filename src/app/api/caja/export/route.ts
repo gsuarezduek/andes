@@ -4,6 +4,8 @@ import { hasAdminAccess, hasFinanceAccess } from "@/lib/user-permissions";
 import { getCashPeriodDetail, parseCashPeriod, type CashMovementRow, type CashPeriod } from "@/lib/cash";
 import { formatDateTime } from "@/lib/datetime";
 import { csvResponse } from "@/lib/csv";
+import { prisma } from "@/lib/prisma";
+import { expandAccountIds, filterCashMovements, parseCashExportFilter } from "@/lib/cash-movement-filter";
 
 export const runtime = "nodejs";
 
@@ -33,7 +35,13 @@ function toRow(m: CashMovementRow): (string | number)[] {
   ];
 }
 
-/** Exporta los movimientos de Caja del período visible como CSV (admin). ?period=today|week|month|date&from=YYYY-MM-DD&to=YYYY-MM-DD */
+/**
+ * Exporta los movimientos de Caja del período como CSV (admin).
+ * ?period=today|week|month|date&from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Filtros opcionales (mismos que la pantalla, ver `cash-movement-filter.ts`):
+ * &account=<id> (repetible; una principal suma sus subcuentas),
+ * &type=income|expense, &category=<id>|__none__ (solo egresos).
+ */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
   if (!user || !hasAdminAccess(user.role)) {
@@ -45,7 +53,18 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("from") ?? undefined,
     req.nextUrl.searchParams.get("to") ?? undefined,
   );
-  const detail = await getCashPeriodDetail(period, hasFinanceAccess(user.role, user.owner));
+  const filter = parseCashExportFilter(req.nextUrl.searchParams);
+  const [detail, methods] = await Promise.all([
+    getCashPeriodDetail(period, hasFinanceAccess(user.role, user.owner)),
+    filter.accountIds.length
+      ? prisma.paymentMethod.findMany({ select: { id: true, parentId: true } })
+      : Promise.resolve([]),
+  ]);
+  const { incomes, expenses } = filterCashMovements(detail, {
+    accountIds: expandAccountIds(filter.accountIds, methods),
+    categoryId: filter.categoryId,
+    type: filter.type,
+  });
 
   const rows: (string | number)[][] = [
     [
@@ -61,8 +80,9 @@ export async function GET(req: NextRequest) {
       "Fecha",
     ],
   ];
-  for (const m of detail.incomes) rows.push(toRow(m));
-  for (const m of detail.expenses) rows.push(toRow(m));
+  for (const m of incomes) rows.push(toRow(m));
+  for (const m of expenses) rows.push(toRow(m));
 
-  return csvResponse(rows, `caja-${periodFileSuffix(period)}`);
+  const filtered = filter.accountIds.length > 0 || filter.categoryId || filter.type !== "all";
+  return csvResponse(rows, `caja-${periodFileSuffix(period)}${filtered ? "-filtrado" : ""}`);
 }

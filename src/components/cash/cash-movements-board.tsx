@@ -7,6 +7,8 @@ import { MovementRow } from "./movement-row";
 import { movementRowKey } from "./movement-row-key";
 import { CashPeriodPicker } from "./cash-period-picker";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
+import { CashExportButton } from "./cash-export-button";
+import { NO_CATEGORY, expandAccountIds, filterCashMovements } from "@/lib/cash-movement-filter";
 import { sumByCurrency } from "@/lib/currency";
 import type { CashMovementRow } from "@/lib/cash";
 import type { CashPeriod } from "@/lib/cash-period";
@@ -19,8 +21,6 @@ export type PaymentMethodOption = {
   parentId?: string | null;
 };
 export type ExpenseCategoryOption = { id: string; name: string };
-
-const NO_CATEGORY = "__none__";
 
 /**
  * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
@@ -35,43 +35,27 @@ export function CashMovementsBoard({
   paymentMethods,
   expenseCategories,
   period,
+  periodLabel,
 }: {
   incomes: CashMovementRow[];
   expenses: CashMovementRow[];
   paymentMethods: PaymentMethodOption[];
   expenseCategories: ExpenseCategoryOption[];
   period: CashPeriod;
+  periodLabel: string;
 }) {
   const [accountId, setAccountId] = useState("");
   // "" = todas, NO_CATEGORY = egresos sin categoría cargada.
   const [categoryId, setCategoryId] = useState("");
 
   // Elegir una cuenta principal (ver `PaymentMethod.parentId`) suma también
-  // sus subcuentas — misma entidad, no tiene sentido partir el cálculo por
-  // cuenta real. Elegir una subcuenta puntual sigue mostrando solo la suya
-  // (no "sube" a sus hermanas).
+  // sus subcuentas — misma entidad. Mismo filtro que usa el export CSV
+  // (`cash-movement-filter.ts`).
   const subaccountIds = paymentMethods.filter((m) => m.parentId === accountId).map((m) => m.id);
-  const matchIds = accountId ? [accountId, ...subaccountIds] : [];
-
-  // Un Egreso puede matchear el filtro por su Origen (cualquier cuenta) o su
-  // Destino (cuenta ajena) — el filter no distingue cuál, así que si por algún
-  // motivo coincidieran los dos igual se cuenta una sola vez la fila.
-  const filteredIncomes = accountId
-    ? incomes.filter((r) => r.paymentMethodId && matchIds.includes(r.paymentMethodId))
-    : incomes;
-  const accountExpenses = accountId
-    ? expenses.filter(
-        (r) =>
-          (r.paymentMethodId && matchIds.includes(r.paymentMethodId)) ||
-          (r.recipientPaymentMethodId && matchIds.includes(r.recipientPaymentMethodId)),
-      )
-    : expenses;
-  // La categoría solo aplica a Egresos (los Ingresos no llevan categoría).
-  const filteredExpenses = categoryId
-    ? accountExpenses.filter((r) =>
-        categoryId === NO_CATEGORY ? !r.categoryId : r.categoryId === categoryId,
-      )
-    : accountExpenses;
+  const { incomes: filteredIncomes, expenses: filteredExpenses } = filterCashMovements(
+    { incomes, expenses },
+    { accountIds: accountId ? expandAccountIds([accountId], paymentMethods) : [], categoryId },
+  );
   const selectedAccount = paymentMethods.find((m) => m.id === accountId);
   const selectedSubaccounts = paymentMethods.filter((m) => subaccountIds.includes(m.id));
   const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
@@ -145,6 +129,18 @@ export function CashMovementsBoard({
           </select>
         </label>
         <CashPeriodPicker period={period} />
+        <div className="ml-auto">
+          <CashExportButton
+            incomes={incomes}
+            expenses={expenses}
+            paymentMethods={paymentMethods}
+            expenseCategories={expenseCategories}
+            period={period}
+            periodLabel={periodLabel}
+            initialAccountId={accountId}
+            initialCategoryId={categoryId}
+          />
+        </div>
       </div>
 
       {selectedSubaccounts.length > 0 && (
