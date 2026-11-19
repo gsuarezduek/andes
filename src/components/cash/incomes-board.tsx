@@ -14,9 +14,9 @@ type ExpenseCategoryOption = { id: string; name: string };
  * diferencia de Egresos, que para un no-admin siguen acotados a "Mis
  * movimientos"). Mismo período/navegación que la vista admin, pero **sin el
  * total del período** (pedido del dueño: un empleado ve cada ingreso, no
- * cuánto entró en total). Editable por cualquier rol (ver
- * `updateCashMovement`/`deleteCashMovement`), aunque el ingreso lo haya
- * cargado otra persona.
+ * cuánto entró en total). Un empleado puede pedir editar o eliminar
+ * cualquiera, aunque lo haya cargado otra persona: queda pendiente hasta que
+ * lo apruebe un admin/finanzas (ver `CashMovementChangeRequest`).
  */
 export function IncomesBoard({
   incomes,

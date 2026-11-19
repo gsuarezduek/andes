@@ -9,7 +9,7 @@ type ExpenseCategoryOption = { id: string; name: string };
 
 /**
  * Egresos propios del mes (un no-admin no ve los de otros — ver
- * `getOwnCashMovements`), editables/eliminables como cualquier movimiento.
+ * `getOwnCashMovements`), con el mismo editar/pedir eliminación que el resto.
  */
 export function CashOwnList({
   items,

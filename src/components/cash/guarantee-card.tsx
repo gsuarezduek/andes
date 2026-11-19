@@ -12,7 +12,9 @@ import { formatMoney, roundMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
 import { parseDecimal } from "@/lib/number-input";
 import { returnGuarantee, chargeGuarantee } from "@/app/(app)/caja/guarantee-actions";
-import { deleteCashMovement } from "@/app/(app)/caja/actions";
+import { deleteCashMovement, requestCashMovementDeletion } from "@/app/(app)/caja/actions";
+import { useCashViewer } from "@/components/cash/cash-viewer-context";
+import { ChangeRequestBox } from "@/components/cash/change-request-box";
 import type { CashMovementRow } from "@/lib/cash";
 
 type PaymentMethodOption = { id: string; name: string };
@@ -23,6 +25,8 @@ const MODAL_TITLES: Record<Exclude<ModalMode, "none">, string> = {
   charge: "Cobrar garantía",
   delete: "Eliminar garantía",
 };
+
+const REQUEST_DELETE_TITLE = "Pedir eliminación de la garantía";
 
 /**
  * Una garantía activa: descripción + monto + contexto, y las dos formas de
@@ -40,7 +44,11 @@ export function GuaranteeCard({
   guarantee: CashMovementRow;
   paymentMethods: PaymentMethodOption[];
 }) {
+  const { canApprove } = useCashViewer();
   const [modal, setModal] = useState<ModalMode>("none");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const request = guarantee.changeRequest;
+  const showRequest = request != null && (request.status === "pending" || request.status === "rejected");
   const [returnAmount, setReturnAmount] = useState(String(guarantee.amount));
   const [chargeAmount, setChargeAmount] = useState(String(guarantee.amount));
   const [returnMethodId, setReturnMethodId] = useState(guarantee.paymentMethodId ?? "");
@@ -59,6 +67,7 @@ export function GuaranteeCard({
     setChargeAmount(String(guarantee.amount));
     setReturnMethodId(guarantee.paymentMethodId ?? "");
     setRemainderMethodId(guarantee.paymentMethodId ?? "");
+    setDeleteError(null);
     setModal(m);
   }
 
@@ -95,15 +104,24 @@ export function GuaranteeCard({
           Cobrar
         </Button>
       </div>
+      {showRequest && (
+        <div className="mt-2">
+          <ChangeRequestBox key={`${request.id}:${request.status}`} request={request} />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => openModal("delete")}
         className="mt-2 text-xs text-foreground/40 underline hover:text-foreground/60"
       >
-        Se cargó por error — eliminar
+        {canApprove ? "Se cargó por error — eliminar" : "Se cargó por error — pedir eliminación"}
       </button>
 
-      <Modal open={modal !== "none"} onClose={() => setModal("none")} title={modal !== "none" ? MODAL_TITLES[modal] : ""}>
+      <Modal
+        open={modal !== "none"}
+        onClose={() => setModal("none")}
+        title={modal === "none" ? "" : modal === "delete" && !canApprove ? REQUEST_DELETE_TITLE : MODAL_TITLES[modal]}
+      >
         {modal === "return" && (
           <form action={returnGuarantee.bind(null, guarantee.id)} className="flex flex-col gap-3">
             <TextField
@@ -188,13 +206,28 @@ export function GuaranteeCard({
             as="div"
             message={
               <>
-                ¿Eliminar la garantía &quot;{guarantee.description}&quot; (
+                {canApprove ? "¿Eliminar" : "¿Pedir que se elimine"} la garantía &quot;{guarantee.description}&quot; (
                 {formatMoney(guarantee.amount, guarantee.currency)})?
+                {!canApprove && " Se elimina recién cuando lo apruebe un administrador o Finanzas."}
               </>
             }
-            action={deleteCashMovement.bind(null, guarantee.id)}
+            action={async (fd) => {
+              const r = canApprove
+                ? await deleteCashMovement(guarantee.id, fd)
+                : await requestCashMovementDeletion(guarantee.id, fd);
+              if (r.error) setDeleteError(r.error);
+              else setModal("none");
+            }}
             onCancel={() => setModal("none")}
             requireNote
+            error={deleteError}
+            {...(canApprove
+              ? {}
+              : {
+                  confirmLabel: "Pedir eliminación",
+                  pendingLabel: "Enviando…",
+                  noteHint: "Por qué hay que eliminarla — lo ve quien aprueba",
+                })}
           />
         )}
       </Modal>

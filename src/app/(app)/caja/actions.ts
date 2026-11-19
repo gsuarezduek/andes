@@ -6,12 +6,19 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { displayName } from "@/lib/user-display";
 import { getCashMovementRow, type CashMovementFieldChange, type CashMovementRow } from "@/lib/cash";
-import { diffDescriptionAndAmount } from "@/lib/movement-audit";
+import { hasAdminAccess } from "@/lib/user-permissions";
+import {
+  MovementEditError,
+  applyMovementDelete,
+  applyMovementEdit,
+  assertMovementDeletable,
+  movementSnapshot,
+  resolveMovementEdit,
+} from "@/lib/cash-movement-edit";
+import { isEmptyProposal, proposedMovementEdit, type ProposedMovementEdit } from "@/lib/cash-change-request";
 import { computeBalance, paidTotal, roundMoney, type ContractPricing } from "@/lib/contract";
-import { currencyLabels } from "@/lib/currency";
-import { syncCommission, syncExpenseCommission, deleteCommissionOf } from "@/lib/commissions-sync";
+import { syncCommission, syncExpenseCommission } from "@/lib/commissions-sync";
 import { syncAutoInvoice } from "@/lib/auto-invoice";
-import { invoicedChangeError } from "@/lib/invoicing-rules";
 import { BITCOIN_ACCOUNT_ERROR } from "@/lib/account-transfers";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
 import { autoUnverifyRoomBooking } from "@/lib/room-booking-verification-server";
@@ -31,10 +38,9 @@ const createMovementSchema = z.object({
   invoicingCuit: z.string().trim().max(20).optional(),
 });
 
-// Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo, y
-// también editar/eliminar lo que ya ve (ver abajo) — la restricción de un
-// no-admin sigue siendo de UI (no ve los egresos de otros en "Movimientos",
-// solo los propios en "Mis movimientos"), no de permisos de escritura.
+// Movimiento de Caja: ingreso o egreso. Cualquier rol puede cargarlo. Editar
+// y eliminar: ver `updateCashMovement`/`deleteCashMovement` (un empleado lo
+// pide y queda pendiente de aprobación).
 //
 // En un Egreso, `paymentMethodId` es el Origen (obligatorio, cualquier cuenta
 // — propia o ajena) y `recipientPaymentMethodId` el Destino (opcional, tiene
@@ -185,24 +191,20 @@ const updateMovementSchema = z.object({
   categoryId: z.string().optional(),
 });
 
+export type MovementChangeResult = { error?: string; pending?: boolean };
+
 // Corrección de un error de carga (monto, medio de pago, detalle, y en un
-// Egreso también Origen/Destino). Cualquier rol — antes era solo admin,
-// abierto a todos a pedido del dueño. Tipo y reserva vinculada no se
-// editan — si están mal, se borra el movimiento y se carga de nuevo. Cada
-// cambio real queda auditado en CashMovementEdit (quién editó, quede quien
-// quede); si no cambió nada, no se registra nada.
-export async function updateCashMovement(id: string, formData: FormData) {
+// Egreso también Origen/Destino). Tipo y reserva vinculada no se editan — si
+// están mal, se borra el movimiento y se carga de nuevo.
+//
+// Un admin (o finanzas/socio) edita directo y queda auditado en
+// CashMovementEdit. Un empleado no: su cambio queda como pedido pendiente
+// (`CashMovementChangeRequest`) y el movimiento no se toca hasta que un admin
+// lo aprueba (ver `change-request-actions.ts`). Si no cambió nada, no se
+// registra nada.
+export async function updateCashMovement(id: string, formData: FormData): Promise<MovementChangeResult> {
   const user = await requireUser();
-  const {
-    description,
-    amount,
-    currency,
-    paymentMethodId,
-    paymentMethodNote,
-    recipientPaymentMethodId,
-    recipientPaymentMethodNote,
-    categoryId,
-  } = updateMovementSchema.parse({
+  const parsed = updateMovementSchema.safeParse({
     description: formData.get("description"),
     amount: formData.get("amount"),
     currency: formData.get("currency") || undefined,
@@ -212,148 +214,122 @@ export async function updateCashMovement(id: string, formData: FormData) {
     recipientPaymentMethodNote: formData.get("recipientPaymentMethodNote") || undefined,
     categoryId: formData.get("categoryId") || undefined,
   });
+  if (!parsed.success) return { error: "Revisá los datos: falta el detalle, el monto o el medio de pago." };
+  const input = parsed.data;
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
-  if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
+  if (!existing || existing.deletedAt) return { error: "El movimiento ya no existe." };
 
-  const invoicedError = invoicedChangeError(existing.invoicedAt != null, {
-    account: existing.paymentMethodId !== paymentMethodId,
-    amount: Number(existing.amount) !== amount,
-    currency: existing.currency !== currency,
-  });
-  // La UI ya lo bloquea (ver MovementDetailModal); esto es la guarda de servidor.
-  if (invoicedError) throw new Error(invoicedError);
+  try {
+    const resolved = await resolveMovementEdit(existing, input);
+    if (resolved.changes.length === 0) return {};
 
-  const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
-  if (!method) throw new Error("Medio de pago inválido");
-  if (method.isBitcoin) throw new Error(BITCOIN_ACCOUNT_ERROR);
-  if (method.requiresNote && !paymentMethodNote) {
-    throw new Error("Este medio de pago requiere indicar a dónde fue.");
-  }
-  const nextNote = method.requiresNote ? (paymentMethodNote ?? null) : null;
-
-  let recipient: { id: string; name: string; requiresNote: boolean } | null = null;
-  if (existing.type === "expense" && recipientPaymentMethodId) {
-    const found = await prisma.paymentMethod.findUnique({ where: { id: recipientPaymentMethodId } });
-    if (!found) throw new Error("Destino inválido");
-    if (found.ownership === "own") throw new Error("El destino de un egreso tiene que ser una cuenta ajena.");
-    if (found.requiresNote && !recipientPaymentMethodNote) {
-      throw new Error("Este destino requiere indicar a dónde fue.");
+    if (!hasAdminAccess(user.role)) {
+      const proposed = proposedMovementEdit(movementSnapshot(existing), input, existing.type as "income" | "expense");
+      if (isEmptyProposal(proposed)) return {};
+      await createChangeRequest(existing.id, { kind: "update", proposed, changes: resolved.changes }, user);
+      revalidatePath("/caja");
+      return { pending: true };
     }
-    recipient = found;
-  }
-  const nextRecipientNote = recipient?.requiresNote ? (recipientPaymentMethodNote ?? null) : null;
 
-  // La categoría solo aplica a un Egreso — en un Ingreso siempre queda null,
-  // aunque `existing` ya tuviera una cargada de antes (no debería pasar, pero
-  // así no queda huérfana si el tipo original era distinto).
-  let category: { id: string; name: string } | null = null;
-  if (existing.type === "expense" && categoryId) {
-    category = await prisma.cashMovementCategory.findUnique({ where: { id: categoryId }, select: { id: true, name: true } });
-    if (!category) throw new Error("Categoría inválida");
+    await prisma.$transaction((tx) =>
+      applyMovementEdit(tx, existing, resolved, { id: user.id, name: displayName(user) }),
+    );
+  } catch (e) {
+    if (e instanceof MovementEditError) return { error: e.message };
+    throw e;
   }
-
-  const changes: CashMovementFieldChange[] = diffDescriptionAndAmount(existing, { description, amount }, "Detalle");
-  if (existing.currency !== currency) {
-    changes.push({ field: "Moneda", from: currencyLabels[existing.currency], to: currencyLabels[currency] });
-  }
-  if (existing.paymentMethodName !== method.name) {
-    const field = existing.type === "expense" ? "Origen" : "Medio de pago";
-    changes.push({ field, from: existing.paymentMethodName, to: method.name });
-  }
-  if ((existing.paymentMethodNote ?? "") !== (nextNote ?? "")) {
-    changes.push({ field: "Aclaración", from: existing.paymentMethodNote ?? "—", to: nextNote ?? "—" });
-  }
-  if ((existing.recipientPaymentMethodName ?? "") !== (recipient?.name ?? "")) {
-    changes.push({ field: "Destino", from: existing.recipientPaymentMethodName ?? "—", to: recipient?.name ?? "—" });
-  }
-  if ((existing.recipientPaymentMethodNote ?? "") !== (nextRecipientNote ?? "")) {
-    changes.push({
-      field: "Aclaración del destino",
-      from: existing.recipientPaymentMethodNote ?? "—",
-      to: nextRecipientNote ?? "—",
-    });
-  }
-  if ((existing.categoryName ?? "") !== (category?.name ?? "")) {
-    changes.push({ field: "Categoría", from: existing.categoryName ?? "—", to: category?.name ?? "—" });
-  }
-  if (changes.length === 0) return;
-
-  // Solo si cambió lo que la comisión depende (monto, moneda o cuenta) se
-  // recalcula: editar el detalle de un movimiento viejo no debe generarle una
-  // comisión retroactiva.
-  const commissionInputsChanged =
-    Number(existing.amount) !== amount || existing.currency !== currency || existing.paymentMethodId !== method.id;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.cashMovement.update({
-      where: { id },
-      data: {
-        description,
-        amount,
-        currency,
-        paymentMethodId: method.id,
-        paymentMethodName: method.name,
-        paymentMethodNote: nextNote,
-        recipientPaymentMethodId: recipient?.id ?? null,
-        recipientPaymentMethodName: recipient?.name ?? null,
-        recipientPaymentMethodNote: nextRecipientNote,
-        categoryId: category?.id ?? null,
-        categoryName: category?.name ?? null,
-      },
-    });
-    await tx.cashMovementEdit.create({
-      data: { cashMovementId: id, action: "updated", changes, editedById: user.id, editedByName: displayName(user) },
-    });
-    if (commissionInputsChanged) {
-      if (existing.type === "income") await syncCommission(tx, id, { id: user.id, name: displayName(user) });
-      else if (existing.type === "expense") await syncExpenseCommission(tx, id, { id: user.id, name: displayName(user) });
-    }
-    // Solo si cambió la cuenta: entra o sale de Facturación según la nueva.
-    if (existing.paymentMethodId !== method.id) await syncAutoInvoice(tx, id);
-    if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se editó un movimiento de Caja de la reserva.");
-    if (existing.roomBookingId) {
-      await autoUnverifyRoomBooking(tx, existing.roomBookingId, "Se editó un movimiento de Caja de la reserva.");
-    }
-  });
 
   revalidatePath("/caja");
+  return {};
 }
 
-// Borrado de un movimiento mal cargado. Cualquier rol — antes era solo
-// admin. Soft delete: la fila queda (deletedAt/deletedById) para que el
-// historial de ediciones pueda seguir mostrando qué era. El motivo
-// (obligatorio) queda en `changes` para que el historial lo muestre junto al
-// resto de la auditoría.
-export async function deleteCashMovement(id: string, formData: FormData) {
+// Borrado de un movimiento mal cargado: solo admin (o finanzas/socio). Soft
+// delete: la fila queda (deletedAt/deletedById) para que el historial de
+// ediciones pueda seguir mostrando qué era. El motivo (obligatorio) queda en
+// `changes`. Un empleado pide la eliminación con `requestCashMovementDeletion`.
+export async function deleteCashMovement(id: string, formData: FormData): Promise<MovementChangeResult> {
   const user = await requireUser();
-  const note = z.string().trim().min(1).max(300).parse(formData.get("note"));
+  if (!hasAdminAccess(user.role)) {
+    return { error: "Solo un administrador o Finanzas puede eliminar. Pedí la eliminación." };
+  }
+  const note = z.string().trim().min(1).max(300).safeParse(formData.get("note"));
+  if (!note.success) return { error: "Escribí el motivo." };
 
   const existing = await prisma.cashMovement.findUnique({ where: { id } });
-  if (!existing || existing.deletedAt) throw new Error("Movimiento no encontrado");
-  const invoicedError = invoicedChangeError(existing.invoicedAt != null, { delete: true });
-  // La UI ya lo bloquea (ver MovementDetailModal); esto es la guarda de servidor.
-  if (invoicedError) throw new Error(invoicedError);
+  if (!existing || existing.deletedAt) return { error: "El movimiento ya no existe." };
 
-  const changes: CashMovementFieldChange[] = [{ field: "Motivo", from: "—", to: note }];
-
-  await prisma.$transaction(async (tx) => {
-    await tx.cashMovement.update({
-      where: { id },
-      data: { deletedAt: new Date(), deletedById: user.id, deletedByName: displayName(user) },
-    });
-    await tx.cashMovementEdit.create({
-      data: { cashMovementId: id, action: "deleted", changes, editedById: user.id, editedByName: displayName(user) },
-    });
-    // Si este movimiento generó un egreso de comisión, se va con él.
-    await deleteCommissionOf(tx, id, { id: user.id, name: displayName(user) });
-    if (existing.rentalId) await autoUnverifyRental(tx, existing.rentalId, "Se eliminó un movimiento de Caja de la reserva.");
-    if (existing.roomBookingId) {
-      await autoUnverifyRoomBooking(tx, existing.roomBookingId, "Se eliminó un movimiento de Caja de la reserva.");
-    }
-  });
+  try {
+    assertMovementDeletable(existing);
+    await prisma.$transaction((tx) =>
+      applyMovementDelete(tx, existing, note.data, { id: user.id, name: displayName(user) }),
+    );
+  } catch (e) {
+    if (e instanceof MovementEditError) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath("/caja");
+  return {};
+}
+
+// Un empleado pide eliminar un movimiento (con motivo). No se borra nada
+// hasta que un admin lo aprueba. Un admin no lo necesita: elimina directo.
+export async function requestCashMovementDeletion(id: string, formData: FormData): Promise<MovementChangeResult> {
+  const user = await requireUser();
+  const note = z.string().trim().min(1).max(300).safeParse(formData.get("note"));
+  if (!note.success) return { error: "Escribí el motivo." };
+
+  const existing = await prisma.cashMovement.findUnique({ where: { id } });
+  if (!existing || existing.deletedAt) return { error: "El movimiento ya no existe." };
+
+  try {
+    assertMovementDeletable(existing);
+  } catch (e) {
+    if (e instanceof MovementEditError) return { error: e.message };
+    throw e;
+  }
+
+  await createChangeRequest(existing.id, { kind: "delete", note: note.data }, user);
+  revalidatePath("/caja");
+  return { pending: true };
+}
+
+/**
+ * Crea un pedido de cambio. Como mucho uno pendiente por movimiento: si ya
+ * había otro (de quien sea), queda cancelado y lo reemplaza este.
+ */
+async function createChangeRequest(
+  cashMovementId: string,
+  req:
+    | { kind: "update"; proposed: ProposedMovementEdit; changes: CashMovementFieldChange[] }
+    | { kind: "delete"; note: string },
+  user: { id: string; name?: string | null },
+) {
+  const name = displayName(user);
+  await prisma.$transaction(async (tx) => {
+    await tx.cashMovementChangeRequest.updateMany({
+      where: { cashMovementId, status: "pending" },
+      data: {
+        status: "cancelled",
+        resolvedAt: new Date(),
+        resolvedById: user.id,
+        resolvedByName: name,
+        resolutionNote: "Lo reemplazó un pedido más nuevo.",
+      },
+    });
+    await tx.cashMovementChangeRequest.create({
+      data: {
+        cashMovementId,
+        kind: req.kind,
+        proposed: req.kind === "update" ? req.proposed : undefined,
+        changes: req.kind === "update" ? req.changes : undefined,
+        note: req.kind === "delete" ? req.note : null,
+        requestedById: user.id,
+        requestedByName: name,
+      },
+    });
+  });
 }
 
 const confirmMethodSchema = z.object({

@@ -36,6 +36,7 @@ export function AppNav({
   sync,
   taskCount,
   whatsappUnread,
+  cashChangeRequests,
   onlineUsers,
   view,
 }: {
@@ -46,6 +47,8 @@ export function AppNav({
   taskCount?: number;
   /** Conversaciones de WhatsApp pendientes de respuesta — mismo criterio visual que `taskCount`. */
   whatsappUnread?: number;
+  /** Pedidos de cambio de Caja pendientes de aprobar (solo admin/finanzas/socio). */
+  cashChangeRequests?: number;
   /** Usuarios activos ahora mismo (incluido quien mira, últimos ~15 min) — quién está conectado, sin preguntar. */
   onlineUsers?: OnlineUser[];
   /** "Ver como…": roles de rango menor al real (todos, para el propietario). */
@@ -70,7 +73,7 @@ export function AppNav({
     { href: "/whatsapp", label: "WhatsApp", badge: whatsappUnread },
     { href: "/calendar", label: "Calendario" },
     { href: "/vehicles", label: "Vehículos" },
-    { href: "/caja", label: "Caja" },
+    { href: "/caja", label: "Caja", badge: cashChangeRequests },
     { href: "/tasks", label: "Tareas", badge: taskCount },
     ...(isAdmin ? [{ href: "/reports", label: "Reportes" }] : []),
   ];

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma, type CashMovementChangeRequest } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { financeOnlyAccountIds } from "@/lib/finance-only";
 import { formatDateInput, mendozaWallTimeToUtc } from "@/lib/datetime";
@@ -100,6 +100,11 @@ export type CashMovementRow = {
   // aparte), dentro del modal de `MovementRow`.
   lastEditedByName: string | null;
   lastEditedAt: Date | null;
+  // Si esa edición la pidió un empleado, quién la aprobó.
+  lastEditApprovedByName: string | null;
+  // Último pedido de cambio de un empleado sobre este movimiento (ver
+  // `CashMovementChangeRequest`) — se muestra si está pendiente o rechazado.
+  changeRequest: CashChangeRequestView | null;
   // Ciclo de vida de una garantía (ver comentario en el schema) — solo
   // tienen sentido en la fila que la tomó (`isGuarantee && type === "income"`);
   // en cualquier otra fila quedan todos `null`. `guaranteeResolvedAt` nulo =
@@ -122,6 +127,36 @@ export type CashMovementRow = {
   invoicedAt: Date | null;
   invoicedByName: string | null;
 };
+
+export type CashChangeRequestView = {
+  id: string;
+  kind: "update" | "delete";
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  changes: CashMovementFieldChange[];
+  note: string | null;
+  requestedById: string | null;
+  requestedByName: string;
+  createdAt: Date;
+  resolvedByName: string | null;
+  resolvedAt: Date | null;
+  resolutionNote: string | null;
+};
+
+export function toChangeRequestView(r: CashMovementChangeRequest): CashChangeRequestView {
+  return {
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    changes: Array.isArray(r.changes) ? (r.changes as CashMovementFieldChange[]) : [],
+    note: r.note,
+    requestedById: r.requestedById,
+    requestedByName: r.requestedByName,
+    createdAt: r.createdAt,
+    resolvedByName: r.resolvedByName,
+    resolvedAt: r.resolvedAt,
+    resolutionNote: r.resolutionNote,
+  };
+}
 
 export type CashPeriodDetail = {
   periodLabel: string;
@@ -151,6 +186,7 @@ const MOVEMENT_INCLUDE = {
   },
   edits: { where: { action: "updated" as const }, orderBy: { createdAt: "desc" as const }, take: 1 },
   paymentMethod: { select: { autoInvoice: true, ownership: true } },
+  changeRequests: { orderBy: { createdAt: "desc" as const }, take: 1 },
 } satisfies Prisma.CashMovementInclude;
 
 type RawMovement = Prisma.CashMovementGetPayload<{ include: typeof MOVEMENT_INCLUDE }>;
@@ -184,6 +220,8 @@ function toCashMovementRow(r: RawMovement): CashMovementRow {
     createdAt: r.createdAt,
     lastEditedByName: r.edits[0]?.editedByName ?? null,
     lastEditedAt: r.edits[0]?.createdAt ?? null,
+    lastEditApprovedByName: r.edits[0]?.approvedByName ?? null,
+    changeRequest: r.changeRequests[0] ? toChangeRequestView(r.changeRequests[0]) : null,
     guaranteeResolvedAt: r.guaranteeResolvedAt,
     guaranteeChargedAmount: r.guaranteeChargedAmount != null ? Number(r.guaranteeChargedAmount) : null,
     guaranteeReturnedAmount: r.guaranteeReturnedAmount != null ? Number(r.guaranteeReturnedAmount) : null,
@@ -1112,4 +1150,80 @@ export async function getTotalOwnBalanceHistory(
 
   const from = balanceHistoryFrom(now, balanceHistoryPeriodDays(period));
   return buildBalanceHistory(events, adjustment, from, now, granularity);
+}
+
+export type CashChangeRequestItem = CashChangeRequestView & {
+  movement: {
+    id: string;
+    type: "income" | "expense";
+    description: string;
+    amount: number;
+    currency: Currency;
+    paymentMethodName: string;
+    createdAt: Date;
+    deleted: boolean;
+  };
+};
+
+const CHANGE_REQUEST_MOVEMENT_SELECT = {
+  id: true,
+  type: true,
+  description: true,
+  amount: true,
+  currency: true,
+  paymentMethodName: true,
+  paymentMethodId: true,
+  recipientPaymentMethodId: true,
+  createdAt: true,
+  deletedAt: true,
+} satisfies Prisma.CashMovementSelect;
+
+/**
+ * Pedidos de cambio de empleados. Para quien aprueba (`scope: "pending"`): todos
+ * los pendientes. Para un empleado (`scope: { requestedById }`): los suyos
+ * pendientes y los resueltos en los últimos 14 días. Quien no ve las cuentas
+ * de Finanzas tampoco ve pedidos sobre movimientos de esas cuentas.
+ */
+export async function getCashChangeRequests(
+  scope: "pending" | { requestedById: string },
+  canSeeFinanceOnly: boolean,
+): Promise<CashChangeRequestItem[]> {
+  const hidden = await financeOnlyAccountIds(canSeeFinanceOnly);
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const rows = await prisma.cashMovementChangeRequest.findMany({
+    where:
+      scope === "pending"
+        ? { status: "pending", cashMovement: { deletedAt: null } }
+        : {
+            requestedById: scope.requestedById,
+            OR: [{ status: "pending" }, { resolvedAt: { gte: since }, status: { not: "cancelled" } }],
+          },
+    include: { cashMovement: { select: CHANGE_REQUEST_MOVEMENT_SELECT } },
+    orderBy: { createdAt: scope === "pending" ? "asc" : "desc" },
+    take: 100,
+  });
+  return rows
+    .filter(
+      (r) =>
+        !hidden.includes(r.cashMovement.paymentMethodId ?? "") &&
+        !hidden.includes(r.cashMovement.recipientPaymentMethodId ?? ""),
+    )
+    .map((r) => ({
+      ...toChangeRequestView(r),
+      movement: {
+        id: r.cashMovement.id,
+        type: r.cashMovement.type as "income" | "expense",
+        description: r.cashMovement.description,
+        amount: Number(r.cashMovement.amount),
+        currency: r.cashMovement.currency,
+        paymentMethodName: r.cashMovement.paymentMethodName,
+        createdAt: r.cashMovement.createdAt,
+        deleted: r.cashMovement.deletedAt != null,
+      },
+    }));
+}
+
+/** Cantidad de pedidos pendientes, para el contador de "Caja" en el menú de quien aprueba. */
+export async function countPendingCashChangeRequests(canSeeFinanceOnly: boolean): Promise<number> {
+  return (await getCashChangeRequests("pending", canSeeFinanceOnly)).length;
 }

@@ -11,9 +11,10 @@ import { autoUnverifyRental } from "@/lib/rental-verification-server";
 /**
  * Resolver una garantía (Devolver/Cobrar, ver GuaranteeCard): cualquier rol
  * puede hacerlo (el registro de quién la resolvió queda en
- * `guaranteeResolvedByName`); eliminar una garantía cargada por error
- * (`deleteCashMovement`) y editar sus movimientos derivados
- * (`updateCashMovement`) también están abiertos a cualquier rol. Las dos
+ * `guaranteeResolvedByName`). Eliminar una garantía cargada por error
+ * (`deleteCashMovement`) o editar sus movimientos derivados
+ * (`updateCashMovement`) lo hace directo un admin/finanzas; un empleado lo
+ * pide y queda pendiente de aprobación (`CashMovementChangeRequest`). Las dos
  * acciones de acá comparten la misma validación de la fila origen — tiene que
  * ser la toma de una garantía (`type: income, isGuarantee: true`) todavía
  * activa (`guaranteeResolvedAt` null); si no, la garantía ya se resolvió o el

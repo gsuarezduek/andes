@@ -271,6 +271,8 @@ model User {
   createdCashMovements           CashMovement[]            @relation("CashMovementCreator")
   deletedCashMovements           CashMovement[]            @relation("CashMovementDeleter")
   cashMovementEdits              CashMovementEdit[]        @relation("CashMovementEditor")
+  cashChangeRequests             CashMovementChangeRequest[] @relation("CashChangeRequester")
+  resolvedCashChangeRequests     CashMovementChangeRequest[] @relation("CashChangeResolver")
   resolvedGuarantees             CashMovement[]            @relation("GuaranteeResolver")
   invoicedCashMovements          CashMovement[]            @relation("CashMovementInvoicer")
   createdInvoices                Invoice[]                 @relation("InvoiceCreator")
@@ -1633,7 +1635,8 @@ model CashMovement {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  edits CashMovementEdit[]
+  edits          CashMovementEdit[]
+  changeRequests CashMovementChangeRequest[]
 
   @@index([createdAt])
   @@index([rentalId])
@@ -1712,12 +1715,72 @@ model CashMovementEdit {
   editedById   String? @map("edited_by_id")
   editedBy     User?   @relation("CashMovementEditor", fields: [editedById], references: [id])
   editedByName String? @map("edited_by_name")
+  // Si el cambio lo pidió un empleado y lo aprobó un admin/finanzas (ver
+  // `CashMovementChangeRequest`): `editedBy*` es quien lo pidió y acá queda
+  // quien lo aprobó. Nulo = lo hizo directo un admin.
+  approvedByName String? @map("approved_by_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([cashMovementId])
   @@index([createdAt])
   @@map("cash_movement_edits")
+}
+
+enum CashChangeRequestKind {
+  update
+  delete
+}
+
+enum CashChangeRequestStatus {
+  pending
+  approved
+  rejected
+  // Lo retiró quien lo pidió, lo reemplazó un pedido más nuevo, o el
+  // movimiento se eliminó antes de resolverlo.
+  cancelled
+}
+
+/// Pedido de un empleado para editar o eliminar un ingreso/egreso de Caja.
+/// No toca el movimiento hasta que un admin/finanzas lo aprueba (ver
+/// `caja/change-request-actions.ts`). Como mucho uno `pending` por movimiento:
+/// uno nuevo reemplaza al anterior (queda `cancelled`).
+model CashMovementChangeRequest {
+  id String @id @default(cuid())
+
+  cashMovementId String       @map("cash_movement_id")
+  cashMovement   CashMovement @relation(fields: [cashMovementId], references: [id])
+
+  kind   CashChangeRequestKind
+  status CashChangeRequestStatus @default(pending)
+
+  // `update`: solo los campos que el empleado cambió (`ProposedMovementEdit`,
+  // ver `src/lib/cash-change-request.ts`) — al aprobar se aplican sobre los
+  // valores de ese momento, sin pisar lo que un admin haya corregido mientras
+  // tanto. `delete`: nulo.
+  proposed Json?
+  // Diff legible ([{field, from, to}]) calculado al pedir, para mostrarlo.
+  changes  Json?
+  // Motivo del pedido (obligatorio en una eliminación).
+  note     String? @db.Text
+
+  requestedById   String? @map("requested_by_id")
+  requestedBy     User?   @relation("CashChangeRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  requestedByName String  @map("requested_by_name")
+
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedById   String?   @map("resolved_by_id")
+  resolvedBy     User?     @relation("CashChangeResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedByName String?   @map("resolved_by_name")
+  // Motivo del rechazo, o por qué se canceló.
+  resolutionNote String?   @map("resolution_note") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([cashMovementId])
+  @@index([requestedById])
+  @@map("cash_movement_change_requests")
 }
 
 // ---------------------------------------------------------------------------

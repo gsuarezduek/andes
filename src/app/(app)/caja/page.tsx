@@ -18,6 +18,7 @@ import {
   getUnconfirmedCashMovements,
   getUnpaidFinishedRentals,
   parseCashPeriod,
+  getCashChangeRequests,
 } from "@/lib/cash";
 import { getInvoices } from "@/lib/invoices";
 import { getSafeBalance, getSafeMonthActivity } from "@/lib/safe";
@@ -28,6 +29,7 @@ import { CashMovementSearch } from "@/components/cash/cash-movement-search";
 import { CashPeriodDetail } from "@/components/cash/cash-period-detail";
 import { IncomesBoard } from "@/components/cash/incomes-board";
 import { CashOwnList } from "@/components/cash/cash-own-list";
+import { ChangeRequestsSection } from "@/components/cash/change-requests-section";
 import { UnpaidFinishedRentalsSection } from "@/components/cash/unpaid-finished-rentals-section";
 import { UnconfirmedIncomesSection } from "@/components/cash/unconfirmed-incomes-section";
 import { ProvidersSection } from "@/components/cash/providers-section";
@@ -89,8 +91,14 @@ export default async function CajaPage({
   const isAdmin = hasAdminAccess(user.role);
   const periodDetail = await getCashPeriodDetail(period, canSeeFinanceOnly);
 
+  const changeRequests = await getCashChangeRequests(
+    isAdmin ? "pending" : { requestedById: user.id },
+    canSeeFinanceOnly,
+  );
+
   const movimientos = (
     <div className="flex flex-col gap-5">
+      <ChangeRequestsSection items={changeRequests} mode={isAdmin ? "approve" : "own"} />
       <CashMovementSearch
         index={await getCashSearchIndex(isAdmin, canSeeFinanceOnly)}
         paymentMethods={paymentMethods}
@@ -121,8 +129,8 @@ export default async function CajaPage({
         <>
           {/* Los ingresos se ven completos, sin restricción, para cualquier
               rol — a diferencia de los egresos, que un no-admin sigue viendo
-              solo entre "Mis movimientos" (más abajo). Ambas listas son
-              editables/eliminables igual que la vista admin. */}
+              solo entre "Mis movimientos" (más abajo). En las dos, editar o
+              eliminar queda como pedido a aprobar (ver ChangeRequestsSection). */}
           <IncomesBoard
             incomes={periodDetail.incomes}
             period={period}

@@ -13,7 +13,9 @@ import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { formatMoney } from "@/lib/contract";
 import { formatDateTime } from "@/lib/datetime";
-import { updateCashMovement, deleteCashMovement } from "@/app/(app)/caja/actions";
+import { updateCashMovement, deleteCashMovement, requestCashMovementDeletion } from "@/app/(app)/caja/actions";
+import { useCashViewer } from "@/components/cash/cash-viewer-context";
+import { ChangeRequestBox } from "@/components/cash/change-request-box";
 import { InvoiceRequestControl } from "@/components/cash/invoice-request-control";
 import type { CashMovementRow as CashMovementRowData } from "@/lib/cash";
 import type { Currency } from "@/lib/currency";
@@ -21,11 +23,18 @@ import type { Currency } from "@/lib/currency";
 type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean; ownership: PaymentMethodOwnership };
 type ExpenseCategoryOption = { id: string; name: string };
 
-const MODAL_TITLES = { view: "Movimiento", edit: "Editar movimiento", confirmDelete: "Eliminar movimiento" } as const;
+const MODAL_TITLES = {
+  view: "Movimiento",
+  edit: "Editar movimiento",
+  confirmDelete: "Eliminar movimiento",
+  requestDelete: "Pedir eliminación",
+} as const;
+type Mode = keyof typeof MODAL_TITLES;
 
 /**
- * Fila de un movimiento — editable por cualquier rol (ver `updateCashMovement`/
- * `deleteCashMovement`). En reposo muestra lo esencial — detalle, monto,
+ * Fila de un movimiento. Un admin/finanzas edita y elimina directo; un
+ * empleado edita o pide la eliminación, y el cambio queda pendiente hasta que
+ * lo aprueben (ver `CashMovementChangeRequest`). En reposo muestra lo esencial — detalle, monto,
  * cuenta y fecha — para poder escanear la lista rápido; el resto (destino,
  * categoría, cliente, quién lo cargó/editó) y las acciones de Editar/Eliminar
  * viven en `MovementDetailModal`, que se abre al tocar la fila. Antes todo
@@ -52,6 +61,11 @@ export function MovementRow({
       <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 px-3 py-2 text-left">
         <div className="min-w-0 flex-1">
           <p className="truncate">{movement.description}</p>
+          {movement.changeRequest?.status === "pending" && (
+            <span className="mt-0.5 inline-block rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+              {movement.changeRequest.kind === "delete" ? "Eliminación pendiente" : "Cambio pendiente"}
+            </span>
+          )}
           <p className="mt-0.5 truncate text-xs text-foreground/50">
             {movement.paymentMethodName} · {formatDateTime(movement.createdAt)}
           </p>
@@ -94,7 +108,12 @@ export function MovementDetailModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<"view" | "edit" | "confirmDelete">("view");
+  const { canApprove } = useCashViewer();
+  const [mode, setMode] = useState<Mode>("view");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const request = movement.changeRequest;
+  const showRequest = request != null && (request.status === "pending" || request.status === "rejected");
   const [currency, setCurrency] = useState<Currency>(movement.currency);
   const [paymentMethodId, setPaymentMethodId] = useState(movement.paymentMethodId ?? "");
   const [recipientPaymentMethodId, setRecipientPaymentMethodId] = useState(
@@ -115,6 +134,8 @@ export function MovementDetailModal({
   // al click, solo que disparado un paso después.
   function handleClose() {
     setMode("view");
+    setError(null);
+    setNotice(null);
     setCurrency(movement.currency);
     setPaymentMethodId(movement.paymentMethodId ?? "");
     setRecipientPaymentMethodId(movement.recipientPaymentMethodId ?? "");
@@ -204,10 +225,19 @@ export function MovementDetailModal({
               {movement.lastEditedAt && (
                 <DetailRow
                   label="Editado por"
-                  value={`${movement.lastEditedByName ?? "—"} · ${formatDateTime(movement.lastEditedAt)}`}
+                  value={
+                    `${movement.lastEditedByName ?? "—"} · ${formatDateTime(movement.lastEditedAt)}` +
+                    (movement.lastEditApprovedByName ? ` · aprobado por ${movement.lastEditApprovedByName}` : "")
+                  }
                 />
               )}
             </dl>
+            {showRequest && <ChangeRequestBox key={`${request.id}:${request.status}`} request={request} />}
+            {notice && (
+              <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+                {notice}
+              </p>
+            )}
             {movement.invoiceEligible && (
               <InvoiceRequestControl
                 key={`${movement.needsInvoice}:${movement.invoicingName ?? ""}:${movement.invoicingCuit ?? ""}`}
@@ -228,11 +258,20 @@ export function MovementDetailModal({
                 variant="danger"
                 className="flex-1"
                 disabled={invoiced}
-                onClick={() => setMode("confirmDelete")}
+                onClick={() => {
+                  setError(null);
+                  setNotice(null);
+                  setMode(canApprove ? "confirmDelete" : "requestDelete");
+                }}
               >
-                Eliminar
+                {canApprove ? "Eliminar" : "Pedir eliminación"}
               </Button>
             </div>
+            {!canApprove && (
+              <p className="text-xs text-foreground/50">
+                Los cambios y las eliminaciones los aprueba un administrador o Finanzas.
+              </p>
+            )}
             {invoiced && (
               <p className="text-xs text-foreground/50">
                 Ya está facturado: no se puede eliminar ni cambiar cuenta, monto o moneda. Si se marcó por error,
@@ -243,7 +282,25 @@ export function MovementDetailModal({
         )}
 
         {mode === "edit" && (
-          <form action={updateCashMovement.bind(null, movement.id)} className="flex flex-col gap-2">
+          <form
+            action={async (fd) => {
+              setError(null);
+              const r = await updateCashMovement(movement.id, fd);
+              if (r.error) {
+                setError(r.error);
+                return;
+              }
+              if (r.pending) setNotice("Pedido enviado.");
+              setMode("view");
+            }}
+            className="flex flex-col gap-2"
+          >
+            {!canApprove && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                El cambio queda pendiente hasta que lo apruebe un administrador o Finanzas.
+                {request?.status === "pending" && " Ya hay un pedido pendiente: este lo reemplaza."}
+              </p>
+            )}
             <TextareaField id="description" label="Detalle" defaultValue={movement.description} required rows={2} />
             {invoiced ? (
               <div className="rounded-lg border border-foreground/10 px-3 py-2 text-sm">
@@ -328,12 +385,17 @@ export function MovementDetailModal({
                 )}
               </>
             )}
+            {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="mt-1 flex items-center gap-3">
               <button type="button" onClick={() => setMode("view")} className="text-xs text-foreground/50">
                 Cancelar
               </button>
-              <SubmitButton pendingLabel="Guardando…" className="ml-auto" disabled={!paymentMethodId}>
-                Guardar
+              <SubmitButton
+                pendingLabel={canApprove ? "Guardando…" : "Enviando…"}
+                className="ml-auto"
+                disabled={!paymentMethodId}
+              >
+                {canApprove ? "Guardar" : "Enviar para aprobar"}
               </SubmitButton>
             </div>
           </form>
@@ -348,9 +410,42 @@ export function MovementDetailModal({
                 va a aparecer más en los totales.
               </>
             }
-            action={deleteCashMovement.bind(null, movement.id)}
+            action={async (fd) => {
+              const r = await deleteCashMovement(movement.id, fd);
+              if (r.error) setError(r.error);
+            }}
             onCancel={() => setMode("view")}
             requireNote
+            error={error}
+          />
+        )}
+
+        {mode === "requestDelete" && (
+          <ConfirmDeleteCard
+            as="div"
+            message={
+              <>
+                ¿Pedir que se elimine &quot;{movement.description}&quot; (
+                {formatMoney(movement.amount, movement.currency)})? Se elimina recién cuando lo apruebe un
+                administrador o Finanzas.
+                {request?.status === "pending" && " Ya hay un pedido pendiente: este lo reemplaza."}
+              </>
+            }
+            action={async (fd) => {
+              const r = await requestCashMovementDeletion(movement.id, fd);
+              if (r.error) {
+                setError(r.error);
+                return;
+              }
+              setNotice("Pedido de eliminación enviado.");
+              setMode("view");
+            }}
+            onCancel={() => setMode("view")}
+            requireNote
+            noteHint="Por qué hay que eliminarlo — lo ve quien aprueba"
+            confirmLabel="Pedir eliminación"
+            pendingLabel="Enviando…"
+            error={error}
           />
         )}
     </Modal>

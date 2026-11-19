@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
-import { hasAdminAccess, viewableRoles } from "@/lib/user-permissions";
+import { hasAdminAccess, hasFinanceAccess, viewableRoles } from "@/lib/user-permissions";
+import { countPendingCashChangeRequests } from "@/lib/cash";
 import { userRoleLabels } from "@/lib/labels";
 import { getAssignedPendingCount } from "@/lib/tasks";
 import { countNeedsReply } from "@/lib/whatsapp/conversations";
@@ -25,10 +26,12 @@ export default async function AppLayout({
     role,
     label: userRoleLabels[role],
   }));
-  const [taskCount, whatsappUnread, onlineUsers] = await Promise.all([
+  const [taskCount, whatsappUnread, onlineUsers, cashChangeRequests] = await Promise.all([
     getAssignedPendingCount(user.id),
     countNeedsReply(),
     getOnlineUsers(),
+    // Pedidos de cambio de Caja a aprobar — solo para quien aprueba.
+    isAdmin ? countPendingCashChangeRequests(hasFinanceAccess(user.role, user.owner)) : Promise.resolve(0),
   ]);
   after(() => touchPresence(user.id));
 
@@ -54,6 +57,7 @@ export default async function AppLayout({
             sync={triggerSync}
             taskCount={taskCount}
             whatsappUnread={whatsappUnread}
+            cashChangeRequests={cashChangeRequests}
             onlineUsers={onlineUsers}
             view={
               viewOptions.length > 0

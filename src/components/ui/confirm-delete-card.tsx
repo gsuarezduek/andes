@@ -22,6 +22,10 @@ export function ConfirmDeleteCard({
   requireNote = false,
   as: Tag = "li",
   children,
+  confirmLabel = "Sí, eliminar",
+  pendingLabel = "Eliminando…",
+  noteHint = "Por qué se elimina — queda en el historial",
+  error,
 }: {
   message: ReactNode;
   action: (formData: FormData) => void | Promise<void>;
@@ -29,21 +33,28 @@ export function ConfirmDeleteCard({
   requireNote?: boolean;
   as?: "li" | "div";
   children?: ReactNode;
+  /** Para variantes como "Pedir eliminación" (ver MovementRow). */
+  confirmLabel?: string;
+  pendingLabel?: string;
+  noteHint?: string;
+  /** Error devuelto por la acción, se muestra arriba de los botones. */
+  error?: string | null;
 }) {
   return (
     <Tag className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-3 text-sm">
       <p className="text-red-600">{message}</p>
       <form action={action} className="mt-2 flex flex-col gap-2">
         {requireNote && (
-          <TextareaField id="note" label="Motivo" hint="Por qué se elimina — queda en el historial" required rows={2} />
+          <TextareaField id="note" label="Motivo" hint={noteHint} required rows={2} />
         )}
         {children}
+        {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex items-center gap-3">
           <button type="button" onClick={onCancel} className="text-xs text-foreground/50">
             Volver
           </button>
-          <SubmitButton pendingLabel="Eliminando…" variant="danger" className="ml-auto h-auto px-2.5 py-1 text-xs">
-            Sí, eliminar
+          <SubmitButton pendingLabel={pendingLabel} variant="danger" className="ml-auto h-auto px-2.5 py-1 text-xs">
+            {confirmLabel}
           </SubmitButton>
         </div>
       </form>
