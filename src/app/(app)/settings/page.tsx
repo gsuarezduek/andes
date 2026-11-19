@@ -38,7 +38,7 @@ const options: { href: string; title: string; description: string }[] = [
   {
     href: "/settings/emails",
     title: "Correos electrónicos",
-    description: "Textos de los correos al cliente y casilla desde donde se envían.",
+    description: "Quién recibe cada correo (actas, informe mensual), remitente y textos de las actas.",
   },
   {
     href: "/settings/whatsapp",

@@ -8,6 +8,7 @@ import { displayName } from "@/lib/user-display";
 import { parseDecimal } from "@/lib/number-input";
 import { formatArs } from "@/lib/contract";
 import { diffFields } from "@/lib/movement-audit";
+import { parseMonthlyReportRoles } from "@/lib/email/monthly-report-recipients";
 
 const CONDITION_LABELS = {
   kmPerDay: "Km por día",
@@ -72,8 +73,6 @@ export async function saveConditions(formData: FormData) {
     deductibleReducedTruck: moneyOrNull(formData.get("deductibleReducedTruck")),
     kmPackPrice: moneyOrNull(formData.get("kmPackPrice")),
     kmPackPriceTruck: moneyOrNull(formData.get("kmPackPriceTruck")),
-    sendHandoverActa: formData.get("sendHandoverActa") === "on",
-    sendReturnActa: formData.get("sendReturnActa") === "on",
     serviceOverdueRedPercent: intOrNull(formData.get("serviceOverdueRedPercent")),
   };
 
@@ -93,8 +92,6 @@ export async function saveConditions(formData: FormData) {
           deductibleReducedTruck: existing.deductibleReducedTruck != null ? Number(existing.deductibleReducedTruck) : null,
           kmPackPrice: existing.kmPackPrice != null ? Number(existing.kmPackPrice) : null,
           kmPackPriceTruck: existing.kmPackPriceTruck != null ? Number(existing.kmPackPriceTruck) : null,
-          sendHandoverActa: existing.sendHandoverActa,
-          sendReturnActa: existing.sendReturnActa,
           serviceOverdueRedPercent: existing.serviceOverdueRedPercent,
         },
         data,
@@ -133,7 +130,7 @@ function strOrNull(v: FormDataEntryValue | null): string | null {
  * i18n. `fromAddress` pisa la env var EMAIL_FROM.
  */
 export async function saveEmailSettings(formData: FormData) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const fields = [
     "fromAddress",
     "esHandoverSubject",
@@ -155,12 +152,52 @@ export async function saveEmailSettings(formData: FormData) {
     fields.map((f) => [f, strOrNull(formData.get(f))]),
   ) as Record<(typeof fields)[number], string | null>;
 
-  await prisma.emailSettings.upsert({
+  const monthly = {
+    monthlyReportRoles: parseMonthlyReportRoles(formData.getAll("monthlyReportRoles")),
+    monthlyReportToOwner: formData.get("monthlyReportToOwner") === "on",
+  };
+
+  // El envío de actas al cliente vive en ConditionSettings (de cuando estaba en
+  // "Condiciones y checklist"); el cambio queda en su mismo historial.
+  const acta = {
+    sendHandoverActa: formData.get("sendHandoverActa") === "on",
+    sendReturnActa: formData.get("sendReturnActa") === "on",
+  };
+  const existing = await prisma.conditionSettings.findUnique({
     where: { id: 1 },
-    create: { id: 1, ...data },
-    update: data,
+    select: { sendHandoverActa: true, sendReturnActa: true },
   });
+  const changes = diffFields(
+    {
+      sendHandoverActa: existing?.sendHandoverActa ?? true,
+      sendReturnActa: existing?.sendReturnActa ?? true,
+    },
+    acta,
+    CONDITION_LABELS,
+    formatConditionValue,
+  );
+
+  await prisma.$transaction([
+    prisma.emailSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, ...data, ...monthly },
+      update: { ...data, ...monthly },
+    }),
+    prisma.conditionSettings.upsert({
+      where: { id: 1 },
+      create: { id: 1, ...acta },
+      update: acta,
+    }),
+    ...(changes.length > 0
+      ? [
+          prisma.conditionSettingsEdit.create({
+            data: { changes, editedById: user.id, editedByName: displayName(user) },
+          }),
+        ]
+      : []),
+  ]);
   revalidatePath("/settings/emails");
+  revalidatePath("/settings/general");
   redirect("/settings/emails?saved=1");
 }
 

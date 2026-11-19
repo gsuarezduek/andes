@@ -8,6 +8,7 @@ const REASON_LABEL: Record<Exclude<MonthlyReportResult, { sent: true }>["reason"
   "email-no-configurado": "Falta configurar el email (Resend) en el servidor.",
   "ia-no-configurada": "Falta configurar ANTHROPIC_API_KEY en el servidor.",
   "error-ia": "La IA no pudo generar el informe — probá de nuevo.",
+  "sin-destinatarios": "No hay destinatarios: elegilos en Configuración → Correos electrónicos.",
 };
 
 /** Botón "Generar informe (IA) y enviarlo por email" — solo para un mes ya cerrado (ver page.tsx). */
@@ -37,7 +38,8 @@ export function MonthlyReportButton({
         <div>
           <p className="text-sm font-medium">Informe mensual con IA</p>
           <p className="text-xs text-foreground/50">
-            Genera una narrativa con Claude sobre los números de este mes y la manda por email al admin.
+            Genera una narrativa con Claude sobre los números de este mes y la manda por email a los
+            destinatarios elegidos en Configuración → Correos electrónicos.
           </p>
         </div>
         <button
@@ -51,7 +53,7 @@ export function MonthlyReportButton({
       </div>
       {result &&
         (result.sent ? (
-          <p className="text-sm font-medium text-emerald-600">Enviado a {result.to} ✓</p>
+          <p className="text-sm font-medium text-emerald-600">Enviado a {result.to.join(", ")} ✓</p>
         ) : (
           <p className="text-sm font-medium text-red-600">{REASON_LABEL[result.reason]}</p>
         ))}

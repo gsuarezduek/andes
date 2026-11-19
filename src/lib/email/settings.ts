@@ -1,6 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { UserRole } from "@prisma/client";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
+import {
+  DEFAULT_MONTHLY_REPORT_ROLES,
+  DEFAULT_MONTHLY_REPORT_TO_OWNER,
+  resolveMonthlyReportRecipients,
+  type MonthlyReportRecipient,
+} from "@/lib/email/monthly-report-recipients";
 
 /** Devuelve el valor recortado, o el fallback si viene vacío/null. */
 function pick(override: string | null | undefined, fallback: string): string {
@@ -59,4 +66,35 @@ export async function resolveEmailConfig(locale: Locale): Promise<ResolvedEmailC
       regards: pick(o.regards, dictEmail.regards),
     },
   };
+}
+
+/** Casilla remitente: la de Configuración → Correos o, si está vacía, EMAIL_FROM. */
+export async function resolveFromAddress(): Promise<string | null> {
+  const settings = await prisma.emailSettings.findUnique({
+    where: { id: 1 },
+    select: { fromAddress: true },
+  });
+  return pick(settings?.fromAddress, "") || process.env.EMAIL_FROM || null;
+}
+
+/** Quiénes reciben el informe mensual según Configuración → Correos. */
+export async function getMonthlyReportRecipients(): Promise<{
+  roles: UserRole[];
+  toOwner: boolean;
+  recipients: MonthlyReportRecipient[];
+}> {
+  const [settings, users] = await Promise.all([
+    prisma.emailSettings.findUnique({
+      where: { id: 1 },
+      select: { monthlyReportRoles: true, monthlyReportToOwner: true },
+    }),
+    prisma.user.findMany({
+      where: { active: true },
+      select: { name: true, email: true, role: true, owner: true, active: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const roles = settings?.monthlyReportRoles ?? DEFAULT_MONTHLY_REPORT_ROLES;
+  const toOwner = settings?.monthlyReportToOwner ?? DEFAULT_MONTHLY_REPORT_TO_OWNER;
+  return { roles, toOwner, recipients: resolveMonthlyReportRecipients(users, { roles, toOwner }) };
 }

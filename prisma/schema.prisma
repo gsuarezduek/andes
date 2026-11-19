@@ -2005,6 +2005,12 @@ model EmailSettings {
   enAttachmentNote  String? @map("en_attachment_note")
   enRegards         String? @map("en_regards")
 
+  // Informe mensual (/reports → "Generar y enviar"): le llega a los usuarios
+  // activos con alguno de estos roles, más el propietario si
+  // `monthlyReportToOwner`. Ya no va a ADMIN_EMAIL.
+  monthlyReportRoles   UserRole[] @default([observador]) @map("monthly_report_roles")
+  monthlyReportToOwner Boolean    @default(true) @map("monthly_report_to_owner")
+
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("email_settings")

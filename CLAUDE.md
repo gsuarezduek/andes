@@ -1374,6 +1374,16 @@ Antes, "Exportar CSV" de Caja → Movimientos (admin) bajaba siempre todo el per
 
 El iCal de Booking a veces une días cerrados contiguos y una estadía figura con noches de más (Sofía Müller: 13→15/11 en el iCal, 1 noche cobrada). Ahora las fechas de una estadía importada se corrigen en su ficha, **solo desde el día de entrada** (`canCorrectImportedDates`, `src/lib/rooms/dates.ts`, testeada): antes las sigue mandando la plataforma (si el huésped cambia la reserva, tiene que verse), y la entrada corregida no puede quedar en el futuro. Cualquier rol. Migración `add_room_booking_dates_edited`: `RoomBooking.datesEditedAt/ByName` (con eso el sync ya no toca las fechas, mismo patrón que `placesEditedAt`) y `originalStartDate/EndDate` (lo que decía el calendario la primera vez). La ficha muestra "Fechas corregidas por X · fecha (el calendario decía …)". Verificado en navegador a 375px como empleado.
 
+## v120 — Configuración → Correos: quién recibe qué, destinatarios del informe mensual y envío de actas
+
+Pedido del dueño. tsc/lint/build/1071 tests en verde (+6 en `monthly-report-recipients.test.ts`); verificado con Playwright a 375px y 1280px contra la base local (destinatarios en vivo, vista previa, guardado de roles/textos/actas, y que guardar "Condiciones y checklist" ya no toca el envío de actas; datos de prueba borrados). Migración `add_monthly_report_recipients` **aplicada solo en local, sin desplegar todavía**.
+
+- **Página rediseñada** (`/settings/emails`): arriba un resumen **"Quién recibe qué"** (actas, informe mensual, resumen diario, contrato de cesión) con lo guardado; después Casillas, Actas al cliente, Informe mensual y el texto del correo de las actas, con un solo "Guardar cambios" fijo abajo.
+- **Casilla de administración en solo lectura**: muestra `ADMIN_EMAIL` (o un aviso rojo si falta) y qué recibe. Se sigue cambiando solo en Railway.
+- **Envío de actas al cliente** se movió acá desde "Condiciones y checklist" (ahí queda un link). Los campos siguen en `ConditionSettings.sendHandoverActa/sendReturnActa` y los cambios siguen en su historial; `saveConditions` ya no los escribe (sin las casillas en ese form, los habría apagado).
+- **Destinatarios del informe mensual** (`EmailSettings.monthlyReportRoles` UserRole[] default `[observador]` + `monthlyReportToOwner` default true): casillas por rol (Empleado/Administrador/Finanzas/Socio) + Propietario, con la lista real de destinatarios recalculada en vivo. **El informe ya no va a `ADMIN_EMAIL`.** Lógica pura en `src/lib/email/monthly-report-recipients.ts`; lectura en `getMonthlyReportRecipients` (`src/lib/email/settings.ts`). Quien no ve las cuentas "Solo Finanzas" recibe un informe calculado sin ellas (`getReports(period, false)`), así que con destinatarios de los dos tipos se generan dos informes (dos llamadas a Claude). Sin destinatarios, el botón de Reportes avisa. El informe ahora usa el remitente de Configuración (`resolveFromAddress`), como las actas.
+- **Texto del correo**: pestañas Español/Inglés (las dos montadas, para que se guarden ambas), bloques Entrega/Devolución/Partes comunes y **vista previa en vivo** (`EmailTextsEditor`).
+
 ## Pendientes que dependen del dueño
 
 - ~~Acceso read-only a WordPress para Fase 0~~ ✅ provisto y descubrimiento hecho.

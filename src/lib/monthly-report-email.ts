@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { formatArs } from "@/lib/contract";
 import { formatDuration } from "@/lib/reports-metrics";
 import { getReports, reportPeriodLabel, type Reports, type ReportPeriod } from "@/lib/reports";
+import { getMonthlyReportRecipients, resolveFromAddress } from "@/lib/email/settings";
 import { buildReportFigures, generateMonthlySummary, type MonthlyAiSummary } from "@/lib/reports-ai-summary";
 
 function formatPercent(value: number | null): string {
@@ -65,20 +66,21 @@ export function buildMonthlyReportEmail(
 }
 
 export type MonthlyReportResult =
-  | { sent: true; subject: string; to: string }
-  | { sent: false; reason: "email-no-configurado" | "ia-no-configurada" | "error-ia" };
+  | { sent: true; subject: string; to: string[] }
+  | { sent: false; reason: "email-no-configurado" | "ia-no-configurada" | "error-ia" | "sin-destinatarios" };
 
 /**
  * Calcula el informe del período, le pide la narrativa a Claude y lo manda
- * por Resend al admin. Best-effort, mismo criterio que
- * `sendDailySummaryEmail` — avisa por consola y no revienta si algo no está
- * configurado. La usa el botón manual de /reports (admin).
+ * por Resend a los destinatarios elegidos en Configuración → Correos
+ * (roles + propietario). Quien no ve las cuentas "solo Finanzas" recibe una
+ * versión calculada sin ellas — mismo criterio que /reports —, así que puede
+ * haber dos informes (y dos narrativas) distintos. Best-effort, mismo
+ * criterio que `sendDailySummaryEmail`. La usa el botón manual de /reports.
  */
 export async function sendMonthlyReportEmail(period: ReportPeriod): Promise<MonthlyReportResult> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  const to = process.env.ADMIN_EMAIL;
-  if (!apiKey || !from || !to) {
+  const from = await resolveFromAddress();
+  if (!apiKey || !from) {
     console.warn("[monthly-report] Resend no configurado — email omitido");
     return { sent: false, reason: "email-no-configurado" };
   }
@@ -87,23 +89,34 @@ export async function sendMonthlyReportEmail(period: ReportPeriod): Promise<Mont
     return { sent: false, reason: "ia-no-configurada" };
   }
 
-  const reports = await getReports(period);
+  const { recipients } = await getMonthlyReportRecipients();
+  if (recipients.length === 0) return { sent: false, reason: "sin-destinatarios" };
+
   const monthLabel = reportPeriodLabel(period);
-  const figures = buildReportFigures(reports, monthLabel);
+  const groups = [
+    { fullAccess: true, to: recipients.filter((r) => r.fullAccess).map((r) => r.email) },
+    { fullAccess: false, to: recipients.filter((r) => !r.fullAccess).map((r) => r.email) },
+  ].filter((g) => g.to.length > 0);
 
-  let ai: MonthlyAiSummary;
-  try {
-    ai = await generateMonthlySummary(figures, monthLabel);
-  } catch (e) {
-    console.error("[monthly-report] Claude no devolvió el informe", e);
-    return { sent: false, reason: "error-ia" };
+  // Primero se generan todos (si la IA falla, no sale ninguno a medias).
+  const emails: { to: string[]; subject: string; html: string }[] = [];
+  for (const g of groups) {
+    const reports = await getReports(period, g.fullAccess);
+    let ai: MonthlyAiSummary;
+    try {
+      ai = await generateMonthlySummary(buildReportFigures(reports, monthLabel), monthLabel);
+    } catch (e) {
+      console.error("[monthly-report] Claude no devolvió el informe", e);
+      return { sent: false, reason: "error-ia" };
+    }
+    emails.push({ to: g.to, ...buildMonthlyReportEmail(reports, period, ai) });
   }
-
-  const { subject, html } = buildMonthlyReportEmail(reports, period, ai);
 
   const { Resend } = await import("resend");
   const resend = new Resend(apiKey);
-  await resend.emails.send({ from, to: [to], subject, html });
+  for (const e of emails) {
+    await resend.emails.send({ from, to: e.to, subject: e.subject, html: e.html });
+  }
 
-  return { sent: true, subject, to };
+  return { sent: true, subject: emails[0].subject, to: recipients.map((r) => r.email) };
 }

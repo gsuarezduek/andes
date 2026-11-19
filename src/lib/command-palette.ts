@@ -53,7 +53,7 @@ const COMMANDS: Command[] = [
   { id: "settings-expense-categories", label: "Categorías de gasto", href: "/settings/expense-categories", group: "Configuración", keywords: ["egresos"], adminOnly: true },
   { id: "settings-contract", label: "Contrato", href: "/settings/contract", group: "Configuración", keywords: ["condiciones generales", "clausulas", "legal", "firma", "acta"], adminOnly: true },
   { id: "settings-owner-contract", label: "Contrato de cesión", href: "/settings/owner-contract", group: "Configuración", keywords: ["terceros", "propietario", "dueño", "titular", "clausulas"], adminOnly: true },
-  { id: "settings-emails", label: "Correos electrónicos", href: "/settings/emails", group: "Configuración", keywords: ["mails", "resend", "acta"], adminOnly: true },
+  { id: "settings-emails", label: "Correos electrónicos", href: "/settings/emails", group: "Configuración", keywords: ["mails", "resend", "acta", "informe mensual", "destinatarios"], adminOnly: true },
   { id: "settings-whatsapp", label: "Cuenta de WhatsApp", href: "/settings/whatsapp", group: "Configuración", keywords: ["chakra", "webhook", "plantillas"], adminOnly: true },
   { id: "settings-whatsapp-bot", label: "Bot de WhatsApp", href: "/settings/whatsapp/bot", group: "Configuración", keywords: ["ia", "entrenar", "prompt", "documentos"], adminOnly: true },
   { id: "settings-cloud", label: "Nube (uso de espacio)", href: "/settings/cloud", group: "Configuración", keywords: ["r2", "base de datos", "archivos"], adminOnly: true },

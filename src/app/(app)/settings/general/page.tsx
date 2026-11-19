@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -165,21 +166,13 @@ export default async function GeneralSettingsPage({
             />
           </div>
 
-          <div className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-4">
-            <SubsectionTitle description="El admin siempre recibe una copia; esto solo controla si también le llega al cliente.">
-              Envío de actas al cliente
-            </SubsectionTitle>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="sendHandoverActa" defaultChecked={conditions?.sendHandoverActa ?? true} className="size-4" />
-                Enviar Acta de Entrega
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="sendReturnActa" defaultChecked={conditions?.sendReturnActa ?? true} className="size-4" />
-                Enviar Acta de Devolución
-              </label>
-            </div>
-          </div>
+          <p className="rounded-xl border border-dashed border-foreground/15 p-3 text-xs text-foreground/60">
+            ¿Buscás si al cliente le llegan las actas? Ahora está en{" "}
+            <Link href="/settings/emails" className="font-medium underline">
+              Configuración → Correos electrónicos
+            </Link>
+            .
+          </p>
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-foreground/50">
