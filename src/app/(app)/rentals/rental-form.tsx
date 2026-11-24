@@ -4,10 +4,11 @@ import { useActionState, useEffect, useRef, useState, type ChangeEvent } from "r
 import { TextField, SelectField, FormError } from "@/components/ui/fields";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ButtonLink } from "@/components/ui/button";
+import { OptionOrTextField } from "@/components/ui/option-or-text-field";
 import { languageLabels } from "@/lib/labels";
 import type { FormState } from "./actions/schemas";
 
-type VehicleOption = { id: string; label: string };
+type VehicleOption = { id: string; label: string; thirdParty: boolean };
 
 type Action = (state: FormState, formData: FormData) => Promise<FormState>;
 
@@ -20,15 +21,20 @@ const EMPTY_VALUES = {
   vehicleId: "",
   startAt: "",
   endAt: "",
+  pickupPlace: "",
+  returnPlace: "",
   language: "es",
 };
 
 export function RentalForm({
   action,
   vehicles,
+  placeOptions,
 }: {
   action: Action;
   vehicles: VehicleOption[];
+  /** Lugares de retiro/devolución de la web (ver `getBookingPlaceOptions`). */
+  placeOptions: string[];
 }) {
   const [state, formAction] = useActionState(action, {});
   const fieldErrors = state.fieldErrors ?? {};
@@ -44,6 +50,11 @@ export function RentalForm({
   const setField =
     (key: keyof typeof values) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setValues((v) => ({ ...v, [key]: e.target.value }));
+  const setValue = (key: keyof typeof values) => (value: string) => setValues((v) => ({ ...v, [key]: value }));
+
+  // Un auto de tercero no pasa por VikRentCar, así que nadie más carga dónde
+  // se retira y se devuelve: se pide acá (obligatorio).
+  const isThirdParty = vehicles.some((v) => v.id === values.vehicleId && v.thirdParty);
 
   // Mismo criterio que EditDetailsForm: si el auto elegido se rechaza (ya
   // reservado en esas fechas, etc.), traer el <select> a la vista además de
@@ -152,6 +163,31 @@ export function RentalForm({
           error={fieldErrors.endAt}
         />
       </div>
+
+      {isThirdParty && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <OptionOrTextField
+            id="pickupPlace"
+            label="Lugar de retiro"
+            options={placeOptions}
+            value={values.pickupPlace}
+            onChange={setValue("pickupPlace")}
+            required
+            error={fieldErrors.pickupPlace}
+            placeholder="Ej. Aeropuerto, oficina centro…"
+          />
+          <OptionOrTextField
+            id="returnPlace"
+            label="Lugar de devolución"
+            options={placeOptions}
+            value={values.returnPlace}
+            onChange={setValue("returnPlace")}
+            required
+            error={fieldErrors.returnPlace}
+            placeholder="Ej. Aeropuerto, oficina centro…"
+          />
+        </div>
+      )}
 
       <SelectField
         id="language"

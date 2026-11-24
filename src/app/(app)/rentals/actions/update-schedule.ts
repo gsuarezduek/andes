@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { mendozaWallTimeToUtc } from "@/lib/datetime";
 import { findOverlappingRental, overlapErrorMessage } from "@/lib/rental-overlap";
 import { autoUnverifyRental } from "@/lib/rental-verification-server";
+import { isManualThirdPartyRental } from "@/lib/rental-flags";
 import { scheduleSchema, zodFieldErrors, type FormState } from "./schemas";
 
 /**
@@ -19,6 +20,11 @@ import { scheduleSchema, zodFieldErrors, type FormState } from "./schemas";
  * sigue `reserved` (el auto todavía no se entregó); la devolución
  * (`endAt`/`returnPlace`) también en `active`. Esto es una corrección de
  * dato, sin cargo — para una extensión real con cobro está `extendRental`.
+ *
+ * En un alquiler manual de un auto de tercero (que no pasa por VikRentCar) el
+ * mismo form también corrige el método de pago y el idioma: el form los manda
+ * solo en ese caso, y acá se ignoran en cualquier otro (en las reservas de la
+ * web los trae el sync).
  */
 export async function updateRentalSchedule(
   _prev: FormState,
@@ -32,6 +38,8 @@ export async function updateRentalSchedule(
     pickupPlace: formData.get("pickupPlace"),
     endAt: formData.get("endAt"),
     returnPlace: formData.get("returnPlace"),
+    bookingPaymentMethod: formData.get("bookingPaymentMethod") ?? undefined,
+    language: formData.get("language") ?? undefined,
   });
   if (!parsed.success) {
     return {
@@ -40,7 +48,10 @@ export async function updateRentalSchedule(
     };
   }
 
-  const rental = await prisma.rental.findUnique({ where: { id: parsed.data.rentalId } });
+  const rental = await prisma.rental.findUnique({
+    where: { id: parsed.data.rentalId },
+    include: { vehicle: { select: { ownership: true } } },
+  });
   if (!rental) return { error: "El alquiler no existe." };
   if (rental.status !== "reserved" && rental.status !== "active") {
     return { error: "No se puede modificar un alquiler finalizado o cancelado." };
@@ -79,6 +90,14 @@ export async function updateRentalSchedule(
   const placesChanged =
     nextPickupPlace !== (rental.bookingPickupPlace ?? null) || nextReturnPlace !== (rental.bookingReturnPlace ?? null);
 
+  const editsBookingInfo = isManualThirdPartyRental(rental);
+  const bookingInfoData = editsBookingInfo
+    ? {
+        bookingPaymentMethod: parsed.data.bookingPaymentMethod ?? null,
+        ...(parsed.data.language ? { language: parsed.data.language } : {}),
+      }
+    : {};
+
   await prisma.$transaction(async (tx) => {
     await tx.rental.update({
       where: { id: rental.id },
@@ -86,6 +105,7 @@ export async function updateRentalSchedule(
         ...(canEditPickup ? { startAt: nextStartAt, bookingPickupPlace: nextPickupPlace } : {}),
         endAt: nextEndAt,
         bookingReturnPlace: nextReturnPlace,
+        ...bookingInfoData,
         ...(datesChanged ? { datesEditedAt: new Date() } : {}),
         ...(placesChanged ? { placesEditedAt: new Date() } : {}),
       },

@@ -40,7 +40,8 @@ import { MergeDuplicateSection } from "@/components/rentals/merge-duplicate-sect
 import { BookingNoteSection } from "@/components/rentals/booking-note-section";
 import { formatDateTime } from "@/lib/datetime";
 import { getRentalDetail, getEditableVehicles, getMergeCandidates } from "@/lib/rental-detail-queries";
-import { computeRentalFlags } from "@/lib/rental-flags";
+import { computeRentalFlags, isManualThirdPartyRental } from "@/lib/rental-flags";
+import { getBookingPaymentMethodOptions, getBookingPlaceOptions } from "@/lib/booking-options";
 import { computeRentalPayments, paymentAccent } from "@/lib/rental-payments";
 import { getCurrentUsdRate } from "@/lib/usd-rate-queries";
 import { getConversationForRental, isSessionWindowOpen } from "@/lib/whatsapp/conversations";
@@ -95,6 +96,17 @@ export default async function RentalDetailPage({
     canEditReturn,
     canExtendRental,
   } = computeRentalFlags(rental);
+
+  // Alquiler manual de un auto de tercero: no pasa por VikRentCar, así que
+  // "Datos de pago y retiro" se edita acá (lugares de la lista de la web,
+  // método de pago, idioma) en vez de solo hora/lugar en Inspecciones.
+  const thirdPartyManual = isManualThirdPartyRental(rental);
+  const bookingInfoOptions =
+    thirdPartyManual && canEditReturn
+      ? await Promise.all([getBookingPlaceOptions(), getBookingPaymentMethodOptions()]).then(
+          ([placeOptions, paymentOptions]) => ({ placeOptions, paymentOptions }),
+        )
+      : undefined;
 
   // Antes de la entrega se pueden editar contacto y vehículo aquí mismo.
   const editableVehicles = canStartHandover ? await getEditableVehicles() : [];
@@ -344,6 +356,14 @@ export default async function RentalDetailPage({
             <div className="flex flex-col gap-3">
               <SectionTitle>Datos de pago y retiro</SectionTitle>
               <DateInfoSection rental={rental} />
+              {bookingInfoOptions && (
+                <ScheduleEditSection
+                  rental={rental}
+                  canEditPickup={canEditPickup}
+                  canEditReturn={canEditReturn}
+                  bookingInfo={bookingInfoOptions}
+                />
+              )}
               <RentalExtensionsSection extensions={resolvedExtensions} />
               <RentalTotalChangesSection changes={totalChanges.filter((c) => c.status !== "pending")} />
               {showPayments && (
@@ -387,11 +407,13 @@ export default async function RentalDetailPage({
           )
         }
         inspecciones={
-          !canEditReturn && rental.inspections.length === 0 ? (
+          (!canEditReturn || bookingInfoOptions) && rental.inspections.length === 0 ? (
             <TabEmpty>Todavía no hay inspecciones registradas.</TabEmpty>
           ) : (
             <>
-              <ScheduleEditSection rental={rental} canEditPickup={canEditPickup} canEditReturn={canEditReturn} />
+              {!bookingInfoOptions && (
+                <ScheduleEditSection rental={rental} canEditPickup={canEditPickup} canEditReturn={canEditReturn} />
+              )}
               <InspectionsSection rentalId={rental.id} inspections={rental.inspections} />
             </>
           )

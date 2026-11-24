@@ -6,10 +6,14 @@ export function ScheduleEditSection({
   rental,
   canEditPickup,
   canEditReturn,
+  bookingInfo,
 }: {
   rental: RentalDetail;
   canEditPickup: boolean;
   canEditReturn: boolean;
+  /** Alquiler manual de un auto de tercero: suma método de pago e idioma, y
+   *  los lugares se eligen de la lista de la web. */
+  bookingInfo?: { placeOptions: string[]; paymentOptions: string[] };
 }) {
   if (!canEditReturn) return null;
 
@@ -22,6 +26,13 @@ export function ScheduleEditSection({
       endAt={formatDateTimeInput(rental.endAt)}
       returnPlace={rental.bookingReturnPlace ?? ""}
       isActive={rental.status === "active"}
+      bookingInfo={
+        bookingInfo && {
+          ...bookingInfo,
+          paymentMethod: rental.bookingPaymentMethod ?? "",
+          language: rental.language,
+        }
+      }
     />
   );
 }

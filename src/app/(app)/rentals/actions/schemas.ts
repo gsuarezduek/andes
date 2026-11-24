@@ -47,6 +47,9 @@ export const rentalSchema = z.object({
   vehicleId: optionalStr,
   startAt: z.string().min(1, "La fecha de retiro es obligatoria"),
   endAt: z.string().min(1, "La fecha de devolución es obligatoria"),
+  // Solo se piden (y son obligatorios) si el auto es de un tercero — ver create.ts.
+  pickupPlace: optionalStr,
+  returnPlace: optionalStr,
   language: z.enum(["es", "en"]),
 });
 
@@ -71,4 +74,8 @@ export const scheduleSchema = z.object({
   pickupPlace: optionalStr,
   endAt: z.string().min(1, "La fecha de devolución es obligatoria"),
   returnPlace: optionalStr,
+  // Solo en alquileres manuales de autos de terceros (ver update-schedule.ts):
+  // el form los manda solo en ese caso.
+  bookingPaymentMethod: optionalStr,
+  language: z.enum(["es", "en"]).optional(),
 });

@@ -1,4 +1,4 @@
-import type { Rental } from "@prisma/client";
+import type { Rental, VehicleOwnership } from "@prisma/client";
 
 type RentalFlagsInput = Pick<Rental, "status" | "origin" | "vehicleId"> & {
   inspections: { type: string }[];
@@ -52,4 +52,16 @@ export function computeRentalFlags(rental: RentalFlagsInput): RentalFlags {
     canEditReturn,
     canExtendRental,
   };
+}
+
+/**
+ * Alquiler manual de un auto de un tercero: no pasa por VikRentCar, así que
+ * el equipo carga y corrige en Andes lo que en una reserva de la web trae el
+ * sync (lugares, método de pago, idioma) — ver `EditBookingInfoForm`.
+ */
+export function isManualThirdPartyRental(rental: {
+  origin: Rental["origin"];
+  vehicle: { ownership: VehicleOwnership } | null;
+}): boolean {
+  return rental.origin === "manual" && rental.vehicle?.ownership === "third_party";
 }
