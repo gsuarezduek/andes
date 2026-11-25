@@ -46,7 +46,7 @@ npm run db:studio    # prisma studio
 Tailwind, PWA, i18n es/en, helpers de zona horaria Mendoza, `.env.example`,
 mapeo de VikRentCar documentado). Pendiente de accesos del dueño: verificación
 del esquema real de VikRentCar, deploy a Railway y subdominio
-`andes.mdzrentacar.com`. Ver el detalle en `CLAUDE.md` → "Estado actual".
+`andes.mdzrentacar.com`. Ver el detalle en `docs/features/`.
 
 ## Convenciones
 

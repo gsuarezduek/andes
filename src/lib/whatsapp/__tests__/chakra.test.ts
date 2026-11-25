@@ -29,7 +29,7 @@ describe("verifyWebhookSignature", () => {
 });
 
 // Formato real (pass-through de Meta), capturado contra una cuenta real de
-// Chakra el 2026-09-06 — ver CLAUDE.md v20.
+// Chakra el 2026-09-06 — ver docs/features/whatsapp.md v20.
 describe("parseInboundEvent", () => {
   it("extrae un mensaje de texto (payload real capturado en producción)", () => {
     const payload = {

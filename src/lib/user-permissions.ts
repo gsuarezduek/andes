@@ -4,7 +4,7 @@ export type UserPerm = { id: string; role: Role; owner: boolean };
 
 /**
  * Orden jerárquico de los roles: cada uno tiene además todo lo del anterior
- * (empleado < admin < finanzas < observador). Ver CLAUDE.md — Finanzas suma
+ * (empleado < admin < finanzas < observador). Ver docs/features/usuarios-auth.md — Finanzas suma
  * la visibilidad de las cuentas `PaymentMethod.financeOnly`; Socio suma
  * además quedar afuera de las listas operativas (`OPERATOR_FILTER`).
  * Propietario (`User.owner`) es un flag aparte, no un rango más: por

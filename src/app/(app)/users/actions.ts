@@ -80,7 +80,7 @@ export async function createUser(
  * Toda otra referencia al usuario (inspecciones firmadas, ediciones de
  * condiciones, notas de equipo, Caja, daños, tareas, WhatsApp) queda intacta:
  * la FK se pone en null pero cada fila ya guardó el nombre congelado al
- * momento del hecho (`*Name` — ver v34 en CLAUDE.md), así que sigue
+ * momento del hecho (`*Name` — ver v34 en docs/features), así que sigue
  * mostrándose igual aunque el usuario ya no exista. El catch de P2003 abajo
  * es solo una red defensiva por si en el futuro se agrega una relación
  * obligatoria a `User` sin el mismo patrón.

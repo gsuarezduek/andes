@@ -4,7 +4,7 @@
  * para calcular el sugerido al instante (sin ida y vuelta al servidor)
  * apenas se completa la selección de días — un archivo con `server-only`
  * bloquea el import completo desde un componente cliente, incluso de una
- * función pura (mismo gotcha ya documentado en v28 de CLAUDE.md).
+ * función pura (mismo gotcha ya documentado en v28, docs/features/whatsapp.md).
  *
  * `Vehicle.dailyRate` es la tarifa de HOY (el sync ya le aplica el % de
  * temporada vigente hoy, ver `computeDailyRate` en src/lib/sync/rates.ts) —

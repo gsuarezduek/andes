@@ -2,7 +2,7 @@
  * Adaptador hacia Chakra (chakrahq.com), el BSP (Business Solution Provider)
  * que actúa de intermediario hacia la WhatsApp Cloud API de Meta.
  *
- * Historial de verificación (ver CLAUDE.md v19/v20 para el detalle completo):
+ * Historial de verificación (ver docs/features/whatsapp.md v19/v20 para el detalle completo):
  * primero se armó contra una integración hermana sin acceso a Chakra; se
  * corrigió contra la documentación pública (apidocs.chakrahq.com) — eso SÍ
  * confirmó el prefijo `/v1/ext` en las rutas de mensajería/plantillas y que
@@ -331,7 +331,7 @@ interface MetaMessage {
 /**
  * Normaliza el payload del webhook a una lista de mensajes entrantes.
  *
- * ⚠️ CONFIRMADO CONTRA UNA CUENTA REAL (2026-09-06, ver CLAUDE.md v20): con
+ * ⚠️ CONFIRMADO CONTRA UNA CUENTA REAL (2026-09-06, ver docs/features/whatsapp.md v20): con
  * el toggle "Pass-through webhook" de Chakra activado, el payload que llega
  * es el formato NATIVO de la Cloud API de Meta (`entry[].changes[].value...`,
  * timestamp en SEGUNDOS) — no el formato propio `{event, payload}` que
@@ -404,7 +404,7 @@ interface MetaMessageEcho extends Omit<MetaMessage, "from"> {
  * contestados desde la app no aparecen como respondidos en Andes, revisar
  * los logs de Railway para confirmar la forma real del payload antes de
  * seguir ajustando esto a ciegas (mismo método que se usó para
- * `parseInboundEvent`, ver CLAUDE.md v20).
+ * `parseInboundEvent`, ver docs/features/whatsapp.md v20).
  *
  * `type: "edit"` y `"revoke"` (el usuario editó o borró un mensaje ya
  * mandado desde la app) se ignoran a propósito — fuera de alcance del MVP,
