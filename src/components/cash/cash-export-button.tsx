@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { buttonClass } from "@/components/ui/button";
-import { groupSubaccounts } from "@/lib/subaccount-order";
+import { AccountCheckboxList } from "./account-multi-select";
 import { cashPeriodSearch, type CashPeriod } from "@/lib/cash-period";
 import {
   NO_CATEGORY,
@@ -14,13 +14,6 @@ import {
 } from "@/lib/cash-movement-filter";
 import type { CashMovementRow } from "@/lib/cash";
 import type { ExpenseCategoryOption, PaymentMethodOption } from "./cash-movements-board";
-
-const GROUPS = [
-  { ownership: "own", label: "Propias" },
-  { ownership: "associate", label: "Asociados" },
-  { ownership: "provider", label: "Proveedores" },
-  { ownership: "misc", label: "Varios" },
-] as const;
 
 const TYPE_OPTIONS: { value: CashMovementTypeFilter; label: string }[] = [
   { value: "all", label: "Ingresos y egresos" },
@@ -42,7 +35,7 @@ export function CashExportButton({
   expenseCategories,
   period,
   periodLabel,
-  initialAccountId,
+  initialAccountIds,
   initialCategoryId,
 }: {
   incomes: CashMovementRow[];
@@ -51,7 +44,7 @@ export function CashExportButton({
   expenseCategories: ExpenseCategoryOption[];
   period: CashPeriod;
   periodLabel: string;
-  initialAccountId: string;
+  initialAccountIds: string[];
   initialCategoryId: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -60,14 +53,10 @@ export function CashExportButton({
   const [categoryId, setCategoryId] = useState("");
 
   function openModal() {
-    setAccountIds(initialAccountId ? [initialAccountId] : []);
+    setAccountIds(initialAccountIds);
     setCategoryId(initialCategoryId);
     setType("all");
     setOpen(true);
-  }
-
-  function toggleAccount(id: string) {
-    setAccountIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   const effectiveCategory = type === "income" ? "" : categoryId;
@@ -117,42 +106,7 @@ export function CashExportButton({
 
           <fieldset className="flex flex-col gap-1.5">
             <legend className="mb-1.5 font-medium text-foreground/80">Cuentas</legend>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={accountIds.length === 0}
-                onChange={() => setAccountIds([])}
-                className="h-4 w-4"
-              />
-              Todas las cuentas
-            </label>
-            <div className="flex max-h-60 flex-col gap-3 overflow-y-auto rounded-lg border border-foreground/10 p-3">
-              {GROUPS.map((g) => {
-                const methods = paymentMethods.filter((m) => m.ownership === g.ownership);
-                if (methods.length === 0) return null;
-                return (
-                  <div key={g.ownership} className="flex flex-col gap-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50">{g.label}</p>
-                    {groupSubaccounts(methods).map(({ item, isChild }) => {
-                      const parentChecked = isChild && !!item.parentId && accountIds.includes(item.parentId);
-                      return (
-                        <label key={item.id} className={`flex items-center gap-2 ${isChild ? "ml-5" : ""}`}>
-                          <input
-                            type="checkbox"
-                            checked={parentChecked || accountIds.includes(item.id)}
-                            disabled={parentChecked}
-                            onChange={() => toggleAccount(item.id)}
-                            className="h-4 w-4"
-                          />
-                          {isChild && <span className="text-foreground/40">↳</span>}
-                          {item.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+            <AccountCheckboxList paymentMethods={paymentMethods} value={accountIds} onChange={setAccountIds} />
             <p className="text-xs text-foreground/50">
               Podés marcar varias (ej. débito y crédito). Una cuenta principal incluye sus subcuentas. Un egreso entra
               si la cuenta es su origen o su destino.

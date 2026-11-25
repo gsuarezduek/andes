@@ -8,6 +8,7 @@ import { movementRowKey } from "./movement-row-key";
 import { CashPeriodPicker } from "./cash-period-picker";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { CashExportButton } from "./cash-export-button";
+import { AccountMultiSelect } from "./account-multi-select";
 import { NO_CATEGORY, expandAccountIds, filterCashMovements } from "@/lib/cash-movement-filter";
 import { sumByCurrency } from "@/lib/currency";
 import type { CashMovementRow } from "@/lib/cash";
@@ -23,7 +24,7 @@ export type PaymentMethodOption = {
 export type ExpenseCategoryOption = { id: string; name: string };
 
 /**
- * Ingresos y egresos del período, con un filtro por cuenta (medio de pago,
+ * Ingresos y egresos del período, con un filtro por cuenta (una o varias,
  * achicado a la izquierda) y el selector de fecha (Hoy/Semana/Mes/fecha
  * puntual, a la derecha) en la misma fila. El filtro de cuenta es
  * client-side sobre los datos ya traídos para el período; el de fecha
@@ -44,74 +45,26 @@ export function CashMovementsBoard({
   period: CashPeriod;
   periodLabel: string;
 }) {
-  const [accountId, setAccountId] = useState("");
+  const [accountIds, setAccountIds] = useState<string[]>([]);
   // "" = todas, NO_CATEGORY = egresos sin categoría cargada.
   const [categoryId, setCategoryId] = useState("");
 
   // Elegir una cuenta principal (ver `PaymentMethod.parentId`) suma también
   // sus subcuentas — misma entidad. Mismo filtro que usa el export CSV
   // (`cash-movement-filter.ts`).
-  const subaccountIds = paymentMethods.filter((m) => m.parentId === accountId).map((m) => m.id);
+  const expandedIds = expandAccountIds(accountIds, paymentMethods);
   const { incomes: filteredIncomes, expenses: filteredExpenses } = filterCashMovements(
     { incomes, expenses },
-    { accountIds: accountId ? expandAccountIds([accountId], paymentMethods) : [], categoryId },
+    { accountIds: expandedIds, categoryId },
   );
-  const selectedAccount = paymentMethods.find((m) => m.id === accountId);
-  const selectedSubaccounts = paymentMethods.filter((m) => subaccountIds.includes(m.id));
-  const ownMethods = paymentMethods.filter((m) => m.ownership === "own");
-  const associateMethods = paymentMethods.filter((m) => m.ownership === "associate");
-  const providerMethods = paymentMethods.filter((m) => m.ownership === "provider");
-  const miscMethods = paymentMethods.filter((m) => m.ownership === "misc");
+  const selectedAccounts = paymentMethods.filter((m) => accountIds.includes(m.id));
+  // Subcuentas que entran solas por haber marcado su principal.
+  const selectedSubaccounts = paymentMethods.filter((m) => expandedIds.includes(m.id) && !accountIds.includes(m.id));
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-foreground/80">Cuenta</span>
-          <select
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            className="h-11 w-48 rounded-lg border border-foreground/15 bg-transparent px-3 text-sm outline-none focus:border-foreground/40"
-          >
-            <option value="">Todas las cuentas</option>
-            {ownMethods.length > 0 && (
-              <optgroup label="Propias">
-                {ownMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {associateMethods.length > 0 && (
-              <optgroup label="Asociados">
-                {associateMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {providerMethods.length > 0 && (
-              <optgroup label="Proveedores">
-                {providerMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {miscMethods.length > 0 && (
-              <optgroup label="Varios">
-                {miscMethods.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
+        <AccountMultiSelect paymentMethods={paymentMethods} value={accountIds} onChange={setAccountIds} />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-foreground/80">Categoría (egresos)</span>
           <select
@@ -137,7 +90,7 @@ export function CashMovementsBoard({
             expenseCategories={expenseCategories}
             period={period}
             periodLabel={periodLabel}
-            initialAccountId={accountId}
+            initialAccountIds={accountIds}
             initialCategoryId={categoryId}
           />
         </div>
@@ -145,41 +98,49 @@ export function CashMovementsBoard({
 
       {selectedSubaccounts.length > 0 && (
         <p className="-mt-2 text-xs text-foreground/50">
-          Incluye {selectedSubaccounts.length === 1 ? "su subcuenta" : "sus subcuentas"}:{" "}
+          Incluye {selectedSubaccounts.length === 1 ? "la subcuenta" : "las subcuentas"}:{" "}
           {selectedSubaccounts.map((m) => m.name).join(", ")}.
         </p>
       )}
 
-      {selectedAccount &&
+      {selectedAccounts.length > 0 &&
         (() => {
           const incomeTotals = sumByCurrency(filteredIncomes);
           const expenseTotals = sumByCurrency(filteredExpenses);
-          // Para una cuenta ajena (asociado/proveedor), "Ingreso − Egreso" no
+          const label =
+            selectedAccounts.length === 1 ? selectedAccounts[0].name : `${selectedAccounts.length} cuentas`;
+          // Para cuentas ajenas (asociado/proveedor), "Ingreso − Egreso" no
           // significa nada — no es plata que entra/sale de una cuenta
           // nuestra. Lo que importa ahí es cuánto le llegó en total, sea
           // porque el cliente le pagó directo (Ingreso) o porque se le pagó
-          // (Egreso): las dos formas terminan en sus manos igual.
-          const isThirdParty = selectedAccount.ownership !== "own";
-          const thirdLabel = isThirdParty ? "Total entregado" : "Neto";
-          const thirdTotals = isThirdParty
+          // (Egreso): las dos formas terminan en sus manos igual. Mezclando
+          // propias y ajenas ninguna de las dos cuentas tiene sentido, así
+          // que esa tarjeta no se muestra.
+          const allThirdParty = selectedAccounts.every((m) => m.ownership !== "own");
+          const allOwn = selectedAccounts.every((m) => m.ownership === "own");
+          const thirdLabel = allThirdParty ? "Total entregado" : "Neto";
+          const thirdTotals = allThirdParty
             ? { ars: incomeTotals.ars + expenseTotals.ars, usd: incomeTotals.usd + expenseTotals.usd }
             : { ars: incomeTotals.ars - expenseTotals.ars, usd: incomeTotals.usd - expenseTotals.usd };
+          const showThird = allOwn || allThirdParty;
           return (
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div className={`grid gap-3 text-center ${showThird ? "grid-cols-3" : "grid-cols-2"}`}>
               <div className="rounded-lg border border-foreground/10 p-3">
-                <p className="text-xs text-foreground/50">Ingresos · {selectedAccount.name}</p>
+                <p className="text-xs text-foreground/50">Ingresos · {label}</p>
                 <CurrencyTotalsDisplay totals={incomeTotals} toneClass="text-emerald-600" />
               </div>
               <div className="rounded-lg border border-foreground/10 p-3">
-                <p className="text-xs text-foreground/50">Egresos · {selectedAccount.name}</p>
+                <p className="text-xs text-foreground/50">Egresos · {label}</p>
                 <CurrencyTotalsDisplay totals={expenseTotals} toneClass="text-red-600" />
               </div>
-              <div className="rounded-lg border border-foreground/10 p-3">
-                <p className="text-xs text-foreground/50">
-                  {thirdLabel} · {selectedAccount.name}
-                </p>
-                <CurrencyTotalsDisplay totals={thirdTotals} />
-              </div>
+              {showThird && (
+                <div className="rounded-lg border border-foreground/10 p-3">
+                  <p className="text-xs text-foreground/50">
+                    {thirdLabel} · {label}
+                  </p>
+                  <CurrencyTotalsDisplay totals={thirdTotals} />
+                </div>
+              )}
             </div>
           );
         })()}
