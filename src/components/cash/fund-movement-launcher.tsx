@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { TextField, TextareaField } from "@/components/ui/fields";
@@ -16,7 +16,14 @@ type FundMovementType = "deposit" | "withdrawal";
  * mismo formulario (modal), parametrizado por tipo. Puramente informativo —
  * no mueve saldo de Caja (ver `createFundMovement`).
  */
-export function FundMovementLauncher({ paymentMethodId }: { paymentMethodId: string }) {
+export function FundMovementLauncher({
+  paymentMethodId,
+  children,
+}: {
+  paymentMethodId: string;
+  /** Botones extra en la misma fila (ej. "Mostrar movimientos"). */
+  children?: ReactNode;
+}) {
   const [open, setOpen] = useState<FundMovementType | null>(null);
   return (
     <>
@@ -27,6 +34,7 @@ export function FundMovementLauncher({ paymentMethodId }: { paymentMethodId: str
         <Button type="button" variant="secondary" onClick={() => setOpen("withdrawal")}>
           + Retirar de fondos
         </Button>
+        {children}
       </div>
       <Modal
         open={open !== null}

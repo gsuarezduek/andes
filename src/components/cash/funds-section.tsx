@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { SectionTitle } from "@/components/ui/section-title";
 import { CurrencyTotalsDisplay } from "./currency-totals-display";
 import { FundMovementLauncher } from "./fund-movement-launcher";
@@ -11,6 +15,9 @@ import type { FundMovementRow } from "@/lib/investment-funds-queries";
  * historial. Puramente informativo — no afecta el saldo de Caja de la cuenta
  * (ver `PaymentMethod.hasInvestmentFunds` en el schema). Solo se renderiza si
  * la cuenta tiene el flag activado (Configuración → Medios de pago).
+ *
+ * El historial arranca plegado ("Mostrar movimientos", junto a depositar/
+ * retirar): con el saldo del fondo alcanza para el día a día.
  */
 export function FundsSection({
   paymentMethodId,
@@ -21,6 +28,7 @@ export function FundsSection({
   balance: CurrencyTotals;
   movements: FundMovementRow[];
 }) {
+  const [showMovements, setShowMovements] = useState(false);
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-violet-500/25 bg-violet-500/[0.04] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -34,9 +42,18 @@ export function FundsSection({
             + Ingreso / + Egreso.
           </p>
         </div>
-        <FundMovementLauncher paymentMethodId={paymentMethodId} />
+        <FundMovementLauncher paymentMethodId={paymentMethodId}>
+          <Button
+            type="button"
+            variant="secondary"
+            aria-expanded={showMovements}
+            onClick={() => setShowMovements((v) => !v)}
+          >
+            {showMovements ? "Ocultar movimientos" : `Mostrar movimientos (${movements.length})`}
+          </Button>
+        </FundMovementLauncher>
       </div>
-      <FundMovementList movements={movements} />
+      {showMovements && <FundMovementList movements={movements} />}
     </div>
   );
 }
