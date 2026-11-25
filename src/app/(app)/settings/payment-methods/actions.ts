@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { PaymentMethodOwnership, CommissionMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -102,6 +102,9 @@ export type PaymentMethodUpdateInput = {
   expenseCommissionPercent: string;
   expenseCommissionFixed: string;
   expenseCommissionCategoryId: string | null;
+  // Categoría del gasto en Reportes (solo proveedores/asociados, solo la
+  // cuenta principal) — ver `PaymentMethod.accountExpenseCategoryId`.
+  accountExpenseCategoryId: string | null;
   // Corrección manual del saldo calculado (no tiene sentido en `misc`, que no
   // lleva cuenta corriente) — ver `PaymentMethod.balanceAdjustmentArs/Usd` en
   // el schema. Vacío = sin ajuste.
@@ -219,6 +222,9 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
     if (expenseMode === "custom" && u.expenseCommissionCategoryId && !categoryIds.has(u.expenseCommissionCategoryId)) {
       throw new Error(`La categoría de la comisión por egreso de "${u.name.trim()}" ya no existe.`);
     }
+    if (u.accountExpenseCategoryId && !categoryIds.has(u.accountExpenseCategoryId)) {
+      throw new Error(`La categoría del gasto de "${u.name.trim()}" ya no existe.`);
+    }
     expenseCommissions.set(u.id, {
       mode: own ? expenseMode : "none",
       percent: own && expenseMode === "custom" && expensePercent ? expensePercent : null,
@@ -259,6 +265,11 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
           expenseCommissionPercent: isBitcoin ? null : expenseCommissions.get(u.id)!.percent,
           expenseCommissionFixed: isBitcoin ? null : expenseCommissions.get(u.id)!.fixed,
           expenseCommissionCategoryId: isBitcoin ? null : expenseCommissions.get(u.id)!.categoryId,
+          // Solo cuentas corrientes y solo la principal (las subcuentas heredan).
+          accountExpenseCategoryId:
+            (u.ownership === "associate" || u.ownership === "provider") && !u.parentId
+              ? (u.accountExpenseCategoryId ?? null)
+              : null,
           // No tiene sentido en `misc` (sin cuenta corriente) — ahí se guarda en 0.
           balanceAdjustmentArs: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentArs),
           balanceAdjustmentUsd: u.ownership === "misc" ? 0 : amountOrZero(u.balanceAdjustmentUsd),
@@ -269,6 +280,8 @@ export async function updatePaymentMethods(updates: PaymentMethodUpdateInput[]) 
   );
   revalidatePath("/settings/payment-methods");
   revalidatePath("/caja");
+  // La categoría del gasto de una cuenta corriente cambia la torta de Reportes (cacheado).
+  revalidateTag("reports", "max");
 }
 
 export async function togglePaymentMethod(id: string) {

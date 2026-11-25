@@ -9,6 +9,9 @@ import {
   sortVehicleReports,
   aggregateCashByOwnership,
   aggregateExpensesByCategory,
+  expenseCategoryEntries,
+  CURRENT_ACCOUNTS_CATEGORY_ID,
+  CURRENT_ACCOUNTS_CATEGORY_NAME,
   bucketWhatsAppConversations,
   conversionPercent,
   parseReportPeriod,
@@ -178,7 +181,14 @@ describe("aggregateCashByOwnership", () => {
       { type: "expense", amount: 200, paymentMethodOwnership: "own" }, // ownership del egreso se ignora, cualquiera sea
       { type: "expense", amount: 50, paymentMethodOwnership: "provider" },
     ]);
-    expect(result).toEqual({ incomeOwn: 1500, incomeThirdParty: 420, incomeUnclassified: 0, expenseTotal: 250 });
+    expect(result).toEqual({
+      incomeOwn: 1500,
+      incomeThirdParty: 420,
+      incomeUnclassified: 0,
+      // 250 de egresos reales + 420 que el cliente le pagó directo a cuentas corrientes.
+      expenseTotal: 670,
+      expenseViaCurrentAccounts: 420,
+    });
   });
 
   it("un ingreso sin ownership conocido (medio de pago borrado) cae en incomeUnclassified", () => {
@@ -194,7 +204,60 @@ describe("aggregateCashByOwnership", () => {
       incomeThirdParty: 0,
       incomeUnclassified: 0,
       expenseTotal: 0,
+      expenseViaCurrentAccounts: 0,
     });
+  });
+});
+
+describe("expenseCategoryEntries", () => {
+  const base = { categoryId: null, categoryName: null, recipientOwnership: null, accountCategory: null } as const;
+  const operativos = { id: "op", name: "Gastos operativos" };
+
+  it("un ingreso a cuenta corriente es también un egreso, con la categoría de la cuenta", () => {
+    expect(
+      expenseCategoryEntries([
+        { ...base, type: "income", amount: 100, paymentMethodOwnership: "provider", accountCategory: operativos },
+      ]),
+    ).toEqual([{ categoryId: "op", categoryName: "Gastos operativos", amount: 100 }]);
+  });
+
+  it("sin categoría en la cuenta, va a Egresos vía cuentas corrientes", () => {
+    expect(
+      expenseCategoryEntries([{ ...base, type: "income", amount: 80, paymentMethodOwnership: "associate" }]),
+    ).toEqual([{ categoryId: CURRENT_ACCOUNTS_CATEGORY_ID, categoryName: CURRENT_ACCOUNTS_CATEGORY_NAME, amount: 80 }]);
+  });
+
+  it("un ingreso a cuenta propia no genera egreso", () => {
+    expect(expenseCategoryEntries([{ ...base, type: "income", amount: 500, paymentMethodOwnership: "own" }])).toEqual([]);
+  });
+
+  it("un pago a un proveedor: gana la categoría propia del pago; si no tiene, la de la cuenta", () => {
+    expect(
+      expenseCategoryEntries([
+        {
+          ...base,
+          type: "expense",
+          amount: 50,
+          paymentMethodOwnership: "own",
+          recipientOwnership: "provider",
+          categoryId: "comb",
+          categoryName: "Combustible",
+          accountCategory: operativos,
+        },
+        { ...base, type: "expense", amount: 30, paymentMethodOwnership: "own", recipientOwnership: "provider", accountCategory: operativos },
+        { ...base, type: "expense", amount: 20, paymentMethodOwnership: "own", recipientOwnership: "provider" },
+      ]),
+    ).toEqual([
+      { categoryId: "comb", categoryName: "Combustible", amount: 50 },
+      { categoryId: "op", categoryName: "Gastos operativos", amount: 30 },
+      { categoryId: CURRENT_ACCOUNTS_CATEGORY_ID, categoryName: CURRENT_ACCOUNTS_CATEGORY_NAME, amount: 20 },
+    ]);
+  });
+
+  it("un egreso sin categoría ni cuenta corriente queda sin categoría", () => {
+    expect(
+      expenseCategoryEntries([{ ...base, type: "expense", amount: 10, paymentMethodOwnership: "own", recipientOwnership: "misc" }]),
+    ).toEqual([{ categoryId: null, categoryName: null, amount: 10 }]);
   });
 });
 

@@ -82,6 +82,10 @@ export type VehicleReport = {
  * de pago elegido. Los egresos van en un único total sin separar: el Origen
  * de un egreso puede ser cualquier cuenta (propia o ajena), así que "propio
  * vs ajeno" no aporta información ahí — decisión tomada con el dueño.
+ * Un ingreso a cuenta ajena (el cliente le pagó directo al proveedor o
+ * asociado) cuenta también como egreso: salda lo que le debemos, aunque la
+ * plata no pase por nosotros (`expenseViaCurrentAccounts`, ya incluido en
+ * `expenseTotal`).
  * `incomeUnclassified` cubre el caso raro de un ingreso cuyo medio de pago
  * se borró después (se pierde el ownership; el nombre snapshot queda pero no
  * de qué tipo de cuenta era).
@@ -91,6 +95,7 @@ export type CashByOwnership = {
   incomeThirdParty: number;
   incomeUnclassified: number;
   expenseTotal: number;
+  expenseViaCurrentAccounts: number;
 };
 
 export type ExpenseCategoryReport = {
@@ -319,26 +324,100 @@ export const VEHICLE_SORT_KEYS = [
 export type VehicleSortKey = (typeof VEHICLE_SORT_KEYS)[number];
 export const DEFAULT_VEHICLE_SORT: VehicleSortKey = "income";
 
+// Lo necesario para resolver la categoría del gasto de una cuenta corriente
+// (las subcuentas heredan la de su principal).
+const ACCOUNT_CATEGORY_SELECT = {
+  ownership: true,
+  accountExpenseCategory: { select: { id: true, name: true } },
+  parent: { select: { accountExpenseCategory: { select: { id: true, name: true } } } },
+} as const;
+
+type AccountCategorySource = {
+  accountExpenseCategory: { id: string; name: string } | null;
+  parent: { accountExpenseCategory: { id: string; name: string } | null } | null;
+};
+
+function resolvedAccountCategory(account: AccountCategorySource): { id: string; name: string } | null {
+  return account.parent ? account.parent.accountExpenseCategory : account.accountExpenseCategory;
+}
+
 type CashMovementForOwnership = {
   type: "income" | "expense";
   amount: number;
   paymentMethodOwnership: PaymentMethodOwnership | null;
 };
 
+function isCurrentAccount(ownership: PaymentMethodOwnership | null): boolean {
+  return ownership === "associate" || ownership === "provider";
+}
+
 /** Agrega movimientos de Caja por cuenta propia/ajena (ver `CashByOwnership`). Pura y testeable. */
 export function aggregateCashByOwnership(movements: CashMovementForOwnership[]): CashByOwnership {
-  const result: CashByOwnership = { incomeOwn: 0, incomeThirdParty: 0, incomeUnclassified: 0, expenseTotal: 0 };
+  const result: CashByOwnership = {
+    incomeOwn: 0,
+    incomeThirdParty: 0,
+    incomeUnclassified: 0,
+    expenseTotal: 0,
+    expenseViaCurrentAccounts: 0,
+  };
   for (const m of movements) {
     if (m.type === "expense") {
       result.expenseTotal += m.amount;
       continue;
     }
     if (m.paymentMethodOwnership === "own") result.incomeOwn += m.amount;
-    else if (m.paymentMethodOwnership === "associate" || m.paymentMethodOwnership === "provider") {
+    else if (isCurrentAccount(m.paymentMethodOwnership)) {
       result.incomeThirdParty += m.amount;
+      // También egreso: salda lo que le debemos a esa cuenta corriente.
+      result.expenseViaCurrentAccounts += m.amount;
+      result.expenseTotal += m.amount;
     } else result.incomeUnclassified += m.amount;
   }
   return result;
+}
+
+/** Porción de la torta para lo pagado a cuentas corrientes sin categoría definida en la cuenta. */
+export const CURRENT_ACCOUNTS_CATEGORY_ID = "current-accounts";
+export const CURRENT_ACCOUNTS_CATEGORY_NAME = "Egresos vía cuentas corrientes";
+
+export type CashMovementForExpenseCategory = {
+  type: "income" | "expense";
+  amount: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  paymentMethodOwnership: PaymentMethodOwnership | null;
+  recipientOwnership: PaymentMethodOwnership | null;
+  // Categoría del gasto de la cuenta corriente involucrada, ya resuelta a la
+  // principal (`PaymentMethod.accountExpenseCategoryId`): la del medio de pago
+  // en un ingreso, la del destino en un egreso.
+  accountCategory: { id: string; name: string } | null;
+};
+
+/**
+ * Egresos que van a la torta por categoría (pura y testeable):
+ * - egreso con categoría propia → esa;
+ * - egreso a una cuenta corriente sin categoría propia → la de la cuenta, o
+ *   "Egresos vía cuentas corrientes";
+ * - ingreso a una cuenta corriente → egreso implícito (ver `CashByOwnership`),
+ *   con la categoría de la cuenta o "Egresos vía cuentas corrientes";
+ * - el resto de los egresos sin categoría → "Sin categoría".
+ */
+export function expenseCategoryEntries(movements: CashMovementForExpenseCategory[]): CashMovementForCategory[] {
+  const viaAccount = (category: { id: string; name: string } | null) =>
+    category
+      ? { categoryId: category.id, categoryName: category.name }
+      : { categoryId: CURRENT_ACCOUNTS_CATEGORY_ID, categoryName: CURRENT_ACCOUNTS_CATEGORY_NAME };
+  const entries: CashMovementForCategory[] = [];
+  for (const m of movements) {
+    if (m.type === "expense") {
+      if (m.categoryId) entries.push({ categoryId: m.categoryId, categoryName: m.categoryName, amount: m.amount });
+      else if (isCurrentAccount(m.recipientOwnership)) entries.push({ ...viaAccount(m.accountCategory), amount: m.amount });
+      else entries.push({ categoryId: null, categoryName: null, amount: m.amount });
+    } else if (isCurrentAccount(m.paymentMethodOwnership)) {
+      entries.push({ ...viaAccount(m.accountCategory), amount: m.amount });
+    }
+  }
+  return entries;
 }
 
 type CashMovementForCategory = {
@@ -488,6 +567,10 @@ export const getReports = unstable_cache(
             type: { in: ["income", "expense"] },
             createdAt: { gte: periodRange.start, lt: periodRange.end },
             deletedAt: null,
+            // Las garantías (toma y devolución) no son plata de la empresa. Lo
+            // cobrado al resolver una garantía sí: es un ingreso aparte con
+            // `isGuarantee: false` y entra igual.
+            isGuarantee: false,
             // `OR null`: un `notIn` solo descartaría también los importados sin medio de pago.
             ...(hiddenAccountIds.length
               ? { OR: [{ paymentMethodId: null }, { paymentMethodId: { notIn: hiddenAccountIds } }] }
@@ -500,7 +583,8 @@ export const getReports = unstable_cache(
             createdAt: true,
             categoryId: true,
             categoryName: true,
-            paymentMethod: { select: { ownership: true } },
+            paymentMethod: { select: ACCOUNT_CATEGORY_SELECT },
+            recipientPaymentMethod: { select: ACCOUNT_CATEGORY_SELECT },
           },
         }),
         // Reservas con retiro en el período. Los bloqueos de service/arreglo
@@ -776,9 +860,20 @@ export const getReports = unstable_cache(
     const cashIncomeTotal = cashByOwnership.incomeOwn + cashByOwnership.incomeThirdParty + cashByOwnership.incomeUnclassified;
 
     const expensesByCategory = aggregateExpensesByCategory(
-      cashInArs
-        .filter((m) => m.type === "expense")
-        .map((m) => ({ categoryId: m.categoryId, categoryName: m.categoryName, amount: m.amountArs })),
+      expenseCategoryEntries(
+        cashInArs.map((m) => {
+          const account = m.type === "income" ? m.paymentMethod : m.recipientPaymentMethod;
+          return {
+            type: m.type,
+            amount: m.amountArs,
+            categoryId: m.categoryId,
+            categoryName: m.categoryName,
+            paymentMethodOwnership: m.paymentMethod?.ownership ?? null,
+            recipientOwnership: m.recipientPaymentMethod?.ownership ?? null,
+            accountCategory: account ? resolvedAccountCategory(account) : null,
+          };
+        }),
+      ),
     );
 
     return {

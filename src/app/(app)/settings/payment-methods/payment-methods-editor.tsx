@@ -70,6 +70,7 @@ type Draft = {
   expenseCommissionPercent: string;
   expenseCommissionFixed: string;
   expenseCommissionCategoryId: string | null;
+  accountExpenseCategoryId: string | null;
   balanceAdjustmentArs: string;
   balanceAdjustmentUsd: string;
   balanceAdjustmentBtc: string;
@@ -111,6 +112,7 @@ function draftFrom(it: PlainPaymentMethod): Draft {
     expenseCommissionPercent: it.expenseCommissionPercent?.toString() ?? "",
     expenseCommissionFixed: it.expenseCommissionFixed?.toString() ?? "",
     expenseCommissionCategoryId: it.expenseCommissionCategoryId,
+    accountExpenseCategoryId: it.accountExpenseCategoryId,
     balanceAdjustmentArs: Number(it.balanceAdjustmentArs) === 0 ? "" : it.balanceAdjustmentArs.toString(),
     balanceAdjustmentUsd: Number(it.balanceAdjustmentUsd) === 0 ? "" : it.balanceAdjustmentUsd.toString(),
     balanceAdjustmentBtc: Number(it.balanceAdjustmentBtc) === 0 ? "" : it.balanceAdjustmentBtc.toString(),
@@ -138,6 +140,7 @@ function draftsEqual(a: Draft, b: Draft): boolean {
     a.expenseCommissionPercent === b.expenseCommissionPercent &&
     a.expenseCommissionFixed === b.expenseCommissionFixed &&
     a.expenseCommissionCategoryId === b.expenseCommissionCategoryId &&
+    a.accountExpenseCategoryId === b.accountExpenseCategoryId &&
     a.balanceAdjustmentArs === b.balanceAdjustmentArs &&
     a.balanceAdjustmentUsd === b.balanceAdjustmentUsd &&
     a.balanceAdjustmentBtc === b.balanceAdjustmentBtc
@@ -550,6 +553,30 @@ function PaymentMethodRow({
                   onChange={(id) => setField(item.id, "parentId", id || null)}
                   placeholder="Sin cuenta principal — buscar…"
                 />
+              ))}
+            {/* Categoría del gasto en Reportes: solo la cuenta principal (las
+                subcuentas heredan) — ver `PaymentMethod.accountExpenseCategoryId`. */}
+            {(draft.ownership === "associate" || draft.ownership === "provider") &&
+              (draft.parentId ? (
+                <p className="rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-xs text-foreground/60">
+                  Categoría del gasto: usa la de su cuenta principal
+                  {parentName ? ` (${parentName})` : ""}.
+                </p>
+              ) : (
+                <SelectField
+                  id={`accountExpenseCategoryId-${item.id}`}
+                  label="Categoría del gasto"
+                  hint='Con esta categoría cuenta Reportes lo que se le paga a esta cuenta: lo que el cliente le paga directo (suma como ingreso y como egreso) y los pagos que le hacemos. Se precarga en "+ Pago" y se puede cambiar. Las subcuentas usan esta.'
+                  value={draft.accountExpenseCategoryId ?? ""}
+                  onChange={(e) => setField(item.id, "accountExpenseCategoryId", e.target.value || null)}
+                >
+                  <option value="">Egresos vía cuentas corrientes</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </SelectField>
               ))}
             {draft.ownership === "own" && !draft.isBitcoin && (
               <div className="flex flex-col gap-2 rounded-lg border border-foreground/10 p-3">

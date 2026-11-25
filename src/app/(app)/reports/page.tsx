@@ -105,16 +105,20 @@ export default async function ReportsPage({
           <Kpi label="Egresos" value={formatArs(kpis.expenseTotal)} />
           <Kpi label="Neto" value={formatArs(kpis.netTotal)} tone={kpis.netTotal < 0 ? "bad" : "good"} />
         </div>
-        <div className={`grid grid-cols-2 gap-3 ${cashByOwnership.incomeUnclassified > 0 ? "sm:grid-cols-3" : ""}`}>
+        <div className={`grid grid-cols-2 gap-3 ${cashByOwnership.incomeUnclassified > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
           <Kpi label="Ingresos — cuenta propia" value={formatArs(cashByOwnership.incomeOwn)} />
           <Kpi label="Ingresos — cuenta ajena" value={formatArs(cashByOwnership.incomeThirdParty)} />
           {cashByOwnership.incomeUnclassified > 0 && (
             <Kpi label="Ingresos — sin clasificar" value={formatArs(cashByOwnership.incomeUnclassified)} />
           )}
+          <Kpi label="Egresos vía cuentas corrientes" value={formatArs(cashByOwnership.expenseViaCurrentAccounts)} />
         </div>
         <p className="text-xs text-foreground/40">
           Ingresos/Egresos/Neto son los movimientos reales de Caja del período — no el contrato de cada reserva
-          (por eso no van a coincidir con la tabla &quot;Por vehículo&quot; de abajo).
+          (por eso no van a coincidir con la tabla &quot;Por vehículo&quot; de abajo). Lo que un cliente le paga directo a
+          un proveedor o asociado (&quot;cuenta ajena&quot;) cuenta como ingreso y también como egreso (&quot;Egresos vía
+          cuentas corrientes&quot;, ya incluido en Egresos): salda lo que le debemos. Las garantías no se cuentan (lo
+          cobrado de una garantía, sí).
           {cashByOwnership.incomeUnclassified > 0 &&
             " \"Sin clasificar\" son ingresos cuyo medio de pago ya se borró."}{" "}
           Todo va en pesos: los movimientos en USD se convierten con el valor de referencia vigente cuando se cargaron.

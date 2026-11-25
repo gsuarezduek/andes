@@ -27,6 +27,8 @@ export type ThirdPartyBalance = {
    *  (cruce best-effort por teléfono) — null si no hay teléfono cargado, o si
    *  todavía no existe ninguna conversación con ese número. */
   whatsappConversationId: string | null;
+  /** Categoría del gasto de la cuenta principal (`PaymentMethod.accountExpenseCategoryId`) — se precarga en "+ Pago". */
+  expenseCategoryId: string | null;
 };
 
 /** Solo dígitos, para comparar dos teléfonos sin importar "+"/espacios/guiones. */
@@ -93,6 +95,8 @@ export async function resolveToPrincipal(
     // BTC iniciales de una cuenta Bitcoin (ver `balanceAdjustmentBtc` en el
     // schema) — 0 en cualquier otra.
     balanceAdjustmentBtc: number;
+    // Categoría del gasto (solo cuentas corrientes) — null en cualquier otra.
+    accountExpenseCategoryId: string | null;
   }[];
   resolve: Map<string, string>;
   memberIds: string[];
@@ -113,6 +117,7 @@ export async function resolveToPrincipal(
       financeOnly: true,
       isBitcoin: true,
       balanceAdjustmentBtc: true,
+      accountExpenseCategoryId: true,
     },
   });
   const resolve = new Map<string, string>();
@@ -132,6 +137,7 @@ export async function resolveToPrincipal(
       financeOnly: p.financeOnly,
       isBitcoin: p.isBitcoin,
       balanceAdjustmentBtc: Number(p.balanceAdjustmentBtc),
+      accountExpenseCategoryId: p.accountExpenseCategoryId,
     }));
   return { principals, resolve, memberIds: accounts.map((a) => a.id) };
 }
@@ -204,6 +210,7 @@ export async function getThirdPartyBalances(ownership: PaymentMethodOwnership): 
     balance: balances.get(p.id)!,
     subaccounts: p.subaccounts,
     whatsappConversationId: p.whatsappPhone ? (conversationByPhone.get(p.whatsappPhone) ?? null) : null,
+    expenseCategoryId: p.accountExpenseCategoryId,
   }));
 }
 

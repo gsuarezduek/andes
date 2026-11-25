@@ -1381,6 +1381,16 @@ model PaymentMethod {
   parent      PaymentMethod?  @relation("PaymentMethodSubaccounts", fields: [parentId], references: [id], onDelete: SetNull)
   subaccounts PaymentMethod[] @relation("PaymentMethodSubaccounts")
 
+  // Solo proveedores/asociados (cuentas corrientes), y solo en la cuenta
+  // principal: las subcuentas heredan la de su principal. Categoría de gasto
+  // con la que Reportes cuenta lo que se le paga a esta cuenta: los ingresos
+  // que el cliente le paga directo (cuentan como ingreso y también como
+  // egreso — saldan lo que le debemos) y los pagos reales sin categoría
+  // propia. Además se precarga en "+ Pago", editable. Sin categoría, Reportes
+  // los agrupa en "Egresos vía cuentas corrientes".
+  accountExpenseCategoryId String?               @map("account_expense_category_id")
+  accountExpenseCategory   CashMovementCategory? @relation("AccountExpenseCategory", fields: [accountExpenseCategoryId], references: [id], onDelete: SetNull)
+
   // Comisión que cobra esta cuenta por cada ingreso (ej. tarjeta, pasarela):
   // porcentaje del monto y/o monto fijo (este último solo en pesos). Cada
   // ingreso en esta cuenta genera solo un egreso por la comisión, de la misma
@@ -1686,6 +1696,7 @@ model CashMovementCategory {
   movements                CashMovement[]
   commissionMethods        PaymentMethod[] @relation("CommissionCategory")
   expenseCommissionMethods PaymentMethod[] @relation("ExpenseCommissionCategory")
+  accountExpenseMethods    PaymentMethod[] @relation("AccountExpenseCategory")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

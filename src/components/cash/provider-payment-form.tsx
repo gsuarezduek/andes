@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TextField, TextareaField } from "@/components/ui/fields";
+import { SelectField, TextField, TextareaField } from "@/components/ui/fields";
+import { useCashViewer } from "@/components/cash/cash-viewer-context";
 import { CurrencyToggle } from "@/components/cash/currency-toggle";
 import { PaymentMethodPicker } from "@/components/cash/payment-method-picker";
 import { createCashMovement } from "@/app/(app)/caja/actions";
@@ -17,7 +18,8 @@ type PaymentMethodOption = { id: string; name: string; requiresNote?: boolean };
  * entidad (la principal + subcuentas, si tiene — ver `PaymentMethod.parentId`),
  * preseleccionada en la principal, así se sabe por cuál rail salió sin tener
  * que buscarla entre todas las cuentas. El formulario se reduce a Detalle +
- * Monto + Origen + Destino. Aparece en Caja/Movimientos y en el resumen de
+ * Monto + Origen + Destino + Categoría (precargada con la de la cuenta —
+ * `PaymentMethod.accountExpenseCategoryId` —, editable). Aparece en Caja/Movimientos y en el resumen de
  * esta cuenta (Proveedores/Asociados) igual que si se hubiera cargado desde
  * ahí. Tras guardar, `onSuccess` cierra el form de vuelta a los dos botones
  * para que se vea el total actualizado.
@@ -31,13 +33,19 @@ export function ProviderPaymentForm({
 }: {
   onCancel: () => void;
   onSuccess?: () => void;
-  account: { id: string; name: string };
+  account: { id: string; name: string; expenseCategoryId?: string | null };
   destinoOptions: { id: string; name: string; requiresNote?: boolean; parentId?: string | null }[];
   paymentMethods: PaymentMethodOption[];
 }) {
   const [originId, setOriginId] = useState("");
   const [destinoId, setDestinoId] = useState(account.id);
   const [currency, setCurrency] = useState<Currency>("ars");
+  const { expenseCategories } = useCashViewer();
+  // La de la cuenta solo si sigue activa (si no, el select no la tendría).
+  const defaultCategoryId = expenseCategories.some((c) => c.id === account.expenseCategoryId)
+    ? (account.expenseCategoryId ?? "")
+    : "";
+  const [categoryId, setCategoryId] = useState(defaultCategoryId);
   const selectedOrigin = paymentMethods.find((m) => m.id === originId);
   const selectedDestino = destinoOptions.find((m) => m.id === destinoId);
 
@@ -105,6 +113,22 @@ export function ProviderPaymentForm({
           hint="Obligatorio para esta cuenta"
           required
         />
+      )}
+      {expenseCategories.length > 0 && (
+        <SelectField
+          id="categoryId"
+          label="Categoría"
+          hint={defaultCategoryId ? `La de ${account.name} — se puede cambiar.` : "Opcional"}
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+        >
+          <option value="">Sin categoría</option>
+          {expenseCategories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </SelectField>
       )}
       <SubmitButton pendingLabel="Guardando…" disabled={!originId}>
         Agregar pago
