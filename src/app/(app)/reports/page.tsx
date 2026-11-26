@@ -52,7 +52,7 @@ export default async function ReportsPage({
     : DEFAULT_VEHICLE_SORT;
   const dir = rawDir === "asc" ? "asc" : "desc";
 
-  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, revenue, extras, bookings } =
+  const { kpis, byMonth, highlightMonth, vehicles: unsortedVehicles, cashByOwnership, expensesByCategory, usdUnconverted, whatsapp, occupancy, thirdParty, revenue, extras, bookings } =
     await getReports(period, hasFinanceAccess(user.role, user.owner));
   const vehicles = sortVehicleReports(unsortedVehicles, sort, dir);
 
@@ -150,10 +150,28 @@ export default async function ReportsPage({
           Ocupación = días alquilados (de la entrega a la devolución, incluidos los alquileres en curso) sobre los días
           disponibles de la flota actual sin archivados. Flota activa = autos distintos que tuvieron algún alquiler en
           el período (no cuántos días). Ingreso por día, ticket y duración son de los alquileres finalizados del
-          período y usan el ingreso del contrato, no Caja.
+          período (incluidos los de autos de terceros) y usan el ingreso del contrato, no Caja.
         </p>
         <p className="text-xs font-medium text-foreground/60">Ocupación de la flota por mes</p>
         <OccupancyTrendChart data={occupancy.byMonth} />
+        {(thirdParty.units > 0 || thirdParty.rentedDays > 0) && (
+          <>
+            <p className="mt-2 text-xs font-medium text-foreground/60">Autos de terceros</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Kpi
+                label="Días alquilados"
+                value={thirdParty.rentedDays.toFixed(0)}
+                hint={`${thirdParty.activeUnits} de ${thirdParty.units} autos con alquiler`}
+              />
+              <Kpi label="Alquileres finalizados" value={String(thirdParty.finished)} />
+              <Kpi label="Ingreso" value={formatArs(thirdParty.income)} hint="de los finalizados, según contrato" />
+            </div>
+            <p className="text-xs text-foreground/40">
+              No entran en la ocupación de la flota de arriba. Los días se cuentan igual que en la ocupación (de la
+              entrega a la devolución, incluidos los alquileres en curso).
+            </p>
+          </>
+        )}
       </section>
 
       {/* Extras de la devolución */}

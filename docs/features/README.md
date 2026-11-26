@@ -161,3 +161,4 @@ En orden cronológico. Los números repetidos son secciones distintas.
 | v122 — Autos de terceros: lugares de retiro/devolución y "Datos de pago y retiro" editables | [vehiculos](vehiculos.md) |
 | v123 — Reportes: lo que el cliente le paga directo a una cuenta corriente cuenta también como egreso, con categoría por cuenta | [reportes](reportes.md) |
 | v124 — Caja → Movimientos: filtro por varias cuentas a la vez | [caja](caja.md) |
+| v125 — Reportes: resumen de autos de terceros en "Ocupación y rentabilidad" | [reportes](reportes.md) |

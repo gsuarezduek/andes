@@ -135,6 +135,15 @@ export type Reports = {
   // con el período ("flota activa") y la misma ocupación % mes a mes (mismos
   // meses que `byMonth`) para contextualizar el % puntual de arriba.
   occupancy: OccupancySummary & { activeFleetUnits: number; byMonth: OccupancyMonthPoint[] };
+  // Autos de terceros: quedan fuera de la ocupación de la flota (no son flota
+  // propia), así que se resumen aparte con un número general del período.
+  thirdParty: {
+    units: number; // autos de terceros sin archivar (hoy)
+    activeUnits: number; // autos de terceros distintos con algún alquiler en el período
+    rentedDays: number; // días alquilados en el período (mismo criterio que la ocupación)
+    finished: number; // alquileres finalizados en el período
+    income: number; // ingreso del contrato de esos finalizados (no Caja)
+  };
   // Sobre los alquileres finalizados del período (ingreso del contrato, no de Caja).
   revenue: {
     perRentedDay: number | null;
@@ -524,6 +533,7 @@ export const getReports = unstable_cache(
       cashMovementsRaw,
       bookingRentals,
       pendingConfirmation,
+      thirdPartyVehicles,
     ] = await Promise.all([
         // Sin filtrar archivados: un vehículo archivado sigue arrastrando su
         // historial de ingresos/costos del período, aunque ya no esté en la
@@ -601,6 +611,11 @@ export const getReports = unstable_cache(
         // Reservas futuras todavía sin confirmar en VikRentCar (estado de hoy).
         prisma.rental.count({
           where: { status: "reserved", bookingConfirmed: false, startAt: { gte: now } },
+        }),
+        // Autos de terceros (con archivados: sus días alquilados del período cuentan igual).
+        prisma.vehicle.findMany({
+          where: { ownership: "third_party" },
+          select: { id: true, archivedAt: true },
         }),
       ]);
 
@@ -705,6 +720,9 @@ export const getReports = unstable_cache(
     let daysCount = 0;
     let incomeWithDays = 0;
     const extrasSum = { km: 0, fuel: 0, damages: 0, total: 0 };
+    const thirdPartyIds = new Set(thirdPartyVehicles.map((v) => v.id));
+    let thirdPartyFinished = 0;
+    let thirdPartyIncome = 0;
     for (const r of finishedInRange) {
       const handover = r.inspections.find((i) => i.type === "handover");
       const ret = r.inspections.find((i) => i.type === "return_");
@@ -745,6 +763,11 @@ export const getReports = unstable_cache(
       extrasSum.damages += extras.damages;
       extrasSum.total += extras.total;
 
+      if (r.vehicleId && thirdPartyIds.has(r.vehicleId)) {
+        thirdPartyFinished += 1;
+        thirdPartyIncome += income;
+      }
+
       const v = r.vehicleId ? vMap.get(r.vehicleId) : undefined;
       if (v) {
         v.rentals += 1;
@@ -781,6 +804,20 @@ export const getReports = unstable_cache(
     const activeFleetUnits = new Set(
       occupancyIntervals
         .filter((iv) => overlapDays(iv.start, iv.end, periodRange.start, periodRange.end) > 0)
+        .map((iv) => iv.vehicleId),
+    ).size;
+    const thirdPartyRentedDays = computeOccupancy(
+      occupancyIntervals,
+      [...thirdPartyIds],
+      periodRange.start,
+      periodRange.end,
+    ).summary.rentedDays;
+    const thirdPartyActiveUnits = new Set(
+      occupancyIntervals
+        .filter(
+          (iv) =>
+            thirdPartyIds.has(iv.vehicleId) && overlapDays(iv.start, iv.end, periodRange.start, periodRange.end) > 0,
+        )
         .map((iv) => iv.vehicleId),
     ).size;
     // Ocupación % mes a mes (mismos meses que `byMonth`), contra la flota
@@ -891,6 +928,13 @@ export const getReports = unstable_cache(
       expensesByCategory,
       usdUnconverted,
       occupancy: { ...occupancy.summary, activeFleetUnits, byMonth: occupancyByMonth },
+      thirdParty: {
+        units: thirdPartyVehicles.filter((v) => v.archivedAt == null).length,
+        activeUnits: thirdPartyActiveUnits,
+        rentedDays: thirdPartyRentedDays,
+        finished: thirdPartyFinished,
+        income: thirdPartyIncome,
+      },
       revenue: {
         perRentedDay: daysSum > 0 ? incomeWithDays / daysSum : null,
         averageTicket: finishedCount > 0 ? incomeSum / finishedCount : null,
